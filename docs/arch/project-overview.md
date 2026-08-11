@@ -47,7 +47,7 @@ Must:
   * an agent that validates the quality of agent's interpretation of what it discovers as live music listing -- we need to develop a validation approach for agentic outputs
 * We will work with an open-weight AI model
 * It will be built on Next.js so that our calendar is discoverable and browseable by search engines
-* It will feature a micro-frontend architecture and component library
+* It will feature a component library
 * It will have Python / FastAPI backend
 * TBD: hosting - Vercel or AWS
 * We need to make the agent workflow auditable -- logging
