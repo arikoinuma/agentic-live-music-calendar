@@ -92,7 +92,8 @@ volumes:
 
 ## Phase 3: Backend skeleton (`apps/api`)
 
-- [ ] `uv add fastapi uvicorn[standard] sqlalchemy[asyncio] asyncpg alembic pydantic-settings structlog slowapi fastmcp resend`
+- go to the app directory `apps/api`
+- [ ] `uv add fastapi "uvicorn[standard]" "sqlalchemy[asyncio]" asyncpg alembic pydantic-settings structlog slowapi fastmcp resend` — the brackets need quoting under zsh (macOS's default shell), which treats unquoted `[...]` as a glob pattern and errors with "no matches found" rather than passing it through literally the way bash does. Run from inside `apps/api` (created in Phase 1) — `uv add` needs an existing `pyproject.toml`
 - [ ] `uv add --dev pytest pytest-asyncio ruff mypy polyfactory`
 - [ ] Write a minimal `app/main.py` with two routes — `/health` (returns 200, no dependencies, proves the process is up) and `/health/db` (runs `SELECT 1` against Postgres, proves the connection works) — and an `app/config.py` `Settings` class (via `pydantic-settings`) reading `DATABASE_URL`
 - [ ] Confirm it runs: `uv run uvicorn app.main:app --reload`, hit both `http://localhost:8000/health` and `http://localhost:8000/health/db`

@@ -1,0 +1,37 @@
+from fastapi import FastAPI, status
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
+
+from app.config import settings
+
+app = FastAPI()
+
+# create an async SQLAlchemy engine using settings.database_url.
+# create_async_engine() takes the connection string as its first argument.
+# This is created once, at import time, and reused for every request —
+# creating a new engine per request would open a fresh connection pool
+# every time, which defeats the point of pooling.
+engine = create_async_engine(settings.database_url)
+
+
+@app.get("/health", status_code=status.HTTP_200_OK)
+async def health():
+    return {"message": "up"}
+
+
+@app.get("/health/db")
+async def health_db():
+    # this route proves the app can actually reach Postgres.
+    # Steps:
+    #   1. Open a connection from the engine as an async context manager:
+    #        async with engine.connect() as conn:
+    #   2. Inside that block, run a trivial round-trip query:
+    #        await conn.execute(text("SELECT 1"))
+    #   3. Return something indicating success, e.g. a dict like the one
+    #      above.
+    # You don't need to catch exceptions yet — if the connection or query
+    # fails, SQLAlchemy raises, and FastAPI turns any uncaught exception
+    # into a 500 response on its own. That's a fine signal for this stage.
+    async with engine.connect() as conn:
+        await conn.execute(text("SELECT 1"))
+        return {"message": "db connection up"}

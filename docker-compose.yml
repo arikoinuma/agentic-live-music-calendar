@@ -1,7 +1,9 @@
 services:
+# database setup
   postgres:
     image: postgres:18
     environment:
+      # database credentials -- will need to update
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: calendar_dev
