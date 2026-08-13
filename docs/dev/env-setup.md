@@ -23,8 +23,12 @@ A sequential runbook from a blank MacBook Pro to all four services (Next.js, Fas
 
 ### Node.js, via nvm
 
-- [ ] `brew install nvm`, then follow brew's printed instructions to add it to `~/.zshrc`
+Install via the official script rather than `brew install nvm` — Homebrew's own package explicitly disclaims upstream support for the brew-managed version.
+
+- [ ] `curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash` — this appends the `NVM_DIR` init lines to the profile file for your *current default shell* (check with `echo $SHELL`)
+- [ ] Open a new terminal window and confirm `nvm --version` works before continuing. If your Mac's default shell is bash rather than zsh (check via `dscl . -read ~ UserShell`), either switch to zsh first (`chsh -s /bin/zsh`, then log out and back in — GUI apps like VS Code cache the old shell in their session environment until then) or manually add the init lines to `~/.bash_profile` as well, since login bash shells don't source `~/.bashrc` automatically
 - [ ] `nvm install 24 && nvm use 24 && nvm alias default 24` (24 is the current Active LTS line)
+- [ ] `which node` — confirm it resolves inside `~/.nvm/versions/node/...`, not `/opt/homebrew/bin/node`. If you have a pre-existing Homebrew-installed Node shadowing nvm's, `brew uninstall node` so nvm is the only source of truth (Homebrew's Node build also omits `corepack`, so the next step will fail with "command not found" if it wins)
 - [ ] `corepack enable pnpm` — pnpm is what Turborepo's own docs recommend for a monorepo like this
 
 ### Ollama, for local model inference
@@ -49,10 +53,10 @@ Install via the Extensions panel (⌘⇧X):
 ## Phase 1: Repo and monorepo scaffolding
 
 - [ ] `gh repo create agentic-live-music-calendar --public --clone && cd agentic-live-music-calendar`
-- [ ] `pnpm dlx create-turbo@latest .` — scaffolds `apps/` and `packages/`
-- [ ] Confirm the generated app becomes `apps/web` (rename if the template names it differently)
+- [ ] `pnpm dlx create-turbo@latest .` — the target directory must have no files besides `.git`, `.gitignore`, and `docs` (its allow-list, checked by exact name, is narrower than it looks — even a renamed `README.md.bak` counts as a conflict); scaffolds `apps/` (two Next.js apps, `web` and `docs`, by default) and `packages/`
+- [ ] Rename the generated apps to match the project's actual apps (e.g. `apps/web` → `apps/calendar`, `apps/docs` → `apps/admin`). A folder rename alone isn't enough — Turborepo and pnpm key off the `"name"` field in each app's `package.json`, not the folder name, so update that too (and any `--filter=` references, e.g. in `README.md`), then re-run `pnpm install` so the lockfile picks up the new package names
 - [ ] `mkdir apps/api && cd apps/api && uv init --python 3.13 && cd ../..` — the FastAPI backend and agent worker share this directory
-- [ ] Confirm `packages/ui` (shadcn-based component library) and `packages/config` (shared TS/ESLint config) exist; create them if the template didn't
+- [ ] Confirm `packages/ui` (shared component library) exists; the template splits shared config into `packages/eslint-config` and `packages/typescript-config` rather than one combined `packages/config` — that's fine, just note the actual names
 - [ ] First commit, push to GitHub
 
 ---
@@ -72,11 +76,13 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql
 
 volumes:
   pgdata:
 ```
+
+  The volume mounts at `/var/lib/postgresql` (the parent directory), not `/var/lib/postgresql/data` — Postgres 18+ images manage a version-specific subdirectory underneath themselves and refuse to start if a volume is mounted directly at the old `.../data` path
 
 - [ ] `docker compose up -d`
 - [ ] Confirm it's reachable: `docker compose exec postgres psql -U postgres -c '\conninfo'`
@@ -97,13 +103,44 @@ volumes:
 
 ---
 
-## Phase 4: Frontend skeleton (`apps/web`)
+## Phase 4: Frontend skeleton (`apps/calendar`, shared UI via `packages/ui`)
 
-- [ ] `pnpm dlx shadcn@latest init` — also wires up Tailwind
-- [ ] `pnpm dlx shadcn@latest add button` to confirm the component pipeline works
-- [ ] `pnpm add @js-temporal/polyfill --filter web`
+Since `calendar` and `admin` both need shared components (buttons, dropdowns, etc.), shadcn/ui components go into `packages/ui`, not into either app individually. This needs more manual setup than a single-app install: shadcn's CLI has no auto-retrofit for an existing monorepo like this one — its only monorepo awareness is the `--monorepo` flag, which scaffolds a brand-new project from scratch rather than adapting an existing one. Everything below was verified against the actual CLI, not assumed from docs.
+
+- [ ] Install Tailwind CSS in `apps/calendar` manually first — `shadcn init` does **not** do this for you, despite what older guides (including an earlier version of this doc) suggest; it fails preflight if Tailwind isn't already present. Add `tailwindcss`, `@tailwindcss/postcss`, `postcss` as dependencies, create `postcss.config.mjs` with the `@tailwindcss/postcss` plugin, and add `@import "tailwindcss";` to the top of `app/globals.css`
+- [ ] Add `"paths": { "@/*": ["./*"] }` under `compilerOptions` in `apps/calendar/tsconfig.json` — shadcn's init also refuses to proceed without a resolvable import alias
+- [ ] In `packages/ui`, add the same kind of alias pointing at its own source: `"paths": { "@repo/ui/*": ["./src/*"] }` in `packages/ui/tsconfig.json`. This is required for the next step — shadcn resolves aliases via `tsconfig.json`, not the package's `exports` map
+- [ ] Hand-write `packages/ui/components.json` — running `shadcn init` directly inside `packages/ui` fails, since its framework-detection only recognizes actual app frameworks (Next.js, Vite, etc.), not a bare shared package:
+
+  ```json
+  {
+    "$schema": "https://ui.shadcn.com/schema.json",
+    "style": "base-nova",
+    "rsc": true,
+    "tsx": true,
+    "tailwind": {
+      "css": "src/styles/globals.css",
+      "baseColor": "neutral",
+      "cssVariables": true
+    },
+    "iconLibrary": "lucide",
+    "aliases": {
+      "components": "@repo/ui/components",
+      "utils": "@repo/ui/lib/utils",
+      "hooks": "@repo/ui/hooks",
+      "ui": "@repo/ui/components"
+    }
+  }
+  ```
+
+  Create `packages/ui/src/styles/globals.css` with `@import "tailwindcss";` to match the `tailwind.css` path above
+- [ ] `pnpm dlx shadcn@latest add utils -c packages/ui` first — this creates `src/lib/utils.ts` (the `cn` helper other components import) and correctly installs its own npm dependencies (`clsx`, `tailwind-merge`)
+- [ ] `pnpm dlx shadcn@latest add button -c packages/ui` to confirm the shared-component pipeline works end to end
+- [ ] Check `packages/ui/package.json` against what the new component actually imports before moving on — shadcn's registry data is occasionally incomplete (confirmed directly against their registry API: the default "Base UI" style's `button` entry has no declared `dependencies` at all, even though its source imports `@base-ui/react/button` and `class-variance-authority`) and the CLI just silently skips installing what it doesn't know about. `pnpm add` anything missing, scoped to `packages/ui` with `--filter`
+- [ ] Run `pnpm dlx shadcn@latest init` in `apps/calendar` too (now that Tailwind + the alias are in place), and set its `components.json` `aliases.ui` to `@repo/ui/components` — this way any app-specific composite component you generate there still pulls shared primitives from `@repo/ui` instead of duplicating them locally
+- [ ] `pnpm add @js-temporal/polyfill --filter calendar`
 - [ ] Build one server component on the home page that calls `apps/api`'s `/health` endpoint server-side via `fetch` (per the BFF pattern) and renders the result — the smallest possible proof Next.js and FastAPI can talk to each other
-- [ ] `pnpm --filter web dev`, visit `localhost:3000`, confirm the health-check result renders
+- [ ] `pnpm --filter calendar dev`, visit `localhost:3000`, confirm the health-check result renders
 
 ---
 
@@ -153,10 +190,10 @@ Provisioning only — nothing gets deployed yet. Capture each credential into `a
 
 ## Phase 8: Deploy to hosted environments
 
-### Vercel (`apps/web`)
+### Vercel (`apps/calendar`)
 
 - [ ] `pnpm add -g vercel`, `vercel login`
-- [ ] From `apps/web`: `vercel link`, then connect the project to the GitHub repo from the dashboard so pushes auto-deploy
+- [ ] From `apps/calendar`: `vercel link`, then connect the project to the GitHub repo from the dashboard so pushes auto-deploy
 - [ ] Install the **Neon-Vercel integration** from Vercel's marketplace, pointed at the Neon project from Phase 7 — this is what gives automatic per-preview database branches
 
 ### Railway — FastAPI service
@@ -178,7 +215,7 @@ This one has a real gotcha worth taking seriously: Playwright's Python package i
 
 - [ ] In Vercel, set the FastAPI service's Railway URL and the shared secret as environment variables (server-only, never `NEXT_PUBLIC_`)
 - [ ] In Vercel, also set `NEXT_PUBLIC_TURNSTILE_SITE_KEY` — this one is meant to be public; only the secret key stays server-only
-- [ ] Redeploy `apps/web` to pick up those variables
+- [ ] Redeploy `apps/calendar` to pick up those variables
 
 ### CI
 
