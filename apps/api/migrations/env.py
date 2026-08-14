@@ -1,13 +1,21 @@
+import asyncio
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-
 from alembic import context
+from sqlalchemy import pool
+from sqlalchemy.ext.asyncio import async_engine_from_config
+
+from app.config import settings
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+
+# Override the placeholder sqlalchemy.url from alembic.ini with the real
+# connection string, sourced from the same Settings class (and therefore
+# the same apps/api/.env) that the FastAPI app itself uses — one source
+# of truth for DATABASE_URL rather than keeping it in sync in two places.
+config.set_main_option("sqlalchemy.url", settings.database_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -50,26 +58,36 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
-def run_migrations_online() -> None:
-    """Run migrations in 'online' mode.
+def do_run_migrations(connection) -> None:
+    context.configure(connection=connection, target_metadata=target_metadata)
 
-    In this scenario we need to create an Engine
+    with context.begin_transaction():
+        context.run_migrations()
+
+
+async def run_async_migrations() -> None:
+    """In this scenario we need to create an AsyncEngine
     and associate a connection with the context.
 
+    DATABASE_URL uses the asyncpg driver (see app/config.py), which is
+    async-only — hence async_engine_from_config here instead of Alembic's
+    default sync engine_from_config, and run_sync() below to run the
+    (synchronous) Alembic migration machinery inside that async connection.
     """
-    connectable = engine_from_config(
+    connectable = async_engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
 
-    with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+    async with connectable.connect() as connection:
+        await connection.run_sync(do_run_migrations)
 
-        with context.begin_transaction():
-            context.run_migrations()
+    await connectable.dispose()
+
+
+def run_migrations_online() -> None:
+    asyncio.run(run_async_migrations())
 
 
 if context.is_offline_mode():
