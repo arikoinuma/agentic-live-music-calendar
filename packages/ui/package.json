@@ -20,7 +20,11 @@
     "typescript": "5.9.2"
   },
   "dependencies": {
+    "button": "link:@base-ui/react/button",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "tailwind-merge": "^3.6.0"
   }
 }

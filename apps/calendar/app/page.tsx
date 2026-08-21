@@ -18,7 +18,21 @@ const ThemeImage = (props: Props) => {
   );
 };
 
-export default function Home() {
+interface Res {
+  message: string
+};
+
+async function checkHealth(){
+  const response = await fetch('http://localhost:8000/health'); 
+  const data = (await response.json()) as Res;
+  return data;
+}
+
+export default async function Home() {
+
+  const health = await checkHealth();
+  console.log(health);
+
   return (
     <div className={styles.page}>
       <main className={styles.main}>
@@ -37,6 +51,7 @@ export default function Home() {
           </li>
           <li>Save and see your changes instantly.</li>
           <li>How does this work?</li>
+          <li>API health: {health.message}</li>
         </ol>
 
         <div className={styles.ctas}>
