@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     # DATABASE_URL value from .env automatically — no extra config needed.
     database_url: str
 
+    # declare a local model name
+    model_name: str 
+
 
 # instantiate the class once at module load time, e.g.:
 #   settings = Settings()

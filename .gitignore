@@ -44,3 +44,7 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
+# Local manual-test output (regenerated each run, can be huge — e.g. a
+# full base64-encoded image fixture)
+local_test_output.json

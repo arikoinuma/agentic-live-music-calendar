@@ -46,6 +46,23 @@ Four services, each doing one job:
 
 **Decision:** Vercel Hobby (frontend) + Railway Hobby (backend and agents, the agent worker as a cron-scheduled job rather than an always-on process) + Neon free tier (Postgres). No AWS in the primary hosting path.
 
+Vercel doesn't host the FastAPI backend or the agent worker despite technically supporting Python, because its serverless-function model is the wrong shape for both: FastAPI is meant to run as a normal always-on process (a connection pool created once and reused across requests, not spun up fresh per request), and the agent worker is a scheduled batch job — potentially minutes of runtime per invocation, with Playwright's Chromium binary bundled in — not a request handler with a timeout. Railway's long-running containers fit both; Vercel's serverless functions fit neither.
+
+Full picture of what's hosted where and why:
+
+| Service | What it does | Why it exists here |
+|---|---|---|
+| **Vercel** | Hosts `apps/web` (Next.js) | Its native fit — request/response, preview deploys per PR |
+| **Railway** | Hosts two separate services: the always-on FastAPI backend, and the agent worker as a cron-scheduled job | Long-running containers, not serverless functions — see above |
+| **Neon** | Postgres — the canonical, validated calendar data and the audit trail | Structured, relational, needs reliable querying ([Section 6](#6-data-architecture)) |
+| **MongoDB Atlas** | Raw agent-extraction output, pre-validation | Schema-flexible staging for variable-shaped extraction data ([Section 6](#6-data-architecture)) |
+| **DeepInfra** | Hosted LLM inference in production | The production stand-in for local Ollama — same `openai`-compatible client, just a different `base_url` ([Section 7](#7-agent-workflow-and-auditability)) |
+| **Cloudflare R2** | Object storage for raw page snapshots | Every Fetch saves what it retrieved, part of the audit trail ([Section 7](#7-agent-workflow-and-auditability)) |
+| **Cloudflare Turnstile** | Bot-check gating the public edit/flag endpoints | Anyone can edit or flag a listing with no account required ([Section 7](#7-agent-workflow-and-auditability)) |
+| **Resend** | Transactional email — contributor verification links, magic-link login | Part of the optional-identity contributor flow ([Section 7](#7-agent-workflow-and-auditability)) |
+
+Per the Cost Summary ([Section 10](#10-cost-summary)), this entire stack is roughly $5/month — Railway is the only line item that isn't free-tier.
+
 **Multi-region / multi-metro:** designed for (see [Section 1](#1-scope-and-constraints) for the metro-scoped vs. global entity split) but not built. Single region, single metro for now. Revisit once there's a second market to actually serve.
 
 ---
@@ -140,13 +157,15 @@ flowchart TD
     Validate -->|passed| Reconcile["Reconcile<br/>insert / update / delete / no-op"]
     Validate -->|failed, retries remain| Extract
     Validate -->|failed, retries exhausted| Escalate["Escalate<br/>flag for review"]
-    Reconcile -->|clear match or no match| PG[("Postgres — canonical calendar")]
+    Reconcile -->|clear match or no match| Commit["Commit<br/>writes decision to Postgres"]
     Reconcile -->|ambiguous match| LLMMatch["LLM decides match"]
-    LLMMatch --> PG
+    LLMMatch --> Commit
+    Commit --> PG[("Postgres — canonical calendar")]
     Fetch -.writes.-> Audit[("Audit trail<br/>Postgres, append-only")]
     Extract -.writes.-> Audit
     Validate -.writes.-> Audit
     Reconcile -.writes.-> Audit
+    Commit -.writes.-> Audit
     Escalate -.writes.-> Audit
 ```
 
@@ -158,7 +177,7 @@ flowchart TD
 
 Retries are capped (3 attempts). Exhausting the cap escalates to human review rather than looping indefinitely.
 
-**Reconcile (insert / update / delete / no-op).** Mostly deterministic; the LLM is reserved for the one genuinely ambiguous case. Two different entities go through this pattern with different concrete rules. **Shows** match on venue, date, and time, an exact key with no fuzzy matching involved, so a time change (an 8 p.m. show disappearing while a 9 p.m. one appears) reads as the old show cancelled and a new one created, while a lineup change at the same date and time updates the existing record. **Artists** match on name, which isn't exact by nature, so the ambiguous-match row below applies to artist matching specifically, not to shows. Reconcile is one graph node, not two — it decides the outcome and writes it to Postgres in the same step. There's no separate `commit` node. The ambiguous-artist-match case (`LLMMatch` in the diagram above) is a conditional branch inside `reconcile_node`, not its own node.
+**Reconcile (insert / update / delete / no-op).** Mostly deterministic; the LLM is reserved for the one genuinely ambiguous case. Two different entities go through this pattern with different concrete rules. **Shows** match on venue, date, and time, an exact key with no fuzzy matching involved, so a time change (an 8 p.m. show disappearing while a 9 p.m. one appears) reads as the old show cancelled and a new one created, while a lineup change at the same date and time updates the existing record. **Artists** match on name, which isn't exact by nature, so the ambiguous-match row below applies to artist matching specifically, not to shows. Reconcile decides the outcome; a separate `commit_node` writes that decision to Postgres — kept apart because "decide what should happen" and "make it happen" are different failure modes worth attributing separately in the audit trail (a bad reconcile decision is a logic bug; a failed commit is a database/connectivity problem). The ambiguous-artist-match case (`LLMMatch` in the diagram above) is a conditional branch inside `reconcile_node`, not its own node — it's still reconcile deciding, just with an LLM call involved in reaching that decision.
 
 | Outcome | How it's decided | Agentic or programmatic |
 |---|---|---|
@@ -263,6 +282,8 @@ Tracked here so they don't get silently forgotten:
 - **Metro-aware fetch scheduling** — the daily fetch runs at a fixed local time (4 a.m.) per Metro's timezone; a single Railway cron trigger covers this correctly with one metro live, but needs to become metro-aware (multiple triggers, or one that checks which metro's local 4 a.m. it currently is) once a second metro in a different timezone exists.
 - **True micro-frontend federation** — only if a second deployable frontend surface makes it worth the complexity.
 - **Vector search / chat search** — feature isn't built yet, so Upstash Vector isn't provisioned yet either.
+- **Cloudflare Turnstile / Resend** — both gate features that don't exist yet (public edit/flag endpoints, contributor verification/login), so neither is provisioned yet. Not needed until the app actually accommodates an anonymous public user.
+- **Cloudflare R2** — the agent worker's Fetch step is designed to write a snapshot per page (see [Section 7](#7-agent-workflow-and-auditability)), but that write is explicitly stubbed out in `fetch_node` for now (as is the MongoDB raw-staging write in `extract_node`) until the graph's core shape is proven end to end. Not provisioned yet.
 - **Dedicated log aggregation** (e.g., Axiom) — platform-native dashboards are enough until they aren't.
 - **Per-record protection tiers** — a record repeatedly vandalized could require identification or admin-only editing; not built, but worth reserving a field for now.
 - **Contributor trust tier** — verified contributors with an established track record could unlock small capabilities, such as their flags counting more toward the re-trigger threshold; not built, but a natural extension once verification exists.

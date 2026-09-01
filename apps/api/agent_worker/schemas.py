@@ -75,4 +75,24 @@ class VenuePageExtraction(BaseModel):
     ShowExtraction records, not a single one.
     """
 
+    # page_readable — a page-level signal, separate from each show's own
+    # confidence, that exists specifically to disambiguate two situations
+    # that would otherwise both show up as `shows: []`: a page that
+    # genuinely has nothing on it right now (a confirmed empty result,
+    # safe to trust) versus a page that couldn't be meaningfully
+    # understood at all (a broken fetch, an error page, garbled
+    # content — not safe to trust as "confirmed empty"). Without this,
+    # validate_node would have no way to tell those two apart from the
+    # extraction result alone.
+    page_readable: bool = Field(
+        description=(
+            "True if this page's content was understandable enough to "
+            "reliably determine whether it lists any shows — even if that "
+            "determination is 'zero shows currently listed'. False if the "
+            "content looks broken, empty, an error page, or otherwise not "
+            "something you could meaningfully read as a venue's show "
+            "listings."
+        )
+    )
+
     shows: list[ShowExtraction] = Field(description="Every show found on this venue's page")
