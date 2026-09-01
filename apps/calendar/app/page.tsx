@@ -2,6 +2,14 @@ import Image, { type ImageProps } from "next/image";
 import { Button } from "@repo/ui/button";
 import styles from "./page.module.css";
 
+// This page calls FastAPI's live /health endpoint, so it can't be
+// statically prerendered at build time — that would mean every future
+// Vercel build needs Railway's backend reachable from Vercel's build
+// servers, and would bake a frozen, build-time health status into the
+// static output instead of showing each visitor the actual live status.
+// force-dynamic makes Next.js render this per-request instead.
+export const dynamic = "force-dynamic";
+
 type Props = Omit<ImageProps, "src"> & {
   srcLight: string;
   srcDark: string;
