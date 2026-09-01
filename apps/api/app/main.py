@@ -11,7 +11,16 @@ app = FastAPI()
 # This is created once, at import time, and reused for every request —
 # creating a new engine per request would open a fresh connection pool
 # every time, which defeats the point of pooling.
-engine = create_async_engine(settings.database_url)
+#
+# pool_pre_ping=True: without it, a pooled connection that Neon has
+# silently closed server-side after sitting idle gets handed back out
+# for reuse anyway, and fails with "connection is closed" the moment a
+# query actually runs on it — confirmed directly against the deployed
+# Railway service. This makes the pool test each connection with a
+# lightweight ping before handing it out, transparently reconnecting if
+# it's gone stale, rather than surfacing a 500 on the next request after
+# any idle period.
+engine = create_async_engine(settings.database_url, pool_pre_ping=True)
 
 
 @app.get("/health", status_code=status.HTTP_200_OK)
