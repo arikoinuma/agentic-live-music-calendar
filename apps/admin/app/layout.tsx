@@ -1,15 +1,14 @@
 import type { Metadata } from "next";
-import localFont from "next/font/local";
 import "./globals.css";
 
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
-});
-const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
-  variable: "--font-geist-mono",
-});
+// localFont references to the default Turborepo-generated
+// ./fonts/GeistVF.woff and GeistMonoVF.woff were removed here —
+// those files are deliberately not committed to the repo (same
+// decision as the default favicon; see docs/dev/env-setup.md Phase 1),
+// so next/font/local can't resolve them and Vercel's build fails.
+// Falls back to the browser default font for now; swap in a real font
+// (e.g. next/font/google, same approach as apps/calendar) when this
+// app actually gets built out.
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -23,7 +22,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body>
         {children}
       </body>
     </html>
