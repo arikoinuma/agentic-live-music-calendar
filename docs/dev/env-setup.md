@@ -200,14 +200,14 @@ Provisioning only — nothing gets deployed yet. Capture each credential into `a
 
 - [ ] `pnpm add -g vercel`, `vercel login`
 - [ ] From `apps/calendar`: `vercel link`, then connect the project to the GitHub repo from the dashboard so pushes auto-deploy
-- [ ] Install the **Neon-Vercel integration** from Vercel's marketplace, pointed at the Neon project from Phase 7 — this is what gives automatic per-preview database branches
+- [ ] **Skip the Neon-Vercel integration for now** — it auto-creates a Neon database branch per Vercel preview deployment, but nothing on the Railway side has a matching per-PR environment to actually connect to that branch yet (`arch-initial.md` Section 9: Railway's non-prod environment is explicitly "not configured yet," and the full preview-per-PR pattern across all three services is deferred to Phase 2). Installing it now wouldn't do anything visibly useful — it's real setup work for automation nothing downstream consumes yet. Revisit once Railway's own preview environments exist
 
 ### Railway — FastAPI service
 
 - [ ] `brew install railway`, `railway login`
 - [ ] New Railway project, connect to the GitHub repo
 - [ ] Add a service pointed at `apps/api`, start command `uvicorn app.main:app --host 0.0.0.0 --port $PORT` — the always-on FastAPI service
-- [ ] Environment variables: `DATABASE_URL` (Neon), the shared secret used for FastAPI ↔ Next.js auth, `TURNSTILE_SECRET_KEY`
+- [ ] Environment variables: `DATABASE_URL` (Neon), the shared secret used for FastAPI ↔ Next.js auth. (`TURNSTILE_SECRET_KEY` deferred along with Cloudflare Turnstile itself — see Phase 7 and `arch-initial.md` Section 11 — nothing reads it yet)
 
 ### Railway — agent worker service
 
@@ -235,6 +235,6 @@ This one has a real gotcha worth taking seriously: Playwright's Python package i
 - [ ] Visit the live Vercel URL; confirm the health-check display renders successfully — Next.js (Vercel) correctly reaching FastAPI (Railway) in production
 - [ ] Confirm FastAPI's `/health/db` route (built in Phase 3) shows a successful Neon connection
 - [ ] Manually trigger the Railway cron service and confirm it's a **real run**, not just a connectivity check — an actual fetch against a live venue page, extraction through the hosted model, and a genuine row landing in Postgres, confirmed by querying it directly
-- [ ] Open a PR against `main`; confirm CI runs, and confirm a Vercel preview deployment and a Neon preview branch both get created automatically
+- [ ] Open a PR against `main`; confirm CI runs and a Vercel preview deployment gets created (the Neon preview branch part of this is deferred along with the Neon-Vercel integration itself — see Phase 8)
 
 Every layer in the architecture doc is now live, talking to every other layer it's supposed to, running one evaluated model choice instead of a guess. Real schema and real features are Claude Code's job from here.

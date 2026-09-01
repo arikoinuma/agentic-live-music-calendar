@@ -23,7 +23,7 @@ interface Res {
 };
 
 async function checkHealth(){
-  const response = await fetch('http://localhost:8000/health'); 
+  const response = await fetch(`${process.env.API_BASE_URL}/health`);
   const data = (await response.json()) as Res;
   return data;
 }
