@@ -267,9 +267,12 @@ Cloud environments (preview and production) exist for integration testing and de
 | MongoDB Atlas M0 | $0 |
 | Cloudflare R2 (free tier, up to 10GB) | $0 |
 | Upstash Vector (free tier, when added) | $0 (up to 10K vectors) |
-| **Total** | **~$5/month** |
+| DeepInfra (hosted inference, deferred — see Section 11) | usage-based, not a flat fee; ~$0.02/1M input + $0.10/1M output tokens for `gemma-4-e4b-it` as of writing — negligible at current (non-production) call volume, but genuinely not $0 like everything else in this table |
+| **Total** | **~$5/month + trivial usage-based inference cost once DeepInfra is wired in** |
 
 **Explicitly out of scope for now (cost-driven):** AWS EKS as ongoing infrastructure, a dedicated log aggregation service (Vercel/Railway's built-in dashboards cover v1), a persistent Railway staging environment.
+
+**On DeepInfra vs. Vercel AI Gateway:** considered using AI Gateway instead, specifically to avoid provisioning a new account — but confirmed directly against its live model list (`https://ai-gateway.vercel.sh/v1/models`) that it doesn't offer `gemma-4-e4b-it`, the exact model Phase 5's evaluation (`docs/dev/env-setup.md`) was built around; only larger, pricier Gemma 4 variants are available there. Re-validating a different model wasn't worth the one-fewer-account benefit, so DeepInfra stays the choice.
 
 ---
 
@@ -284,6 +287,7 @@ Tracked here so they don't get silently forgotten:
 - **Vector search / chat search** — feature isn't built yet, so Upstash Vector isn't provisioned yet either.
 - **Cloudflare Turnstile / Resend** — both gate features that don't exist yet (public edit/flag endpoints, contributor verification/login), so neither is provisioned yet. Not needed until the app actually accommodates an anonymous public user.
 - **Cloudflare R2** — the agent worker's Fetch step is designed to write a snapshot per page (see [Section 7](#7-agent-workflow-and-auditability)), but that write is explicitly stubbed out in `fetch_node` for now (as is the MongoDB raw-staging write in `extract_node`) until the graph's core shape is proven end to end. Not provisioned yet.
+- **Railway agent worker service, and DeepInfra by extension** — deliberately descoped from initial scaffolding. `reconcile_node` and `commit_node` are still placeholder stubs (no real Postgres write), R2/MongoDB writes are stubbed as above, and `nodes.py`'s model client `base_url` is still hardcoded to local Ollama — none of that makes a real cron run against a live venue page meaningful yet. The harder, novel risk (does structured extraction actually work reliably) is already proven locally via Phase 5's evaluation and `local_test.py` running the full graph against Ollama — DeepInfra would only prove the `base_url` swap works, which is low-risk by design. DeepInfra itself *is* the confirmed provider choice once this work resumes (see Section 10's cost note) — just not signed up for yet.
 - **Dedicated log aggregation** (e.g., Axiom) — platform-native dashboards are enough until they aren't.
 - **Per-record protection tiers** — a record repeatedly vandalized could require identification or admin-only editing; not built, but worth reserving a field for now.
 - **Contributor trust tier** — verified contributors with an established track record could unlock small capabilities, such as their flags counting more toward the re-trigger threshold; not built, but a natural extension once verification exists.

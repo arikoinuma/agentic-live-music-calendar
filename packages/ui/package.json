@@ -20,7 +20,7 @@
     "typescript": "5.9.2"
   },
   "dependencies": {
-    "button": "link:@base-ui/react/button",
+    "@base-ui/react": "^1.7.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "react": "^19.2.0",

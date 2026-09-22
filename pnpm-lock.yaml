@@ -165,9 +165,9 @@ importers:
 
   packages/ui:
     dependencies:
-      button:
-        specifier: link:@base-ui/react/button
-        version: link:@base-ui/react/button
+      '@base-ui/react':
+        specifier: ^1.7.0
+        version: 1.7.0(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1

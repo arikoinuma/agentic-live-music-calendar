@@ -41,3 +41,21 @@ dev = [
     "pytest-asyncio>=1.4.0",
     "ruff>=0.16.3",
 ]
+
+[tool.mypy]
+# pydantic-settings' BaseSettings populates required fields from env/.env
+# at runtime, not from constructor args — without this plugin mypy treats
+# `database_url`/`model_name` as missing arguments to Settings().
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+# Scoped to app/ deliberately: agent_worker/ still has untracked manual-test
+# scripts (e.g. local_test.py) that match pytest's default *_test.py
+# discovery glob and fire live model calls on import if collected.
+testpaths = ["app"]
+
+[tool.ruff.lint.per-file-ignores]
+# Broad except is deliberate here: one fixture/model failing outright
+# shouldn't stop the eval loop, and the failure itself is a result worth
+# recording. See the comment above the try/except in run_eval.py.
+"agent_worker/eval/run_eval.py" = ["BLE001"]

@@ -183,12 +183,12 @@ Worth being precise about the library choice before writing any code: the archit
 
 Provisioning only — nothing gets deployed yet. Capture each credential into `apps/api/.env` as you go.
 
-- [ ] **Neon** — account, project, copy the connection string
-- [ ] **MongoDB Atlas** — account, free M0 cluster, database user, copy the connection string
-- [ ] **Cloudflare R2** — account, bucket, API token (S3-compatible key/secret)
-- [ ] **Resend** — account, verify a sending domain (or use their sandbox domain for now), API key
-- [ ] **Cloudflare Turnstile** — account, register a site, copy the site key and secret key (gates public edit/flag endpoints against bots, per `docs/arch/arch-initial.md` Section 7)
-- [ ] **DeepInfra** (or your chosen hosted inference provider) — account, API key; confirm you can hit it with the same `openai` SDK client used against Ollama in Phase 6, just a different `base_url` — proof the local/hosted swap works as designed
+- [x] **Neon** — account, project, copy the connection string
+- [x] **MongoDB Atlas** — account, free M0 cluster, database user, copy the connection string (provisioned; nothing writes to it yet — see Phase 8's Railway agent worker note)
+- [ ] **Skipped — Cloudflare R2** — account, bucket, API token (S3-compatible key/secret). Deferred along with the R2 snapshot write itself; see `docs/arch/arch-initial.md` Section 11
+- [ ] **Skipped — Resend** — account, verify a sending domain (or use their sandbox domain for now), API key. Deferred along with the contributor verification/login flow that needs it; see Section 11
+- [ ] **Skipped — Cloudflare Turnstile** — account, register a site, copy the site key and secret key (gates public edit/flag endpoints against bots, per `docs/arch/arch-initial.md` Section 7). Deferred along with the public edit/flag endpoints themselves; see Section 11
+- [ ] **Skipped — DeepInfra** (or your chosen hosted inference provider) — account, API key. Confirmed as the actual provider choice (see Section 10's cost note — genuinely cheap, and the only option offering the exact model Phase 5 validated), but deferred along with the whole Railway agent worker service; see Phase 8 and Section 11
 
 *(Upstash Vector is intentionally skipped — deferred until the chat-search feature is actually built.)*
 
@@ -198,30 +198,32 @@ Provisioning only — nothing gets deployed yet. Capture each credential into `a
 
 ### Vercel (`apps/calendar`)
 
-- [ ] `pnpm add -g vercel`, `vercel login`
-- [ ] From `apps/calendar`: `vercel link`, then connect the project to the GitHub repo from the dashboard so pushes auto-deploy
-- [ ] **Skip the Neon-Vercel integration for now** — it auto-creates a Neon database branch per Vercel preview deployment, but nothing on the Railway side has a matching per-PR environment to actually connect to that branch yet (`arch-initial.md` Section 9: Railway's non-prod environment is explicitly "not configured yet," and the full preview-per-PR pattern across all three services is deferred to Phase 2). Installing it now wouldn't do anything visibly useful — it's real setup work for automation nothing downstream consumes yet. Revisit once Railway's own preview environments exist
+- [x] `pnpm add -g vercel`, `vercel login`
+- [x] From `apps/calendar`: `vercel link`, then connect the project to the GitHub repo from the dashboard so pushes auto-deploy
+- [ ] **Skipped — Neon-Vercel integration.** It auto-creates a Neon database branch per Vercel preview deployment, but nothing on the Railway side has a matching per-PR environment to actually connect to that branch yet (`arch-initial.md` Section 9: Railway's non-prod environment is explicitly "not configured yet," and the full preview-per-PR pattern across all three services is deferred to Phase 2). Installing it now wouldn't do anything visibly useful — it's real setup work for automation nothing downstream consumes yet. Revisit once Railway's own preview environments exist
 
 ### Railway — FastAPI service
 
-- [ ] `brew install railway`, `railway login`
-- [ ] New Railway project, connect to the GitHub repo
-- [ ] Add a service pointed at `apps/api`, start command `uvicorn app.main:app --host 0.0.0.0 --port $PORT` — the always-on FastAPI service
-- [ ] Environment variables: `DATABASE_URL` (Neon), the shared secret used for FastAPI ↔ Next.js auth. (`TURNSTILE_SECRET_KEY` deferred along with Cloudflare Turnstile itself — see Phase 7 and `arch-initial.md` Section 11 — nothing reads it yet)
+- [x] `brew install railway`, `railway login`
+- [x] New Railway project, connect to the GitHub repo
+- [x] Add a service pointed at `apps/api`, start command `uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT` — the always-on FastAPI service (`uv run` matters — without it, the service runs against the wrong environment; see `docs/dev/notes.md`)
+- [x] Environment variables: `DATABASE_URL` (Neon — **without the `sslmode`/`channel_binding` query params**, see `docs/dev/notes.md` for why `asyncpg` rejects them), `MODEL_NAME` (not in this doc's original list — a Phase 6 addition, easy to miss; caused a real crash, see `docs/dev/notes.md`). **Skipped — the shared secret for FastAPI ↔ Next.js auth**: enforcement isn't coded anywhere yet (no FastAPI dependency checks it, no fetch call sends it), so setting it now would just be an unused value; revisit once that enforcement is actually written. (`TURNSTILE_SECRET_KEY` deferred along with Cloudflare Turnstile itself — see Phase 7 and `arch-initial.md` Section 11 — nothing reads it yet either)
 
 ### Railway — agent worker service
 
-This one has a real gotcha worth taking seriously: Playwright's Python package installs fine via `uv add`, but the Chromium *binary* it needs is a separate download, and a plain buildpack deploy won't fetch it automatically. The most common way this breaks in production is discovering it the first time the deployed job tries to launch a browser and can't.
+**Skipped — this entire section, deliberately descoped from initial scaffolding.** See `arch-initial.md` Section 11 for the full reasoning: `reconcile_node`/`commit_node` are still placeholder stubs, R2/MongoDB writes are stubbed, and the model client's `base_url` is still hardcoded to local Ollama — a real cron run wouldn't do anything meaningful yet regardless of whether this service exists. Revisit as its own scope of work, not part of this runbook.
+
+This one has a real gotcha worth taking seriously when that work resumes: Playwright's Python package installs fine via `uv add`, but the Chromium *binary* it needs is a separate download, and a plain buildpack deploy won't fetch it automatically. The most common way this breaks in production is discovering it the first time the deployed job tries to launch a browser and can't.
 
 - [ ] Give this service its own `Dockerfile` (Railway uses it automatically if present in the service's root) based on Playwright's official image, `mcr.microsoft.com/playwright/python`, which already includes Chromium and the system libraries it depends on — don't build this service the same generic way as the plain-Python FastAPI service
 - [ ] Start command: `python -m agent_worker.main`, configured as **cron-scheduled**, not always-on; set the crontab expression for the daily run
-- [ ] Environment variables: `DATABASE_URL`, `MONGODB_URI`, R2 credentials, and the model provider variables — pointed at **DeepInfra (or your hosted provider) from Phase 7, not Ollama**. `localhost:11434` doesn't exist on Railway, and it's an easy thing to leave pointed at your laptop by accident
+- [ ] Environment variables: `DATABASE_URL`, `MONGODB_URI`, R2 credentials, and the model provider variables — pointed at **DeepInfra from Phase 7, not Ollama**. `localhost:11434` doesn't exist on Railway, and it's an easy thing to leave pointed at your laptop by accident
 
 ### Wire Vercel and Railway together
 
-- [ ] In Vercel, set the FastAPI service's Railway URL and the shared secret as environment variables (server-only, never `NEXT_PUBLIC_`)
-- [ ] In Vercel, also set `NEXT_PUBLIC_TURNSTILE_SITE_KEY` — this one is meant to be public; only the secret key stays server-only
-- [ ] Redeploy `apps/calendar` to pick up those variables
+- [x] In Vercel, set the FastAPI service's Railway URL as an environment variable (`API_BASE_URL`, server-only, never `NEXT_PUBLIC_`). **Skipped — the shared secret**, same reasoning as the Railway side above: nothing enforces it yet
+- [ ] **Skipped — `NEXT_PUBLIC_TURNSTILE_SITE_KEY`** — deferred along with Cloudflare Turnstile itself
+- [x] Redeploy `apps/calendar` to pick up those variables
 
 ### CI
 
@@ -232,9 +234,9 @@ This one has a real gotcha worth taking seriously: Playwright's Python package i
 
 ## Phase 9: Verify end to end
 
-- [ ] Visit the live Vercel URL; confirm the health-check display renders successfully — Next.js (Vercel) correctly reaching FastAPI (Railway) in production
-- [ ] Confirm FastAPI's `/health/db` route (built in Phase 3) shows a successful Neon connection
-- [ ] Manually trigger the Railway cron service and confirm it's a **real run**, not just a connectivity check — an actual fetch against a live venue page, extraction through the hosted model, and a genuine row landing in Postgres, confirmed by querying it directly
-- [ ] Open a PR against `main`; confirm CI runs and a Vercel preview deployment gets created (the Neon preview branch part of this is deferred along with the Neon-Vercel integration itself — see Phase 8)
+- [x] Visit the live Vercel URL; confirm the health-check display renders successfully — Next.js (Vercel) correctly reaching FastAPI (Railway) in production
+- [x] Confirm FastAPI's `/health/db` route (built in Phase 3) shows a successful Neon connection
+- [ ] **Skipped — manually triggering the Railway cron service for a real run.** Depends on the entire "Railway — agent worker service" section in Phase 8, which was descoped; nothing to trigger yet. Revisit once that service exists and `reconcile_node`/`commit_node` are real.
+- [ ] Open a PR against `main`; confirm CI runs and a Vercel preview deployment gets created (the Neon preview branch part of this is deferred along with the Neon-Vercel integration itself — see Phase 8) — still pending, blocked on the CI section above
 
 Every layer in the architecture doc is now live, talking to every other layer it's supposed to, running one evaluated model choice instead of a guess. Real schema and real features are Claude Code's job from here.

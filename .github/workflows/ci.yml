@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  python:
+    name: Python (apps/api)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    env:
+      # Dummy values so Settings() resolves at import time. Nothing in
+      # this job talks to a real database or model — /health/db and live
+      # extraction aren't exercised here, only /health via TestClient.
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/ci
+      MODEL_NAME: ci-placeholder
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: apps/api/uv.lock
+
+      - run: uv python install 3.13
+
+      - run: uv sync --locked
+
+      - name: ruff
+        run: uv run ruff check .
+
+      - name: mypy
+        # Scoped to app/ — agent_worker/ (Phase 6) is still active WIP with
+        # known type errors; widen this once that settles.
+        run: uv run mypy app/
+
+      - name: pytest
+        run: uv run pytest
+
+  js:
+    name: JS (turbo lint + check-types)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm turbo run lint check-types
