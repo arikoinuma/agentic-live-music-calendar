@@ -1,0 +1,5 @@
+# Agent-facing reference guides. Prettier reformats code inside fenced blocks and
+# rewrites directives that follow a comment ("use client"; -> ("use client");),
+# which is a no-op in real code and teaches the wrong pattern. It also strips the
+# aligned trailing comments the Do/Don't examples rely on.
+docs/references/

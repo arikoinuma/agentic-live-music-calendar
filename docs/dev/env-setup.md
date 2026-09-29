@@ -227,8 +227,8 @@ This one has a real gotcha worth taking seriously when that work resumes: Playwr
 
 ### CI
 
-- [ ] GitHub Actions workflow: `ruff check`, `mypy`, `pytest` for the Python side; lint/typecheck for the JS side via Turborepo — on every PR
-- [ ] In the repo's branch protection settings, require that check to pass before merging to `main`
+- [x] GitHub Actions workflow (`.github/workflows/ci.yml`): `ruff check`, `mypy`, `pytest` for the Python side; `turbo run lint check-types` for the JS side — on every PR and on push to `main`. Getting it green took real fixes, not just workflow YAML: `pytest` was colliding with the untracked `agent_worker/local_test.py` (its name matches pytest's default `*_test.py` discovery glob, so collecting it fired live Ollama calls — now scoped out via `testpaths = ["app"]` in `apps/api/pyproject.toml`); mypy needed the `pydantic.mypy` plugin so it understands `Settings()`'s fields are populated from env/`.env` at runtime, not constructor args; one pre-existing `ruff` violation in the eval script (`BLE001`, a deliberately broad `except` — see the comment above it) got a scoped per-file ignore instead of being narrowed; and `packages/ui/package.json` had a bogus `"button": "link:@base-ui/react/button"` entry from a shadcn CLI misfire that broke `check-types` — replaced with a real `@base-ui/react` dependency. mypy is deliberately scoped to `app/` only for now — `agent_worker/` (Phase 6) still has 11 real type errors in active WIP code, unrelated to CI setup itself; widen the scope once that settles
+- [ ] **Skipped — branch protection requiring the check before merge.** The repo is still private, and GitHub's branch-protection API confirms free-tier private repos can't require status checks before merge ("Upgrade to GitHub Pro or make this repository public to enable this feature") — needs Pro or public visibility. CI still runs and reports on every PR, just isn't a hard merge gate yet. Revisit if the repo goes public or the plan gets upgraded
 
 ---
 
@@ -237,6 +237,6 @@ This one has a real gotcha worth taking seriously when that work resumes: Playwr
 - [x] Visit the live Vercel URL; confirm the health-check display renders successfully — Next.js (Vercel) correctly reaching FastAPI (Railway) in production
 - [x] Confirm FastAPI's `/health/db` route (built in Phase 3) shows a successful Neon connection
 - [ ] **Skipped — manually triggering the Railway cron service for a real run.** Depends on the entire "Railway — agent worker service" section in Phase 8, which was descoped; nothing to trigger yet. Revisit once that service exists and `reconcile_node`/`commit_node` are real.
-- [ ] Open a PR against `main`; confirm CI runs and a Vercel preview deployment gets created (the Neon preview branch part of this is deferred along with the Neon-Vercel integration itself — see Phase 8) — still pending, blocked on the CI section above
+- [ ] Open a PR against `main`; confirm CI runs and a Vercel preview deployment gets created (the Neon preview branch part of this is deferred along with the Neon-Vercel integration itself — see Phase 8) — no longer blocked now that the CI section above is done; just needs an actual PR to confirm it fires
 
 Every layer in the architecture doc is now live, talking to every other layer it's supposed to, running one evaluated model choice instead of a guess. Real schema and real features are Claude Code's job from here.

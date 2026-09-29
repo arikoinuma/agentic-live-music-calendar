@@ -1,0 +1,142 @@
+# Read API contract
+
+**Status:** Draft — shapes settled, endpoints not implemented yet
+**Date:** September 28, 2026
+**Purpose:** The interface between FastAPI and Next.js, fixed up front so the Python track and the frontend track can move independently. This is Track 0 of `v1-build-plan.md`.
+
+**Source of truth:** `apps/api/app/schemas.py`. This document explains the shapes and the reasoning; the Pydantic models *are* the shapes. Where the two disagree, the code is right and this file is stale.
+
+Scope is **reads only**. Edit, flag, and submit endpoints are a later phase with their own shapes — see [Inherited fields](#inherited-fields) for the one place where read and write genuinely need to differ.
+
+---
+
+## 1. Why the contract comes first
+
+The two tracks meet here and nowhere else. Fixing the shapes up front means the calendar UI can be built against realistic data before a single read endpoint exists, and the endpoints can be written against a known target rather than being reverse-engineered from whatever the UI ended up calling.
+
+The mechanism is `apps/calendar/lib/fixtures/` — JSON files **generated from the Pydantic models**, not hand-written beside them. That distinction is the point. A hand-maintained fixture drifts, and a UI built on a drifted fixture looks finished right up until it's pointed at the real API.
+
+```
+make fixtures     # regenerate after any change to app/schemas.py
+```
+
+The generator is `apps/api/scripts/generate_fixtures.py`. Its data is invented but deliberately untidy — shows with no listed start time, multi-act bills, a free show, a day with nothing on it, one artist at two venues. A calendar built against only clean rows gets built assuming clean rows.
+
+---
+
+## 2. Endpoints
+
+Not implemented yet. Listed here as the agreed surface; each lands with its milestone.
+
+| Method | Path | Returns | Serves | Milestone |
+|---|---|---|---|---|
+| GET | `/shows?start=&end=&venue_id=&artist_id=` | `ShowListResponse` | Home calendar, `/day/[date]`, the calendar embedded on venue and artist pages | A-track, after A1 |
+| GET | `/shows/{id}` | `ShowDetail` | `/show/[id]` | A-track, after A1 |
+| GET | `/venues` | `VenueListResponse` | `/venues`, and the calendar's venue filter | A-track, after A1 |
+| GET | `/venues/{id}` | `VenueDetail` | `/venue/[id]` | A-track, after A1 |
+| GET | `/artists` | `ArtistListResponse` | `/artists`, and the calendar's artist filter | A-track, after A1 |
+| GET | `/artists/{id}` | `ArtistDetail` | `/artist/[id]` | A-track, after A1 |
+| GET | `/calendar/months` | `CalendarMonthsResponse` | The month dropdown | A-track, after A1 |
+
+**Filtering.** `venue_id` and `artist_id` repeat for multi-select (`?venue_id=1&venue_id=3`). Both filters are AND-ed with the date range and OR-ed within themselves — picking two venues means "either venue," which is what a multi-select visibly implies.
+
+**Metro scoping.** Every response is implicitly scoped to the single live metro. No `metro_id` parameter exists yet; adding one later is additive. `arch-initial.md` Section 11 already tracks multi-metro enforcement as deferred.
+
+**Pagination.** None. One metro has tens of venues and hundreds of artists, and a four-week window has a bounded number of shows. The envelope shapes leave room to add it without a breaking change — see below.
+
+**Soft-deleted shows.** `status = 'removed'` rows never appear in read responses. The status column exists for the audit trail and for reconcile, not for the reader.
+
+---
+
+## 3. Conventions
+
+### Summary vs. Detail
+
+A `*Summary` is what a link or a list row needs. A `*Detail` is a whole entity page.
+
+The calendar renders on the order of a hundred shows at once. If `ShowSummary` embedded a full `VenueDetail` for each, the same venue's address, phone numbers, and hours would ship dozens of times over for a block that displays a name.
+
+`ShowDetail` extends `ShowSummary` rather than restating it, so a show's fields can't diverge between the two views.
+
+### Envelopes, not bare arrays
+
+List endpoints return `{"shows": [...]}`, not `[...]`.
+
+A bare top-level array has nowhere to put a total count, a pagination cursor, or an echoed query range without changing the response's type. Nothing needs those today; the envelope is what keeps adding them cheap. `ShowListResponse` already uses the room — it echoes `start` and `end`.
+
+### The server owns "now"
+
+`ShowListResponse` echoes back the date range it actually served rather than trusting the client to remember what it asked for.
+
+This matters most for the home page's four-week window. The browser's clock and timezone aren't the metro's, so "the next four weeks" is a question only the server can answer correctly. `MetroSummary.timezone` (an IANA name like `America/Chicago`) is carried for the same reason: a Friday show at a Minneapolis venue is Friday regardless of where the reader is sitting.
+
+Render with `Temporal.PlainDate` / `Temporal.PlainTime`. Not `new Date("2026-09-28")` — that parses as UTC midnight and renders as the 27th anywhere west of Greenwich, which is the one bug a calendar can least afford.
+
+---
+
+## 4. Serialization notes
+
+Three places where the JSON isn't the obvious thing.
+
+**Dates and times are ISO strings.** `date` → `"2026-09-28"`, `time` → `"20:00:00"`. There's no date type in JSON. Parse at the edge, keep strings everywhere else.
+
+**`Decimal` is a string, not a number.** `admission_advance` arrives as `"15.00"`. Pydantic does this deliberately, to avoid the float rounding that makes money arithmetic wrong. Format it for display; don't `parseFloat` it, and don't do arithmetic on it without a decimal library.
+
+**Null means "not stated."** This is load-bearing for admission specifically. All three of `admission_advance`, `admission_day`, and `free_admission` being null means the venue's page didn't say what it costs. It does **not** mean free. `free_admission` is true only when the listing says so explicitly — `requirements-initial.md` is direct about this, and rendering an unpriced show as free is a wrong answer the reader acts on.
+
+---
+
+## 5. Inherited fields
+
+`show.age_restriction`, `serves_alcohol`, `setting`, and `seating` are null in the database when the show doesn't override its venue's value.
+
+**The read API returns the resolved value.** If the show's column is null, the API substitutes the venue's, and doesn't say which one it used.
+
+Nothing that renders a show cares about the difference — an all-ages show is all-ages whether that was set on the show or inherited. Pushing the inheritance rule to the frontend would mean every consumer reimplementing it, and having the venue on hand to do so.
+
+**The write API will care**, because "clear this override" and "set this to the same value the venue happens to have" are different actions that behave differently when the venue later changes. That's a real reason the write shape differs from the read shape, and a good argument against reusing one model for both out of habit.
+
+---
+
+## 6. What's deliberately absent
+
+Fields that a reading of `requirements-initial.md` would expect, left out on purpose:
+
+| Missing | Why |
+|---|---|
+| `VenueDetail.socials`, `ArtistDetail.socials` | The `venue_social` / `artist_social` tables are deferred (`v1-build-plan.md` §8) |
+| `ArtistDetail.genres`, `.members`, `.instrumentation` | Same — the vocabulary and join tables are deferred |
+| `VenueDetail.map_url` | Constructed from `address` by the frontend. It's a link format, not data; changing it shouldn't need a backend deploy (`arch-initial.md` §4) |
+| Slugs in URLs | Routes are `/venue/[id]` per `requirements-initial.md`. `/venue/3-zhora-darling` would be better for SEO and is cheap to add later, since the id stays the lookup key either way. Worth revisiting before launch, not now |
+
+The first two are absent rather than present-and-always-empty on purpose. A consumer can't tell "this venue has no Instagram" from "this feature doesn't exist yet," and a field that's always `[]` teaches the UI to render an empty state that isn't real. Adding a field later is backward-compatible; removing one isn't.
+
+---
+
+## 7. Keeping the two sides in sync
+
+**Undecided — this section is a stub.**
+
+`apps/api/app/schemas.py` and `apps/calendar/lib/types.ts` describe the same contract in two languages, and will drift. The three options, with the tradeoff that separates them, are written out in the header comment of `lib/types.ts`: hand-written, generated from FastAPI's OpenAPI schema via `openapi-typescript`, or zod schemas mirroring Pydantic.
+
+The thing worth noticing before choosing: generated types and zod solve *different* problems. Generation keeps the two definitions in sync at build time. Zod checks that the data actually matches at runtime — which catches a deployed backend that changed shape without a frontend rebuild, something generation can't. They combine.
+
+`lib/types.ts` currently holds a hand-written version, which is option 1 and also just what keeps the build green while this is open. Record the decision here once it's made.
+
+---
+
+## 8. Fixtures
+
+| File | Shape |
+|---|---|
+| `shows.json` | `ShowListResponse` — 21 shows across 2026-09-28 → 2026-10-25 |
+| `show-detail.json` | `ShowDetail` |
+| `venues.json` | `VenueListResponse` — the four Phase 5 venues, alphabetical |
+| `venue-detail.json` | `VenueDetail` |
+| `artists.json` | `ArtistListResponse` — ten artists, alphabetical |
+| `artist-detail.json` | `ArtistDetail` |
+| `calendar-months.json` | `CalendarMonthsResponse` |
+
+The venues are the same four the Phase 5 extraction fixtures came from, so the A1 seed script and these frontend fixtures describe one world rather than two.
+
+The date window is pinned to a fixed start date rather than `date.today()`, so regenerating produces an empty diff unless the contract actually changed. The real endpoint computes the window from the metro's current local date.
