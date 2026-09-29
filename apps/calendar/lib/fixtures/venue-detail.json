@@ -1,0 +1,27 @@
+{
+  "id": 3,
+  "metro": {
+    "id": 1,
+    "name": "Minneapolis/St. Paul",
+    "timezone": "America/Chicago"
+  },
+  "name": "Zhora Darling",
+  "calendar_url": "https://www.zhoradarling.com/events",
+  "photo_url": "https://example.com/photos/zhora-darling.jpg",
+  "address": "1010 Washington Ave N, Minneapolis, MN 55401",
+  "phone_numbers": [
+    "+1-612-555-0142"
+  ],
+  "emails": [
+    "booking@example.com"
+  ],
+  "website": "https://www.zhoradarling.com",
+  "age_restriction": "twenty_one_plus",
+  "serves_alcohol": true,
+  "venue_type": "bar",
+  "setting": "indoor",
+  "seating": "standing",
+  "extra_metadata": {
+    "has_green_room": true
+  }
+}

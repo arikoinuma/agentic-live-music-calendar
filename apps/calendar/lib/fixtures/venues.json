@@ -1,0 +1,20 @@
+{
+  "venues": [
+    {
+      "id": 2,
+      "name": "The Midway Saloon"
+    },
+    {
+      "id": 4,
+      "name": "The Terminal Bar"
+    },
+    {
+      "id": 1,
+      "name": "The White Squirrel Bar"
+    },
+    {
+      "id": 3,
+      "name": "Zhora Darling"
+    }
+  ]
+}

@@ -3,8 +3,25 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.config import settings
+from app.routers import artists, calendar, shows, venues
 
-app = FastAPI()
+app = FastAPI(
+    title="Agentic Live Music Calendar API",
+    # Shown at the top of /docs and carried in /openapi.json. Worth
+    # setting because the generated TypeScript inherits the API's own
+    # description of itself.
+    description="Read API for the Minneapolis/St. Paul live music calendar.",
+    version="0.1.0",
+)
+
+# Attaching a router copies its routes onto the app, prefix and all.
+# Every route in app/routers/ now appears in /openapi.json — which is
+# the whole reason these stub routes exist before the database does.
+# See docs/dev/api-contract.md.
+app.include_router(shows.router)
+app.include_router(venues.router)
+app.include_router(artists.router)
+app.include_router(calendar.router)
 
 # create an async SQLAlchemy engine using settings.database_url.
 # create_async_engine() takes the connection string as its first argument.

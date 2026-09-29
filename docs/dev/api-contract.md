@@ -115,13 +115,30 @@ The first two are absent rather than present-and-always-empty on purpose. A cons
 
 ## 7. Keeping the two sides in sync
 
-**Undecided — this section is a stub.**
+**Decided: generated from FastAPI's OpenAPI schema.**
 
-`apps/api/app/schemas.py` and `apps/calendar/lib/types.ts` describe the same contract in two languages, and will drift. The three options, with the tradeoff that separates them, are written out in the header comment of `lib/types.ts`: hand-written, generated from FastAPI's OpenAPI schema via `openapi-typescript`, or zod schemas mirroring Pydantic.
+```
+apps/api/app/schemas.py       Pydantic models — the source of truth
+  -> FastAPI                  builds an OpenAPI document from each
+                              route's return-type annotation
+  -> apps/api/openapi.json    dumped without a server, git-ignored
+  -> openapi-typescript       reads the standard, emits TypeScript
+  -> apps/calendar/lib/api-types.ts    generated, committed, never edited
+  -> apps/calendar/lib/types.ts        ~30 lines of friendly aliases
+```
 
-The thing worth noticing before choosing: generated types and zod solve *different* problems. Generation keeps the two definitions in sync at build time. Zod checks that the data actually matches at runtime — which catches a deployed backend that changed shape without a frontend rebuild, something generation can't. They combine.
+```
+make types            # regenerate after changing schemas.py or a router
+make contract-check   # fail if the committed output is stale
+```
 
-`lib/types.ts` currently holds a hand-written version, which is option 1 and also just what keeps the build green while this is open. Record the decision here once it's made.
+`make contract-check` also runs as its own CI job and is part of `make check`. It snapshots the generated files, regenerates, and diffs — deliberately not `git diff`, so it works on untracked files and outside a checkout. A failing run leaves the regenerated output in place, so the fix is to review the diff and commit it.
+
+**Why a route's return type annotation matters more than it looks.** `def list_venues() -> VenueListResponse` is what puts `VenueListResponse`, and `VenueSummary` nested inside it, into `components.schemas`. FastAPI derives the schema from **routes**, not from the existence of models — a Pydantic model no route references doesn't appear. `response_model=` in the decorator does the same job; prefer the annotation, since mypy can see it too. There's a test (`test_openapi_exposes_the_response_schemas`) guarding this, because a dropped annotation otherwise surfaces as a missing frontend type long after the change that caused it.
+
+**Why not zod.** Generation keeps the two definitions in sync at build time. Zod would additionally check at runtime that the data actually matches — which catches a deployed backend that changed shape without a frontend rebuild, something generation can't. They're complementary, not alternatives. Not adding it now because there's one deployment of each and no independent release cycle to drift between them; zod arrives with the edit forms (`arch-initial.md` §4 already picks it for `react-hook-form`), and that's the moment to reconsider using it at the API boundary too.
+
+**One consequence worth knowing.** Pydantic fields with defaults are not in OpenAPI's `required` list, so they generate as **optional**: `start_time?: string | null`, not `start_time: string | null`. FastAPI does serialize them all, so at runtime they're present-and-null — but the type says `string | null | undefined` and all three need handling. If that gets tiresome, the fix is on the Python side: drop the `= None` defaults so the fields become required-but-nullable, at the cost of verbosity when constructing them.
 
 ---
 

@@ -1,0 +1,38 @@
+{
+  "id": 2,
+  "date": "2026-09-30",
+  "start_time": "21:00:00",
+  "end_time": "23:30:00",
+  "venue": {
+    "id": 3,
+    "name": "Zhora Darling"
+  },
+  "lineup": [
+    {
+      "artist": {
+        "id": 2,
+        "name": "Nooky Jones"
+      },
+      "start_time": "21:00:00",
+      "sequence_number": 1
+    },
+    {
+      "artist": {
+        "id": 9,
+        "name": "Beasthead"
+      },
+      "start_time": "22:30:00",
+      "sequence_number": 2
+    }
+  ],
+  "admission_advance": "18.00",
+  "admission_day": "22.00",
+  "free_admission": null,
+  "image_url": "https://example.com/posters/nooky.jpg",
+  "event": null,
+  "original_url": "https://www.zhoradarling.com/events",
+  "age_restriction": "twenty_one_plus",
+  "serves_alcohol": true,
+  "setting": "indoor",
+  "seating": "standing"
+}

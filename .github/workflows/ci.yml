@@ -57,3 +57,41 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm turbo run lint check-types
+
+  contract:
+    name: Contract (schemas.py -> TypeScript)
+    runs-on: ubuntu-latest
+    env:
+      # Needed because dump_openapi imports app.main, which constructs
+      # Settings at import time. Nothing here connects to anything.
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/ci
+      MODEL_NAME: ci-placeholder
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: apps/api/uv.lock
+
+      - run: uv python install 3.13
+
+      - run: uv sync --locked
+        working-directory: apps/api
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Regenerates lib/api-types.ts and lib/fixtures/ from the Pydantic
+      # models, then fails if the result differs from what's committed.
+      # This is what makes generated types worth the build step: a
+      # backend shape change that nobody regenerated for becomes a red
+      # PR instead of an `undefined` in production.
+      - name: Check generated contract output is current
+        run: make contract-check

@@ -13,3 +13,7 @@
 # temporary? the locally stored contents of websites
 # we downloaded to test models
 /agent_worker/eval/fixtures/
+
+# Derived from app/main.py by scripts/dump_openapi.py; the generated
+# TypeScript in apps/calendar/lib/api-types.ts is the committed artifact.
+openapi.json

@@ -1,0 +1,44 @@
+{
+  "artists": [
+    {
+      "id": 9,
+      "name": "Beasthead"
+    },
+    {
+      "id": 1,
+      "name": "Charlie Parr"
+    },
+    {
+      "id": 5,
+      "name": "Dead Man Winter"
+    },
+    {
+      "id": 7,
+      "name": "Humbird"
+    },
+    {
+      "id": 6,
+      "name": "Jaedyn James"
+    },
+    {
+      "id": 4,
+      "name": "Lanue"
+    },
+    {
+      "id": 2,
+      "name": "Nooky Jones"
+    },
+    {
+      "id": 8,
+      "name": "Pert Near Sandstone"
+    },
+    {
+      "id": 10,
+      "name": "Tarnation"
+    },
+    {
+      "id": 3,
+      "name": "The Cactus Blossoms"
+    }
+  ]
+}

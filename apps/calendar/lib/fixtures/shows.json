@@ -1,0 +1,582 @@
+{
+  "start": "2026-09-28",
+  "end": "2026-10-25",
+  "shows": [
+    {
+      "id": 1,
+      "date": "2026-09-28",
+      "start_time": "20:00:00",
+      "end_time": null,
+      "venue": {
+        "id": 1,
+        "name": "The White Squirrel Bar"
+      },
+      "lineup": [
+        {
+          "artist": {
+            "id": 1,
+            "name": "Charlie Parr"
+          },
+          "start_time": null,
+          "sequence_number": 1
+        }
+      ],
+      "admission_advance": null,
+      "admission_day": "10.00",
+      "free_admission": null,
+      "image_url": null
+    },
+    {
+      "id": 2,
+      "date": "2026-09-30",
+      "start_time": "21:00:00",
+      "end_time": "23:30:00",
+      "venue": {
+        "id": 3,
+        "name": "Zhora Darling"
+      },
+      "lineup": [
+        {
+          "artist": {
+            "id": 2,
+            "name": "Nooky Jones"
+          },
+          "start_time": "21:00:00",
+          "sequence_number": 1
+        },
+        {
+          "artist": {
+            "id": 9,
+            "name": "Beasthead"
+          },
+          "start_time": "22:30:00",
+          "sequence_number": 2
+        }
+      ],
+      "admission_advance": "18.00",
+      "admission_day": "22.00",
+      "free_admission": null,
+      "image_url": "https://example.com/posters/nooky.jpg"
+    },
+    {
+      "id": 3,
+      "date": "2026-09-30",
+      "start_time": null,
+      "end_time": null,
+      "venue": {
+        "id": 2,
+        "name": "The Midway Saloon"
+      },
+      "lineup": [
+        {
+          "artist": {
+            "id": 10,
+            "name": "Tarnation"
+          },
+          "start_time": null,
+          "sequence_number": 1
+        }
+      ],
+      "admission_advance": null,
+      "admission_day": null,
+      "free_admission": true,
+      "image_url": null
+    },
+    {
+      "id": 4,
+      "date": "2026-10-01",
+      "start_time": "19:30:00",
+      "end_time": null,
+      "venue": {
+        "id": 4,
+        "name": "The Terminal Bar"
+      },
+      "lineup": [
+        {
+          "artist": {
+            "id": 7,
+            "name": "Humbird"
+          },
+          "start_time": null,
+          "sequence_number": 1
+        }
+      ],
+      "admission_advance": "15.00",
+      "admission_day": "18.00",
+      "free_admission": null,
+      "image_url": null
+    },
+    {
+      "id": 5,
+      "date": "2026-10-02",
+      "start_time": "22:00:00",
+      "end_time": null,
+      "venue": {
+        "id": 1,
+        "name": "The White Squirrel Bar"
+      },
+      "lineup": [
+        {
+          "artist": {
+            "id": 5,
+            "name": "Dead Man Winter"
+          },
+          "start_time": null,
+          "sequence_number": 1
+        },
+        {
+          "artist": {
+            "id": 4,
+            "name": "Lanue"
+          },
+          "start_time": null,
+          "sequence_number": 2
+        }
+      ],
+      "admission_advance": null,
+      "admission_day": "12.00",
+      "free_admission": null,
+      "image_url": null
+    },
+    {
+      "id": 6,
+      "date": "2026-10-03",
+      "start_time": "20:00:00",
+      "end_time": null,
+      "venue": {
+        "id": 3,
+        "name": "Zhora Darling"
+      },
+      "lineup": [
+        {
+          "artist": {
+            "id": 3,
+            "name": "The Cactus Blossoms"
+          },
+          "start_time": null,
+          "sequence_number": 1
+        }
+      ],
+      "admission_advance": "25.00",
+      "admission_day": "30.00",
+      "free_admission": null,
+      "image_url": null
+    },
+    {
+      "id": 7,
+      "date": "2026-10-05",
+      "start_time": "20:30:00",
+      "end_time": null,
+      "venue": {
+        "id": 2,
+        "name": "The Midway Saloon"
+      },
+      "lineup": [
+        {
+          "artist": {
+            "id": 8,
+            "name": "Pert Near Sandstone"
+          },
+          "start_time": null,
+          "sequence_number": 1
+        }
+      ],
+      "admission_advance": null,
+      "admission_day": "15.00",
+      "free_admission": null,
+      "image_url": null
+    },
+    {
+      "id": 8,
+      "date": "2026-10-07",
+      "start_time": "21:00:00",
+      "end_time": null,
+      "venue": {
+        "id": 4,
+        "name": "The Terminal Bar"
+      },
+      "lineup": [
+        {
+          "artist": {
+            "id": 6,
+            "name": "Jaedyn James"
+          },
+          "start_time": null,
+          "sequence_number": 1
+        },
+        {
+          "artist": {
+            "id": 10,
+            "name": "Tarnation"
+          },
+          "start_time": null,
+          "sequence_number": 2
+        },
+        {
+          "artist": {
+            "id": 9,
+            "name": "Beasthead"
+          },
+          "start_time": null,
+          "sequence_number": 3
+        }
+      ],
+      "admission_advance": "12.00",
+      "admission_day": "15.00",
+      "free_admission": null,
+      "image_url": null
+    },
+    {
+      "id": 9,
+      "date": "2026-10-08",
+      "start_time": null,
+      "end_time": null,
+      "venue": {
+        "id": 1,
+        "name": "The White Squirrel Bar"
+      },
+      "lineup": [
+        {
+          "artist": {
+            "id": 1,
+            "name": "Charlie Parr"
+          },
+          "start_time": null,
+          "sequence_number": 1
+        }
+      ],
+      "admission_advance": null,
+      "admission_day": null,
+      "free_admission": null,
+      "image_url": null
+    },
+    {
+      "id": 10,
+      "date": "2026-10-09",
+      "start_time": "19:00:00",
+      "end_time": "22:00:00",
+      "venue": {
+        "id": 3,
+        "name": "Zhora Darling"
+      },
+      "lineup": [
+        {
+          "artist": {
+            "id": 4,
+            "name": "Lanue"
+          },
+          "start_time": null,
+          "sequence_number": 1
+        }
+      ],
+      "admission_advance": "20.00",
+      "admission_day": null,
+      "free_admission": null,
+      "image_url": null
+    },
+    {
+      "id": 11,
+      "date": "2026-10-10",
+      "start_time": "21:00:00",
+      "end_time": null,
+      "venue": {
+        "id": 2,
+        "name": "The Midway Saloon"
+      },
+      "lineup": [
+        {
+          "artist": {
+            "id": 7,
+            "name": "Humbird"
+          },
+          "start_time": null,
+          "sequence_number": 1
+        },
+        {
+          "artist": {
+            "id": 9,
+            "name": "Beasthead"
+          },
+          "start_time": null,
+          "sequence_number": 2
+        }
+      ],
+      "admission_advance": null,
+      "admission_day": null,
+      "free_admission": true,
+      "image_url": null
+    },
+    {
+      "id": 12,
+      "date": "2026-10-11",
+      "start_time": "20:00:00",
+      "end_time": null,
+      "venue": {
+        "id": 4,
+        "name": "The Terminal Bar"
+      },
+      "lineup": [
+        {
+          "artist": {
+            "id": 3,
+            "name": "The Cactus Blossoms"
+          },
+          "start_time": null,
+          "sequence_number": 1
+        }
+      ],
+      "admission_advance": "28.00",
+      "admission_day": "32.00",
+      "free_admission": null,
+      "image_url": "https://example.com/posters/cactus.jpg"
+    },
+    {
+      "id": 13,
+      "date": "2026-10-13",
+      "start_time": "20:00:00",
+      "end_time": null,
+      "venue": {
+        "id": 1,
+        "name": "The White Squirrel Bar"
+      },
+      "lineup": [
+        {
+          "artist": {
+            "id": 2,
+            "name": "Nooky Jones"
+          },
+          "start_time": null,
+          "sequence_number": 1
+        }
+      ],
+      "admission_advance": null,
+      "admission_day": "10.00",
+      "free_admission": null,
+      "image_url": null
+    },
+    {
+      "id": 14,
+      "date": "2026-10-14",
+      "start_time": "21:30:00",
+      "end_time": null,
+      "venue": {
+        "id": 3,
+        "name": "Zhora Darling"
+      },
+      "lineup": [
+        {
+          "artist": {
+            "id": 5,
+            "name": "Dead Man Winter"
+          },
+          "start_time": null,
+          "sequence_number": 1
+        }
+      ],
+      "admission_advance": "16.00",
+      "admission_day": "20.00",
+      "free_admission": null,
+      "image_url": null
+    },
+    {
+      "id": 15,
+      "date": "2026-10-15",
+      "start_time": "20:00:00",
+      "end_time": null,
+      "venue": {
+        "id": 2,
+        "name": "The Midway Saloon"
+      },
+      "lineup": [
+        {
+          "artist": {
+            "id": 6,
+            "name": "Jaedyn James"
+          },
+          "start_time": null,
+          "sequence_number": 1
+        }
+      ],
+      "admission_advance": null,
+      "admission_day": "8.00",
+      "free_admission": null,
+      "image_url": null
+    },
+    {
+      "id": 16,
+      "date": "2026-10-16",
+      "start_time": "19:00:00",
+      "end_time": null,
+      "venue": {
+        "id": 4,
+        "name": "The Terminal Bar"
+      },
+      "lineup": [
+        {
+          "artist": {
+            "id": 8,
+            "name": "Pert Near Sandstone"
+          },
+          "start_time": "19:00:00",
+          "sequence_number": 1
+        },
+        {
+          "artist": {
+            "id": 10,
+            "name": "Tarnation"
+          },
+          "start_time": "20:30:00",
+          "sequence_number": 2
+        }
+      ],
+      "admission_advance": "14.00",
+      "admission_day": "18.00",
+      "free_admission": null,
+      "image_url": null
+    },
+    {
+      "id": 17,
+      "date": "2026-10-18",
+      "start_time": "22:00:00",
+      "end_time": null,
+      "venue": {
+        "id": 1,
+        "name": "The White Squirrel Bar"
+      },
+      "lineup": [
+        {
+          "artist": {
+            "id": 9,
+            "name": "Beasthead"
+          },
+          "start_time": null,
+          "sequence_number": 1
+        }
+      ],
+      "admission_advance": null,
+      "admission_day": null,
+      "free_admission": true,
+      "image_url": null
+    },
+    {
+      "id": 18,
+      "date": "2026-10-20",
+      "start_time": "20:00:00",
+      "end_time": null,
+      "venue": {
+        "id": 3,
+        "name": "Zhora Darling"
+      },
+      "lineup": [
+        {
+          "artist": {
+            "id": 7,
+            "name": "Humbird"
+          },
+          "start_time": null,
+          "sequence_number": 1
+        },
+        {
+          "artist": {
+            "id": 4,
+            "name": "Lanue"
+          },
+          "start_time": null,
+          "sequence_number": 2
+        },
+        {
+          "artist": {
+            "id": 1,
+            "name": "Charlie Parr"
+          },
+          "start_time": null,
+          "sequence_number": 3
+        }
+      ],
+      "admission_advance": "22.00",
+      "admission_day": "26.00",
+      "free_admission": null,
+      "image_url": null
+    },
+    {
+      "id": 19,
+      "date": "2026-10-21",
+      "start_time": null,
+      "end_time": null,
+      "venue": {
+        "id": 2,
+        "name": "The Midway Saloon"
+      },
+      "lineup": [
+        {
+          "artist": {
+            "id": 10,
+            "name": "Tarnation"
+          },
+          "start_time": null,
+          "sequence_number": 1
+        }
+      ],
+      "admission_advance": null,
+      "admission_day": "5.00",
+      "free_admission": null,
+      "image_url": null
+    },
+    {
+      "id": 20,
+      "date": "2026-10-22",
+      "start_time": "21:00:00",
+      "end_time": null,
+      "venue": {
+        "id": 4,
+        "name": "The Terminal Bar"
+      },
+      "lineup": [
+        {
+          "artist": {
+            "id": 2,
+            "name": "Nooky Jones"
+          },
+          "start_time": null,
+          "sequence_number": 1
+        }
+      ],
+      "admission_advance": "18.00",
+      "admission_day": null,
+      "free_admission": null,
+      "image_url": null
+    },
+    {
+      "id": 21,
+      "date": "2026-10-24",
+      "start_time": "20:00:00",
+      "end_time": "23:00:00",
+      "venue": {
+        "id": 1,
+        "name": "The White Squirrel Bar"
+      },
+      "lineup": [
+        {
+          "artist": {
+            "id": 3,
+            "name": "The Cactus Blossoms"
+          },
+          "start_time": null,
+          "sequence_number": 1
+        },
+        {
+          "artist": {
+            "id": 5,
+            "name": "Dead Man Winter"
+          },
+          "start_time": null,
+          "sequence_number": 2
+        }
+      ],
+      "admission_advance": "24.00",
+      "admission_day": "28.00",
+      "free_admission": null,
+      "image_url": null
+    }
+  ]
+}

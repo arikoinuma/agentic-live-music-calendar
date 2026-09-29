@@ -1,0 +1,10 @@
+{
+  "id": 1,
+  "name": "Charlie Parr",
+  "photo_url": "https://example.com/photos/charlie-parr.jpg",
+  "website": "https://charlieparr.com",
+  "hometown": "Duluth, MN",
+  "format": "solo",
+  "repertoire": "original",
+  "extra_metadata": {}
+}
