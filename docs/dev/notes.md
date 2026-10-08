@@ -71,3 +71,42 @@ without them being spelled out. Confirmed directly — a real `SELECT 1` against
 the production Neon database succeeded immediately once those two params were
 removed from the URL, both locally and once applied to Railway's
 `DATABASE_URL`.
+
+---
+
+## `@repo/ui` only resolved `.tsx` files — the shadcn button couldn't import its own `cn()`
+
+**Symptom:** `tsc` in an *app* failed with `Cannot find module '@repo/ui/lib/utils'`
+as soon as that app imported `@repo/ui/components/button` — while `packages/ui`'s
+own `check-types` passed. It was invisible until B1 because nothing outside
+`packages/ui` imported a shadcn component yet.
+
+**Root cause:** `packages/ui/package.json` had `"exports": {"./*": "./src/*.tsx"}`.
+That maps every subpath to a `.tsx` file, but `src/lib/utils.ts` is a `.ts` file, so
+the pattern points at a file that doesn't exist. Inside the package the same import
+resolved fine through `tsconfig.json`'s `paths` (`@repo/ui/*` → `./src/*`), which
+tries extensions — a second resolution mechanism that masks the broken one. Apps
+don't use the package's `paths`; they go through `exports`.
+
+**Fix:** add a more specific entry above the catch-all —
+`"./lib/*": "./src/lib/*.ts"`. Longest matching pattern wins, so order is cosmetic
+but the specificity matters. If shadcn ever generates `.ts` files elsewhere
+(e.g. `hooks/`), each folder needs its own entry.
+
+---
+
+## Tailwind v4 doesn't scan `packages/ui` — shared components render unstyled
+
+**Symptom (predicted, not yet hit):** the first calendar page that imports
+`@repo/ui/components/button` will compile, type-check and render, but without the
+button's classes (`bg-primary`, `h-8`, …). A B1 review confirmed the calendar's built
+CSS contains none of them.
+
+**Root cause:** Tailwind v4 generates only the utilities it finds by scanning source
+files, and its automatic detection starts from the app's own directory. Class names that
+live in `../../packages/ui/src` are outside it, so those utilities are never emitted.
+
+**Fix, when the first shared component is used in `apps/calendar`:** add
+`@source "../../packages/ui/src";` to `apps/calendar/app/globals.css` (path is relative to
+the CSS file). Deliberately not added in B1 — nothing in calendar imports `@repo/ui` yet.
+`apps/admin` has no Tailwind at all, which is why its shared button renders unstyled.

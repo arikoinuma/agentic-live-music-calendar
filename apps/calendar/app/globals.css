@@ -4,39 +4,20 @@
 
 @custom-variant dark (&:is(.dark *));
 
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
-}
-
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-.imgDark {
-  display: none;
-}
-
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
-
-  .imgLight {
-    display: none;
-  }
-  .imgDark {
-    display: unset;
-  }
-}
+/*
+ * The create-turbo template's global resets were removed in B1
+ * (v1-build-plan.md G20). Two of them were actively harmful:
+ *
+ *   `* { margin: 0; padding: 0 }` — Tailwind's preflight already resets
+ *   these, and because this rule was UNLAYERED it out-ranked every
+ *   `p-4` / `m-2` utility (which live in `@layer utilities`). Unlayered
+ *   CSS beats layered CSS regardless of specificity.
+ *
+ *   `html, body { overflow-x: hidden }` — with both set, `body` becomes
+ *   the scroll container, which breaks `position: sticky` (B3's sticky
+ *   date and venue headers). Inner `overflow-x: auto` regions would
+ *   still have scrolled; sticky is the real casualty.
+ */
 
 @theme inline {
   --font-heading: var(--font-sans);

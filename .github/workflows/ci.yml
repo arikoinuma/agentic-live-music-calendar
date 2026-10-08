@@ -42,7 +42,7 @@ jobs:
         run: uv run pytest
 
   js:
-    name: JS (turbo lint + check-types)
+    name: JS (turbo lint + check-types + test)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -56,7 +56,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm turbo run lint check-types
+      - run: pnpm turbo run lint check-types test
 
   contract:
     name: Contract (schemas.py -> TypeScript)

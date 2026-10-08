@@ -35,6 +35,7 @@ approach — most "what should we do about X" questions have an answer with reas
 | What are we building next? | `docs/dev/v1-build-plan.md` |
 | How was the environment set up? | `docs/dev/env-setup.md` |
 | What non-obvious thing bit us before? | `docs/dev/notes.md` |
+| How is a given milestone being implemented? | `docs/dev/implementations/` |
 
 When a real debugging session turns up something non-obvious, add it to `docs/dev/notes.md`.
 When a design decision gets made, record it where the surrounding reasoning lives.
@@ -90,3 +91,20 @@ alone.
 
 Tasks in that plan are marked **[fill-in]** (scaffold with dense guiding comments, the human
 implements) or **[written]** (write it complete, then walk through it). Respect the marking.
+
+## Implementation plans — written down, then reviewed by a different model
+
+Before non-trivial implementation work (any milestone in the build plan), **do not start
+coding from a plan that only exists in a chat or a scratch file.**
+
+1. Write the plan to `docs/dev/implementations/<milestone>-<slug>.md` (e.g.
+   `a1-data-layer.md`): context, test approach, steps, critical files, verification. Header
+   records status, author model, reviewer model, and date.Pause here and wait for the next steps to take place, do not proceed to coding without explicit approval.
+2. **A different model than the one that wrote the plan reviews it before any code is
+   written.** The reviewer reads the plan against the docs it cites and the actual code, and
+   returns numbered findings with severity: wrong assumptions, gaps versus the docs, risky
+   steps, holes in the tests.
+3. The author resolves every finding in the plan file under a `## Review` section — fixed, or
+   rejected with a one-line reason — and the user approves the reviewed plan before
+   implementation starts.
+4. Tests come first (build plan §3), so the reviewer checks the test approach too.

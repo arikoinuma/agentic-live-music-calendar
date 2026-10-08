@@ -63,7 +63,7 @@ apps/
 └── api/                  # FastAPI backend — see fastapi-style-guide.md
 packages/
 ├── ui/                   # @repo/ui — shared shadcn/base component library
-│   └── src/               # exported as @repo/ui/<name> (one file per component)
+│   └── src/               # components/ -> @repo/ui/components/<name> (one file per component)
 ├── eslint-config/         # @repo/eslint-config — base.js, next.js, react-internal.js
 └── typescript-config/     # @repo/typescript-config — base/nextjs/react-library tsconfig
 ```
@@ -97,7 +97,8 @@ app/
 - Use route groups `(name)` to organize without affecting the URL, e.g. splitting
   authenticated vs public layouts.
 - Cross-package imports go through the workspace alias, not relative paths:
-  `import { Button } from "@repo/ui/button"`, not `../../../packages/ui/src/button`.
+  `import { Button } from "@repo/ui/components/button"`, not
+  `../../../packages/ui/src/components/button`.
 
 ## Server vs Client Components
 
@@ -454,7 +455,7 @@ export async function getVenueDTO(slug: string) {
   export default function Default() { return null; }
   ```
 - Cross-domain/cross-app imports inside `packages/ui` should be exported per-component
-  (`@repo/ui/button`, `@repo/ui/card`) — don't add a barrel `index.ts` that re-exports
+  (`@repo/ui/components/button`, `@repo/ui/components/card`) — don't add a barrel `index.ts` that re-exports
   everything; it defeats tree-shaking and Turbopack's incremental compilation.
 
 ## Streaming, Suspense & error boundaries

@@ -159,8 +159,9 @@ typecheck: ## mypy + tsc
 	cd $(API_DIR) && uv run mypy app/
 	pnpm turbo run check-types
 
-test: ## pytest
+test: ## pytest + vitest
 	cd $(API_DIR) && uv run pytest
+	pnpm turbo run test
 
 clean: ## Remove caches and build output
 	rm -rf .turbo apps/*/.turbo apps/*/.next

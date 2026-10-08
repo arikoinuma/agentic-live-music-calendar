@@ -67,6 +67,7 @@ Reading the actual code turns up more than the runbook's checkboxes suggest. The
 | G21 | `metadata` still reads `title: "Create Next App"` | `apps/calendar/app/layout.tsx` | B1 |
 | G22 | `apps/admin` is 100% untouched template and has no defined role yet. `arch-initial.md` Section 7 says the MCP server "provides an operational interface without requiring a dedicated admin frontend first" — so admin has no v1 job | `apps/admin/` | see §8 |
 | G23 | No API client layer, no shared types between FastAPI's Pydantic shapes and the frontend's TypeScript | `apps/calendar/lib/` | Track 0 |
+| G24 | The metro name is hard-coded in the root layout (footer text and the `description` metadata). It should come from the metro record. The contract has no metro endpoint — `MetroSummary` appears only nested inside `VenueDetail` — so this needs a small contract addition first. Single live metro for v1, so no `metro_id` parameter (`api-contract.md`: metro scoping) | `apps/calendar/app/layout.tsx` | B2 |
 
 ---
 
@@ -95,8 +96,12 @@ They meet at one place: **the API contract**. Track 0 below defines it once, up 
 
 **Notation for who writes what** (per the split-by-area decision):
 
-- **[fill-in]** — I write the file with structure, imports, and dense comments explaining what each piece must do and why; you write the implementation. Same style as `state.py`, `graph.py`, `config.py`, and the first migration.
+- **[fill-in]** — I write the file with structure, imports, and dense comments explaining what each piece must do and why; you write the implementation. Same style as `state.py`, `graph.py`, `config.py`, and the first migration. [UPDATE OCT 8] "writing the implementation" will be de-emphasized moving forward, in favor of speed.  Still leave dense comments and perhaps some code that can be hand-coded or pasted from comments. The goal is to draw Ari's attention to these files to understand critical aspects of the code, but Ari will likely still ask Claude to actually code this once he has sufficient understanding of what's to be written.
 - **[written]** — I write it complete and walk you through the non-obvious parts. Reserved for mechanical work where typing it out teaches little: model definitions, migrations, seed data, test fixtures, config.
+
+ALWAYS write tests first.  Discuss how you plan to approach unit tests.
+
+[UPDATE OCT 8] Each milestone gets its implementation plan written to `docs/dev/implementations/<milestone>-<slug>.md` and reviewed by a *different model* before any code is written. See `AGENTS.md`, "Implementation plans".
 
 ---
 
@@ -202,11 +207,13 @@ The stated goal is a primer on starting a React/Next.js app from scratch. `apps/
 
 ### B1. Strip to bare, then rebuild the shell
 
-- [ ] **[written]** Delete the template: the Turborepo logo and CTAs, `page.module.css`, the `ThemeImage` component, the demo SVGs in `public/` (G18)
-- [ ] **[fill-in]** Resolve the three-buttons problem (G19). Concretely: `packages/ui/src/button.tsx` (template) and `apps/calendar/components/ui/button.tsx` (stray copy) both go; `packages/ui/src/components/button.tsx` (shadcn) stays, and `layout.tsx`'s import updates. Also worth understanding while you're in there: `packages/ui/package.json`'s `"exports": {"./*": "./src/*.tsx"}` is what makes `@repo/ui/components/button` resolve to a file path, and why there's no build step
-- [ ] **[fill-in]** Commit to Tailwind and drop CSS Modules (G20). Both are currently active
-- [ ] **[fill-in]** Real `metadata` in `layout.tsx` (G21), and a root layout with actual application chrome
-- [ ] **[fill-in]** Keep the health check, but move it to `/health` as a diagnostics page rather than the home page. It's useful and it shouldn't be what visitors see
+- [x] **[written]** Delete the template: the Turborepo logo and CTAs, `page.module.css`, the `ThemeImage` component, the demo SVGs in `public/` (G18)
+- [x] **[fill-in]** Resolve the three-buttons problem (G19). *Done, with two corrections: the template button was imported by `page.tsx` (not `layout.tsx`) and also by `apps/admin`, so admin's page now uses the shadcn button (minimal edit); and the shadcn button exposed a latent `exports` bug — see `notes.md`. The template `card.tsx` and `code.tsx` went too.* Concretely: `packages/ui/src/button.tsx` (template) and `apps/calendar/components/ui/button.tsx` (stray copy) both go; `packages/ui/src/components/button.tsx` (shadcn) stays, and `layout.tsx`'s import updates. Also worth understanding while you're in there: `packages/ui/package.json`'s `"exports": {"./*": "./src/*.tsx"}` is what makes `@repo/ui/components/button` resolve to a file path, and why there's no build step
+- [x] **[fill-in]** Commit to Tailwind and drop CSS Modules (G20). Both are currently active
+- [x] **[fill-in]** Real `metadata` in `layout.tsx` (G21), and a root layout with actual application chrome
+- [x] **[fill-in]** Keep the health check, but move it to `/health` as a diagnostics page rather than the home page. It's useful and it shouldn't be what visitors see
+
+**B1 was done before the implementation-plan rule existed** (root `AGENTS.md`: written plan, different-model review, user approval). It has no file under `docs/dev/implementations/`; its review happened afterwards, and the findings were resolved in place. B2 onward follows the rule.
 
 **The primer this produces.** Worth writing down as you go, because these are the questions that are genuinely confusing coming to Next.js fresh, and the answers are load-bearing for everything after: what the App Router does with the filesystem; why `page.tsx`, `layout.tsx`, and `loading.tsx` are special names; what "Server Component by default" actually means for where your code runs and what it can touch; what `'use client'` costs; and why `page.tsx` already has `export const dynamic = "force-dynamic"` on it.
 
@@ -214,6 +221,8 @@ The stated goal is a primer on starting a React/Next.js app from scratch. `apps/
 
 - [ ] **[fill-in]** The route structure from `requirements-initial.md`: `/` (four-week calendar), `/day/[date]`, `/venue/[id]`, `/venues`, `/artist/[id]`, `/artists`. Create them as static placeholders first — seeing the URLs resolve before any of them render real data makes the filesystem-routing model concrete
 - [ ] **[written]** A typed API client in `apps/calendar/lib/` wrapping `fetch` against FastAPI, using the Track 0 types, reading from the JSON fixtures until Track A's endpoints exist (G23)
+- [ ] **[written]** Add `GET /metro` to the contract: a route returning `MetroSummary` for the single live metro, served from `app/sample_data.py` until A1 swaps in a query. Then `make types` and `make fixtures`. Prerequisite for the next item (G24)
+- [ ] **[fill-in]** Replace the hard-coded metro name in `layout.tsx` (footer and `description` metadata; both carry `TODO(G24)`) with the API's metro. Two things to decide: metadata goes through `generateMetadata`, and the footer needs a small async child inside `<Suspense>` rather than an `await` in the layout body, to keep the shell prerenderable. Cache the fetch with `force-cache` and a long `revalidate` — the metro essentially never changes. The real DB-backed value arrives with A1's seed; until then the sample data answers
 - [ ] **[fill-in]** Load data in a Server Component and render it. Specifically worth noticing: this is a `fetch` with no `useEffect`, no loading state, and no client-side data library — and understanding *why* that works is most of understanding RSC
 - [ ] **[fill-in]** Filters as URL search params, not component state, per `arch-initial.md` Section 4. This is the decision with the most downstream consequences in the whole frontend: it's what makes a filtered calendar shareable, bookmarkable, and server-rendered from the URL alone
 
@@ -238,7 +247,7 @@ The hard part, and deliberately not a solved problem you can install — `arch-i
 
 ### B5. Frontend testing
 
-- [ ] **[written]** `vitest` + `@testing-library/react` set up in `apps/calendar` (specified in the arch doc, not yet installed)
+- [ ] **[written]** `vitest` + `@testing-library/react` set up in `apps/calendar` (specified in the arch doc, not yet installed) *(Partly done in B1: `vitest` is installed and wired into Turbo, `make test` and CI, node environment. Still to do here: `@testing-library/react` and jsdom.)*
 - [ ] **[fill-in]** Component tests for the pieces with real logic — the filter header, the empty state, the date grouping
 - [ ] **Deferred:** Playwright end-to-end tests. Worth doing, but after the UI stops changing shape every session
 

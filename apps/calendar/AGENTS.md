@@ -75,12 +75,20 @@ HTTP against the API for anything else — the routes exist and serve the same d
 
 ## Known state and open cleanups
 
-This app is still largely the `create-turbo` template with a health check attached.
-Milestone B1 in `docs/dev/v1-build-plan.md` strips it. Until then, expect:
+B1 stripped the `create-turbo` template (`docs/dev/v1-build-plan.md`): Tailwind is the
+only styling system, `packages/ui/src/components/button.tsx` (shadcn) is the only
+button, and the root layout has real metadata and chrome. `/` is a placeholder until
+B2/B3; `/health` is the diagnostics page.
 
-- CSS Modules (`page.module.css`) and Tailwind both active — B1 picks Tailwind.
-- Three competing button components — B1 keeps the shadcn one in `packages/ui`.
-- `metadata.title` still reads "Create Next App".
+- Tests: `pnpm test` (Vitest, node environment). jsdom and Testing Library arrive with
+  the first component tests (B5). Don't unit-test async Server Components — see the
+  style guide's Testing section.
+- Shared-package imports go through `packages/ui/package.json` `exports`, not its
+  tsconfig `paths` — a new folder of `.ts` files under `packages/ui/src` needs its own
+  `exports` entry (`docs/dev/notes.md`).
+- Tailwind doesn't scan `packages/ui`. The first time this app imports a shared
+  component, add `@source "../../packages/ui/src";` to `app/globals.css` or it renders
+  unstyled (`docs/dev/notes.md`).
 
 **Not done, and the style guide asks for it:** the `server-only` package on any module
 touching `process.env` beyond `NEXT_PUBLIC_*` — `API_BASE_URL` is server-only and nothing

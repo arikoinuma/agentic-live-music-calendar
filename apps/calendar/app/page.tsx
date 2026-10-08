@@ -1,126 +1,25 @@
-import Image, { type ImageProps } from "next/image";
-import { Button } from "@repo/ui/button";
-import styles from "./page.module.css";
+import Link from "next/link";
 
-// This page calls FastAPI's live /health endpoint, so it can't be
-// statically prerendered at build time — that would mean every future
-// Vercel build needs Railway's backend reachable from Vercel's build
-// servers, and would bake a frozen, build-time health status into the
-// static output instead of showing each visitor the actual live status.
-// force-dynamic makes Next.js render this per-request instead.
-export const dynamic = "force-dynamic";
-
-type Props = Omit<ImageProps, "src"> & {
-  srcLight: string;
-  srcDark: string;
-};
-
-const ThemeImage = (props: Props) => {
-  const { srcLight, srcDark, ...rest } = props;
-
+// Placeholder home page. B2 turns this into the four-week calendar
+// (requirements-initial.md "Calendar (Including Home Page)").
+//
+// Note what's NOT here compared with the old page: no `force-dynamic`.
+// That export existed because the page called FastAPI at render time and
+// couldn't be prerendered. This page does no I/O, so Next.js prerenders it
+// to static HTML at build — the default, and the cheapest.
+export default function Home() {
   return (
-    <>
-      <Image {...rest} src={srcLight} className="imgLight" />
-      <Image {...rest} src={srcDark} className="imgDark" />
-    </>
-  );
-};
-
-interface Res {
-  message: string
-};
-
-async function checkHealth(){
-  const response = await fetch(`${process.env.API_BASE_URL}/health`);
-  const data = (await response.json()) as Res;
-  return data;
-}
-
-export default async function Home() {
-
-  const health = await checkHealth();
-  console.log(health);
-
-  return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <ThemeImage
-          className={styles.logo}
-          srcLight="turborepo-dark.svg"
-          srcDark="turborepo-light.svg"
-          alt="Turborepo logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol>
-          <li>
-            Get started by editing <code>apps/calendar/app/page.tsx</code>
-          </li>
-          <li>Save and see your changes instantly.</li>
-          <li>How does this work?</li>
-          <li>API health: {health.message}</li>
-        </ol>
-
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new/clone?demo-description=Learn+to+implement+a+monorepo+with+a+two+Next.js+sites+that+has+installed+three+local+packages.&demo-image=%2F%2Fimages.ctfassets.net%2Fe5382hct74si%2F4K8ZISWAzJ8X1504ca0zmC%2F0b21a1c6246add355e55816278ef54bc%2FBasic.png&demo-title=Monorepo+with+Turborepo&demo-url=https%3A%2F%2Fexamples-basic-web.vercel.sh%2F&from=templates&project-name=Monorepo+with+Turborepo&repository-name=monorepo-turborepo&repository-url=https%3A%2F%2Fgithub.com%2Fvercel%2Fturborepo%2Ftree%2Fmain%2Fexamples%2Fbasic&root-directory=apps%2Fdocs&skippable-integrations=1&teamSlug=vercel&utm_source=create-turbo"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            href="https://turborepo.dev/docs?utm_source"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.secondary}
-          >
-            Read our docs
-          </a>
-        </div>
-        <Button appName="calendar" className={styles.secondary}>
-          Open alert
-        </Button>
-      </main>
-      <footer className={styles.footer}>
-        <a
-          href="https://vercel.com/templates?search=turborepo&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          href="https://turborepo.dev?utm_source=create-turbo"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to turborepo.dev →
-        </a>
-      </footer>
-    </div>
+    <section>
+      <h1 className="text-2xl font-semibold tracking-tight">
+        Live music, next four weeks
+      </h1>
+      <p className="mt-2 text-muted-foreground">
+        The calendar is coming. See the{" "}
+        <Link className="underline" href="/health">
+          status page
+        </Link>{" "}
+        for whether the API is reachable.
+      </p>
+    </section>
   );
 }
