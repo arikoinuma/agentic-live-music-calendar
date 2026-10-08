@@ -22,8 +22,9 @@ Run from `apps/api`. Scripts need `-m` (`uv run python -m scripts.dump_openapi`)
 
 ```
 uv run uvicorn app.main:app --reload    # or `make api` from the repo root
-uv run pytest
+uv run pytest                           # DB tests skip if Postgres is down
 uv run ruff check . && uv run mypy app/
+make seed                               # metro + the four starting venues
 ```
 
 ## Deliberate divergences from the style guide
@@ -34,7 +35,7 @@ Don't "fix" these. Each is a decision with a reason.
 |---|---|---|
 | `src/{domain}/{router,schemas,models,service}.py` | Flat `app/` — `schemas.py`, `enums.py`, `routers/` | One bounded context. Domain packaging would be ceremony around a single domain. Revisit if a second appears. |
 | One `BaseSettings` per domain | One global `Settings` in `app/config.py` | Same reason. |
-| Test with `httpx.AsyncClient` + `ASGITransport` | `fastapi.testclient.TestClient` | Routes are still sync `def` over in-memory data. **Revisit in A1**, when they become `async def` against a real session — and note the live `StarletteDeprecationWarning` about httpx + TestClient when you do. |
+| Test with `httpx.AsyncClient` + `ASGITransport` | `fastapi.testclient.TestClient` | Routes are still sync `def` over in-memory data. **Revisit in A1b**, when they become `async def` against a real session — and note the live `StarletteDeprecationWarning` about httpx + TestClient when you do. |
 | Don't return a Pydantic model when `response_model` is set (double construction) | Routes return constructed models via a return-type annotation | The annotation is what puts the schema into `/openapi.json` *and* what mypy checks. Re-validation is cheap; losing either of those isn't. |
 
 ## Rules that bite most often here
@@ -47,8 +48,8 @@ Don't "fix" these. Each is a decision with a reason.
   string. mypy catches this class of bug; ruff doesn't. Run both.
 - **List query parameters need explicit `Query()`.** Without it FastAPI treats a non-scalar
   annotation as a body parameter, and on a GET the value silently never arrives.
-- **`Annotated[T, Depends(...)]`**, not default-arg `Depends(...)`. Matters from A1 onward
-  for the DB session dependency.
+- **`Annotated[T, Depends(...)]`**, not default-arg `Depends(...)`. Matters from A1b onward
+  for the DB session dependency (`get_db` is added there, with its first consumer).
 - **Async discipline.** No `time.sleep`, `requests`, or a sync DB session inside `async def`
   — it blocks the whole event loop. `httpx.AsyncClient`, or a plain `def` route that
   FastAPI runs in a threadpool.
@@ -64,9 +65,20 @@ Don't "fix" these. Each is a decision with a reason.
   tables and columns and unreliable for enum types and constraint changes.
 - Enum types live in `app/enums.py` — one definition shared by the ORM models, the API
   schemas, and the worker's audit writes.
-- **Not yet done, and the style guide wants it:** the index/constraint naming convention on
-  `MetaData` (`ix`/`uq`/`ck`/`fk`/`pk` templates). Add it in A1, with the first models —
-  retrofitting it later means renaming live constraints.
+- The index/constraint naming convention is on `Base.metadata` in `app/db/base.py`
+  (`ix`/`uq`/`ck`/`fk`/`pk` templates). Because the `ck` template uses the constraint's own
+  name, every `CheckConstraint` needs an explicit `name=`.
+- **Enum types in migrations are hand-managed.** Alembic's `add_column` never creates a
+  Postgres enum type, so a migration creates every type explicitly up front
+  (`postgresql.ENUM(...).create(...)`), references them with `create_type=False`, and drops
+  them after the tables in `downgrade()`. See `notes.md`.
+- **DB tests run against a real `calendar_test` database** that the fixtures drop and recreate
+  every session (`app/testing/db.py`). They refuse to run unless the database is named
+  `calendar_test` and — when the URL is derived from `DATABASE_URL` — the host is local.
+  `TEST_DATABASE_URL` / `REQUIRE_DB` are shell/CI variables, **never `.env`** (`Settings`
+  forbids unknown keys). They skip when Postgres is down, except under `REQUIRE_DB=1` / `CI`;
+  `make test` / `make check` set it. Run one pytest at a time: the fixtures `DROP DATABASE
+  ... WITH (FORCE)`, which kills a concurrent run's connections (e.g. an editor test explorer).
 - `DATABASE_URL` needs `+asyncpg` and must **not** carry `sslmode`/`channel_binding`.
   See `docs/dev/notes.md`; this has cost real debugging time twice.
 

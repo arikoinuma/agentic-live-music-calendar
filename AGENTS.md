@@ -74,6 +74,19 @@ mypy, pytest) and is not in the pipeline.
 - **Comments explain why, not what.** This codebase is unusually comment-dense on purpose:
   it's a learning project, and the reasoning behind a decision is the point. Match that —
   but comment the non-obvious choice, not the obvious line.
+- **Every file is understandable to an engineer who has never seen this app.** Each module
+  opens with a docstring saying what it is and how to read it. Each class, function, and
+  logical block says what it is for at a high level, so nobody has to reverse-engineer a
+  chunk of code to learn its role. This sits alongside the "why, not what" rule: explain
+  the purpose of a block, not the syntax of its lines.
+- **Tests state what they prove.** Every test opens with a comment beginning `Proves:`
+  that says what behavior it pins down and why that matters, plus the failure it would
+  catch where that isn't obvious. Group tests under labelled section comments, and explain
+  each helper and fixture in plain terms. Tests that read their expectations from the code
+  under test can't catch that code being wrong, so say where the expected values come from.
+- **Comment-only passes must not change code.** When adding or revising comments across
+  files, snapshot the files first and compare syntax trees (ignoring comments and
+  docstrings) afterwards, then run `make check`. See A1's comment pass for the pattern.
 - **Cite the source of a decision.** When code implements something a doc specifies, name
   the doc and section. When it deliberately departs, say so and why.
 - **Don't build what has nothing to consume it.** This repo consistently defers rather than
@@ -89,8 +102,54 @@ real agent writes and a real calendar UI. Two tracks (Python/agent, Next.js) mee
 API contract. Nothing hosted is in scope — Vercel, Railway, and Neon are deployed and left
 alone.
 
-Tasks in that plan are marked **[fill-in]** (scaffold with dense guiding comments, the human
-implements) or **[written]** (write it complete, then walk through it). Respect the marking.
+Tasks in that plan are marked **[fill-in]** or **[written]** (write it complete, then walk
+through it). Respect the marking — the next section is what [fill-in] means in practice.
+
+## [fill-in] tasks — Ari types the lines that carry the lesson
+
+A task is marked [fill-in] because a few lines in it teach something that reading finished code
+doesn't. **The deliverable for a [fill-in] task is a scaffold with deliberate gaps, not working
+code.**
+
+1. **Write everything around the lesson** — imports, types, signatures, wiring, markup,
+   boilerplate, and the tests (which stay red).
+2. **Leave the 1–3 spots where the concept lives as `TODO(Ari)` blocks**, each a few lines at
+   most. Every block has three parts:
+   - **Lesson** — the idea, and why it's done this way *here*, citing the doc that decided it.
+   - **Code** — the near-exact lines, in a comment, complete enough to type or paste. Speed
+     matters (Oct 8 update): a gap should cost minutes, not research.
+   - **Check** — the test that goes green when it's right, and the most likely way to get it wrong.
+
+   The placeholder must fail loudly (`raise NotImplementedError("TODO(Ari)")` /
+   `throw new Error("TODO(Ari)")`) so the tests stay red rather than passing by accident.
+3. **Stop and hand off**: list each `TODO(Ari)` as a file:line link with its one-line lesson,
+   plus the command that runs its tests. Don't fill them in.
+
+```python
+# TODO(Ari) — Lesson: the soft delete only considers shows inside the window this fetch covered
+#   (data-model-initial.md, set-diff). A page listing two weeks must not "remove" week three.
+# Code:
+#   covered = {s.key for s in stored if window.start <= s.date <= window.end}
+#   removed = covered - {e.key for e in extracted}
+# Check: test_reconcile.py::test_soft_delete_respects_window — forgetting the window filter
+#   deletes every show past the page's horizon.
+raise NotImplementedError("TODO(Ari)")
+```
+
+**"Go ahead", "implement B2", "proceed with the plan" mean: carry out the plan, and for
+[fill-in] steps the plan is the scaffold.** They don't give permission to fill `TODO(Ari)`
+blocks. Fill a block only when Ari asks for that block (or file) by name — "fill in the TODOs in
+`reconcile.py`", "complete it for me". When you do, keep the Lesson comment as an ordinary
+comment.
+
+**Picking the gaps:** choose lines where the concept lives, not where most of the typing is.
+Good gaps: the `searchParams` → API-query mapping, the composite-key match that decides insert
+vs. update, the routing function's branch conditions. Bad gaps: JSX markup, import lists,
+Pydantic field declarations. If no line in a [fill-in] task meets that bar, say so in the
+implementation plan and propose re-marking it [written] — don't invent a gap.
+
+Implementation plans (below) name each [fill-in] step's `TODO(Ari)` blocks and their lessons, so
+the reviewer can check that the gaps are the right ones.
 
 ## Implementation plans — written down, then reviewed by a different model
 

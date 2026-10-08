@@ -1,7 +1,7 @@
 """Artist routes.
 
 TEMPORARY IMPLEMENTATION — same note as app/routers/venues.py: these
-serve app/sample_data.py, and milestone A1 replaces the bodies with real
+serve app/sample_data.py, and milestone A1b replaces the bodies with real
 queries without changing the signatures.
 
 Contract: docs/dev/api-contract.md section 2.

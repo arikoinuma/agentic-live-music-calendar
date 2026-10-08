@@ -313,6 +313,28 @@ Backs the anonymous-session-first, optional-email identity model in `arch-initia
 
 ---
 
+### Departures made when this was implemented (milestone A1)
+
+The migration `5e652b75cd03` follows the sections above except for the following. Reasoning and
+the two review rounds are in `docs/dev/implementations/a1-data-layer.md`.
+
+- **`agent_run.triggered_by` and `audit_log.contributor_id` are omitted.** Their FK target,
+  `contributor`, is deferred, so they can't be created as specified. Add them with that table.
+- **`audit_log.session_hash` is omitted.** It is populated only for `source = 'user'` rows, and user
+  edits are deferred; an always-NULL column is worse than its absence. `snapshot_key` is the one
+  always-NULL column that *is* kept, because the R2 snapshot write has a defined place in A4.
+- **`created_at` / `updated_at`** are on `metro`, `venue`, `event`, `show` and `artist`, but not on
+  `show_artist` (pure join), `audit_log` (append-only; `created_at` only) or `agent_run` (its own
+  `started_at` / `finished_at`). `updated_at`'s refresh-on-update is SQLAlchemy-side only; no trigger.
+- **Precisions:** `show.admission_advance` / `admission_day` are `Numeric(10, 2)`;
+  `audit_log.confidence` is `Numeric(4, 3)`.
+- **Extra indexes:** `show (venue_id, date)` and `audit_log (run_id)`, plus the GIN indexes on
+  `extra_metadata` that section 1 already calls for.
+- **Server-side defaults** (not Python-side) for `show.status`, `venue.fetch_strategy`,
+  `audit_log.attempt_number` and the timestamps, so raw SQL and the worker get them too.
+- The `free_admission` CHECK is named `free_admission`, rendering as `show_free_admission_check`
+  under the naming convention.
+
 ## 4. Enum reference
 
 | Enum type | Values | Used by |

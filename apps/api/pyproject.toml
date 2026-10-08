@@ -53,6 +53,15 @@ plugins = ["pydantic.mypy"]
 # scripts (e.g. local_test.py) that match pytest's default *_test.py
 # discovery glob and fire live model calls on import if collected.
 testpaths = ["app"]
+# pytest-asyncio 1.x defaults to a fresh event loop per test, but asyncpg
+# connections are bound to the loop that created them — so the session-scoped
+# DB fixtures (app/testing/db.py) and the tests that use them must share one
+# loop. Leaving the fixture scope unset also raises a deprecation warning.
+# -rs: print skip reasons, so a skipped DB suite is visible rather than silent.
+addopts = "-rs"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 
 [tool.ruff.lint.per-file-ignores]
 # Broad except is deliberate here: one fixture/model failing outright

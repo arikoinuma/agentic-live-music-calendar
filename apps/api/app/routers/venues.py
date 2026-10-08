@@ -3,7 +3,7 @@
 TEMPORARY IMPLEMENTATION. These serve app/sample_data.py, not the
 database. The point is that the *shape* is real — same URLs, same
 response models, same error behavior the real API will have — so the
-frontend can be built against actual HTTP now, and milestone A1 swaps
+frontend can be built against actual HTTP now, and milestone A1b swaps
 only the bodies of these functions for real queries. The signatures
 shouldn't need to change.
 

@@ -3,7 +3,7 @@
 These cover shape and status code, not data correctness — the bodies
 still serve app/sample_data.py, so asserting on specific shows would
 just be testing the sample data. What's worth pinning down now is the
-behavior that A1 must not break when it swaps the bodies for real
+behavior that A1b must not break when it swaps the bodies for real
 queries: the URLs, the filter semantics, and the error codes.
 
 The 404 assertions exist because the first hand-written version of

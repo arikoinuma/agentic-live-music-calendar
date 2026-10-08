@@ -30,13 +30,13 @@ Not implemented yet. Listed here as the agreed surface; each lands with its mile
 
 | Method | Path | Returns | Serves | Milestone |
 |---|---|---|---|---|
-| GET | `/shows?start=&end=&venue_id=&artist_id=` | `ShowListResponse` | Home calendar, `/day/[date]`, the calendar embedded on venue and artist pages | A-track, after A1 |
-| GET | `/shows/{id}` | `ShowDetail` | `/show/[id]` | A-track, after A1 |
-| GET | `/venues` | `VenueListResponse` | `/venues`, and the calendar's venue filter | A-track, after A1 |
-| GET | `/venues/{id}` | `VenueDetail` | `/venue/[id]` | A-track, after A1 |
-| GET | `/artists` | `ArtistListResponse` | `/artists`, and the calendar's artist filter | A-track, after A1 |
-| GET | `/artists/{id}` | `ArtistDetail` | `/artist/[id]` | A-track, after A1 |
-| GET | `/calendar/months` | `CalendarMonthsResponse` | The month dropdown | A-track, after A1 |
+| GET | `/shows?start=&end=&venue_id=&artist_id=` | `ShowListResponse` | Home calendar, `/day/[date]`, the calendar embedded on venue and artist pages | A-track, after A1b |
+| GET | `/shows/{id}` | `ShowDetail` | `/show/[id]` | A-track, after A1b |
+| GET | `/venues` | `VenueListResponse` | `/venues`, and the calendar's venue filter | A-track, after A1b |
+| GET | `/venues/{id}` | `VenueDetail` | `/venue/[id]` | A-track, after A1b |
+| GET | `/artists` | `ArtistListResponse` | `/artists`, and the calendar's artist filter | A-track, after A1b |
+| GET | `/artists/{id}` | `ArtistDetail` | `/artist/[id]` | A-track, after A1b |
+| GET | `/calendar/months` | `CalendarMonthsResponse` | The month dropdown | A-track, after A1b |
 
 **Filtering.** `venue_id` and `artist_id` repeat for multi-select (`?venue_id=1&venue_id=3`). Both filters are AND-ed with the date range and OR-ed within themselves — picking two venues means "either venue," which is what a multi-select visibly implies.
 

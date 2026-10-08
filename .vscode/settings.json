@@ -1,4 +1,5 @@
 {
   "python.terminal.useEnvFile": true,
-  "python.envFile": "${workspaceFolder}/apps/api/.env"
+  "python.envFile": "${workspaceFolder}/apps/api/.env",
+  "makefile.configureOnOpen": false
 }

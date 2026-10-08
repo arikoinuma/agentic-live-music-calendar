@@ -20,11 +20,6 @@ from app.config import settings
 client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
 instructor_client = instructor.from_openai(client, mode=Mode.JSON)
 
-# TODO: FIXTURES_DIR — same pattern as eval/run_eval.py's constant:
-# Path(__file__).parent / "eval" / "fixtures". Only needed for the
-# fetch_node below in its current temporary, fixture-reading form.
-FIXTURES_DIR = ...
-
 def html_clean(html: str):
     cleaned_page = BeautifulSoup(html, "html.parser")
     for tag in cleaned_page(["script", "style"]):

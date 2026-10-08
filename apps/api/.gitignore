@@ -6,6 +6,9 @@
 
 # env files (can opt-in for commiting if needed)
 .env*
+# ...but .env.example is the documented template (`make setup` copies it),
+# so it must be committed.
+!.env.example
 
 # vercel
 .vercel

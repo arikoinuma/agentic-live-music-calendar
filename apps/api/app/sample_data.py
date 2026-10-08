@@ -2,7 +2,7 @@
 
 TEMPORARY. Every route that serves this is a placeholder for a real
 query — see app/routers/. This module exists so the API can answer with
-correctly-shaped responses before milestone A1 creates the tables, which
+correctly-shaped responses before the read routes move onto the tables created in A1 (swapped in A1b), which
 is what lets the frontend be built against real HTTP instead of against
 imported JSON files. It should be deleted once the routers read from
 Postgres; if it's still here after A6, something went wrong.

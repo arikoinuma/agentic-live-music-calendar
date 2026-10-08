@@ -12,13 +12,16 @@ and none of them should own the definition:
 
 `StrEnum` (Python 3.11+) rather than `Enum`: members compare equal to
 their own string value, so `AgeRestriction.ALL_AGES == "all_ages"` is
-True, JSON serialization is the plain string with no encoder needed, and
-SQLAlchemy stores the value rather than the member name. The existing
+True, and JSON serialization is the plain string with no encoder needed.
+SQLAlchemy does NOT store the value by default — it persists the member
+*name* ("ALL_AGES") — unless the column's Enum sets `values_callable`,
+which app/db/types.py does for every type here. The existing
 agent_worker/constants.py already uses StrEnum for the same reasons.
 
 Only the enums for tables this phase actually builds are here — core
-calendar plus audit. `submission_status` from the data-model doc is
-omitted along with the venue_submission table itself.
+calendar plus audit. `submission_status` and `social_platform` from the
+data-model doc are omitted along with the tables that use them
+(venue_submission, venue_social, artist_social).
 """
 
 from enum import StrEnum

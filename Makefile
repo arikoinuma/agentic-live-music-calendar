@@ -14,7 +14,7 @@ WEB := calendar
 
 .DEFAULT_GOAL := help
 .PHONY: help setup dev api web db db-up db-down db-reset db-shell db-wait \
-        migrate migration fixtures types contract-check test lint typecheck \
+        migrate migration seed fixtures types contract-check test lint typecheck \
         check clean
 
 help: ## Show this help
@@ -35,7 +35,7 @@ setup: ## First-time setup: install deps, start Postgres, migrate
 	}
 	pnpm install
 	cd $(API_DIR) && uv sync
-	$(MAKE) db-up db-wait migrate
+	$(MAKE) db-up db-wait migrate seed
 	@echo
 	@echo "Setup complete. Run 'make dev'."
 
@@ -86,7 +86,7 @@ db-reset: ## Destroy the database volume and rebuild it from migrations
 	@echo "This deletes all local database data."
 	@read -p "Continue? [y/N] " ok; [ "$$ok" = "y" ] || exit 1
 	docker compose down -v
-	$(MAKE) db-up db-wait migrate
+	$(MAKE) db-up db-wait migrate seed
 
 db-shell: ## Open psql against the local database
 	docker compose exec postgres psql -U postgres -d calendar_dev
@@ -115,6 +115,9 @@ migration: ## Autogenerate a migration: make migration m="add show table"
 	@echo "Read the generated file before applying it. Alembic's"
 	@echo "autogenerate is reliable for tables and columns and unreliable"
 	@echo "for enum types and constraint changes."
+
+seed: ## Create the metro and starting venues (safe to re-run)
+	cd $(API_DIR) && uv run python -m scripts.seed
 
 fixtures: ## Regenerate the frontend JSON fixtures from app/sample_data.py
 	cd $(API_DIR) && uv run python -m scripts.generate_fixtures
@@ -159,8 +162,10 @@ typecheck: ## mypy + tsc
 	cd $(API_DIR) && uv run mypy app/
 	pnpm turbo run check-types
 
-test: ## pytest + vitest
-	cd $(API_DIR) && uv run pytest
+# REQUIRE_DB=1: the DB tests skip when Postgres is down, and `make check` is the
+# "done" gate — it must not go green with the whole DB suite skipped.
+test: ## pytest (DB tests required) + vitest
+	cd $(API_DIR) && REQUIRE_DB=1 uv run pytest
 	pnpm turbo run test
 
 clean: ## Remove caches and build output

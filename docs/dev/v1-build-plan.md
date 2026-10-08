@@ -96,7 +96,7 @@ They meet at one place: **the API contract**. Track 0 below defines it once, up 
 
 **Notation for who writes what** (per the split-by-area decision):
 
-- **[fill-in]** — I write the file with structure, imports, and dense comments explaining what each piece must do and why; you write the implementation. Same style as `state.py`, `graph.py`, `config.py`, and the first migration. [UPDATE OCT 8] "writing the implementation" will be de-emphasized moving forward, in favor of speed.  Still leave dense comments and perhaps some code that can be hand-coded or pasted from comments. The goal is to draw Ari's attention to these files to understand critical aspects of the code, but Ari will likely still ask Claude to actually code this once he has sufficient understanding of what's to be written.
+- **[fill-in]** — I write the file around its lesson and leave the 1–3 critical spots as `TODO(Ari)` blocks: what the lesson is, the near-exact code to type, and the test that proves it. You type those lines; everything else is done. Full protocol: `AGENTS.md`, "[fill-in] tasks". [UPDATE OCT 8, revised] Speed still matters, so the code in each gap is spelled out and should take minutes. But a gap stays open until you fill it or ask for that specific gap to be filled — "go ahead with the plan" produces the scaffold, not the filled-in file. (B1 got this wrong: its fill-in items were implemented outright.)
 - **[written]** — I write it complete and walk you through the non-obvious parts. Reserved for mechanical work where typing it out teaches little: model definitions, migrations, seed data, test fixtures, config.
 
 ALWAYS write tests first.  Discuss how you plan to approach unit tests.
@@ -113,7 +113,7 @@ ALWAYS write tests first.  Discuss how you plan to approach unit tests.
 - [x] **[written]** The read API's response shapes, as Pydantic models in `apps/api/app/schemas.py` — seven endpoints covering the calendar, day view, show/venue/artist details, the two list pages, and the month dropdown. The enums they share with the ORM models (A1) and the audit writes (A4) live in `apps/api/app/enums.py`, so neither layer owns the definition
 - [x] **[written]** JSON fixtures under `apps/calendar/lib/fixtures/` — **generated** from those models by `apps/api/scripts/generate_fixtures.py` (`make fixtures`) rather than hand-written, so they can't drift from the contract. 21 shows over four weeks across the same four venues the Phase 5 extraction fixtures came from, deliberately including the untidy cases: no listed start time, multi-act bills, a free show, an empty day, one artist at two venues
 - [x] **[fill-in]** How TypeScript types stay in sync with the Pydantic models. **Decided: generated from FastAPI's OpenAPI schema** (`openapi-typescript`). `make types` regenerates; `make contract-check` fails on stale output and runs as its own CI job. `lib/types.ts` is now ~30 lines of friendly aliases over the generated `lib/api-types.ts`. Zod was considered and deferred rather than rejected — it solves runtime shape checking, a different problem from build-time sync, and arrives with the edit forms
-- [x] **[written]** Nine read routes serving `app/sample_data.py` over real HTTP (`app/routers/`), so the frontend calls the actual API rather than importing JSON. A1 swaps the function bodies for queries without touching the signatures. 23 route tests
+- [x] **[written]** Nine read routes serving `app/sample_data.py` over real HTTP (`app/routers/`), so the frontend calls the actual API rather than importing JSON. A1b swaps the function bodies for queries without touching the signatures. 23 route tests
 - [x] **[written]** A root `Makefile` so "run the app" is one command. `make setup` for a cold start, `make dev` for Postgres + FastAPI + Next.js together, plus targets for migrations, fixtures, psql, and a `make check` that mirrors CI exactly
 
 **Verified working:** `make dev` brings up all three, `/health` and `/health/db` both answer against local Postgres, Ctrl-C leaves no orphaned listeners, and `make check` is green.
@@ -130,12 +130,21 @@ ALWAYS write tests first.  Discuss how you plan to approach unit tests.
 
 Foundation for everything else in this track. Scope per the decision above: core calendar plus audit; the contributor/flag/submission and genre/instrument/member vocabulary tables wait for the features that read them.
 
-- [ ] **[written]** Create `app/db/` as the shared model package `arch-initial.md` Section 5 calls for — importable by both FastAPI and `agent_worker`, with the declarative base, session factory, and an async engine that `app/main.py` switches over to using (G11)
-- [ ] **[written]** SQLAlchemy models: `metro`, `venue` (filled out to the full column list), `show`, `artist`, `show_artist`, `event`, plus the enum types those need, per `data-model-initial.md` Section 2
-- [ ] **[written]** SQLAlchemy models: `agent_run` and `audit_log`, per `data-model-initial.md` Section 3
-- [ ] **[fill-in]** Point Alembic's `env.py` at the models' metadata so autogenerate works, then generate the migration and read what it produced before applying it. Autogenerate is reliable for tables and columns and unreliable for enum types and constraint changes — knowing which parts to check by hand is the actual skill here, and the hand-written first migration is a good comparison point
-- [ ] **[written]** A seed script creating the Minneapolis/St. Paul metro row and the four venues the Phase 5 fixtures came from, with their real calendar URLs and `fetch_strategy` set appropriately (G13)
-- [ ] **[fill-in]** Delete the dead `FIXTURES_DIR = ...` (G1)
+- [x] **[written]** Create `app/db/` as the shared model package `arch-initial.md` Section 5 calls for — importable by both FastAPI and `agent_worker`, with the declarative base, session factory, and an async engine that `app/main.py` switches over to using (G11)
+- [x] **[written]** SQLAlchemy models: `metro`, `venue` (filled out to the full column list), `show`, `artist`, `show_artist`, `event`, plus the enum types those need, per `data-model-initial.md` Section 2
+- [x] **[written]** SQLAlchemy models: `agent_run` and `audit_log`, per `data-model-initial.md` Section 3
+- [x] **[fill-in]** Point Alembic's `env.py` at the models' metadata so autogenerate works, then generate the migration and read what it produced before applying it. Autogenerate is reliable for tables and columns and unreliable for enum types and constraint changes — knowing which parts to check by hand is the actual skill here, and the hand-written first migration is a good comparison point
+- [x] **[written]** A seed script creating the Minneapolis/St. Paul metro row and the four venues the Phase 5 fixtures came from, with their real calendar URLs and `fetch_strategy` set appropriately (G13)
+- [x] **[fill-in]** Delete the dead `FIXTURES_DIR = ...` (G1)
+
+Implemented per `docs/dev/implementations/a1-data-layer.md`, which records the two review rounds and every departure from `data-model-initial.md` (omitted `contributor` FK columns, `Numeric` precisions, extra indexes, no timestamps on `agent_run`). The DB tests run against a real `calendar_test` database; `make check` requires one (`REQUIRE_DB=1`).
+
+### A1b. Move the read routes onto the database
+
+Split out of A1 deliberately: A1 is the data layer, and swapping the routers is its own change with its own test migration. The routes still serve `app/sample_data.py` until this lands.
+
+- [ ] **[written]** Replace the bodies in `app/routers/` with queries, keeping every signature, response model and error code (`api-contract.md` §2). Resolve inherited show fields (age restriction, alcohol, setting, seating) server-side from the venue, per `api-contract.md` §5. Add ORM `relationship()`s here, with the first consumer, choosing cascade settings then
+- [ ] **[written]** Make the routes `async def` against a session dependency (`Annotated[AsyncSession, Depends(get_db)]` — `get_db` doesn't exist yet; it's added here, with its first consumer), and migrate `test_routers.py` from `TestClient` to `httpx.AsyncClient` + `ASGITransport` with `dependency_overrides` (the live `StarletteDeprecationWarning` is the nudge). Delete `app/sample_data.py` once nothing reads it — but note `scripts/generate_fixtures.py` builds the frontend fixtures from it, so decide first whether the fixtures keep a sample-data source of their own
 
 ### A2. The extraction schema, against the real requirements
 
@@ -160,6 +169,8 @@ The most conceptually interesting work in this track, and where the "validation 
 ### A4. Auditability — the part that makes the rest inspectable
 
 Do this *before* reconcile and commit, not after. Building the audit trail first means the hard parts of A5 are debuggable from the database while you write them, rather than from `print()` statements.
+
+**Known dependency from A1 — decide the sync/async question here, not in A6.** `app/db/session.py` provides an async, pooled engine created at import, but the worker's nodes are synchronous `def`s and this milestone writes `agent_run` / `audit_log` from all six. asyncpg connections are bound to the event loop that created them, so calling `asyncio.run()` once per node against that shared engine fails on the second node ("attached to a different loop"). Either make the nodes `async def` (LangGraph supports it; this pulls A6's async decision forward), or bridge with a **separate `NullPool` engine per `asyncio.run`** — never reuse `app.db.session.engine` across loops. No sync engine exists, and none should be added without a consumer.
 
 - [ ] **[written]** `structlog` configured once, with a processor chain that renders human-readable output locally and JSON otherwise (G12)
 - [ ] **[fill-in]** An `agent_run` row created at the start of each venue's processing cycle and closed at the end, with its id carried in the graph state — this is `arch-initial.md`'s `parent_run_id`, and every audit row for the run points at it
@@ -221,7 +232,7 @@ The stated goal is a primer on starting a React/Next.js app from scratch. `apps/
 
 - [ ] **[fill-in]** The route structure from `requirements-initial.md`: `/` (four-week calendar), `/day/[date]`, `/venue/[id]`, `/venues`, `/artist/[id]`, `/artists`. Create them as static placeholders first — seeing the URLs resolve before any of them render real data makes the filesystem-routing model concrete
 - [ ] **[written]** A typed API client in `apps/calendar/lib/` wrapping `fetch` against FastAPI, using the Track 0 types, reading from the JSON fixtures until Track A's endpoints exist (G23)
-- [ ] **[written]** Add `GET /metro` to the contract: a route returning `MetroSummary` for the single live metro, served from `app/sample_data.py` until A1 swaps in a query. Then `make types` and `make fixtures`. Prerequisite for the next item (G24)
+- [ ] **[written]** Add `GET /metro` to the contract: a route returning `MetroSummary` for the single live metro, served from `app/sample_data.py` until A1b swaps in a query. Then `make types` and `make fixtures`. Prerequisite for the next item (G24)
 - [ ] **[fill-in]** Replace the hard-coded metro name in `layout.tsx` (footer and `description` metadata; both carry `TODO(G24)`) with the API's metro. Two things to decide: metadata goes through `generateMetadata`, and the footer needs a small async child inside `<Suspense>` rather than an `await` in the layout body, to keep the shell prerenderable. Cache the fetch with `force-cache` and a long `revalidate` — the metro essentially never changes. The real DB-backed value arrives with A1's seed; until then the sample data answers
 - [ ] **[fill-in]** Load data in a Server Component and render it. Specifically worth noticing: this is a `fetch` with no `useEffect`, no loading state, and no client-side data library — and understanding *why* that works is most of understanding RSC
 - [ ] **[fill-in]** Filters as URL search params, not component state, per `arch-initial.md` Section 4. This is the decision with the most downstream consequences in the whole frontend: it's what makes a filtered calendar shareable, bookmarkable, and server-rendered from the URL alone
