@@ -1,6 +1,6 @@
 # B2 — routes and data loading
 
-**Status:** Awaiting sign-off — implemented with five `TODO(Ari)` gaps open; code review round 1 (0 blocker, 3 should-fix, 4 nit) resolved October 9, 2026. Plan approval was recorded when `/build-milestone` was invoked; plan review round 1 and decisions D1–D5 are settled.
+**Status:** Done — signed off by Ari October 12, 2026 after a browser check. All five `TODO(Ari)` gaps filled by Ari; code review round 1 (7 findings) resolved. Committed as `e1eecd4`.
 **Date:** October 8, 2026
 **Author model:** Claude Sonnet 5.5
 **Reviewer model:** Claude Opus 5.5 (plan review round 1; code review round 1) — findings and resolutions under [Plan review](#plan-review); code review under [Code review](#code-review)
