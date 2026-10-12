@@ -5,7 +5,7 @@ takes a session as an argument (the tests hand it one inside a rolled-back
 transaction), and so mypy covers it. scripts/seed.py is the CLI wrapper.
 
 Only the metro and venues — no invented shows or artists. Real rows come
-from the agent (docs/dev/v1-build-plan.md, A1).
+from the agent (docs/dev/alpha-build-plan.md, A1).
 
 Flushes but does not commit: the caller owns the transaction, so the seed can
 be part of a larger one (and the tests can roll it back). scripts/seed.py
@@ -25,7 +25,7 @@ from app.enums import FetchStrategy
 
 # The one metro this app serves in v1. The timezone is an IANA name; it is
 # what makes the calendar show a 7pm show as 7pm in Minneapolis rather than
-# in the viewer's browser's zone (v1-build-plan.md, B3).
+# in the viewer's browser's zone (alpha-build-plan.md, B3).
 METRO_NAME = "Minneapolis/St. Paul"
 METRO_TIMEZONE = "America/Chicago"
 
@@ -54,14 +54,24 @@ VENUES: list[tuple[str, str, FetchStrategy]] = [
     # (this one is a Popmenu/React site) would look identical. Confirm with a
     # plain `httpx.get` when real fetching lands (A3/A4) and flip to BROWSER
     # if the shows aren't in the raw HTML.
+    # Confirmed October 10, 2026 (A2.1): a plain GET gets HTTP 403 with a
+    # Cloudflare "Enable JavaScript and cookies" challenge — a bot check this
+    # project won't try to get past (A2.1 plan, D3). BROWSER wouldn't be the
+    # honest fix either, so the strategy is left as it is; until a sanctioned
+    # route exists (asking the venue, a public feed) this venue extracts nothing.
     ("The Midway Saloon", "https://www.themidwaysaloon.com/events", FetchStrategy.HTTP),
     # A Dice widget with `<button type="button" class="dice_load-more">`:
     # click-driven, which is exactly the case FetchStrategy.BROWSER exists
     # for. Until Playwright lands only its first page is extractable.
+    # Confirmed October 10, 2026 (A2.1): worse than that — a plain GET returns
+    # no listings at all (314 characters of visible text). The widget draws
+    # every listing, and its schema.org event data, client-side.
     ("Zhora Darling", "https://www.zhoradarling.com/events", FetchStrategy.BROWSER),
     # No pagination pattern, but the show information is inside images
     # embedded in the page. Detecting and downloading those is deferred
-    # (build plan section 8), so this venue extracts nothing useful yet.
+    # (build plan section 8). Confirmed October 10, 2026 (A2.1): the page TEXT
+    # still lists each show's date and acts, so the model route extracts those;
+    # only the times (in the posters) wait for the image path.
     ("The Terminal Bar", "https://terminalbarmn.com/live-music/", FetchStrategy.HTTP),
 ]
 

@@ -1,12 +1,16 @@
-# v1 Build Plan — from scaffolding to a working local app
+# Alpha Build Plan — from scaffolding to a working local app
 
-**Status:** Draft
+**Status:** Plan approved, build in-progress
+
 **Date:** September 28, 2026
+
 **Purpose:** The plan for the phase after `env-setup.md`. That runbook's job was proving every layer can talk to every other layer. This one's job is turning that into an application that actually does something, running entirely on the local machine.
 
 Read `env-setup.md` first for what exists and why. This document assumes `docs/arch/arch-initial.md` (design), `docs/arch/data-model-initial.md` (schema), and `docs/arch/requirements-initial.md` (screen-by-screen behavior) as the specification — it plans work against them rather than restating them.
 
 **Explicitly out of scope this phase:** anything hosted. Vercel, Railway, Neon, and the deployed services stay as they are — working, and left alone. Nothing below requires a deploy to verify. The three hosted-service items still open in `env-setup.md` (the Railway agent worker service, DeepInfra, branch protection) stay open.
+
+**Renamed October 12, 2026** from `v1-build-plan.md`: this phase was never going to be a real v1. The phase after it, which takes the app onto the hosted services and finishes the extraction accuracy work on hosted inference, is `alpha-deployment-plan.md`.
 
 ---
 
@@ -68,6 +72,7 @@ Reading the actual code turns up more than the runbook's checkboxes suggest. The
 | G22 | `apps/admin` is 100% untouched template and has no defined role yet. `arch-initial.md` Section 7 says the MCP server "provides an operational interface without requiring a dedicated admin frontend first" — so admin has no v1 job | `apps/admin/` | see §8 |
 | G23 | No API client layer, no shared types between FastAPI's Pydantic shapes and the frontend's TypeScript | `apps/calendar/lib/` | Track 0 |
 | G24 | The metro name is hard-coded in the root layout (footer text and the `description` metadata). It should come from the metro record. The contract has no metro endpoint — `MetroSummary` appears only nested inside `VenueDetail` — so this needs a small contract addition first. Single live metro for v1, so no `metro_id` parameter (`api-contract.md`: metro scoping) | `apps/calendar/app/layout.tsx` | B2 |
+| G25 | `html_clean` keeps only visible text, so `<img src>` / `<a href>` URLs never reach the model, and `ShowExtraction.image_url` (added in A2) can't be populated from a text page — it is null in practice. Found while planning A2 (the fixtures contain 11–29 `<img>` tags each) | `agent_worker/nodes.py` (`html_clean`) | A3 (fetch) |
 
 ---
 
@@ -148,11 +153,39 @@ Split out of A1 deliberately: A1 is the data layer, and swapping the routers is 
 
 ### A2. The extraction schema, against the real requirements
 
-- [ ] **[fill-in]** Bring `ShowExtraction` in line with `requirements-initial.md`'s "Agent Extraction: Fields" — replace `ticket_info` with `admission_advance` / `admission_day` / `free_admission`, add the poster `image_url`, and add per-artist start time and sequence number. That last one changes `acts: list[str]` into a list of structured objects, which is a schema shape change, not just a field addition (G7)
-- [ ] **[fill-in]** Make `time` optional, and say so in its `description` — the description text is part of what `instructor` sends the model, so "leave null if the page doesn't state a start time" is an instruction, not a comment (G8)
-- [ ] **[fill-in]** Add the non-music-entry exclusion rule to the extraction prompt (G9)
-- [ ] **[fill-in]** Add the one-show-vs-several rule from the requirements ("listings under one time/ticket link are a single multi-artist Show") to the prompt
-- [ ] **[written]** Re-run `eval/run_eval.py` against all four fixtures with the revised schema and prompt, and record whether the added fields made extraction more or less reliable. A richer schema is more for the model to get right — this is worth measuring rather than assuming
+Plan and review: `docs/dev/implementations/a2-extraction-schema.md`. **Done — signed off by Ari October 12, 2026, together with A2.1**; the extraction-quality debt it left is carried to `alpha-deployment-plan.md` H1. Built, verified and closed October 10, 2026. The four fill-in items were filled by Ari, all of A2's decisions are resolved (including: a time with no AM/PM is read as PM; `metro.timezone` is the zone extracted wall-clock times are in), `make check` is green and `local_test` runs end to end. The eval ran under a working 32768-token window (derived model `gemma4-e4b-32k`; Ollama's `/v1` ignores a request's `num_ctx`, see `notes.md`). **Verdict, amended October 10: mixed** — completions 16 → 18 of 18, failed parses 14 → 1, invented start times 8 → 2 (G8 fixed), non-music leaks 26 → 0 (G9 fixed); but **act splitting regressed badly** (multi-act listings came back as one act named with the whole title — Zhora ~17 of 23 split → 0), and the model writes `free_admission: false` instead of null, merged separately-timed listings on one White Squirrel seed, and invented one end time and one image URL. **Ari judged the resulting quality unacceptable (Oct 10)**; the refinement is A2.1, below. Details in the plan's Eval results (and its Addendum) and "Refinement strategies".
+
+- [x] **[fill-in]** Bring `ShowExtraction` in line with `requirements-initial.md`'s "Agent Extraction: Fields" — replace `ticket_info` with `admission_advance` / `admission_day` / `free_admission`, add the poster `image_url`, and add per-artist start time and sequence number. That last one changes `acts: list[str]` into a list of structured objects, which is a schema shape change, not just a field addition (G7)
+- [x] **[fill-in]** Make `time` optional, and say so in its `description` — the description text is part of what `instructor` sends the model, so "leave null if the page doesn't state a start time" is an instruction, not a comment (G8)
+- [x] **[fill-in]** Add the non-music-entry exclusion rule to the extraction prompt (G9)
+- [x] **[fill-in]** Add the one-show-vs-several rule from the requirements ("listings under one time/ticket link are a single multi-artist Show") to the prompt
+- [x] **[written]** Re-run `eval/run_eval.py` against all four fixtures with the revised schema and prompt, and record whether the added fields made extraction more or less reliable. A richer schema is more for the model to get right — this is worth measuring rather than assuming
+
+### A2.1. Extraction reliability — meeting the accuracy standard
+
+Plan: `docs/dev/implementations/a2.1-extraction-reliability.md` (approved by Ari October 10, 2026, after two plan-review rounds and a code review; decisions D1–D13 recorded there). **The bar is Ari's tiered accuracy standard** (`requirements-initial.md`, "Agent Extraction: Accuracy Standards"): date and acts 100% on the sample venues, no invented shows, other fields may be missing about 1 time in 10 but never wrong, about one non-music leak per month per venue at most, every run — and, Ari added, "when in doubt, include it". Gated on the venues production can fetch: White Squirrel (two captures), 7th St Entry, Mortimer's — 60 shows; Terminal Bar moved to informational on October 11 as an outlier layout; Zhora (needs a browser) and Midway (a bot challenge) are out of reach.
+
+**Done — signed off by Ari October 12, 2026, with the gate unmet.** The pipeline's adopted configuration (temperature 0, the year rule, the JSON-LD route, the separate status question, the act conventions, line-break cleaning, title split on the model route) scores **56 of 60** on the gated pages. That holds both in the 5-run confirmation (`a21-confirm`, deterministic) and in `a21-review2`, re-run after code review round 2 took every labelled answer out of the prompt. No show is invented and no stated field is wrong; the gate fails on four act names. Accepted for the alpha: the title-split route doesn't return per-act start times (code review round 2, #9). **The remaining work — a larger hosted model for the act splitter, a held-out test set, per-act start times — is milestone H1 of `alpha-deployment-plan.md`.**
+
+- [x] **[written]** One extraction entry point (`extraction.py`, `llm.py`) shared by `extract_node` and the eval harness; the experiment switches (`ExtractionConfig`)
+- [x] **[written]** Fixtures captured with the pipeline's own fetch (`eval/capture.py`) — the A2 fixtures were browser captures
+- [x] **[written]** Labels for the gated and informational pages (`eval/labels.py`), each row with the page text it was read from
+- [x] **[fill-in]** Ari labels the Mortimer's page — the ground-truth lesson (D11; A8's labelling item, pulled forward)
+- [x] **[fill-in]** What counts as correct: `scoring.match_shows` (date is identity, time a field) — Gap B
+- [x] **[fill-in]** Convert, don't drop: `jsonld.local_wall_clock` — Gap A
+- [x] **[fill-in]** Deterministic first: the routing branch in `extract_page` — Gap C
+- [x] **[fill-in]** Narrow the task: the act splitter's instruction — Gap D
+- [x] **[written]** The experiment ladder, one change per label (results and decisions in the plan's "Experiment results"); beyond it, by Ari's decisions: the separate status question, the inclusive exclusion wording, title split on the model route, hosts-as-acts and the album-release convention
+- [x] **[written]** The 5-run confirmation on all pages (`a21-confirm`, October 11–12, 1 h 53 min): **56 of 60 on every run, deterministic; no invented show, no leak, every field right; gate FAIL on the same four act names** (deferred E1/E2)
+- [x] **[written]** Code review round 2 (Claude Fable 5.1) resolved, 12 of 12: the status merge made strict, the prompt's examples made up rather than quoted from the labels, every prompt stored in results files; gated re-run `a21-review2`: 56 of 60
+- [x] Sign-off — Ari, October 12, 2026
+
+**Deferred from A2.1** (details, evidence and reasons in the plan's "Deferred explorations", E1–E17):
+- **Moved to `alpha-deployment-plan.md` H1:** a hosted larger model for the act splitter (E1, with E2 and E3), the fix for the four remaining act errors and not possible on the development laptop (16 GB RAM, 12 GB free disk); a held-out test set; per-act start times on the title-split route; throughput and thinking on/off on hosted inference (E15, E4)
+- A code check that each act appears in its title (E3) and thinking on/off (E4) — small experiments not yet run
+- Terminal Bar's date-then-lines layout (E6: group a date's lines before extraction) and shows listed only in images (E7) — Ari: watch for other venues before investing
+- Sources beyond page text: First Avenue detail pages for times (E9), Mortimer's Wix data (E10), an iCal reader (E11), browser fetching for Zhora (E12), a sanctioned route for Midway (E13)
+- Artist display text vs. associations (E14); throughput (E15, also in §8); JSON-LD validation guards (E16, in A3); persisting each extraction's audit record (E17, in A4)
 
 ### A3. Validation and retry — making the loop real
 
@@ -166,6 +199,14 @@ The most conceptually interesting work in this track, and where the "validation 
 - [ ] **[fill-in]** Fix the routing function's `None` comparison and the two-enums-one-string collision (G6)
 - [ ] **[written]** Move the confidence threshold and retry cap out of the routing function into named configuration, so the eval work in A8 can vary them
 
+- [ ] **[fill-in]** Consistency/plausibility checks must allow an `end_time` earlier than `time`: it means the next day. White Squirrel lists "Nona … 9:00 pm - 12:00 am", which extracts correctly as start 21:00, end 00:00, and a naive "ends before it starts" check (or A6's write) would flag or reject a correct record
+- [ ] **[fill-in]** Handle what A2's eval showed the model gets wrong, as validation rather than prompt tweaks: *(moved to A2.1: `free_admission: false` is now coerced to null in the schema; the single-price rule was reworded by Ari — an unlabelled price is the day price, a "buy" ticket price the advance price, `requirements-initial.md`)*; an image URL must appear verbatim in the page text or be dropped (one invented URL in `after`); and `end_time` equal to a stated start time with `time` null is a misplaced start (one case). Also decide what `is_ambiguous` means now (it fell to 0 in `after`), since validation reads it
+- [ ] **[fill-in]** The completeness check also requires `acts` to be non-empty. A2 deliberately left `acts` as a plain list that may be `[]` (a schema rule would turn one leaked "Karaoke" entry into a full-page re-ask); a show with no performing artist isn't a show (`requirements-initial.md`: "Artists — one or more"), so this is where it is dropped or flagged
+- [ ] **[written]** Preserve image links in fetch/cleaning so `image_url` can actually be populated (G25): keep poster `<img src>` URLs as text the model can copy, and have the eval's "any returned URL appears verbatim in the page" check score it. Until then `image_url` is a mostly-empty field, accepted in A2
+- [ ] **[written]** Revisit `max_retries` on the `instructor` call (A2 made the default of 3 — up to 4 attempts per call — explicit at both call sites). The graph's own 3-attempt cap multiplies it, so one venue can cost up to 12 model calls
+
+- [ ] **[fill-in]** From A2.1: guards on the JSON-LD route — a page whose JSON-LD lists fewer events than its visible text (under-reporting), and a source-aware check on JSON-LD end times (A2.1 takes `endDate` only within 6 hours of the start); a date plausibility check behind A2.1's year rule (more than a month past or a year out is implausible); and replace the JSON-LD route's placeholder `confidence = 1.0` when deciding how checks and confidence combine
+
 ### A4. Auditability — the part that makes the rest inspectable
 
 Do this *before* reconcile and commit, not after. Building the audit trail first means the hard parts of A5 are debuggable from the database while you write them, rather than from `print()` statements.
@@ -177,24 +218,30 @@ Do this *before* reconcile and commit, not after. Building the audit trail first
 - [ ] **[fill-in]** An `audit_log` write from each of the six nodes, carrying `step_type`, `attempt_number`, `source='agent'`, and — on the agentic steps — `model_used` and `confidence`. Because it's append-only, a retry adds a row rather than replacing one, which is what preserves the retry history
 - [ ] **[fill-in]** The MongoDB raw-staging write in `extract_node` (`arch-initial.md` Section 6). Already provisioned, never used; this phase gives it its consumer. `pymongo`'s `AsyncMongoClient`, not `motor` — the arch doc is specific about this and the reason is that Motor is deprecated
 - [ ] **[written]** Two or three SQL queries saved under `docs/dev/` that answer the questions a human actually asks of an audit trail — "show me everything that happened in run N," "which runs escalated and why," "what changed about this show and when." Being able to run these is the real test of whether point 3 in §2 is met
+- [ ] **[written]** From A2.1: persist each extraction's record — the route taken (JSON-LD or model), the text actually sent, the route's notes (rejected titles, whether the status question ran), the raw model output and the request configuration — the same things A2.1's eval records per page, so a production run can be audited the way the eval runs were (A2.1 plan, E17)
 - [ ] **Deferred, on purpose:** the R2 snapshot write. It needs an account this phase doesn't provision, and `audit_log.snapshot_key` can stay null. Everything else in the audit trail works without it
 
 ### A5. Reconcile — the decision logic
 
 - [ ] **[fill-in]** Show matching on the composite key (venue, date, time) producing insert / update / no-op, per `data-model-initial.md`'s outcome table. Deterministic, no model involved
+- [ ] **[fill-in]** **Also from A2's eval:** a multi-listing day can come back as one show with a null show-level `time` and per-act start times (White Squirrel, seed 2: 6 shows instead of 12, in both new-schema labels). Reconcile must not assume a show has a `time`, and A3 may want to flag a show whose acts carry different start times as a likely merge
+- [ ] **[fill-in]** **Open decision, made reachable by A2: what does the composite key do with a null `time`?** A2 made the extraction's `time` optional (G8), so a show can arrive untimed — and in SQL `NULL = NULL` is not true, so a naive (venue, date, time) match never finds an untimed show: every run would insert a duplicate and soft-delete the previous one, and two untimed shows on one date would collide. *Recommendation:* an untimed show matches a stored show on (venue, date) when exactly one candidate exists on either side, otherwise insert and flag for review; a time that appears later (null → 20:00) counts as an **update**, not remove + insert. Ari confirms in A5's plan. Also: the extraction field is `time`; reconcile maps it to `show.start_time`, and derives each act's `sequence_number` from list position when the extraction leaves it null
 - [ ] **[fill-in]** The set-diff soft delete: shows stored for this venue but absent from this fetch, *within the date range the fetch actually covered*, get `status='removed'`. That date-range qualifier is the subtle part — pagination depth varies run to run, so the graph state needs to carry how far this run actually reached, which it currently doesn't
 - [ ] **[fill-in]** Artist matching by name: exact match, no match, and the ambiguous middle. Exact and no-match resolve deterministically (no-match creates a name-only artist record per the requirements)
 - [ ] **[fill-in]** The ambiguous-artist branch — an LLM call inside `reconcile_node`, not its own node — with its decision written to `audit_log` carrying `model_used` and `confidence`, exactly like extract and validate. This is the one place in the pipeline where a model makes a database decision, which is precisely why it's the one that most needs auditing
+- [ ] **[fill-in]** From A2.1: times after midnight (Ari, October 10) — a show belongs to the night the venue lists it under, and a time before the 5:00 AM cutoff (decided by Ari October 11, `requirements-initial.md`, Show) is after midnight of that night — A2.1's JSON-LD route already applies it; sort and match with that in mind, and have B3/B4 display it as the next day ("1:00 AM Sat")
+- [ ] **[fill-in]** From A2.1: cancelled and postponed listings arrive as extracted shows with a `status` (decided by Ari, D12) — match them to the stored show and update it (soft delete, or a shown status if the requirements add one); and (venue, date, time) collides when one page lists two untimed shows on the same date (7th St Entry, Oct 31) — the match must tie-break on acts
 
 ### A6. Commit — the writes
 
 - [ ] **[fill-in]** `commit_node` executing reconcile's decision against Postgres: `show`, `show_artist`, and new `artist` rows, in one transaction per decision, with the resulting `audit_log` row carrying `previous_value` / `new_value` JSONB snapshots (those are what a future revert restores)
+- [ ] **[written]** Convert extracted prices at the write: A2's extraction schema carries `admission_advance` / `admission_day` as `float | None` (not `Decimal`, to keep the JSON schema the model sees simple), so commit converts with `Decimal(str(value))` and quantizes to `Numeric(10, 2)`
 - [ ] **[fill-in]** `escalate_node` writing a real `audit_log` row with `outcome='escalated'` rather than printing
 - [ ] **[fill-in]** Async vs. sync: the nodes are currently synchronous functions calling a synchronous `OpenAI` client, while `app/db/` and FastAPI are async. LangGraph supports both. Deciding whether to make the nodes async — and what that buys a job that processes venues one at a time — is a real call worth making explicitly rather than by accident
 
 ### A7. Testing
 
-- [ ] **[written]** Fix `testpaths` so `agent_worker/` tests are collected, without re-collecting `local_test.py` (G14). The current setting was a workaround for a filename collision; a `tests/` directory and a narrower `python_files` setting is the cleaner fix
+- [ ] **[written]** Fix `testpaths` so `agent_worker/` tests are collected, without re-collecting `local_test.py` (G14). *A2 already added `agent_worker/tests` to `testpaths` (and `agent_worker/tests/` exists), so this item widens what is collected rather than starting it.* The current setting was a workaround for a filename collision; a `tests/` directory and a narrower `python_files` setting is the cleaner fix
 - [ ] **[fill-in]** Unit tests for the validation check functions from A3 — the highest-value tests in the codebase, because they're pure functions encoding real business rules with no model or database involved
 - [ ] **[fill-in]** Unit tests for the routing function: each of the three branches, plus the `None` confidence case
 - [ ] **[fill-in]** Unit tests for reconcile's decision logic against a seeded database, covering insert, update, no-op, and the set-diff delete. This is where `polyfactory` (a dependency since Phase 3, still unused) earns its place
@@ -205,8 +252,8 @@ Do this *before* reconcile and commit, not after. Building the audit trail first
 
 Phase 5 evaluated whether a *model* could extract. This evaluates whether the *pipeline* produces correct calendar data — a different question, and the one the "validation approach for agentic outputs" requirement is really about.
 
-- [ ] **[fill-in]** Hand-label the four fixtures with their correct extraction — what a perfect run would produce. Tedious, and it's the thing that makes every measurement below possible
-- [ ] **[fill-in]** Promote `eval/run_eval.py` from throwaway to a real harness that scores a full graph run against those labels: precision and recall on shows found, field-level accuracy, and how often the retry loop fires
+- [ ] **[fill-in]** Hand-label the four fixtures with their correct extraction — what a perfect run would produce. Tedious, and it's the thing that makes every measurement below possible. *A2.1 labelled the pages it gates on (`eval/labels.py`; Ari labels Mortimer's); what remains here is labelling further venues*
+- [ ] **[fill-in]** Promote `eval/run_eval.py` from throwaway to a real harness that scores a full graph run against those labels: precision and recall on shows found, field-level accuracy, and how often the retry loop fires. *A2.1 built the extraction-level scorer and gate (`eval/scoring.py`, Ari's tiered standard); what remains is scoring a full graph run and the retry loop*
 - [ ] **[fill-in]** Use it to answer the questions A3 left open — is 0.8 the right threshold, is 3 the right retry cap, does the escalating-prompt retry actually recover failures or just cost tokens
 - [ ] **[fill-in]** Check whether the model's self-reported confidence correlates with actual correctness against the labels. Phase 5 judged calibration by eye on a handful of pages; with labels you can check it properly. If it doesn't correlate, routing on it is a design problem worth knowing about
 
@@ -280,11 +327,22 @@ Three short documents, written as the corresponding work lands rather than at th
 
 Unchanged from `arch-initial.md` Section 11 unless noted:
 
-- Everything hosted — Railway agent worker, DeepInfra, R2, Resend, Turnstile, Neon–Vercel integration, branch protection
+- Everything hosted — Railway agent worker, DeepInfra, R2, Neon–Vercel integration, branch protection: **planned in `alpha-deployment-plan.md`** (Resend and Turnstile stay deferred beyond it)
 - Public edit and flag endpoints, and with them the `contributor`, `flag`, and `venue_submission` tables
 - The genre / instrument / member vocabulary tables and their join tables — no UI edits them yet
-- Playwright fetching, and with it whichever venue needs click-driven pagination. `venue.fetch_strategy` exists as a column from A1 with only the `http` path implemented
-- The image-embedded-show case (Terminal Bar). Phase 5 proved the model can read it from a local image file; detecting and downloading images out of a live page is separate work
+- Playwright fetching, and with it whichever venue needs click-driven pagination. `venue.fetch_strategy` exists as a column from A1 with only the `http` path implemented. *A2.1 found (October 10) that Zhora's listings, and its schema.org data, are drawn client-side by the DICE widget, so a plain fetch gets none of them; and that Midway answers the plain fetch with a Cloudflare bot challenge, which this project will not try to get past (a sanctioned route — asking the venue, or a public feed — is the way back)*
+- **Extraction throughput** (Ari's concern, October 10, 2026; **measured in `alpha-deployment-plan.md` H1**). On the development laptop one venue page takes 1.5–5
+  minutes (A2.1's rebaseline: 45 extractions in 1 h 35 min), so a metro of a few hundred venues would take hours
+  run sequentially. Not an alpha blocker — production inference is DeepInfra (`arch-initial.md` §5/§7), a hosted GPU
+  running the same model that can also take requests in parallel — but worth measuring before the scheduled run is
+  built. Levers already identified: structured sources (JSON-LD, iCal, platform data) replace a full-page
+  extraction with one short splitter call; skipping extraction when a page's content hasn't changed since the last
+  run (most calendars change little day to day); turning the model's "thinking" off (A2's S7 — much of each call is
+  reasoning, effect on accuracy unmeasured); and shorter output (fewer fields per show)
+- **A hosted larger model for A2.1's act splitter** (its E1): **now `alpha-deployment-plan.md` H1.** The remaining act-naming errors at 56 of 60 look like the small local model's limit, and a larger model doesn't fit the development laptop
+- **Venues that list shows in images, and date-then-lines layouts like Terminal Bar's** (A2.1's E6–E7): Ari's call — look for more such venues before investing. The image approach is outlined in `arch-initial.md` §11, "Image-based show listings"
+- Deeper and platform-specific sources found in A2.1: following First Avenue's detail pages for show times (one reader would cover 7th St Entry, First Ave, Turf Club, Fine Line and the Palace); Mortimer's Wix event data (it carries the times its text lacks); an iCal reader for public calendar feeds (the Uptown Art House's Google Calendar feed is captured as a fixture)
+- The image-embedded-show case (Terminal Bar). Phase 5 proved the model can read it from a local image file, and A2.1's image route reads saved posters correctly. Finding, fetching and merging posters from a live page is the missing work, now outlined as a deferred extraction route in `arch-initial.md` §11, "Image-based show listings"
 - The MCP admin server. `arch-initial.md` positions it as the operational interface that removes the need for an admin frontend — genuinely useful, but it's an interface onto a pipeline that should be finished first
 - `apps/admin`'s purpose (G22). It has no v1 job. Leaving an untouched template in the repo is a small cost; deciding what it's for prematurely is a larger one
 - Chat search, vector storage, multi-metro, revert as a user-facing action, donations

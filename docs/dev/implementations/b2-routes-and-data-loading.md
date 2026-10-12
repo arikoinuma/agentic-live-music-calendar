@@ -4,7 +4,7 @@
 **Date:** October 8, 2026
 **Author model:** Claude Sonnet 5.5
 **Reviewer model:** Claude Opus 5.5 (plan review round 1; code review round 1) — findings and resolutions under [Plan review](#plan-review); code review under [Code review](#code-review)
-**Spec:** `docs/dev/v1-build-plan.md` §6 B2 (and gaps G23, G24), `docs/dev/api-contract.md`, `docs/arch/arch-initial.md` §4, `docs/arch/requirements-initial.md` "Main Views & URL Scheme", `docs/references/nextjs-style-guide.md`
+**Spec:** `docs/dev/alpha-build-plan.md` §6 B2 (and gaps G23, G24), `docs/dev/api-contract.md`, `docs/arch/arch-initial.md` §4, `docs/arch/requirements-initial.md` "Main Views & URL Scheme", `docs/references/nextjs-style-guide.md`
 
 ## Context
 
@@ -45,7 +45,7 @@ to add "in B2 along with the API client".
 - **The Oct 8 note:** [fill-in] items get dense guiding comments and a scaffold; Ari walks through
   them before the implementation is completed. Tests first, always.
 
-### Departures from the build plan (to apply to `v1-build-plan.md` when implementing)
+### Departures from the build plan (to apply to `alpha-build-plan.md` when implementing)
 
 1. **B2's "reading from the JSON fixtures until Track A's endpoints exist" is stale.** Track 0
    shipped the routes: `app/routers/` serves `sample_data.py` over real HTTP, and
@@ -409,7 +409,7 @@ Replace each placeholder with real loading, one at a time, keeping pages **plain
 - Remove both `TODO(G24)` comments.
 
 ### 9. Docs and plan bookkeeping (written)
-- `v1-build-plan.md`: tick the B2 boxes; fix the stale "reading from the JSON fixtures" line and
+- `alpha-build-plan.md`: tick the B2 boxes; fix the stale "reading from the JSON fixtures" line and
   the G24 caching wording (departures 1–2).
 - **Correct the B1 comments that become false** (review #4): `layout.tsx` ("lets Next.js prerender
   it once and reuse it") and `app/page.tsx` ("Next.js prerenders it to static HTML at build")
@@ -430,7 +430,7 @@ Replace each placeholder with real loading, one at a time, keeping pages **plain
   `apps/api/scripts/generate_fixtures.py`, `apps/calendar/lib/api-types.ts` (**generated** — via
   `make types`, never by hand), `apps/calendar/lib/health.ts`, `apps/calendar/app/{layout,page}.tsx`,
   `apps/calendar/vitest.config.ts`, `apps/calendar/package.json` (+`server-only`),
-  `docs/dev/api-contract.md`, `docs/dev/v1-build-plan.md`, `apps/calendar/AGENTS.md`
+  `docs/dev/api-contract.md`, `docs/dev/alpha-build-plan.md`, `apps/calendar/AGENTS.md`
 - Reused as-is: `lib/types.ts`, `app/health/page.tsx`, the shadcn button (unused by B2),
   `app/sample_data.py`
 
@@ -545,7 +545,7 @@ because it wasn't in the offline pnpm store.
 - Generated: `apps/calendar/lib/api-types.ts`, `lib/fixtures/metro.json` (via `make types` / `make fixtures`).
 - Frontend lib: `lib/{params,api-url,api,metro}.ts` + `.test.ts` for each (new); `lib/health.ts` (now uses `apiUrl`; its 11 tests untouched and green); `vitest.config.ts`; `test/server-only-stub.ts` (new); `package.json` + `pnpm-lock.yaml` (`server-only`).
 - Frontend app: `app/{layout,page}.tsx` (modified); new `app/{venues,artists}/page.tsx`, `app/{venue,artist}/[id]/page.tsx`, `app/day/[date]/page.tsx`, `app/not-found.tsx`, `app/error.tsx`, `app/_components/plain-show-list.tsx`.
-- Docs: `docs/dev/{api-contract,v1-build-plan,notes}.md`, `apps/calendar/AGENTS.md` (the "Not done … `server-only`" paragraph removed, "Where data and URL state live" added).
+- Docs: `docs/dev/{api-contract,alpha-build-plan,notes}.md`, `apps/calendar/AGENTS.md` (the "Not done … `server-only`" paragraph removed, "Where data and URL state live" added).
 - Not mine, present in the tree before I started: `AGENTS.md`, `docs/arch/arch-initial.md` (modified), `.claude/`, `a2-extraction-schema.md`.
 
 **Departures from the plan.**

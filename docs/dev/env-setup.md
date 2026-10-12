@@ -211,7 +211,7 @@ Provisioning only — nothing gets deployed yet. Capture each credential into `a
 
 ### Railway — agent worker service
 
-**Skipped — this entire section, deliberately descoped from initial scaffolding.** See `arch-initial.md` Section 11 for the full reasoning: `reconcile_node`/`commit_node` are still placeholder stubs, R2/MongoDB writes are stubbed, and the model client's `base_url` is still hardcoded to local Ollama — a real cron run wouldn't do anything meaningful yet regardless of whether this service exists. Revisit as its own scope of work, not part of this runbook.
+**Skipped — this entire section, deliberately descoped from initial scaffolding.** See `arch-initial.md` Section 11 for the full reasoning: `reconcile_node`/`commit_node` are still placeholder stubs, R2/MongoDB writes are stubbed, and the model client's `base_url` is still hardcoded to local Ollama — a real cron run wouldn't do anything meaningful yet regardless of whether this service exists. Revisit as its own scope of work, not part of this runbook. *(Now planned: `docs/dev/alpha-deployment-plan.md`, H2, with DeepInfra in H1.)*
 
 This one has a real gotcha worth taking seriously when that work resumes: Playwright's Python package installs fine via `uv add`, but the Chromium *binary* it needs is a separate download, and a plain buildpack deploy won't fetch it automatically. The most common way this breaks in production is discovering it the first time the deployed job tries to launch a browser and can't.
 

@@ -5,7 +5,7 @@ seed CLI, and — from A4 — by the worker. There is deliberately no `get_db`
 FastAPI dependency yet: nothing consumes one until the read routes move off
 `app/sample_data.py`, and this repo doesn't scaffold what has no consumer.
 
-Known consequence for A4 (docs/dev/v1-build-plan.md, A4): this engine is
+Known consequence for A4 (docs/dev/alpha-build-plan.md, A4): this engine is
 pooled and async, created at import. The worker's nodes are synchronous, and
 asyncpg connections are bound to the event loop that created them — so
 calling `asyncio.run()` once per node against *this* engine fails on the

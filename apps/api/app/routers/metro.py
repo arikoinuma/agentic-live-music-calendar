@@ -8,7 +8,7 @@ response model.
 Why it exists: before B2 the metro only appeared nested inside
 VenueDetail, so the frontend's layout had no way to ask "what is this
 calendar for?" without fetching an arbitrary venue. The layout's footer
-and <meta description> read the name from here (v1-build-plan.md G24).
+and <meta description> read the name from here (alpha-build-plan.md G24).
 
 Contract: docs/dev/api-contract.md section 2.
 """

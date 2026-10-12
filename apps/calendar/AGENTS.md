@@ -95,7 +95,7 @@ HTTP against the API for anything else — the routes exist and serve the same d
 
 ## Known state and open cleanups
 
-B1 stripped the `create-turbo` template (`docs/dev/v1-build-plan.md`): Tailwind is the
+B1 stripped the `create-turbo` template (`docs/dev/alpha-build-plan.md`): Tailwind is the
 only styling system, `packages/ui/src/components/button.tsx` (shadcn) is the only
 button, and the root layout has real metadata and chrome. B2 added the six routes
 (`/`, `/day/[date]`, `/venue/[id]`, `/venues`, `/artist/[id]`, `/artists`), `not-found.tsx`,

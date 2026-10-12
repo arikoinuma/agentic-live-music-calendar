@@ -4,11 +4,11 @@
 **Date:** October 8, 2026
 **Author model:** Claude Sonnet 5.5
 **Reviewer model:** Round 1: Claude Opus (Agent tool, read-only). Round 2: a second reviewer model, run by the user — findings recorded under [Review](#review)
-**Spec:** `docs/dev/v1-build-plan.md` §5 A1, `docs/arch/data-model-initial.md` §1–4
+**Spec:** `docs/dev/alpha-build-plan.md` §5 A1, `docs/arch/data-model-initial.md` §1–4
 
 ## Context
 
-`v1-build-plan.md` §5 A1 is the foundation for all of Track A: there are no SQLAlchemy
+`alpha-build-plan.md` §5 A1 is the foundation for all of Track A: there are no SQLAlchemy
 models (G11), no seed data (G13), and Alembic's `target_metadata` is `None`, so autogenerate
 can't work. Today the only schema is a hand-written migration (`db2aedec0bb9`) creating bare
 `metro` and `venue`. A1 delivers the shared `app/db/` package, models for the core calendar plus
@@ -290,9 +290,9 @@ raises a `PytestDeprecationWarning`. Existing `TestClient` route tests are untou
 - `apps/api/.env.example`: a comment-only note that `TEST_DATABASE_URL` / `REQUIRE_DB` are
   shell/CI variables and must **not** be placed in `.env`, with the `extra='forbid'` reason.
   `pyproject.toml`: the three pytest-asyncio settings. New `apps/api/conftest.py` with `pytest_plugins`.
-- Docs: tick the A1 boxes in `v1-build-plan.md`; **add a build-plan item for the router swap** (with
+- Docs: tick the A1 boxes in `alpha-build-plan.md`; **add a build-plan item for the router swap** (with
   the `httpx.AsyncClient` test migration) and repoint the stale "A1 swaps the bodies" claims —
-  `v1-build-plan.md` §4, comments in `app/routers/{shows,venues,artists}.py`, `app/sample_data.py`,
+  `alpha-build-plan.md` §4, comments in `app/routers/{shows,venues,artists}.py`, `app/sample_data.py`,
   `app/tests/test_routers.py`, `apps/api/AGENTS.md` lines 37 and 50, and `api-contract.md` lines
   33-39 (every route says "A-track, after A1" — now after the router-swap item); correct
   `app/enums.py` lines 15-16 ("SQLAlchemy stores the value rather than the member name" is false
@@ -413,7 +413,7 @@ Differences from the plan as written:
   auto-fixable ones.
 - `test_db_schema.py` imports its expected column/enum tables from `test_db_metadata.py`, so the two
   layers can't disagree about what the spec says.
-- A1b (routers onto the database) was added to `v1-build-plan.md`; stale "A1 swaps the bodies"
+- A1b (routers onto the database) was added to `alpha-build-plan.md`; stale "A1 swaps the bodies"
   comments and the `api-contract.md` route table now point at A1b.
 
 ## Review of the implementation

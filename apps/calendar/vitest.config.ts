@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 // Node environment on purpose: the tests cover plain functions only.
 // jsdom + @testing-library/react arrive in B5 with the first component
-// tests (v1-build-plan.md B5). Adding them now would be setup with no
+// tests (alpha-build-plan.md B5). Adding them now would be setup with no
 // consumer — the same deferral rule the rest of this repo follows.
 export default defineConfig({
   resolve: {

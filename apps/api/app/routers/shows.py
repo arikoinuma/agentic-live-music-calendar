@@ -1,7 +1,7 @@
 """Show routes — the calendar itself.
 
 TEMPORARY IMPLEMENTATION — see app/routers/venues.py. The filtering
-below happens in Python over an in-memory list; A1b (v1-build-plan.md)
+below happens in Python over an in-memory list; A1b (alpha-build-plan.md)
 replaces it with a WHERE clause. The query parameters and the response shape are the part
 meant to survive that.
 

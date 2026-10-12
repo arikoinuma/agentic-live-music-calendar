@@ -48,7 +48,7 @@ Already established by the first migration. Listed here for completeness.
 |---|---|---|---|
 | `id` | Integer | PK | |
 | `name` | String | No | |
-| `timezone` | String | No | Drives the per-metro 4 a.m. agent trigger (`arch-initial.md` Section 11). |
+| `timezone` | String | No | IANA name, e.g. `America/Chicago`. Drives the per-metro 4 a.m. agent trigger (`arch-initial.md` Section 11). It is also the zone every `show.date` / `start_time` / `end_time` (and `show_artist.start_time`) in the metro is read in: those columns are naive, local wall-clock values, and an extraction source that gives an offset or UTC (schema.org JSON-LD does) is converted into this zone before it is stored (`requirements-initial.md`, Metro). |
 
 ### `venue`
 

@@ -123,7 +123,7 @@ EXPECTED_ENUMS: dict[str, type[StrEnum]] = {
 def test_expected_tables_exist_and_deferred_ones_do_not() -> None:
     # Proves: A1 built exactly the core-calendar + audit tables, nothing more.
     assert set(TABLES) == set(EXPECTED_COLUMNS)
-    # Deferred per v1-build-plan.md section 8: nothing consumes these yet, and
+    # Deferred per alpha-build-plan.md section 8: nothing consumes these yet, and
     # this repo's rule is not to build what has no consumer. If one of these
     # shows up here, someone scaffolded ahead of need.
     for deferred in ("contributor", "flag", "venue_submission", "genre", "instrument", "member"):

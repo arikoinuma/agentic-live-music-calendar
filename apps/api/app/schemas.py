@@ -2,7 +2,7 @@
 
 These are the source of truth for the shapes the frontend consumes. No
 route returns them yet (the endpoints land in milestone A2/B2 of
-docs/dev/v1-build-plan.md); they exist first, on purpose, so the two
+docs/dev/alpha-build-plan.md); they exist first, on purpose, so the two
 tracks have something fixed to build against. The JSON fixtures under
 apps/calendar/lib/fixtures/ are generated to match these exactly, which
 is what lets the calendar UI be built before the backend serves real
@@ -232,7 +232,7 @@ class VenueDetail(BaseModel):
     extra_metadata: dict[str, object] = {}
 
     # Deliberately absent: `socials`. The venue_social table is deferred
-    # (v1-build-plan.md section 8), and shipping a field that is always
+    # (alpha-build-plan.md section 8), and shipping a field that is always
     # [] is worse than not shipping it — a consumer can't tell "this
     # venue has no Instagram" from "this feature doesn't exist yet".
     # Adding the field later is backward-compatible; removing it isn't.

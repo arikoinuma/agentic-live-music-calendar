@@ -135,7 +135,7 @@ def test_openapi_exposes_the_response_schemas() -> None:
 
 # --- GET /metro (B2) ------------------------------------------------------
 # The layout's footer and <meta description> read the metro name from here
-# (v1-build-plan.md G24) instead of a hard-coded literal.
+# (alpha-build-plan.md G24) instead of a hard-coded literal.
 
 
 def test_metro_returns_the_live_metro() -> None:

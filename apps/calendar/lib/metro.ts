@@ -5,7 +5,7 @@
  * metro name makes the whole site depend on one more API call. This file
  * is what keeps that dependency from being fatal: if the call fails, the
  * layout falls back to a generic description and a plain footer instead of
- * failing every route (G24, v1-build-plan.md B2).
+ * failing every route (G24, alpha-build-plan.md B2).
  *
  * The fetcher is a parameter (defaulting to the real client's `getMetro`,
  * like `getApiHealth` takes `fetch`), so tests pass a fake and never touch

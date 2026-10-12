@@ -2,7 +2,7 @@
 
 **Status:** Draft — shapes settled, endpoints not implemented yet
 **Date:** September 28, 2026
-**Purpose:** The interface between FastAPI and Next.js, fixed up front so the Python track and the frontend track can move independently. This is Track 0 of `v1-build-plan.md`.
+**Purpose:** The interface between FastAPI and Next.js, fixed up front so the Python track and the frontend track can move independently. This is Track 0 of `alpha-build-plan.md`.
 
 **Source of truth:** `apps/api/app/schemas.py`. This document explains the shapes and the reasoning; the Pydantic models *are* the shapes. Where the two disagree, the code is right and this file is stale.
 
@@ -105,7 +105,7 @@ Fields that a reading of `requirements-initial.md` would expect, left out on pur
 
 | Missing | Why |
 |---|---|
-| `VenueDetail.socials`, `ArtistDetail.socials` | The `venue_social` / `artist_social` tables are deferred (`v1-build-plan.md` §8) |
+| `VenueDetail.socials`, `ArtistDetail.socials` | The `venue_social` / `artist_social` tables are deferred (`alpha-build-plan.md` §8) |
 | `ArtistDetail.genres`, `.members`, `.instrumentation` | Same — the vocabulary and join tables are deferred |
 | `VenueDetail.map_url` | Constructed from `address` by the frontend. It's a link format, not data; changing it shouldn't need a backend deploy (`arch-initial.md` §4) |
 | Slugs in URLs | Routes are `/venue/[id]` per `requirements-initial.md`. `/venue/3-zhora-darling` would be better for SEO and is cheap to add later, since the id stays the lookup key either way. Worth revisiting before launch, not now |

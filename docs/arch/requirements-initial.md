@@ -129,6 +129,23 @@ A "show" is a single live music event. It needs to be associated with one venue 
 * Image: a show could have like a poster. A link to an image hosted elsewhere
 * original URL: the web page where this information was extracted. The most recent instance.
 
+**Times after midnight** (Ari, October 10, 2026: must be handled; not with the 24+-hour "26:00" convention, which isn't
+used in the US). **Decided (Ari, October 11, 2026):** a show belongs to the **night** the venue lists it
+under — its Date — and a start or end time before **5:00 AM** is after midnight of that night. So a
+listing under Friday at 1:00 AM is Friday night's show, sorted after Friday's evening shows and displayed with the
+next day ("1:00 AM Sat"). An end time earlier than its start is the next morning (already the rule for validation).
+No new fields: Date plus clock times plus the cutoff carry it. Some venues show the next calendar date for such times
+(Mortimer's: "Oct 12, 9:00 PM – Oct 13, 2:00 AM"); others won't, so the agent must not depend on it.
+
+**Possible enhancement — artists: display text and associations** (Ari, October 10, 2026; not adopted yet, to be
+revisited before milestone A2.1 closes). A listing such as "ABC ft. DEF" names two artists, ABC and DEF, and the show
+should be associated with both as Artist records — "ABC ft. DEF" must not become a third artist of its own. But the
+show should still be *displayed* the way the venue wrote it, not as two names on separate lines. Proposal: a
+`display_artists` field on the Show holding the listing's artist text verbatim (newlines included), alongside the
+show's artist associations; the UI renders `display_artists` and turns each artist name it finds inside that text
+into a link to the artist's page. This is a schema and display change, and it means the agent must also capture
+the verbatim artist text when it extracts a show.
+
 ### Event
 
 Event is a parent of Shows, and should be used when it's a music festival or other situations where there are multiple shows, possibly over more than one day or venues. An event page is not high priority, perhaps v2
@@ -144,7 +161,7 @@ This is a parent location entity that defines each "tennant" of this sytem.
 
 It should contain
 * Metro name
-* Time zone
+* Time zone. Every show date and time in the metro is the venue's local clock in this zone: what a listing says ("8 pm") is stored as written, and a source that gives times in another zone (UTC, an offset) is converted into this one.
 
 The metro "page" is the home page for that city. 
 We may do a city directory page down the road. 
@@ -185,11 +202,11 @@ No other venue or artist data is assumed to exist when agent processing begins f
 Populated automatically from the venue's page, where available:
 
 * Date (required)
-* Start Time
+* Start Time. If the listing gives no AM/PM, assume PM: live music is overwhelmingly afternoon and evening, and a listing that really is in the morning will say AM. The same applies to an artist's own start time and the End Time.
 * Artist(s) performing, including each artist's own start time and performance order. Many listings don't specify the order or the start time of each artist, but in that case make an assumption for an order based on the order in which the artists are listed. 
 
 * End Time: leave blank if unclear
-* Admission Advance / Admission Day / Free Admission: if a single admission price is shown on the calendar, populate the Admission Day field and leave the Advance field blank. Free Admission is true if the listing explicitly says free.  It's ok for neither admission prices nor free admission to be empty. 
+* Admission Advance / Admission Day / Free Admission: if a single admission price is shown on the calendar **without a label**, populate the Admission Day field and leave the Advance field blank. A price shown as an online ticket price ("Buy now $15.24", a ticketing link's price) goes in Admission Advance (Ari, October 10, 2026). Free Admission is true if the listing explicitly says free.  It's ok for neither admission prices nor free admission to be empty. 
 * Image (poster link) of the Show. Do not populate Artist image link
 
 
@@ -204,6 +221,23 @@ Not populated by agents in v1 (inherited-from-venue fields stay blank until a hu
 
 A single listing on a venue's calendar can describe one show with multiple artists, or several distinct shows happening back to back. Treat listings under one time/ticket link as a single multi-artist Show; treat separately timed or separately ticketed listings as distinct Shows. If the listing has multiple start times but has a single link for ticket purchase, then treat it as a single multi-artist Show. 
 
+### Agent Extraction: Accuracy Standards
+
+Set by Ari on October 10, 2026. They apply to every extraction run on the venues used as samples (the evaluation
+set), and every run must meet them — an average over runs doesn't count.
+
+* **Date and artists: 100%.** Every show the venue lists is found, with the right date and the right performing
+  artists.
+* **No made-up shows, ever.** A show that isn't on the venue's page must never be produced.
+* **Other fields — start time, end time, admission prices, free admission, image, status: missing is tolerated,
+  wrong is not.** If the venue states a value and the agent misses it, up to about 1 time in 10 is acceptable. A
+  wrong value — including a value the venue never stated — is never acceptable.
+* **Non-music entries: an occasional leak is tolerated.** An open mic, comedy night or similar slipping in about
+  once a month per venue is acceptable; more than that is not.
+* **When in doubt, include it** (Ari, October 11, 2026). Missing a real show is worse than listing a non-music event:
+  missed shows compromise the calendar's core value, while a stray non-music listing is easy for a reader to skip. A
+  listing that names a performing artist is treated as a show even if it also mentions karaoke, a party or a series.
+
 ### Agent Artist Creation & Matching
 
 * If an artist named on a venue's calendar doesn't already exist, a new Artist record is created automatically, with the name only.
@@ -215,7 +249,12 @@ A single listing on a venue's calendar can describe one show with multiple artis
 
 ### Agent Handling of Entries in Venue's Live Music Calendar that don't have performing artists
 
-"Karaoke night" "Party" "Open mic" without an identifiable artist will be ignored and not entered into our Shows.  "Hosted by" does not constitute an artist performance in this case.
+"Karaoke night" "Party" "Open mic" without an identifiable artist will be ignored and not entered into our Shows.  "Hosted by" does not constitute an artist performance in this case. *(Ari, October 11, 2026:)* in a live music show or series, its named hosts **are** acts — an "acoustic night" hosted by musicians is a show with those musicians on it; being "hosted by" someone doesn't make an open mic or comedy night a show.
+
+**Cancelled or postponed listings** (Ari, October 10, 2026) are not shows to display, but they are still extracted,
+with their status: the show was most likely extracted on an earlier scan before it was cancelled, and the agent
+has to match it to that stored record and update it (see Agent Reconciliation). Only on a venue's very first scan
+can a cancelled listing simply be ignored.
 
 
 ### Agent Validation

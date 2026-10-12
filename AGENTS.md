@@ -32,7 +32,8 @@ approach — most "what should we do about X" questions have an answer with reas
 | How is it built, and why? | `docs/arch/arch-initial.md` |
 | What's the database schema? | `docs/arch/data-model-initial.md` |
 | What's the API's shape? | `docs/dev/api-contract.md` |
-| What are we building next? | `docs/dev/v1-build-plan.md` |
+| What are we building next? | `docs/dev/alpha-build-plan.md` |
+| What comes after that — the hosted alpha? | `docs/dev/alpha-deployment-plan.md` |
 | How was the environment set up? | `docs/dev/env-setup.md` |
 | What non-obvious thing bit us before? | `docs/dev/notes.md` |
 | How is a given milestone being implemented? | `docs/dev/implementations/` |
@@ -71,7 +72,7 @@ mypy, pytest) and is not in the pipeline.
 
 ## Conventions
 
-- **Comments explain why, not what.** This codebase is unusually comment-dense on purpose:
+- **Comments explain why, in addition to what.** This codebase is unusually comment-dense on purpose:
   it's a learning project, and the reasoning behind a decision is the point. Match that —
   but comment the non-obvious choice, not the obvious line.
 - **Every file is understandable to an engineer who has never seen this app.** Each module
@@ -89,18 +90,16 @@ mypy, pytest) and is not in the pipeline.
   docstrings) afterwards, then run `make check`. See A1's comment pass for the pattern.
 - **Cite the source of a decision.** When code implements something a doc specifies, name
   the doc and section. When it deliberately departs, say so and why.
-- **Don't build what has nothing to consume it.** This repo consistently defers rather than
-  scaffolds — see `arch-initial.md` §11 for the deferred list. A field that's always empty
-  or a service nothing calls is worse than its absence.
 - **Verify, don't assume.** Claims in this repo's docs were checked against real behavior.
   Keep that standard: run it before saying it works.
 
 ## Current phase
 
-`docs/dev/v1-build-plan.md` is the active plan: get the whole thing running locally, with
+`docs/dev/alpha-build-plan.md` is the active plan: get the whole thing running locally, with
 real agent writes and a real calendar UI. Two tracks (Python/agent, Next.js) meeting at the
 API contract. Nothing hosted is in scope — Vercel, Railway, and Neon are deployed and left
-alone.
+alone. Hosted work, including the extraction accuracy work that needs a larger hosted model
+(A2.1's open gap), belongs to the next phase, `docs/dev/alpha-deployment-plan.md` (milestones H1–H4).
 
 Tasks in that plan are marked **[fill-in]** or **[written]** (write it complete, then walk
 through it). Respect the marking — the next section is what [fill-in] means in practice.
@@ -118,10 +117,13 @@ code.**
    - **Lesson** — the idea, and why it's done this way *here*, citing the doc that decided it.
    - **Code** — the near-exact lines, in a comment, complete enough to type or paste. Speed
      matters (Oct 8 update): a gap should cost minutes, not research.
-   - **Check** — the test that goes green when it's right, and the most likely way to get it wrong.
+   - **Check** — the test that goes green when it's right (if it's a testable area), 
+   and the most likely way to get it wrong.
 
    The placeholder must fail loudly (`raise NotImplementedError("TODO(Ari)")` /
-   `throw new Error("TODO(Ari)")`) so the tests stay red rather than passing by accident.
+   `throw new Error("TODO(Ari)")`) so the tests stay red rather than passing by accident, if it makes
+   sense for the line of code to have tests against them. But it is not a firm requirement that
+   every `TODO(Ari)` be testable. Prioritize learning higher. 
 3. **Stop and hand off**: list each `TODO(Ari)` as a file:line link with its one-line lesson,
    plus the command that runs its tests. Don't fill them in.
 
@@ -151,19 +153,95 @@ implementation plan and propose re-marking it [written] — don't invent a gap.
 Implementation plans (below) name each [fill-in] step's `TODO(Ari)` blocks and their lessons, so
 the reviewer can check that the gaps are the right ones.
 
-## Implementation plans — written down, then reviewed by a different model
+## Implementation plans — written down, reviewed by a different model
 
 Before non-trivial implementation work (any milestone in the build plan), **do not start
-coding from a plan that only exists in a chat or a scratch file.**
+coding from a plan that only exists in a chat or a scratch file.** The plan file,
+`docs/dev/implementations/<milestone>-<slug>.md` (e.g. `a1-data-layer.md`), is also **the only
+channel between author and reviewer**: each one reads the file, does its part, writes the result
+into the file, updates the header `Status`, and stops. Ari's prompts can then be one line ("review
+`b2-…md`", "resolve the review in `b2-…md`") with nothing pasted between models.
 
-1. Write the plan to `docs/dev/implementations/<milestone>-<slug>.md` (e.g.
-   `a1-data-layer.md`): context, test approach, steps, critical files, verification. Header
-   records status, author model, reviewer model, and date.Pause here and wait for the next steps to take place, do not proceed to coding without explicit approval.
-2. **A different model than the one that wrote the plan reviews it before any code is
-   written.** The reviewer reads the plan against the docs it cites and the actual code, and
-   returns numbered findings with severity: wrong assumptions, gaps versus the docs, risky
-   steps, holes in the tests.
-3. The author resolves every finding in the plan file under a `## Review` section — fixed, or
-   rejected with a one-line reason — and the user approves the reviewed plan before
-   implementation starts.
-4. Tests come first (build plan §3), so the reviewer checks the test approach too.
+### The cycle
+
+| Step | Who | Writes | Then sets Status to |
+|---|---|---|---|
+| 1. Plan | Author | Context, test approach, steps (naming each `TODO(Ari)` gap — see above), critical files, verification | `Plan review` |
+| 2. Plan review | Reviewer | A new round under `## Plan review` | `Plan review: findings open` |
+| 3. Resolve | Author | The Resolution column of that round, plus the plan edits it describes | `Awaiting approval` (or `Plan review` if a fix needs another round) |
+| 4. Approve | **Ari** | — | `Approved` |
+| 5. Implement | Author | Code and tests; at the end, a new round under `## Implementation log` | `Code review` |
+| 6. Code review | Reviewer | A new round under `## Code review` | `Code review: findings open` |
+| 7. Resolve | Author | Fixes, plus the Resolution column | `Awaiting sign-off` (or `Code review` for another round) |
+| 8. Sign off | **Ari** | — | `Done` |
+
+Only Ari moves the status past steps 4 and 8. The header records the status, the date, the
+author model, and the reviewer model for each round.
+
+**Steps 1–3 and 5–7 run unattended**, via `/plan-milestone <milestone>` and
+`/build-milestone <plan file>`. The author runs its step, spawns the `plan-reviewer` subagent
+(`.claude/agents/plan-reviewer.md`) for one round, resolves that round, and stops at the next
+Ari gate. Run by hand, each step still ends with the model stopping. If there are any decisions 
+that Ari needs to make, mark them clearly in the document and draw his attention to them.
+
+### Running a review round from the author's session
+
+1. **Snapshot** `git status --porcelain` before spawning, so the check in step 3 compares
+   against your own uncommitted work rather than a clean tree.
+2. **Spawn** `plan-reviewer` in the foreground (`run_in_background: false`, since the next step
+   needs its result), and **always pass `model`**: `opus` if you aren't Opus, otherwise
+   `sonnet`. Leaving it out makes the reviewer inherit your model, which defeats the point of a
+   second model. The prompt names the plan file, whether this is a plan review or a code review,
+   and, for code review, the newest Implementation log round. Don't summarize your reasoning for
+   it: the reviewer should judge the file cold.
+3. **Check the reviewer stayed in its lane.** Compare against the snapshot: the only new change
+   should be in the plan file, and `git diff` on that file should show only an appended round
+   plus the header lines. If anything else changed, revert that part, note it in the round's
+   preamble, and tell Ari.
+4. **Resolve every row** (see "The author's side"), then set the next status and stop.
+
+**One round per run.** If the resolutions change the plan or code substantially (a rejected or
+reworked blocker, a verdict of *rework*), don't start round 2 on your own: say so in the handoff
+and let Ari decide.
+
+**Handoff to Ari** when stopping at a gate: the status, the round's verdict and counts, the
+findings you rejected (with reasons) and any you're unsure of, and what Ari should check before
+approving.
+
+### What the reviewer may change
+
+The reviewer **writes only to the plan file, and only by adding a new round** at the end of
+`## Plan review` or `## Code review`, plus the header's `Status` and reviewer lines. It doesn't
+edit the plan body, earlier rounds, or any code, docs, or tests, even for a one-character fix.
+A fix belongs in a finding. Scratch experiments are fine in a throwaway `git worktree` that is
+removed afterwards; say so in the round's preamble.
+
+Each round opens with its scope (the plan, or the diff and commit range), what was checked and
+how (docs read, commands run, results), counts by severity, and a verdict (*proceed*, *proceed
+after fixes*, *rework*). Then a findings table:
+
+| # | Sev | Finding | Evidence | What goes wrong | Resolution |
+|---|---|---|---|---|---|
+
+Severity is `blocker` / `should-fix` / `nit`. Evidence is a file:line, a doc section, or
+command output, and is marked CONFIRMED (reproduced) or PLAUSIBLE (reasoned). The reviewer
+leaves **Resolution** empty. Plan reviews also check the test approach (tests come first,
+build plan §3) and whether the `TODO(Ari)` gaps are the right ones.
+
+### The author's side
+
+- **Resolving:** fill every Resolution cell with **Fixed** plus what changed (and where), or
+  **Rejected** plus a one-line reason. Don't leave any empty or merge rows. End the round with a
+  `Rejected:` line, and, for code review, the test-suite result after the fixes. For testable
+  code findings, write the failing test before the fix.
+- **Implementation log** (step 5) is the handoff to the code reviewer, so it names everything the
+  reviewer needs without asking:
+  - **Scope:** commit range or `git diff` base, and the files touched.
+  - **Departures from the plan**, each with its reason.
+  - **`TODO(Ari)` gaps:** each one listed as open, filled by Ari, or filled by Claude on
+    request. Review the code as it stands; open gaps aren't findings.
+  - **Verification:** the commands run and their results (`make check`, the plan's verification
+    steps).
+  - **Where to look hardest:** what the author is least sure of.
+
+A second implementation pass after code review gets its own log round, scoped to the fixes.

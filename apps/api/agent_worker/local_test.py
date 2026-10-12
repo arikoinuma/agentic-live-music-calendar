@@ -1,11 +1,23 @@
+import datetime
 import json
 from pathlib import Path
 
 from agent_worker.graph import compiled_graph
 from agent_worker.state import VenueGraphState
 
+# venue_name and metro_timezone are what the venue's database row will supply once the worker
+# reads the database (A4/A5); until then they are passed here. Values from app/db/seed.py
+# (venue 1, The White Squirrel Bar) and the seeded metro's zone.
 result = compiled_graph.invoke(
-    VenueGraphState(venue_id=1, calendar_url="agent_worker/eval/fixtures/Archives_ Events - The White Squirrel Bar.html")
+    VenueGraphState(
+        venue_id=1,
+        calendar_url="agent_worker/eval/fixtures/Archives_ Events - The White Squirrel Bar.html",
+        venue_name="The White Squirrel Bar",
+        metro_timezone="America/Chicago",
+        # The fixture was saved on August 17, 2026; the year rule (A2.1, D13) reads this date,
+        # and today's would put its August shows a year ahead.
+        fetched_on=datetime.date(2026, 8, 17),
+    )
 )
 state = VenueGraphState(**result)
 
@@ -15,9 +27,10 @@ state = VenueGraphState(**result)
 # (extraction, confidence, attempt_count, reconcile_decision) is written
 # out completely, since that's what's actually worth inspecting.
 dump = state.model_dump()
-if dump["page_content"] and len(dump["page_content"]) > 200:
-    original_length = len(dump["page_content"])
-    dump["page_content"] = dump["page_content"][:200] + f"... (truncated, {original_length} chars total)"
+for key in ("page_content", "page_html"):
+    if dump[key] and len(dump[key]) > 200:
+        original_length = len(dump[key])
+        dump[key] = dump[key][:200] + f"... (truncated, {original_length} chars total)"
 
 output_path = Path(__file__).parent / "local_test_output.json"
 output_path.write_text(json.dumps(dump, indent=2, default=str))

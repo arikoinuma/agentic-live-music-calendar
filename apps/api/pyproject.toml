@@ -49,10 +49,12 @@ dev = [
 plugins = ["pydantic.mypy"]
 
 [tool.pytest.ini_options]
-# Scoped to app/ deliberately: agent_worker/ still has untracked manual-test
-# scripts (e.g. local_test.py) that match pytest's default *_test.py
-# discovery glob and fire live model calls on import if collected.
-testpaths = ["app"]
+# Scoped deliberately: agent_worker/ still has manual-test scripts (e.g.
+# local_test.py) that match pytest's default *_test.py discovery glob and fire live
+# model calls on import if collected. So only agent_worker/tests is collected from there
+# (added in A2 so its schema/prompt tests run under `make check`; A7 widens the rest).
+# The tests can't live in app/tests/: app/ never imports from agent_worker/.
+testpaths = ["app", "agent_worker/tests"]
 # pytest-asyncio 1.x defaults to a fresh event loop per test, but asyncpg
 # connections are bound to the loop that created them — so the session-scoped
 # DB fixtures (app/testing/db.py) and the tests that use them must share one

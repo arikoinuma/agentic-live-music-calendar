@@ -20,3 +20,6 @@
 # Derived from app/main.py by scripts/dump_openapi.py; the generated
 # TypeScript in apps/calendar/lib/api-types.ts is the committed artifact.
 openapi.json
+
+# Eval run outputs (agent_worker/eval/run_eval.py): large, regenerable, per-machine.
+/agent_worker/eval/results/

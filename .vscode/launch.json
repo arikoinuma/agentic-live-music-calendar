@@ -1,0 +1,16 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "eval: one poster, legacy",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "agent_worker.eval.run_eval",
+      "args": ["--label", "debug", "--runs", "1", "--only", "White Squirrel", "--legacy"],
+      "cwd": "${workspaceFolder}/apps/api",
+      "envFile": "${workspaceFolder}/apps/api/.env",
+      "python": "${workspaceFolder}/apps/api/.venv/bin/python",
+      "justMyCode": true
+    }
+  ]
+}

@@ -195,3 +195,127 @@ error boundaries). `error.tsx` renders only after hydration. Adding `loading.tsx
 first, but then `notFound()` returns 200 (a soft 404) — a trade-off recorded as D4 in the B2 plan.
 Separately, in Next 16.3 `error.tsx`'s `reset()` re-renders the *same* failed payload; `retry()`
 re-fetches, so it is the one a "Try again" button needs.
+
+
+---
+
+## In Pydantic v2, `X | None` without `= None` is still required — and that decides what the model is told
+
+`time: datetime.time | None` with no default raises a `missing` error when the key is absent, and
+it lands in the JSON schema's `required` list — which is what `instructor` sends the model. So
+"make `time` optional" needs the default as well as the type, or the schema still tells the model
+the field is mandatory (and it invents a value). `agent_worker/tests/test_extraction_schema.py`
+pins the exact required set. Related: a field's `description` is part of that request, so how the
+model is told to say "not stated" (the fixed phrase "otherwise null") is an instruction, not a
+comment.
+
+Two more things found building A2's time handling: Pydantic's `datetime.time` parsing is strict
+(`"7pm"`, `"7:30 PM"`, `"8:00pm"`, `"24:00"` are all rejected), while an *integer* like `68400` is
+accepted as a timezone-**aware** `19:00+00:00` that will never compare equal to the database's
+naive `time`. `agent_worker/normalize.py` is a `BeforeValidator` that converts the unambiguous
+spellings and refuses the rest — and it only sees `"n/a"` if the `| None` sits *inside* the
+`Annotated[...]`, not outside it.
+(Since October 10, 2026 a time with no AM/PM is read as PM — a product decision, see
+`requirements-initial.md` — but a two-digit `"10:30"` is still trusted as 24-hour, because that is
+the format the model was asked for; only the field description can make the model assume PM there.)
+
+---
+
+## Ollama's `/v1` endpoint ignores `options` — `num_ctx` and `seed` placed there do nothing
+
+Found measuring A2's baseline (Oct 9 2026, Ollama 0.35.0, `gemma4:e4b`). `extract_node` and
+`eval/run_eval.py` both send `extra_body={"options": {"num_ctx": 32768}}`, which Phase 5 recorded
+as a load-bearing fix for Ollama's 4096-token default. Through the OpenAI-compatible `/v1`
+endpoint it is **silently ignored**:
+
+- After a `/v1` call carrying `options.num_ctx = 32768`, `GET /api/ps` reports
+  `context_length: 4096`. The same option on the native `/api/chat` loads the model at 32768.
+- A model warmed at 32768 through `/api/chat` is reloaded back to 4096 by the next `/v1` call.
+- `options.seed` is ignored the same way (three identical prompts: varied output). The OpenAI-style
+  **top-level** `seed` argument works (three identical outputs), so the eval passes that.
+- Effect on the baseline: 10 of 18 runs ended in `IncompleteOutputException`, including all nine
+  runs on the three largest text pages (White Squirrel, Midway, Zhora; 66–84 s each), where a
+  4096-token window truncates the answer. **Confirmed for White Squirrel (Oct 9 2026)** by replaying
+  the exact messages `instructor` sends (schema in a system prompt, JSON mode — 1747 prompt tokens)
+  through native `/api/chat` with the same model, seed and `num_predict` 16000: at `num_ctx` 4096 it
+  stopped with `done_reason: "length"` after 2349 output tokens (1747 + 2349 = 4096) and the JSON was cut
+  off mid-string; at `num_ctx` 32768 it finished (`stop`, 2754 tokens) and parsed to 12 shows, matching
+  the page. `instructor` turns that `length` finish into `IncompleteOutputException` — so the failure is
+  the context window, **not** the 16000-token `max_tokens` budget (the model never got near it). Phase 5
+  attributed the same exception to "interpretive judgment calls"; at least for this page, that was the
+  window. Midway and Zhora are not yet re-checked this way.
+- **Fixed (Oct 9 2026) with a derived model**, not a code change: `apps/api/ollama/gemma4-e4b-32k.Modelfile`
+  (`FROM gemma4:e4b`, `PARAMETER num_ctx 32768`), created with
+  `ollama create gemma4-e4b-32k -f apps/api/ollama/gemma4-e4b-32k.Modelfile`. It reuses the same weights
+  (`ollama list` shows 9.6 GB for each, but nothing is copied) and a model's *own* default context is the one
+  setting `/v1` honours. Set `MODEL_NAME=gemma4-e4b-32k` in `apps/api/.env`. Verified: a `/v1` call to it
+  loads with `context_length: 32768` (about 3.4 GB resident here), and White Squirrel through the eval harness
+  completed first attempt with 12 shows. Undo: `ollama rm gemma4-e4b-32k` and set `MODEL_NAME` back.
+  `run_eval.py` now follows `MODEL_NAME` instead of a hard-coded tag, and still records
+  `loaded_context_length` in every results file, so a label run at the wrong window says so. The now-dead
+  `options.num_ctx` in `nodes.py` / `run_eval.py` is left in place (it matches Phase 5's code and is harmless);
+  remove it when someone next touches those call sites. Other models would need the same treatment.
+
+---
+
+## The Ollama app updates itself, so an eval's environment can change under it
+
+Found closing A2 (October 10, 2026). The A2 labels were measured on Ollama **0.35.0**; the next
+morning `curl localhost:11434/api/version` said **0.40.2** — the macOS app had updated itself
+(`/Applications/Ollama.app` modified 06:04), and `gemma4-e4b-32k` had been re-created with a new
+digest (`654af1bf75f4` vs `08aefbf02b7c` in the results files; the base `gemma4:e4b` weights were
+unchanged). Nothing in the code changed, yet a new run is no longer like-for-like with the stored
+ones, and behaviours this file records for 0.35.0 (the `/v1` endpoint ignoring `num_ctx`) may no
+longer hold. The eval harness stores `ollama_version` and `model_digest` per label for exactly this
+reason: **compare them before comparing numbers**, and re-run a baseline when they differ.
+
+---
+
+## A nested `acts` object made the model stop splitting acts
+
+Found closing A2 (October 10, 2026), from the stored eval results. With `acts: list[str]` and the
+description "The name(s) of the act(s) performing", `gemma4:e4b` split "Lent w. Gills, Boomdagger"
+into three acts on most multi-act listings. With `acts: list[ActExtraction]` (an object with a
+`name`, plus optional per-act time and order) and the description "The act(s) performing", it
+almost always returned **one** act named with the whole title: Zhora went from ~17 of 23 shows
+split to 0 in every run. The richer schema was measured for completions and leaks, and this
+slipped past because nobody compared act counts across labels. Lesson for schema changes: when a
+field's *shape* changes, re-check the field's own content, not just whether the output parses.
+Cause not yet isolated (the shape or the lost "name(s)"); A2.1 tests it
+(`docs/dev/implementations/a2-extraction-schema.md`, Eval results › Addendum).
+
+---
+
+## A browser-saved fixture is not what the pipeline fetches
+
+Found planning A2.1 (October 10, 2026). A2's eval fixtures were Chrome "Save Page As" captures —
+the page *after* JavaScript ran. The pipeline fetches with one plain `httpx.get`, which runs no
+JavaScript. One plain GET per venue showed the difference decides everything:
+
+- **Zhora Darling**: the saved page had 24 listings (and 24 schema.org `MusicEvent` blocks); the
+  plain fetch has 314 characters of visible text and no events. The DICE widget draws both
+  client-side.
+- **Midway**: the saved page had a full month grid; the plain fetch gets **HTTP 403** and a
+  Cloudflare "Enable JavaScript and cookies to continue" page — a bot challenge. Not something to
+  work around (A2.1 plan, D3).
+- **White Squirrel** and **Terminal Bar**: the same listings either way (and White Squirrel's
+  schema.org JSON-LD is server-rendered, so it survives the plain fetch).
+
+So an eval built on browser captures measured two pages production never sees. A2.1's fixtures
+are captured with the pipeline's own fetch (`agent_worker/eval/capture.py`, which calls
+`nodes.fetch_html`). Rule of thumb: **capture fixtures with the same code that fetches in
+production**, and when a page is thin (`capture.py` warns under 500 visible characters), the
+listings are being drawn by a script.
+
+---
+
+## A gate with nothing in scope must not pass
+
+Found smoke-testing A2.1's scorer (October 10, 2026). `scoring.gate(runs, route="jsonld")` over
+a label where no page took the JSON-LD route returned PASS with zero failures — "every run met
+every tier" is vacuously true of no runs. It printed as "gate [jsonld]: PASS", which reads as
+evidence the route works. The gate now counts the pages in scope and never passes on zero
+(`test_a_gate_with_no_pages_does_not_pass`); `--compare` shows such a scope as "n/a (no pages)".
+
+*Rechecked October 10, 2026 on Ollama 0.40.2:* `/v1` still ignores `options.num_ctx` (a request for 8192 left
+`gemma4-e4b-32k` loaded at 32768 per `/api/ps`), so the derived model is still how the working window is set.

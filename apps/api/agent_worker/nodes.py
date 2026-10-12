@@ -1,30 +1,46 @@
 import base64
+import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import httpx
-import instructor
-from bs4 import BeautifulSoup
-from instructor import Mode
-from openai import OpenAI
 
-from agent_worker.schemas import VenuePageExtraction
+from agent_worker.extraction import (
+    PIPELINE_CONFIG,
+    PIPELINE_OPTIONS,
+    clean_text,
+    extract_image,
+    extract_page,
+)
+from agent_worker.llm import instructor_client
 from agent_worker.state import VenueGraphState
-from app.config import settings
 
-# Same client setup proven in eval/run_eval.py, but living here for real
-# this time — that script is explicitly throwaway (see its own
-# docstring), so production pipeline code shouldn't import from it.
-# Mode.JSON, num_ctx override, and max_tokens are all carried forward
-# from what was confirmed working there; see docs/dev/env-setup.md
-# Phase 5's final bullet for why each of those specific choices matters.
-client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
-instructor_client = instructor.from_openai(client, mode=Mode.JSON)
+# The model client, the request options (Mode.JSON, max_tokens, num_ctx, max_retries) and
+# the page cleaning used to live here. A2.1 moved them to `llm.py` and `extraction.py`,
+# which the eval harness calls too, so the eval measures exactly what this pipeline sends
+# (docs/dev/implementations/a2.1-extraction-reliability.md, Design §1). `instructor_client`
+# is imported by name so a test can swap it for a fake.
 
-def html_clean(html: str):
-    cleaned_page = BeautifulSoup(html, "html.parser")
-    for tag in cleaned_page(["script", "style"]):
-        tag.decompose()
-    return cleaned_page.get_text(separator=" ", strip=True)
+IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp")
+
+
+def metro_today(metro_timezone: str) -> datetime.date:
+    """Today's date on the metro's clock, not the machine's: a worker running in UTC late on a
+    Chicago evening is already on tomorrow's date, which would shift the year rule's window
+    (A2.1 plan, D13)."""
+    return datetime.datetime.now(ZoneInfo(metro_timezone)).date()
+
+
+def fetch_html(url: str) -> str:
+    """Fetch a page the way the pipeline does: one plain GET, an error status raised.
+
+    Shared with eval/capture.py, so a captured fixture is exactly what production fetches —
+    A2's fixtures were browser "Save As" captures, which run JavaScript and so showed the
+    model pages the pipeline never sees (A2.1 plan, Context).
+    """
+    http_response = httpx.get(url)
+    http_response.raise_for_status()
+    return http_response.text
 
 
 def fetch_node(state: VenueGraphState) -> VenueGraphState:
@@ -75,23 +91,27 @@ def fetch_node(state: VenueGraphState) -> VenueGraphState:
     # duplicate that logic by retyping it; reuse it (however you think
     # is cleanest — a small helper function is a reasonable option).
 
+    # A2.1: the raw HTML is kept in `page_html` (the JSON-LD route needs the <script>
+    # blocks that cleaning strips), and the date is recorded for the year rule (D13).
+    # A caller that knows when the page was captured (local_test's August fixture) passes it;
+    # otherwise it is today on the metro's clock (code review #7).
+    state.fetched_on = state.fetched_on or metro_today(state.metro_timezone)
     if (is_url):
-        http_response = httpx.get(state.calendar_url)
-        http_response.raise_for_status()
-        state.page_content = html_clean(http_response.text)
+        state.page_html = fetch_html(state.calendar_url)
+        state.page_content = clean_text(state.page_html, PIPELINE_CONFIG.keep_line_breaks)
     else:
         # Step 3 (the existing local-path branch): unchanged from before —
         # this is the code already here, doing Path-based reading with the
         # is_image suffix check. Keep it working exactly as it already does.
         path = Path(state.calendar_url)
-        is_image = path.suffix in (".jpg", ".jpeg", ".png", ".webp")
+        is_image = path.suffix in IMAGE_SUFFIXES
         if is_image:
             binary_image = path.read_bytes()
             base64_bytes = base64.b64encode(binary_image)
             state.page_content = base64_bytes.decode()
         else:
-            html = path.read_text()
-            state.page_content = html_clean(html)
+            state.page_html = path.read_text()
+            state.page_content = clean_text(state.page_html, PIPELINE_CONFIG.keep_line_breaks)
 
     # Step 4: whichever branch ran, the function still ends the same
     # way it already does — state.page_content gets set, and the
@@ -101,86 +121,41 @@ def fetch_node(state: VenueGraphState) -> VenueGraphState:
     
 
 def extract_node(state: VenueGraphState) -> VenueGraphState:
-    """Calls the model against state.page_content, populating
-    state.extraction. This is the same call proven working in
-    eval/run_eval.py's extract() — reuse that shape, don't redesign it.
+    """Extracts the shows on the fetched page into state.extraction, via
+    extraction.extract_page (or extract_image for a poster) — the same
+    functions the eval harness calls, so what is measured is what runs.
 
     Not yet handled here, deliberately deferred: the MongoDB raw-staging
     write the architecture doc calls for ("Extract --> Staging[('MongoDB
     — raw staging doc')]") and this node's own audit trail write. Same
     reasoning as fetch_node — add once the graph's shape is proven.
     """
-    # build the instruction text and messages list (text vs image
-    # content block, exactly like eval/run_eval.py's extract() step 1-3),
-    # then call instructor_client.chat.completions.create(...) with
-    # response_model=VenuePageExtraction, max_tokens=16000, and
-    # extra_body={"options": {"num_ctx": 32768}} — all three of those
-    # specific values were load-bearing fixes discovered in Phase 5, not
-    # arbitrary defaults; dropping any of them risks reintroducing the
-    # IncompleteOutputException failures documented there.
-    #
     # Increment state.attempt_count in the returned copy — this is what
     # the retry cap (3 attempts, per the architecture doc) checks against
     # once the graph is wired with conditional edges.
 
     # same check exists in fetch_node, this should be refactored in future
-    is_image = Path(state.calendar_url).suffix in (".jpg", ".jpeg", ".png", ".webp")
+    is_image = Path(state.calendar_url).suffix in IMAGE_SUFFIXES
+    fetched_on = state.fetched_on or metro_today(state.metro_timezone)
 
-    instruction = """
-        If given a calendar page html, extract every show listed.
-        If given an image, extract a show that the image is depicting based
-        on the text you can find on the image.
-        For each show, identify the venue, date, time, performing act(s),
-        whether the listing was ambiguous, any ticket info, and
-        your confidence.
-
-        Also set page_readable: true if you could understand this page well
-        enough to reliably tell whether it lists any shows, even if your
-        answer is that it lists zero shows right now — a page that's
-        genuinely empty is still readable. Set page_readable: false only if
-        the content itself was broken, garbled, an error page, or otherwise
-        not something you could meaningfully interpret as a venue's show
-        listings — regardless of how many shows you end up returning.
-
-    """
-
-    if is_image: 
-        content = [
-            {"type": "text", "text": instruction},
-            {"type": "image_url", "image_url": {
-                    "url": f"data:image/png;base64,{state.page_content}"
-                }
-            },
-        ]
-    else: 
-        content = instruction + state.page_content
-
-    messages = [
-        {
-            "role": "user",
-            "content":  content
-        }
-    ]
-
-    # TODO: we should catch any errors of the operation below
-    state.extraction = instructor_client.chat.completions.create(
-        model=settings.model_name,
-        response_model=VenuePageExtraction,
-        messages=messages,
-        # Raise this further if IncompleteOutputException recurs on a
-        # busier fixture (a page with many shows needs a genuinely large
-        # structured response).
-        max_tokens=16000,
-        # Ollama silently defaults num_ctx to 4096 regardless of what
-        # max_tokens requests — confirmed directly: even with a small,
-        # already-cleaned fixture, output was still getting cut off,
-        # because max_tokens can't exceed what's left in the context
-        # window once the input and instructor's schema-following prompt
-        # are already counted against it. Without this override, every
-        # fixture would be silently truncated the same way White Squirrel
-        # was, not just the largest ones.
-        extra_body={"options": {"num_ctx": 32768}},
-    )
+    # A2.1: the request is built in extraction.py, from the pipeline's configuration, so the
+    # eval harness (which calls the same functions) measures exactly this. extract_page also
+    # chooses the route — the venue's JSON-LD when it has usable events, the full-page model
+    # extraction otherwise (A2.1 plan, D4). Same three load-bearing request values as before
+    # (max_tokens, num_ctx, max_retries), now in llm.RequestOptions.
+    # TODO: we should catch any errors of the operation below (A3, G2)
+    if is_image:
+        result = extract_image(
+            state.page_content or "", mime="image/png", fetch_date=fetched_on,
+            client=instructor_client, options=PIPELINE_OPTIONS, config=PIPELINE_CONFIG,
+        )
+    else:
+        result = extract_page(
+            state.page_html or "", venue_name=state.venue_name,
+            metro_timezone=state.metro_timezone, fetch_date=fetched_on,
+            client=instructor_client, options=PIPELINE_OPTIONS, config=PIPELINE_CONFIG,
+        )
+    state.extraction = result.extraction
 
     # increment the attempt count whether it succeeds or not
     state.attempt_count = state.attempt_count+1

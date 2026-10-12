@@ -7,7 +7,7 @@ HOW THIS FITS TOGETHER
   points back at the run. Rows are only ever added, never edited or removed,
   so "what happened in run N, and why does this show look the way it does?"
   can be answered entirely from these two tables. That is the project's
-  "auditable by construction" requirement (v1-build-plan.md, section 2).
+  "auditable by construction" requirement (alpha-build-plan.md, section 2).
 
 docs/arch/data-model-initial.md section 3; the design (why append-only, why
 `parent_run_id`) is arch-initial.md section 7.
@@ -16,7 +16,7 @@ Departures from section 3, recorded in
 docs/dev/implementations/a1-data-layer.md:
 
 * `agent_run.triggered_by` and `audit_log.contributor_id` are omitted. Their
-  FK target, `contributor`, is deferred (v1-build-plan.md section 8), so they
+  FK target, `contributor`, is deferred (alpha-build-plan.md section 8), so they
   can't be created as specified; a plain unconstrained integer would be a
   column that is always NULL.
 * `audit_log.session_hash` is omitted for the same always-empty reason: it

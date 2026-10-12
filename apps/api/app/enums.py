@@ -64,7 +64,7 @@ class FetchStrategy(StrEnum):
     `HTTP` is a plain httpx GET. `BROWSER` means Playwright is needed —
     either the page is JS-rendered, or its pagination is a click-driven
     "load more" that a plain fetch can't follow. Only the HTTP path is
-    implemented this phase (v1-build-plan.md section 8).
+    implemented this phase (alpha-build-plan.md section 8).
     """
 
     HTTP = "http"
