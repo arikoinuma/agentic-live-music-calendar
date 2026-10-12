@@ -488,7 +488,7 @@ export default function Layout({ params, children }: LayoutProps<"/venues/[slug]
   rather than making the whole route dynamic.
 - A Client Component calling `useSearchParams()` must sit under a `<Suspense>` boundary, or the
   prerender of that route bails out.
-- Errors: `error.tsx` per segment (a Client Component receiving `error`/`reset`),
+- Errors: `error.tsx` per segment (a Client Component receiving `error`/`retry` — `retry()` re-fetches and re-renders, stable since 16.3; `reset()` only clears the error state and re-renders without re-fetching, so it can't recover from a failed server fetch),
   `global-error.tsx` for the root layout, `not-found.tsx` + `notFound()` for 404s. An error boundary
   contains failures the same way Suspense contains async work — one per risky subtree, not one at
   the root.

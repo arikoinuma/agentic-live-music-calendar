@@ -15,6 +15,7 @@ caught it.
 import pytest
 from fastapi.testclient import TestClient
 
+from app import sample_data as data
 from app.main import app
 
 client = TestClient(app)
@@ -130,3 +131,40 @@ def test_openapi_exposes_the_response_schemas() -> None:
     schemas = app.openapi()["components"]["schemas"]
     for name in ("ShowSummary", "ShowDetail", "VenueDetail", "ArtistDetail", "LineupEntry"):
         assert name in schemas
+
+
+# --- GET /metro (B2) ------------------------------------------------------
+# The layout's footer and <meta description> read the metro name from here
+# (v1-build-plan.md G24) instead of a hard-coded literal.
+
+
+def test_metro_returns_the_live_metro() -> None:
+    """Proves: /metro answers 200 with the single live metro's id, name and timezone.
+
+    Expected values come from `sample_data.METRO`, the same object the
+    route serves for now, so this pins the route to its source and the
+    response *shape*; it can't say the data is right. The A1b swap to a
+    database query keeps this test meaningful because the seed must agree.
+    """
+    response = client.get("/metro")
+    assert response.status_code == 200
+    assert response.json() == {
+        "id": data.METRO.id,
+        "name": data.METRO.name,
+        "timezone": data.METRO.timezone,
+    }
+
+
+def test_openapi_exposes_the_metro_route() -> None:
+    """Proves: /metro is in the OpenAPI document and its 200 response is MetroSummary.
+
+    Deliberately not "add MetroSummary to the schema-name check above":
+    MetroSummary is already in components.schemas, nested inside
+    VenueDetail, so that assertion would pass before the route exists
+    (plan review #5). What the generated TypeScript needs is the *path*
+    with a typed response; this fails if the return annotation is dropped.
+    """
+    paths = app.openapi()["paths"]
+    assert "/metro" in paths
+    ref = paths["/metro"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+    assert ref == {"$ref": "#/components/schemas/MetroSummary"}

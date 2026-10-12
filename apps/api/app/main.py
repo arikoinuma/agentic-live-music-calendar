@@ -2,7 +2,7 @@ from fastapi import FastAPI, status
 from sqlalchemy import text
 
 from app.db.session import engine
-from app.routers import artists, calendar, shows, venues
+from app.routers import artists, calendar, metro, shows, venues
 
 app = FastAPI(
     title="Agentic Live Music Calendar API",
@@ -21,6 +21,7 @@ app.include_router(shows.router)
 app.include_router(venues.router)
 app.include_router(artists.router)
 app.include_router(calendar.router)
+app.include_router(metro.router)
 
 @app.get("/health", status_code=status.HTTP_200_OK)
 async def health():

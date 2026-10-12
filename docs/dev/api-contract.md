@@ -26,7 +26,7 @@ The generator is `apps/api/scripts/generate_fixtures.py`. Its data is invented b
 
 ## 2. Endpoints
 
-Not implemented yet. Listed here as the agreed surface; each lands with its milestone.
+Listed here as the agreed surface; each lands with its milestone. All routes exist and serve `app/sample_data.py`; "A-track, after A1b" means the body becomes a database query then. (`/metro` shipped in B2.)
 
 | Method | Path | Returns | Serves | Milestone |
 |---|---|---|---|---|
@@ -37,6 +37,7 @@ Not implemented yet. Listed here as the agreed surface; each lands with its mile
 | GET | `/artists` | `ArtistListResponse` | `/artists`, and the calendar's artist filter | A-track, after A1b |
 | GET | `/artists/{id}` | `ArtistDetail` | `/artist/[id]` | A-track, after A1b |
 | GET | `/calendar/months` | `CalendarMonthsResponse` | The month dropdown | A-track, after A1b |
+| GET | `/metro` | `MetroSummary` | The root layout: footer metro name and the `description` metadata | B2 (serves sample data; DB-backed in A1b) |
 
 **Filtering.** `venue_id` and `artist_id` repeat for multi-select (`?venue_id=1&venue_id=3`). Both filters are AND-ed with the date range and OR-ed within themselves — picking two venues means "either venue," which is what a multi-select visibly implies.
 
@@ -146,6 +147,7 @@ make contract-check   # fail if the committed output is stale
 
 | File | Shape |
 |---|---|
+| `metro.json` | `MetroSummary` |
 | `shows.json` | `ShowListResponse` — 21 shows across 2026-09-28 → 2026-10-25 |
 | `show-detail.json` | `ShowDetail` |
 | `venues.json` | `VenueListResponse` — the four Phase 5 venues, alphabetical |

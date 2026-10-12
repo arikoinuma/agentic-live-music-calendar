@@ -45,6 +45,7 @@ def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     print("Writing fixtures:")
 
+    write("metro.json", data.METRO)
     write("shows.json", ShowListResponse(start=data.START, end=data.END, shows=data.SHOWS))
     write("show-detail.json", data.show_detail(2))
     write("venues.json", VenueListResponse(venues=sorted(data.VENUES, key=lambda v: v.name)))

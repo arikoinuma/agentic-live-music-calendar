@@ -166,6 +166,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/metro": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Metro
+         * @description The single live metro. No id in the path: v1 has exactly one, and
+         *     `arch-initial.md` §11 tracks multi-metro as deferred, so adding a
+         *     `/metro/{id}` later is additive.
+         */
+        get: operations["get_metro_metro_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -710,6 +732,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CalendarMonthsResponse"];
+                };
+            };
+        };
+    };
+    get_metro_metro_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetroSummary"];
                 };
             };
         };

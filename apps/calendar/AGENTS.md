@@ -54,6 +54,26 @@ things about them:
 `lib/fixtures/*.json` exists for tests that shouldn't need a running backend. Prefer real
 HTTP against the API for anything else — the routes exist and serve the same data.
 
+## Where data and URL state live
+
+- `lib/api.ts` is the only code that talks to FastAPI. It is `server-only` (it reads
+  `API_BASE_URL`, which must never reach a browser bundle), every request is `no-store`
+  with a timeout, and `getVenue`/`getArtist` return `null` on 404 so the page can call
+  `notFound()`. Tests use `createApiClient({ baseUrl, fetchImpl })` with a fake `fetch`.
+- `lib/params.ts` is the other half: pure parsing of URL state. **Path params**
+  (`parseIdParam`, `parseDateParam`) return `null` for anything non-canonical → the page
+  calls `notFound()`. **Search params** (`parseCalendarFilters` → `toShowsQuery`, and
+  `buildCalendarHref` back) never throw: bad entries are dropped, the result is
+  canonical (de-duplicated, numerically sorted), so one filter set has one URL. Keys:
+  `venue`, `artist` (repeatable ids) and `month=YYYY-MM` (the whole calendar month).
+- Vitest aliases `server-only` to an empty stub (`test/server-only-stub.ts`); the real
+  package throws outside Next's `react-server` condition.
+- **Never wrap a `fetch` in a `catch` without `unstable_rethrow(err)` first.** During
+  `next build` a `no-store` fetch throws a dynamic-usage error on purpose, and a bare
+  `catch` turns it into a build failure (`docs/dev/notes.md`).
+- Every route is dynamic (`ƒ`) in B2: the root layout fetches the metro with `no-store`
+  (decision D1 in the B2 plan). `next build` therefore doesn't need the API running.
+
 ## Rules that bite most often here
 
 - **Server Components by default.** `"use client"` goes on the smallest interactive leaf,
@@ -77,8 +97,10 @@ HTTP against the API for anything else — the routes exist and serve the same d
 
 B1 stripped the `create-turbo` template (`docs/dev/v1-build-plan.md`): Tailwind is the
 only styling system, `packages/ui/src/components/button.tsx` (shadcn) is the only
-button, and the root layout has real metadata and chrome. `/` is a placeholder until
-B2/B3; `/health` is the diagnostics page.
+button, and the root layout has real metadata and chrome. B2 added the six routes
+(`/`, `/day/[date]`, `/venue/[id]`, `/venues`, `/artist/[id]`, `/artists`), `not-found.tsx`,
+`error.tsx` and the API client; their markup is deliberately plain until B3/B4.
+`/health` is the diagnostics page.
 
 - Tests: `pnpm test` (Vitest, node environment). jsdom and Testing Library arrive with
   the first component tests (B5). Don't unit-test async Server Components — see the
@@ -89,8 +111,3 @@ B2/B3; `/health` is the diagnostics page.
 - Tailwind doesn't scan `packages/ui`. The first time this app imports a shared
   component, add `@source "../../packages/ui/src";` to `app/globals.css` or it renders
   unstyled (`docs/dev/notes.md`).
-
-**Not done, and the style guide asks for it:** the `server-only` package on any module
-touching `process.env` beyond `NEXT_PUBLIC_*` — `API_BASE_URL` is server-only and nothing
-enforces that at build time yet. Add it in B2 along with the API client, not before; it
-needs a consumer.

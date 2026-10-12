@@ -170,3 +170,28 @@ import — for the app, Alembic and every test. pydantic-settings also doesn't e
 values to `os.environ`, so a test fixture reading `os.environ` wouldn't see it anyway. Test
 variables (`TEST_DATABASE_URL`, `REQUIRE_DB`) are shell / CI environment only.
 
+---
+
+## A `catch` around a `fetch` breaks `next build` unless it calls `unstable_rethrow` first
+
+In Next 16 (default caching model), a `cache: "no-store"` fetch reached during prerender
+**throws** a `DynamicServerError` (`digest: "DYNAMIC_SERVER_USAGE"`) before any network call.
+That throw is how Next learns "this route is dynamic". A `catch` that wraps it (into an
+`ApiError`) or swallows it (`return null`) fails the build with `Error occurred prerendering
+page`, whether or not the API is up. Unit tests can't see it: Vitest has no patched `fetch`.
+Call `unstable_rethrow(err)` (from `next/navigation`) first in every such `catch`;
+`lib/api.test.ts` and `lib/metro.test.ts` pin it with a hand-built error carrying that digest.
+The related `server-only` trap: the package throws on import under Vitest, so
+`vitest.config.ts` aliases it to `test/server-only-stub.ts`.
+
+---
+
+## With the API down, a data page is a bare 500 document, and `error.tsx` needs `retry`
+
+Without a `<Suspense>`/`loading.tsx` above the page, a Server Component that throws before the
+first flush makes Next answer HTTP 500 with a bare `<html id="__next_error__">` document: no
+header, footer or `error.tsx` markup in the server HTML (React's server renderer doesn't run
+error boundaries). `error.tsx` renders only after hydration. Adding `loading.tsx` streams the shell
+first, but then `notFound()` returns 200 (a soft 404) — a trade-off recorded as D4 in the B2 plan.
+Separately, in Next 16.3 `error.tsx`'s `reset()` re-renders the *same* failed payload; `retry()`
+re-fetches, so it is the one a "Try again" button needs.

@@ -12,6 +12,8 @@
  * callers omit it and get the real fetch.
  */
 
+import { apiUrl } from "./api-url";
+
 export type ApiHealth =
   | { ok: true; message: string }
   | { ok: false; reason: string };
@@ -32,19 +34,14 @@ export async function getApiHealth(
     };
   }
 
-  // Strip trailing slashes: pasting "https://api.example.com/" into an
-  // env var is easy, and `${base}/health` would then be "//health" —
-  // which FastAPI answers 404, so the page would report "down" while the
-  // API is up.
-  const root = baseUrl.replace(/\/+$/, "");
-
   let response: Response;
   try {
     // `cache: "no-store"` is explicit rather than relying on the
     // default: a health check that returns a cached "up" is worse than
     // none. (fetch is uncached by default since Next 15, but the intent
     // belongs at the call site.)
-    response = await fetchImpl(`${root}/health`, {
+    // apiUrl strips trailing slashes from the base (lib/api-url.ts).
+    response = await fetchImpl(apiUrl(baseUrl, "/health"), {
       cache: "no-store",
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
