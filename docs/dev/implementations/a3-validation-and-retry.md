@@ -1,6 +1,6 @@
 # A3 — validation and retry: making the loop real
 
-**Status:** Awaiting sign-off (Ari approved October 12, 2026 by invoking /build-milestone; D13 accepted)
+**Status:** Done (Ari sign off) - Oct 14, 2026
 **Date:** October 12, 2026
 **Author model:** Claude Sonnet 5.5
 **Reviewer model:** Claude Opus 5.5 (plan review round 1, October 12, 2026; plan review round 2, October 12, 2026; code review round 1, October 12, 2026)
