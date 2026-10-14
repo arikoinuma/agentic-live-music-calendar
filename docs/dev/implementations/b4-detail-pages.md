@@ -2,7 +2,7 @@
 
 **Status:** Awaiting approval
 **Date:** October 14, 2026
-**Author model:** Claude Opus 5.5 (plan, plan-review resolution)
+**Author model:** Claude Opus 5.5 (plan, plan-review resolution); Claude Sonnet 5.5 (revisions after Ari's D2 and D4 decisions, October 14, 2026)
 **Reviewer model:** Claude Sonnet 5.5 (plan review round 1)
 **Spec:** `docs/dev/alpha-build-plan.md` §6 B4; `docs/arch/requirements-initial.md` ("Main Views & URL Scheme",
 "Calendar" → "/Day view", "Venue", "Venues", "Artist", "Artists", "Show" — including "Times after midnight", "Metro");
@@ -24,10 +24,12 @@ What the requirements ask for, and what exists today:
 | Route | Requirement | Today | B4 |
 |---|---|---|---|
 | `/venue/[id]` | "lists the meta data of a venue … Has the default calendar lower in the page filtered to the venue … go back and forth to past or future with that exact calendar" | Metadata, raw enum values (`twenty_one_plus`) | Readable metadata, a Google Maps link, the B3 grid filtered to the venue with earlier/later paging, Event JSON-LD |
-| `/artist/[id]` | "lists the meta data of an artist … Artist page contains the list view of their upcoming shows" | Metadata only | Readable metadata, a dated list of the artist's shows with the same paging |
+| `/artist/[id]` | "lists the meta data of an artist … Artist page contains the list view of their upcoming shows" | Metadata only | Readable metadata, the photo, and **every upcoming show** as a dated list, from a new `upcoming` API parameter (D2) |
 | `/venues`, `/artists` | "a simple list sorted alphabetically" | Done in B2 (alphabetical from the API, each a link) | Nothing beyond a check (D5) |
 | `/day/[date]` | Three orderings — by venue by alpha (default), by venue by time, by artist by alpha; venue modes as blocks, artist mode as "a list of Artist with the associated venue and time" | One ordering (night order, B3 departure 5) | All three, chosen by a URL search param |
-| `/show/[id]` | "show = constitutes a single live music event" (a main view); `arch-initial.md` §4: every event gets its own server-rendered page carrying `schema.org` Event JSON-LD | Missing (B2 D3 deferred it until something links to it) | The page, `getShow()`, a link to it from every show block, Event JSON-LD |
+| `/show/[id]` | "show = constitutes a single live music event" (a main view); `arch-initial.md` §4: every event gets its own server-rendered page carrying `schema.org` Event JSON-LD | Missing (B2 D3 deferred it until something links to it) | The page with its poster image, `getShow()`, a link to it from every show block, Event JSON-LD |
+
+Unlike B2 and B3, B4 also touches the API: D2 adds one query parameter to `GET /shows` (step 0).
 
 What B4 is *not*: component tests (B5); edit forms ("Any user can edit the fields" is the later write phase);
 socials, genres, members, instrumentation (absent from the contract on purpose, `api-contract.md` §6); an event page
@@ -37,9 +39,9 @@ socials, genres, members, instrumentation (absent from the contract on purpose, 
 ### Decisions already made (earlier in this project)
 
 - **Every route is dynamic and nothing is cached** (B2 D1). Unchanged.
-- **The server owns "now"** (`api-contract.md` §3). B4 keeps the client from computing any window: the embedded
-  calendars ask for the server's default window, page by sending only a `start`, and take every date they display from
-  the `start`/`end` the API echoes (the paging section below).
+- **The server owns "now"** (`api-contract.md` §3). B4 keeps the client from computing any window: the venue
+  calendar asks for the server's default window and pages by sending only a `start`; the artist page asks for
+  `upcoming` and sends no date at all (D2); both take every date they display from the `start`/`end` the API echoes.
 - **Detail routes do not stream** (B3 D4). A `<Suspense>` boundary above a `notFound()` turns a 404 into a soft 200,
   so the venue, artist, show and day pages keep awaiting their data at the top level, as in B2. Consequence, unchanged
   from B2: with the API down they answer a bare 500.
@@ -52,6 +54,9 @@ socials, genres, members, instrumentation (absent from the contract on purpose, 
 - **Null admission is "not stated", never free** (`api-contract.md` §4). This now also governs the JSON-LD `offers`.
 - **B3's follow-ups for B4:** reuse `CalendarGrid` for the venue page, `ShowBlock` for the artist page, `nightSortKey`
   for the day view's "by venue by time" mode. All three are taken up.
+- **Contract changes land first, on their own** (`AGENTS.md`, "Parallel tracks"): step 0's new query parameter
+  regenerates `lib/api-types.ts`, which other B-track branches depend on, so it is its own early commit (or PR, if Ari
+  wants the split) and everything after it builds on it.
 
 ### Paging an embedded calendar without a client clock (checked)
 
@@ -69,6 +74,37 @@ that can move, and `arch-initial.md` §4 puts "the displayed date range" in the 
 - **One edge, handled in the parser:** `from=9999-12-20` passes `parseDateParam`, but the API's `start + 27 days`
   overflows Python's `date` (max 9999-12-31) and answers 500. A search param must never 500 (`lib/params.ts`
   docstring), so `parseFromParam` also rejects a year above 9998.
+
+### `upcoming`: every future show for an artist, without a client clock (D2)
+
+"Upcoming shows" means every show from today on, however far out. The default window (28 days) can't say that, and
+neither can paging: an artist with one show in three months would show an empty page with an Earlier/Later pager. So
+`GET /shows` gains one boolean query parameter, and the server — which owns "now" (`api-contract.md` §3) — does the
+rest:
+
+| Request | Meaning |
+|---|---|
+| `/shows?artist_id=1&upcoming=true` | Every show of artist 1 dated today or later, no upper limit |
+| `upcoming=true` with `start` or `end` | **422.** "From today, open-ended" contradicts an explicit range, and silently preferring one would hide a client bug |
+| `upcoming=true` with neither `venue_id` nor `artist_id` | **422.** Every show in the metro with no upper bound is exactly the unbounded scan `MAX_RANGE` exists to prevent; one artist or venue bounds it by what they can play |
+| `upcoming=false` or absent | Today's behaviour, byte for byte |
+
+The response is still a `ShowListResponse`, so the contract's shape doesn't change. `start` is the server's today
+(`data.START` against sample data, the metro's local date in A1b); `end` is the date of the last show returned, or
+`start` when there are none, so the echoed range is always valid (`end >= start`) and the page can print "from Mon,
+Sep 28, 2026". Order is unchanged (date, time, venue).
+
+**The sample data needs one more row to show the difference** (checked against `sample_data.py`): every sample show sits
+inside the 28-day default window, so against it `upcoming=true` and the default are indistinguishable and no test or
+browser check could tell them apart. Step 0 appends one show outside the window — Charlie Parr at The White Squirrel
+Bar on 2026-10-29 (a Thursday, offset 31 from the pinned start), 20:00, day price 10.00, as show id 26 so ids 1–25 don't
+change. Its effects, worked out by hand: Charlie Parr has 5 upcoming shows (09-28, 10-07, 10-08, 10-20, 10-29) against
+4 in the default window; the venue page's "Later" link from the sample window now lands on a window with one show
+instead of an empty one; `calendar-months.json`'s October count goes 22 → 23. **`shows.json` must not change**: the
+fixture generator currently dumps every sample show under `start=START, end=END`, and a 2026-10-29 show would sit
+outside the range the fixture claims (B3's `groupCalendar` ignores such a show, but the fixture would be lying). So the
+generator keeps only shows inside the window, which is what the real default response contains anyway; the fixture
+stays at 25 shows and B3's tests are untouched. Only the generator and `calendar-months.json` change.
 
 ### JSON-LD dates carry the metro's offset (checked)
 
@@ -96,58 +132,79 @@ time is after midnight **or** earlier than the start ("An end time earlier than 
 2. **Two [fill-in] items are proposed as [written]** (D5): the artist page (its only logic is reuse of B3 pieces and
    B4's Gap B) and `/venues` + `/artists` (B2 already built them to the requirement). Per `AGENTS.md`, no gap is
    invented for them.
-3. **Added, not in the build plan's B4 list:** paging for the embedded calendars (`?from=`, D1); readable labels for
+3. **Added, not in the build plan's B4 list:** paging for the venue calendar (`?from=`, D1); readable labels for
    the enum fields; the venue's Google Maps link (`arch-initial.md` §4 — it was never assigned to a milestone); real
    page titles through `generateMetadata` (D7).
-4. **One line of the [written] JSON-LD item becomes a `TODO(Ari)` gap** (`eventDateTime`, Gap A), if Ari accepts D8.
+4. **One line of the [written] JSON-LD item becomes a `TODO(Ari)` gap** (`eventDateTime`, Gap A) — D8, accepted.
+5. **B4 is no longer frontend-only (D2).** `GET /shows?upcoming=true`, one later sample show and a fixture-generator
+   filter are Python work in a frontend milestone (step 0). `api-types.ts` and `calendar-months.json` regenerate.
+6. **The artist page is not paged (D2)**, so the build plan's "upcoming shows as a list" is met literally, and Gap B
+   serves only the venue page.
+7. **Images are rendered, not linked (D4)**, through one `RemoteImage` component holding the app's only
+   `@next/next/no-img-element` exception. The B3 show block still has no poster.
 
 ## Decisions for Ari
 
-Each has a recommendation, and the plan is written assuming it. **Ari: please confirm or change D1–D8 before
-approving.** D1, D3, D4 and D8 change the most.
+**Settled by Ari, October 14, 2026.** D1, D3, D5, D6, D7 and D8 are accepted as recommended. **D2 and D4 take the
+alternative** and are rewritten below as decided; their superseded recommendations are summarised in one line each so
+the reasoning stays on record. The plan is adjusted throughout (Departures 5–7; the "`upcoming`" section; step 0; the
+`RemoteImage` component; the artist page, tests and verification). Status stays *Awaiting approval*: settling the
+decisions is not the approval gate.
 
-- **D1 — The venue page's calendar pages earlier/later through `?from=YYYY-MM-DD`. Recommended.** The requirement asks
+- **D1 — The venue page's calendar pages earlier/later through `?from=YYYY-MM-DD`. Decided: approved.** The requirement asks
   for "back and forth to past or future with that exact calendar"; the mechanism is the "Paging" section above. The
   page also gets an "Open in the calendar" link to `/?venue=N` — the requirement's "anything other than [paging] … they
   have to go to a calendar view page". No filter header on the venue page. *Alternative:* no paging in B4 (the default
   four weeks only) and the requirement's back-and-forth deferred.
-- **D2 — The artist page lists the server's default four weeks, with the same earlier/later paging. Recommended.** "Upcoming
-  shows" really means *every* future show, and an artist with one show six weeks out would read "No shows listed" for
-  the default window. But a longer window means either the client computing dates (against "the server owns now") or a
-  new API parameter — a contract change that `AGENTS.md` ("Parallel tracks") wants in its own early PR. Paging covers
-  the gap without either. *Alternative:* an API change, e.g. `GET /shows?artist_id=7&upcoming=true` returning every
-  future show; worth doing in A1b when the query is real, not against sample data now.
-- **D3 — `/show/[id]` exists, and each show block's time line becomes its link. Recommended.** The block already holds
+- **D2 — The artist page lists every upcoming show, from a new `upcoming` parameter on `GET /shows`. Decided: the
+  alternative (Ari, October 14, 2026).** "Upcoming shows" means every future show, and the default four weeks (even
+  with paging) would show an artist with one show three months out as having none. The API parameter keeps the client
+  free of dates, because the server decides what "today" is. The design, its two 422 guards, and the extra sample row
+  that makes it testable are in "`upcoming`" above; the work is step 0. *Superseded recommendation:* the default window
+  with the same Earlier/Later paging as the venue page, no contract change, leaving "every upcoming show" to A1b.
+  Consequence to know: B4 now has a Python half, and A1b must reproduce the parameter (and both guards) on the real
+  query (Follow-ups).
+- **D3 — `/show/[id]` exists, and each show block's time line becomes its link. Decided: approved.** The block already holds
   venue and artist links, which can't nest inside a block-wide link (B3 step 4). The time line ("8:00 PM – 11:30 PM") is
   the one line that is about the show itself, so it becomes `<Link href="/show/N">` with a visually hidden
   ", show details" so its accessible name says where it goes. *Alternative:* a separate small "Details" link at the
   bottom of each block (one more line in every block, 25 on `/`).
-- **D4 — Posters and photos are links, not embedded images. Recommended.** `image_url` and `photo_url` point at
-  arbitrary venue and artist hosts. Embedding means either `next/image` with an open-ended `images.remotePatterns`, or a
-  bare `<img>` with `@next/next/no-img-element` disabled under `--max-warnings 0`; either way every reader's browser
-  requests images from third-party hosts, and a dead link shows a broken image. A "Poster" / "Photo" link costs none of
-  that. JSON-LD still carries `image` (search engines fetch it themselves). *Alternative:* a plain `<img>`,
-  `loading="lazy"`, `referrerPolicy="no-referrer"`, with a one-line `eslint-disable-next-line` and a comment saying why;
-  serving copies from R2 is the hosted phase's.
-- **D5 — Re-mark two [fill-in] items [written].** Per `AGENTS.md` ("If no line in a [fill-in] task meets that bar, say
+- **D4 — Posters and photos are rendered as plain `<img>` elements, through one component. Decided: the alternative
+  (Ari, October 14, 2026).** `image_url` and `photo_url` point at arbitrary venue and artist hosts. `RemoteImage`
+  (`app/_components/remote-image.tsx`) renders `<img loading="lazy" decoding="async" referrerPolicy="no-referrer">`,
+  after `httpUrlOrNull` has accepted the URL (anything else renders nothing). It carries **the app's only**
+  `eslint-disable-next-line @next/next/no-img-element`, with a comment saying why `next/image` isn't used: it needs
+  an open-ended `images.remotePatterns` and a width and height the scraped data doesn't have. *Checked:* under the
+  repo's `--max-warnings 0` a bare `<img>` fails lint (one warning), and the same element under that single
+  disable comment passes. Used for the show page's poster, the venue's photo and the artist's photo. **The show block
+  stays image-free** (B3: its focus is names, and 25 remote images on `/` would be 25 third-party requests).
+  Accepted costs, stated so nobody rediscovers them: every reader's browser contacts the image's host (that host sees
+  their IP; `no-referrer` at least hides which page they were on); a dead link shows the browser's broken-image
+  marker with the `alt` text, because the cosmetic fix (`onError`) needs a Client Component that isn't worth adding;
+  no dimensions are known, so the image reserves no space and the layout can shift as it loads (a `max-h-80 w-auto
+  max-w-full object-contain` cap stops a huge image breaking the layout). The sample data's image URLs are
+  `example.com` placeholders, so the browser check will show `alt` text, not pictures. Copies served from our own
+  storage (R2, hosted phase) would replace the remote `src` in this one component. JSON-LD still carries `image`.
+  *Superseded recommendation:* "Poster" and "Photo" as plain links.
+- **D5 — Re-mark two [fill-in] items [written]. Decided: approved.** Per `AGENTS.md` ("If no line in a [fill-in] task meets that bar, say
   so … propose re-marking it [written] — don't invent a gap"). *Artist page:* the fetch → 404 flow was B2's Gap E, the
   list is B3's `ShowBlock` sorted by the existing `nightSortKey`, the paging is Gap B; nothing new is left to type.
   *`/venues` and `/artists`:* B2 already built "a simple list sorted alphabetically" (the API sorts; each name links);
   B4 changes no code there unless the browser check finds a reason.
 - **D6 — Day view mode is `?sort=` with values `time` and `artist`; the default (`venue`) is the bare URL.
-  Recommended.** One canonical URL per view, like the calendar's filters (`/day/2026-10-07` is venue order;
+  Decided: approved.** One canonical URL per view, like the calendar's filters (`/day/2026-10-07` is venue order;
   `?sort=venue` is accepted and treated as the default, but never written). The switch is three plain `<Link>`s with
   `aria-current="page"` on the active one — no Client Component, no JavaScript: changing the view is a navigation and
   the server renders it (`arch-initial.md` §4, "the current view"). An unknown value is ignored, never a 404 (a
   search param is not part of the resource's identity). *Alternative:* `?view=`; or a select (would need a Client
   Component for no gain).
-- **D7 — Real page titles via `generateMetadata`. Recommended.** The detail pages exist for search and sharing
+- **D7 — Real page titles via `generateMetadata`. Decided: approved.** The detail pages exist for search and sharing
   (`arch-initial.md` §4), and every tab currently reads "Venue · …" or "Artist · …". `generateMetadata` and the page both
   need the record, so `getVenue`, `getArtist` and `getShow` are wrapped in React `cache()` (their argument is a number,
   so `cache()` keys correctly — B2 left them unwrapped only because nothing called them twice). *Alternative:* keep the
   static titles.
-- **D8 — One line of the [written] JSON-LD item becomes a gap: `eventDateTime` is Gap A. Recommended (changed after
-  plan review #2).** The build plan marks JSON-LD [written], and the rest of it stays so. But its date line is the most
+- **D8 — One line of the [written] JSON-LD item becomes a gap: `eventDateTime` is Gap A. Decided: approved (changed
+  after plan review #2).** The build plan marks JSON-LD [written], and the rest of it stays so. But its date line is the most
   lesson-shaped Temporal line in B4 — the second and last place the metro's zone matters, and the after-midnight rule
   meeting a real instant — while the plan's original Gap A (`Promise.all` on the venue page) repeats what B3's
   `CalendarBody` already teaches and has a Check that passes whichever way it's written. So the venue page's loading is
@@ -171,6 +228,34 @@ its numbers come from.
 | 23 | The White Squirrel Bar | 22:00 (ends 00:30) | Nooky Jones (22:00), Pert Near Sandstone (23:15) |
 | 24 | Zhora Darling | 20:00 | Charlie Parr |
 | 25 | The Midway Saloon | 01:00 | Dead Man Winter |
+
+### 0. Python: `GET /shows?upcoming=true` (`apps/api/app/tests/test_routers.py`) — D2
+
+Written first and watched fail (the parameter doesn't exist: FastAPI ignores an unknown query parameter, so the first
+assertions fail on the *content* — no 2026-10-29 show — which is the right red). The sample data after the new row
+(step 0) is the source of every expectation; Charlie Parr is artist 1 and his shows are listed in the "`upcoming`"
+section.
+- `/shows?artist_id=1&upcoming=true` → dates `["2026-09-28", "2026-10-07", "2026-10-08", "2026-10-20", "2026-10-29"]`,
+  `start` `"2026-09-28"`, `end` `"2026-10-29"`. **Contrast in the same test:** `/shows?artist_id=1` (no `upcoming`)
+  returns the first four and *not* 2026-10-29, `end` `"2026-10-25"` — the one-show difference is the whole feature.
+- **From the server's today:** with `data.START` monkeypatched to `2026-10-08` (the router reads it at call time),
+  `upcoming` for artist 1 → `["2026-10-08", "2026-10-20", "2026-10-29"]` and `start == "2026-10-08"`: shows before
+  today are excluded.
+- **No matches:** `artist_id=9999&upcoming=true` → 200, `shows == []`, `start == end == "2026-09-28"` (a valid range,
+  not an error).
+- **Combines like any filter:** `venue_id=3&artist_id=1&upcoming=true` → `["2026-10-07", "2026-10-20"]` (Zhora Darling
+  is venue 3; the other three of Charlie Parr's shows are at venue 1). `venue_id=1&upcoming=true` includes 2026-10-29
+  and nothing dated before 2026-09-28.
+- **Rejected with 422** (parametrized): `upcoming=true` alone; `artist_id=1&upcoming=true&start=2026-10-01`;
+  `artist_id=1&upcoming=true&end=2026-11-30`. The test names why: an explicit range contradicts "from today", and no
+  filter means the unbounded scan `MAX_RANGE` guards against.
+- `upcoming=false` with `artist_id=1` equals the request without it (4 shows), so a client sending an explicit false
+  changes nothing.
+- **OpenAPI:** the `GET /shows` operation lists `upcoming` among its parameters — the guard that the parameter reaches
+  `api-types.ts` (the same reasoning as `test_openapi_exposes_the_response_schemas`).
+- The existing router tests are expected to pass unchanged (they filter relationally or by explicit range; the new row
+  is outside the default window), confirmed by running them. `make contract-check` after `make types` and `make
+  fixtures`: `api-types.ts` gains the parameter, `calendar-months.json` October 22 → 23, `shows.json` unchanged.
 
 ### 1. `lib/show-order.test.ts` (new) — the day view's three orderings
 
@@ -203,7 +288,7 @@ its numbers come from.
 `inNightOrder(shows)` (written; the artist page's order): by date, then `nightSortKey` — Charlie Parr's four fixture
 shows come out 2026-09-28, 2026-10-07, 2026-10-08, 2026-10-20 whatever the input order.
 
-### 2. `lib/calendar-window.test.ts` (new) — paging the embedded calendars
+### 2. `lib/calendar-window.test.ts` (new) — paging the venue page's calendar
 
 `windowLinks(start, end)` — **Gap B**:
 - `("2026-09-28", "2026-10-25")` (the sample API's default window) → `{ earlier: "2026-08-31", later: "2026-10-26" }`.
@@ -267,8 +352,8 @@ text Next's JSON-LD guide warns about.
 (`arch-initial.md` §4's format; `&` and `#` in an address are encoded, so they can't end the parameter).
 `httpUrlOrNull(url)` (review #3): `https://x.example/a` and `http://x.example` → unchanged; `javascript:alert(1)`,
 `data:image/png;base64,AAAA`, `file:///etc/passwd`, `""`, `"garbage"`, `null`, `undefined` → `null`. Every external
-link the detail pages render from data (website, calendar URL, Poster, Photo, Source) and the JSON-LD `image` go
-through it; a rejected URL renders no link. React 19 already blocks `javascript:` in `href`, but not `data:` or
+link the detail pages render from data (website, calendar URL, Source), every image (`RemoteImage`: poster, venue and
+artist photos) and the JSON-LD `image` go through it; a rejected URL renders no link or image. React 19 already blocks `javascript:` in `href`, but not `data:` or
 `file:`, and nothing guards JSON-LD — one rule for all of them is simpler than reasoning per sink.
 Label maps (`AGE_LABELS`, `SETTING_LABELS`, …): one spot-check each (`twenty_one_plus` → "21+", `all_ages` → "All
 ages", `both_other` → "Original and covers"). Their completeness is a compile-time guarantee: each is a
@@ -279,6 +364,8 @@ ages", `both_other` → "Original and covers"). Their completeness is a compile-
 - `getShow(2)` calls `/shows/2` and returns `show-detail.json` unchanged; a 404 → `null`.
 - `getShows({ start: "2026-10-26", venueIds: [3] })` sends `start` and `venue_id` and **no `end`** (the paging contract
   above; `apiUrl` omits undefined values, pinned here so a later "both or neither" refactor can't silently break it).
+- `getShows({ artistIds: [1], upcoming: true })` sends `artist_id=1&upcoming=true` and **no `start` or `end`** (D2);
+  `upcoming: false` and `upcoming` absent both omit the key, so the default URL is unchanged.
 
 ### What is *not* covered, stated plainly
 
@@ -287,6 +374,9 @@ ages", `both_other` → "Original and covers"). Their completeness is a compile-
 - That Google accepts the JSON-LD: the Rich Results Test and validator.schema.org need a public URL or a pasted
   snippet, and the cloud sandbox has no route to them. Verification 5 pastes the served JSON into the validator from
   Ari's machine.
+- `RemoteImage`'s markup (`loading`, `referrerPolicy`, the `alt` text) and the broken-image appearance: Verification 4
+  greps the served HTML for the attributes; the rest is Ari's browser check. Its one decision (which URLs render) is
+  `httpUrlOrNull`, which is unit tested.
 - `cache()` de-duplication of `getVenue`/`getArtist`/`getShow` between `generateMetadata` and the page: one request
   per page load in the API log (Verification 4), not a unit test (`cache()` only works inside a server render).
 
@@ -314,7 +404,7 @@ session, pushed to the branch as `AGENTS.md` "Branches and PRs" item 5 allows, w
 Four blocks (D8): the venue page → B; the day view → C and D; the JSON-LD item → A (one line of a [written] item,
 D8). Each item stays inside `AGENTS.md`'s "1–3 spots". **All four are pure functions with unit tests**, so they can
 be filled in any order; suggested **A, B, C, D**. The pages render errors while their gap is open (`/show/[id]` and
-`/venue/[id]` need A for JSON-LD, `/venue/[id]` and `/artist/[id]` need B for paging, `/day` needs C and D), so the
+`/venue/[id]` need A for JSON-LD, `/venue/[id]` needs B for paging, `/day` needs C and D), so the
 browser check comes after all four.
 
 *Replaced after plan review #2:* the original Gap A (`Promise.all` on the venue page) repeated B3's `CalendarBody`
@@ -337,7 +427,7 @@ lesson and had a Check that couldn't fail. The venue page's loading is now writt
   *Check:* `pnpm --filter calendar test json-ld` — the 01:00 row (`2026-10-08T01:00:00-05:00`) and the December row
   (`-06:00`). Likeliest mistakes: dropping the `add` (the 1:00 AM show dated the night before — a full day early), a
   hard-coded `-05:00`, or `.toString()` with no options (`…-05:00[America/Chicago]`).
-- **Gap B — `windowLinks`, `lib/calendar-window.ts`** (step 2; the venue page item, reused by the artist page).
+- **Gap B — `windowLinks`, `lib/calendar-window.ts`** (step 2; the venue page item).
   *Lesson:* the paging links are computed from the range the **server echoed**, never from a clock or a constant 28
   (`api-contract.md` §3). The window's length is `start.until(end).days + 1` — inclusive, hence the `+ 1`. Temporal does
   the month, year and leap-day arithmetic.
@@ -389,6 +479,27 @@ lesson and had a Check that couldn't fail. The venue page's loading is now writt
   mistakes: comparing `a.start_time < b.start_time` as strings (puts 01:00 first), or `&&` instead of `||` (every
   non-tie returns the secondary key).
 
+### 0. The `upcoming` parameter and the later sample show (written, Python) — D2
+
+Lands **first and on its own** (see "Contract changes land first"): green under `make check` before any frontend step.
+- Tests first (§0): written, run, confirmed failing for the right reason.
+- `apps/api/app/routers/shows.py`: `upcoming: bool = False` on `list_shows`. When true: 422 if `start` or `end` is given,
+  422 if neither `venue_id` nor `artist_id` is, then `start = data.START` (the "TEMPORARY IMPLEMENTATION" comment's
+  pinned today), keep shows dated `>= start`, apply the venue/artist filters as before, and set `end` to the last
+  returned date or `start` when none. Everything else about the route — signature order, the return annotation, the
+  default window, `MAX_RANGE` — is unchanged. Docstring and comments say what the 422s protect and cite
+  `api-contract.md` §2. A scalar `bool` needs no `Query()` marker (unlike the list parameters beside it).
+- `apps/api/app/sample_data.py`: append the one row described in "`upcoming`" to `_SHOW_ROWS` (id 26), with a comment
+  naming D2 and saying why it exists (every other show is inside the default window).
+- `apps/api/scripts/generate_fixtures.py`: `shows.json` is built from `[s for s in data.SHOWS if data.START <= s.date <=
+  data.END]`, with a comment: the fixture is a default-window response, so it holds only default-window shows.
+- `make types` (adds `upcoming` to `GET /shows` in `lib/api-types.ts`), `make fixtures` (`calendar-months.json` only),
+  `make contract-check` clean. **Expected, not yet checked:** that openapi-typescript emits the parameter as
+  `upcoming?: boolean` on the operation; step 0's author confirms it and records the actual type in the log.
+- `docs/dev/api-contract.md` §2 (Filtering: the `upcoming` paragraph with its two 422s and the echoed `start`/`end`) and
+  §8 (`shows.json` is the default window only; the sample has 26 shows, 25 in the fixture).
+- This is [written], not [fill-in]: it is mechanical, and the only judgement in it (the two guards) is decided above.
+
 ### 1. Pure helpers (written) — `lib/params.ts`, `lib/detail-format.ts`, `lib/json-ld.ts`
 
 - Tests first (§3, §4, §5).
@@ -428,8 +539,11 @@ lesson and had a Check that couldn't fail. The venue page's loading is now writt
 - Wrap `getVenue`, `getArtist` and `getShow` in `cache()` (D7) and rewrite the comment above `getMetro` that says only
   it is wrapped: they take a number, which `cache()` compares by value, and `generateMetadata` plus the page now call
   them twice per render. `getShows` stays unwrapped (object argument).
-- Correct the `ShowsQuery` comment in `lib/params.ts` ("either both present or both absent"): a `start` alone is now
-  sent on purpose, and the server fills `end`.
+- `ShowsQuery` (`lib/params.ts`) gains `upcoming?: boolean`; `getShows` sends it as `upcoming: query.upcoming ?
+  "true" : undefined` (`QueryValue` has no boolean, and `undefined` omits the key). Correct that type's comment
+  ("either both present or both absent"): a `start` alone is now sent on purpose and the server fills `end`; and
+  `upcoming` is exclusive with `start`/`end`, which the **server** enforces with a 422 — the type doesn't try to repeat
+  the rule. `toShowsQuery` is unchanged: the home calendar never asks for `upcoming`.
 
 ### 5. `/venue/[id]` (fill-in: Gap B, in step 2)
 
@@ -438,7 +552,7 @@ lesson and had a Check that couldn't fail. The venue page's loading is now writt
   404 check **after** it (a missing venue costs one harmless empty shows request). Written complete; the comment points
   at B3's `CalendarBody` for the no-waterfall reasoning rather than repeating it (plan review #2). No `<Suspense>`, so
   `notFound()` keeps its real 404 (B3 D4).
-- Above the calendar: name; a **Photo** link (D4); metadata as today's `<dl>`, now through the label maps, with the
+- Above the calendar: name; the photo as a `RemoteImage` (D4, step 9; nothing when there is no photo or the URL is rejected); metadata as today's `<dl>`, now through the label maps, with the
   address as a link to `mapsUrl(address)`; phones as `tel:` links and emails as `mailto:` links; website and calendar
   URL as plain external `<a>`s, as B2 wrote them (no `target="_blank"`, so no `rel` is needed).
 - The calendar: a "Shows" heading; `WindowNav`; then `CalendarGrid` with
@@ -452,14 +566,20 @@ lesson and had a Check that couldn't fail. The venue page's loading is now writt
 - Known cost, accepted: each venue column in the grid repeats the venue's name as a link to the page it's on. A
   `withVenueHeader` prop would remove it, but B3's grid has one shape and the requirement asks for that calendar.
 
-### 6. `/artist/[id]` (written — D5)
+### 6. `/artist/[id]` (written — D5, D2)
 
-- Same flow as the venue page (complete, not a gap): `params` + `searchParams`, `Promise.all` over `getArtist` and
-  `getShows({ artistIds: [id], start: from ?? undefined })`, then `notFound()`.
-- Metadata through the label maps; Photo link (D4); website.
-- "Shows" heading, `WindowNav`, then an `<ol>` in `inNightOrder`: each item a date heading (`formatDayHeading` + year)
-  over a `ShowBlock` with `withVenue` — B3's block, so time, venue, full lineup and price read the same as on `/`.
-  Empty: "No shows listed between <start> and <end>" (both formatted, both the server's).
+- Same flow as the venue page (complete, not a gap), but simpler: `params` only — **no `searchParams`**, so a stray
+  `?from=` on this page is ignored (a comment says so) — then `Promise.all` over `getArtist(id)` and
+  `getShows({ artistIds: [id], upcoming: true })`, then `notFound()` for a `null` artist.
+- Metadata through the label maps; the photo as a `RemoteImage` (D4); website.
+- "Upcoming shows" heading and a muted line "Everything listed from Mon, Sep 28, 2026 on" — the **server's** `start`,
+  formatted (`formatDayHeading` plus the year), so "the server owns now" is visible. Then an `<ol>` in `inNightOrder`:
+  each item a date heading (`formatDayHeading` + year) over a `ShowBlock` with `withVenue` — B3's block, so time,
+  venue, full lineup and price read the same as on `/`. No cap and no pager: the list is bounded by one artist's
+  bookings, and the response envelope leaves room for a cursor if that ever stops being true (`api-contract.md` §2).
+- Empty: "No upcoming shows listed." No `WindowNav` here (it serves the venue page only).
+- With the sample data the list holds 5 shows, one of them untimed (2026-10-08), which exercises the show block's
+  "Details" link.
 - No JSON-LD (the build plan scopes it to show and venue pages; see Not doing). `generateMetadata`: title = name.
 
 ### 7. `/day/[date]` (fill-in: Gaps C, D)
@@ -486,62 +606,89 @@ lesson and had a Check that couldn't fail. The venue page's loading is now writt
   block); venue link and, when known, address as a Maps link; the lineup in `orderedLineup` with per-act times; the
   admission line (`formatAdmission`, nothing when `null`); the four resolved fields through the label maps (age,
   alcohol, setting, seating — `api-contract.md` §5: the page doesn't say whether they came from the venue); the event
-  name as plain text when present (no event page, v2); **Poster** link (D4); **"Source: <venue's page>"** linking
+  name as plain text when present (no event page, v2); the poster as a `RemoteImage` (D4), alt text "Poster for <lineup>", above the details, nothing when there is none; **"Source: <venue's page>"** linking
   `original_url` — "part of making the agent's work visible to the reader" (`schemas.py`).
 - `<JsonLd data={showJsonLd(show, { venue, timeZone: metro?.timezone ?? null })} />`.
 - `generateMetadata`: title "<lineup> at <venue>, <date>".
 
-### 9. JSON-LD component and the show block link (written)
+### 9. JSON-LD component, `RemoteImage` and the show block link (written)
 
 - `app/_components/json-ld.tsx`: `JsonLd({ data })` renders
   `<script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScriptContent(data) }} />` — Next's
   recommended form (a native `<script>`, not `next/script`; its JSON-LD guide). The only `dangerouslySetInnerHTML` in
   the app; the comment says why it's safe here and points at the test.
+- `app/_components/remote-image.tsx` (D4): `RemoteImage({ src, alt, className })` — `src` is `string | null | undefined`;
+  `httpUrlOrNull(src)` first, `null` → renders nothing; otherwise `<img src alt loading="lazy" decoding="async"
+  referrerPolicy="no-referrer" className={...}>` with the default cap `max-h-80 w-auto max-w-full rounded-md border
+  object-contain` merged with any `className`. The component's comment carries the whole D4 reasoning in a few lines
+  and sits directly under the app's one `eslint-disable-next-line @next/next/no-img-element` (the rule's name and a
+  `--` reason on the same line). Verification 2 greps that there is exactly one.
 - `app/_components/show-block.tsx`: when the show has a time, the time line becomes `<Link href={`/show/${show.id}`}>`
   with `<span className="sr-only">, show details</span>` (D3). When it has none, "Time not listed" stays plain text and
   a separate "Details" link follows it (review #6: "Time not listed, show details" is a statement, not a destination).
-  The link gets `inline-block py-1` (a taller tap target without moving the layout much — review #6). Update its docstring's "Deliberately NOT here" list (the
-  `/show/[id]` bullet goes; the poster bullet now points at D4).
+  The link gets `inline-block py-1` (a taller tap target without moving the layout much — review #6). Update its docstring's "Deliberately NOT here" list: the
+  `/show/[id]` bullet goes; the poster bullet stays true (the block shows no image) and now points at D4 ("the show page
+  renders the poster").
 
 ### 10. Docs and bookkeeping (written)
 
 - `alpha-build-plan.md` B4: point at this file, tick the boxes, apply departures 1–3 and D5's re-markings.
-- `apps/calendar/AGENTS.md`: the `?from=` paging and `?sort=` conventions under "Where data and URL state live"; the
-  new `lib/` modules; `/show/[id]` and the cached getters; "the venue, artist and list pages are still deliberately
+- `apps/calendar/AGENTS.md`: the `?from=` paging (venue page) and `?sort=` conventions under "Where data and URL state
+  live"; the artist page's `upcoming` request; `RemoteImage` as the one place remote images are rendered (and why the
+  lint exception lives only there); the new `lib/` modules; `/show/[id]` and the cached getters; "the venue, artist and list pages are still deliberately
   plain until B4" becomes past tense; JSON-LD's escaping rule.
-- `docs/dev/api-contract.md` §2: the `/shows` row already names the embedded calendars; add one line under Filtering
-  that `start` without `end` means "the default window from `start`", which B4 now relies on.
+- `docs/dev/api-contract.md` §2: the `/shows` row already names the embedded calendars; under Filtering add that
+  `start` without `end` means "the default window from `start`" (B4 relies on it) and the `upcoming` paragraph (step 0).
+- `alpha-build-plan.md`: also record Departures 5–7 (the API change, the unpaged artist page, rendered images).
 - `docs/dev/notes.md`: only real surprises.
 
 ## Critical files
 
+- New (Python side, step 0): none. Modified: `apps/api/app/routers/shows.py`, `apps/api/app/sample_data.py`,
+  `apps/api/scripts/generate_fixtures.py`, `apps/api/app/tests/test_routers.py`; generated (never by hand):
+  `apps/calendar/lib/api-types.ts`, `apps/calendar/lib/fixtures/calendar-months.json`
 - New: `apps/calendar/lib/{show-order,calendar-window,json-ld,detail-format}.ts` + `.test.ts` for each;
   `apps/calendar/lib/todo.ts` (temporary, deleted with the last gap); `apps/calendar/app/show/[id]/page.tsx`;
-  `apps/calendar/app/_components/{window-nav,json-ld}.tsx`
+  `apps/calendar/app/_components/{window-nav,json-ld,remote-image}.tsx`
 - Modified: `apps/calendar/app/{venue/[id],artist/[id],day/[date]}/page.tsx`,
   `apps/calendar/app/_components/show-block.tsx`, `apps/calendar/lib/{api,params}.ts` and
   `apps/calendar/lib/{api,params}.test.ts`, docs in step 10
 - Reused as-is: `lib/{dates,calendar,show-format,calendar-href,metro,types}.ts`,
   `app/_components/calendar-grid.tsx`, `app/{venues,artists}/page.tsx` (D5), `app/{layout,error,not-found}.tsx`
-- Not touched: `apps/api/` (no contract change — D2 keeps it that way), `lib/api-types.ts`, `lib/fixtures/`
+- Not touched: `apps/api/app/schemas.py` (no new or changed response shape — D2 adds a query parameter only), the other
+  fixtures (`shows.json` stays byte-identical)
 
 ## Verification
 
 1. **Tests first.** New test files and stubs written, run, and confirmed red for the right reason (assertions, not
    imports) before implementing.
 2. **`make check`** green with the snippets applied (ruff, mypy, eslint, `next typegen` + tsc, pytest, Vitest,
-   contract-check). At handoff it is red only on the gap tests (A, B, C, D) — the log lists exactly which. Snippets applied
+   contract-check). Step 0 is checked on its own first: `make check` green before any frontend step, `make types` /
+   `make fixtures` / `make contract-check` clean, and `git diff` of the fixtures showing only `calendar-months.json`
+   (October 22 → 23). `grep -rn "no-img-element" apps/calendar/app` finds exactly one line (D4). At handoff it is red
+   only on the gap tests (A, B, C, D) — the log lists exactly which. Snippets applied
    in a scratch copy and restored byte for byte (checksums), as in B3.
 3. **Build with the API unreachable** (`API_BASE_URL=http://127.0.0.1:9 pnpm build`): succeeds; every data route,
    `/show/[id]` and `/_not-found` are `ƒ`. Bundle check unchanged from B3 (`grep -rl "Do not use built-in arithmetic
    operators with" .next/static` finds nothing): B4 adds no Client Component.
 4. **HTTP matrix** against `next start` with the API up (snippets applied), expected values from the fixture:
+   - **The parameter itself**, against `uvicorn`: `/shows?artist_id=1&upcoming=true` [200; 5 shows, last
+     2026-10-29, `end` 2026-10-29]; `/shows?artist_id=1` [4 shows]; `/shows?upcoming=true` and
+     `/shows?artist_id=1&upcoming=true&start=2026-10-01` [both 422].
    - `/venue/1` [200; 8 show blocks; "Earlier" → `?from=2026-08-31`, "Later" → `?from=2026-10-26`; one JSON-LD
      script holding 8 events]; `/venue/3` [200; 6 blocks; events carry Zhora Darling's address];
-     `/venue/1?from=2026-10-26` [200; "No shows listed"; a "Back to upcoming dates" link; no JSON-LD];
+     `/venue/1?from=2026-10-26` [200; 1 show block (Charlie Parr, 2026-10-29, now that D2's row exists); "Earlier" →
+     `?from=2026-09-28`, "Later" → `?from=2026-11-23`; a "Back to upcoming dates" link; JSON-LD with 1 event];
+     `/venue/1?from=2026-11-23` [200; "No shows listed"; the back link; no JSON-LD];
      `/venue/1?from=garbage` and `/venue/1?from=9999-12-20` [200; the default window]; `/venue/9999`, `/venue/abc`
      [404].
-   - `/artist/1` [200; Charlie Parr's 4 shows in date order]; `/artist/9999` [404].
+   - `/artist/1` [200; Charlie Parr's **5** shows in date order, ending 2026-10-29 at The White Squirrel Bar; "Everything
+     listed from Mon, Sep 28, 2026 on"; one untimed show (2026-10-08) with a "Details" link; an `<img>` for the photo];
+     `/artist/1?from=2026-10-26` [the same page — the param is ignored]; `/artist/2` [200; Nooky Jones's shows, none
+     beyond the window]; `/artist/9999` [404].
+   - **Images (D4):** the served HTML of `/show/2` holds `<img src="https://example.com/posters/nooky.jpg">` with
+     `loading="lazy"` and `referrerPolicy`/`referrerpolicy="no-referrer"` and a non-empty `alt`; `/venue/3` and `/artist/1`
+     each hold their photo `<img>`; `/show/22` (no `image_url`) holds none; `/` holds none (blocks stay image-free).
    - `/day/2026-10-07` [200; block order ids 25, 8, 22, 23, 24]; `?sort=time` [22, 24, 8, 23, 25]; `?sort=artist`
      [8 rows, Beasthead first, "1:00 AM Thu" on Dead Man Winter]; `?sort=bogus` [200; venue order];
      `/day/2026-02-30` [404].
@@ -558,16 +705,21 @@ lesson and had a Check that couldn't fail. The venue page's loading is now writt
 6. **API down at runtime:** `/venue/1`, `/artist/1`, `/show/2`, `/day/2026-10-07` give B2's bare 500, with no error
    text, URL or stack in the body; `/` keeps B3's 200 with the skeleton; `/health` 200. Recorded as measured.
 7. **Layout** (headless Chromium, `/opt/pw-browsers`, snippets applied): page `scrollWidth === clientWidth` at 375 and
-   1280px on `/venue/1`, `/day/2026-10-07?sort=artist` and `/show/2` (the venue page embeds B3's grid, whose
-   scroll-container rule must still hold inside a new parent).
-8. **Browser check by Ari** (include phone width and an untimed show's block — review #6): each page; the day view's
+   1280px on `/venue/1`, `/artist/1`, `/day/2026-10-07?sort=artist` and `/show/2` (the venue page embeds B3's grid, whose
+   scroll-container rule must still hold inside a new parent). The sample images 404, so this measures the
+   broken-image case (alt text, the `max-h-80` cap); a real image is checked by pointing one sample `image_url` at a
+   local file served for the test and reverting it.
+8. **Browser check by Ari** (include phone width and an untimed show's block — review #6; expect `alt` text where
+   the sample's `example.com` images 404, D4): each page; the day view's
    mode switch and Back; earlier/later on the venue page; a show
    block's time line → the show page; screen-reader name of that link; the tab titles.
 
 ## Not doing in B4
 
-Edit forms and the write API; socials, genres, members, instrumentation (`api-contract.md` §6); an event page; poster
-and photo embedding (D4); "every upcoming show" for an artist (D2 — an A1b-era API parameter); JSON-LD on the artist
+Edit forms and the write API; socials, genres, members, instrumentation (`api-contract.md` §6); an event page;
+images inside show blocks, `next/image`, and our own copies of remote images (D4; R2 is the hosted phase's);
+`upcoming` on the venue page (the API accepts `venue_id` with it, but the venue page is a calendar and pages, D1); a
+cursor or cap on `upcoming` (one artist's bookings are bounded; the envelope has room); JSON-LD on the artist
 page (`arch-initial.md` §4 says "detail pages", the build plan scopes it to show and venue pages; adding the artist's
 events is a few lines later if Ari wants it); `url` in JSON-LD and `metadataBase` (no site URL until the hosted phase);
 "The"-insensitive alphabetising of venues (the API's order stands; "The Midway Saloon" sorts under T); previous/next
@@ -576,12 +728,15 @@ tests (B5); Playwright; caching.
 
 ## Follow-ups for other milestones
 
-- **A1b:** the `/shows` query must keep "`start` without `end` = the default window from `start`" (the venue and
-  artist pages page that way), and should order a day by night (B3's follow-up, still open). D2's "every upcoming
-  show" parameter fits there.
+- **A1b:** the `/shows` query must keep "`start` without `end` = the default window from `start`" (the venue page
+  pages that way), implement `upcoming` as `date >= <metro's local today>` with **both 422 guards** (they matter more
+  against a real table than against a list), and order a day by night (B3's follow-up, still open). `sample_data.py`'s
+  26th row and the generator's window filter go with `sample_data.py` when it is deleted — decide then whether the
+  fixtures keep a sample source of their own (A1b already asks).
 - **B5:** the day view's mode switch and `WindowNav` are links in Server Components, so they need no component test;
   `show-order.ts` and `calendar-window.ts` are already unit tested.
-- **Hosted phase:** a site URL, then `url` in JSON-LD and `metadataBase`; poster copies in R2 would reopen D4.
+- **Hosted phase:** a site URL, then `url` in JSON-LD and `metadataBase`; image copies in R2 replace the remote `src`
+  inside `RemoteImage` and nothing else (D4).
 
 ## Plan review
 
@@ -610,3 +765,17 @@ tests (B5); Playwright; caching.
 | 6 | nit | D3 makes the show block's time line the link, including the "Time not listed" / "Start time not listed" variants, whose accessible name becomes "Time not listed, show details" and whose link text is a statement, not an action. The link is also a small touch target (one line of `text-sm`) on 25 blocks per page. | `show-block.tsx` current time line; D3 text. PLAUSIBLE. | Awkward link text for untimed shows; fiddly tap target on phones. The Verification 8 browser check should include untimed shows and a phone width. |  **Fixed.** Untimed blocks keep "Time not listed" as text and get a separate "Details" link; the time link gets `inline-block py-1`. Verification 8 now includes phone width and an untimed show. |
 
 Rejected: none. Every finding was fixed in the plan body. **Round 2 isn't warranted in my view**: the fixes are additive, and the one structural change (#2, the gap swap) is put to Ari as D8.
+
+### Changes after Ari's decisions — October 14, 2026 (not reviewed)
+
+Ari settled D1–D8 (D2 and D4 took the alternative); the plan body was adjusted by Claude Sonnet 5.5. **None of the
+following has been seen by the reviewer**, and `AGENTS.md` says a substantial change after a round is Ari's call, so no
+round 2 was started:
+- **New step 0 and "`upcoming`" section** — a Python/API change in a frontend milestone: one query parameter with two
+  422 guards, one appended sample show, a fixture-generator filter, Python tests (§0) and a contract-doc edit.
+- **The artist page** loses paging and the `?from=` param and gains the `upcoming` request (step 6, Gap B narrowed to the
+  venue page).
+- **`RemoteImage`** (step 9, D4) — the one lint exception — and the Verification rows that check it.
+- Where to look hardest if a round 2 is run: the `upcoming` semantics (is `end` = last returned date the right echo? is
+  422 right for `upcoming` + no filter, or should it be a bounded default?), the fixture-generator filter against B3's
+  tests, and whether step 0 should be its own PR.
