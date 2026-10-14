@@ -14,8 +14,7 @@
  * are what platform log search handles worst. A one-line summary carries the
  * signal; the full JSON is for chasing one specific problem
  * (`LOG_API_BODIES=1`). In the browser's Network tab you'd click through a
- * JSON tree; locally, `curl … | jq` or FastAPI's /docs gives the same tree
- * (docs/dev/debugging.md).
+ * JSON tree; locally, `curl … | jq` or FastAPI's /docs gives the same tree.
  */
 
 /**

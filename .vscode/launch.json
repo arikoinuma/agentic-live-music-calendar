@@ -1,9 +1,6 @@
 {
   "version": "0.2.0",
-  // Debugging the whole app: docs/dev/debugging.md is the guided tour (what
-  // runs where, which breakpoints to set, what to look at).
-  //
-  // Three processes, three debuggers:
+  // Debugging the whole app. Three processes, three debuggers:
   //   "API: FastAPI"              the Python API on :8000          (debugpy)
   //   "Calendar: Next.js server"  the Node process on :3000 that runs your
   //                               Server Components and lib/api.ts (node)

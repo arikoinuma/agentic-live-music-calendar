@@ -212,8 +212,8 @@ describe("request options", () => {
 
 // --- the request log ---------------------------------------------------------
 // One line per API call, in the Next.js server's terminal: the substitute
-// for the browser's Network tab, which can't see server-to-server requests
-// (docs/dev/debugging.md). Expected values are the format written in
+// for the browser's Network tab, which can't see server-to-server requests.
+// Expected values are the format written in
 // lib/api.ts's docstring, not read back from the code.
 
 describe("request log", () => {

@@ -59,9 +59,14 @@ export function CalendarGrid({ rows }: { rows: CalendarRow[] }) {
               // the whole PAGE scrolls sideways instead of this row. (If a
               // wrapper is ever needed: `min-w-0` on it.) B3 plan, Gap E.
               //
-              // `role="region"` + `aria-label` + `tabIndex={0}`: a scrollable
-              // area must be reachable by keyboard, or keyboard users can't
-              // scroll it.
+              // Deliberately NO `tabIndex`, `role="region"` or `aria-label`
+              // here (code review #4; Ari tried it and it was noise). A
+              // scrollable area must be keyboard-reachable, but every venue
+              // column already starts with a link, so Tab lands inside the row
+              // and the browser scrolls the focused link into view. Making the
+              // row itself focusable added a tab stop per date (20 on `/`)
+              // before that date's first link, and `role="region"` added 20
+              // near-identical landmarks to a screen reader's list.
               //
               // (Ari) — Gap E. Lesson: see the paragraph above; what you type
               //   is the scroll container's classes. `overflow-x-auto` makes
@@ -86,9 +91,6 @@ export function CalendarGrid({ rows }: { rows: CalendarRow[] }) {
               //   are typed the row doesn't scroll and the page overflows
               //   sideways — that IS the failure.
               <div
-                role="region"
-                aria-label={`Shows on ${heading}`}
-                tabIndex={0}
                 className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2"
               >
                 {row.venues.map((column) => (

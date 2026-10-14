@@ -79,7 +79,7 @@ HTTP against the API for anything else — the routes exist and serve the same d
   results: a selection calls `router.push` with the new URL and the server page re-renders.
 - Every API call logs one line to the Next server's terminal from `send()` in `lib/api.ts`:
   `[api] GET /shows?venue_id=3 -> 200 in 41ms` (or `-> failed (timed out) in …ms`). It's how you
-  see server-to-server requests the browser's Network tab can't (`docs/dev/debugging.md`). It
+  see server-to-server requests the browser's Network tab can't. It
   writes path and query only, never the base URL, and it must never be able to throw — it runs
   inside the error path (`api.test.ts`, "request log"). Each 2xx body also gets a one-line
   **summary** (`[api] GET /shows?venue_id=3 body (2.0 KB): 6 shows (…); 0 without start_time; …`,

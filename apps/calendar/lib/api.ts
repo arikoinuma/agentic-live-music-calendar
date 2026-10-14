@@ -21,7 +21,7 @@
  *    terminal:  `[api] GET /shows?venue_id=3 -> 200 in 41ms`  (or
  *    `-> failed (timed out) in 5003ms`). The browser's Network tab can't
  *    show these calls — they go server to server — so this is the place to
- *    see what the app asked the API for (docs/dev/debugging.md). It writes
+ *    see what the app asked the API for. It writes
  *    the path and query only, never the base URL (deployment config).
  *  - Every 2xx response body gets a one-line SUMMARY, naming its request
  *    (parallel calls interleave in the terminal):

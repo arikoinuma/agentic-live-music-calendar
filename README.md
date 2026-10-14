@@ -83,8 +83,7 @@ It is ignored in production builds: hosted logs get summaries only. Remove the l
 
 **Step through the code.** `.vscode/launch.json` has debug configs for the API, the Next.js
 server and the browser. Stop `make dev` first (they use the same ports), then pick
-`Full stack: API + Next.js server` in VS Code's Run and Debug panel. The guided trace of one page
-load, with the exact breakpoints to set, is [docs/dev/debugging.md](docs/dev/debugging.md).
+`Full stack: API + Next.js server` in VS Code's Run and Debug panel.
 
 ## JavaScript and TypeScript tasks (Turborepo)
 
