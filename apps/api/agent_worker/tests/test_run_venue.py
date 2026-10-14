@@ -1,0 +1,218 @@
+"""Tests for the worker's entry point: loading venues, and `run_venue`'s run lifecycle.
+
+Milestone A4 (docs/dev/implementations/a4-auditability.md, step 7, D6 and D8; Gap A). `run_venue` opens an
+`agent_run`, runs the graph with the run's id in the state, and closes the run in a `finally`. These tests use
+the real Postgres writer (so the rows are real), the real graph, the scripted model, and a recording stager.
+
+How to read it: `ctx` builds a `WorkerContext` on the test connection; `setup` seeds the venues and returns
+the first as `VenueFacts`. Expected values are the seed's literals (`app/db/seed.py`: venue 1 is The White
+Squirrel Bar, in the America/Chicago metro) and the plan's rules. The tests marked (Gap A) stay red until Ari
+fills the `TODO(Ari)` block in `main.run_venue`.
+"""
+
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
+
+import pytest
+import pytest_asyncio
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession, async_sessionmaker
+
+from agent_worker import main, nodes
+from agent_worker.audit import PostgresAuditWriter
+from agent_worker.context import WorkerContext
+from agent_worker.main import VenueFacts, load_venues, run_all, run_venue
+from agent_worker.state import VenueGraphState
+from agent_worker.tests import fakes
+from agent_worker.tests.fakes import (
+    SPLITTER,
+    RecordingStager,
+    event,
+    jsonld_page,
+    scripted_client,
+)
+from agent_worker.tests.test_graph import NONA
+from app.db.models import AgentRun, AuditLog
+from app.db.seed import seed
+from app.enums import RunTrigger, StepType
+
+PAGE_WITH_ONE_SHOW = jsonld_page(event("Nona", "2026-10-20T21:00:00-05:00"))
+
+
+@pytest.fixture
+def factory(db_conn: AsyncConnection) -> async_sessionmaker[AsyncSession]:
+    return async_sessionmaker(bind=db_conn, join_transaction_mode="create_savepoint", expire_on_commit=False)
+
+
+@pytest.fixture
+def ctx(factory: async_sessionmaker[AsyncSession]) -> WorkerContext:
+    return WorkerContext(audit=PostgresAuditWriter(factory), stager=RecordingStager())
+
+
+@pytest_asyncio.fixture(loop_scope="session")
+async def venue(factory: async_sessionmaker[AsyncSession]) -> VenueFacts:
+    """The seeded venues' first row, as the worker sees it (loaded through `load_venues`)."""
+    async with factory() as session:
+        await seed(session)
+        await session.commit()
+    async with factory() as session:
+        return (await load_venues(session))[0]
+
+
+async def count(factory: async_sessionmaker[AsyncSession], model: type) -> int:
+    async with factory() as session:
+        return (await session.execute(select(func.count()).select_from(model))).scalar_one()
+
+
+# ---------------------------------------------------------------------------
+# Loading venues
+# ---------------------------------------------------------------------------
+
+
+async def test_load_venues_returns_each_venue_with_its_metros_timezone(
+    factory: async_sessionmaker[AsyncSession], venue: VenueFacts,
+) -> None:
+    # Proves (D6, Departure 2): the worker takes its venue facts from the database row, not from the caller:
+    # id, name, calendar URL, and the timezone of the venue's metro (`metro.timezone` is the source of truth,
+    # data-model-initial.md). The seed has four venues; the first is The White Squirrel Bar, in Chicago time.
+    async with factory() as session:
+        venues = await load_venues(session)
+    assert len(venues) == 4
+    assert venues[0].name == "The White Squirrel Bar" and venues[0].metro_timezone == "America/Chicago"
+    assert venues[0].calendar_url.startswith("http") and venues[0].id == venue.id
+    assert [v.id for v in venues] == sorted(v.id for v in venues)
+
+
+async def test_load_venues_can_pick_one_and_an_unknown_id_is_empty(
+    factory: async_sessionmaker[AsyncSession], venue: VenueFacts,
+) -> None:
+    # Proves: `--venue N` selects exactly that venue, and an id that does not exist selects none.
+    async with factory() as session:
+        assert [v.id for v in await load_venues(session, venue_id=venue.id)] == [venue.id]
+        assert await load_venues(session, venue_id=999_999) == []
+
+
+async def test_run_all_on_an_unknown_venue_raises_before_opening_any_run(
+    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts,
+) -> None:
+    # Proves: asking for a venue the database does not have fails loudly and opens no run: an `agent_run`
+    # needs a real `venue_id` (FK), and a silent no-op would look like a successful empty cycle.
+    before = await count(factory, AgentRun)
+    with pytest.raises(LookupError, match="999999"):
+        await run_all(factory, ctx, venue_id=999_999)
+    assert await count(factory, AgentRun) == before
+
+
+async def test_run_all_continues_after_one_venue_hits_an_infrastructure_error(
+    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Proves: one venue's database or network failure is logged and counted, and the loop moves on to the
+    # next venue (arch-initial.md §7: every venue, every run). The exit status the caller sees is the number
+    # of failed venues. A programming error is not in the caught set (see `RUN_ERRORS`) and would propagate.
+    seen: list[int] = []
+
+    async def flaky(v: VenueFacts, *_: Any, **__: Any) -> VenueGraphState:
+        seen.append(v.id)
+        if len(seen) == 1:
+            raise OSError("the network dropped")
+        return VenueGraphState(
+            venue_id=v.id, calendar_url=v.calendar_url, venue_name=v.name, metro_timezone=v.metro_timezone,
+        )
+
+    monkeypatch.setattr(main, "run_venue", flaky)
+    failed = await run_all(factory, ctx)
+    assert failed == 1 and len(seen) == 4
+
+
+# ---------------------------------------------------------------------------
+# The run's lifecycle (Gap A)
+# ---------------------------------------------------------------------------
+
+
+async def test_run_venue_opens_a_run_carries_its_id_and_closes_it(
+    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Proves (Gap A): the `agent_run` is the parent of every row. Its id travels in the state, so every
+    # audit row of the run has that `run_id`; the run is stamped finished; and the venue facts in the state
+    # came from the database row (name and timezone), with only the URL overridden for the test.
+    page = tmp_path / "page.html"
+    page.write_text(PAGE_WITH_ONE_SHOW)
+    monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [NONA]}))
+    state = await run_venue(venue, ctx, trigger=RunTrigger.MANUAL, calendar_url=str(page), fetched_on=fakes.FETCHED)
+    assert state.run_id is not None
+    async with factory() as session:
+        run = await session.get(AgentRun, state.run_id)
+        row_runs = {r for (r,) in await session.execute(select(AuditLog.run_id))}
+    assert run is not None and run.finished_at is not None
+    assert (run.venue_id, run.trigger) == (venue.id, RunTrigger.MANUAL)
+    assert row_runs == {state.run_id}
+    assert (state.venue_name, state.metro_timezone) == ("The White Squirrel Bar", "America/Chicago")
+
+
+async def test_a_run_that_crashes_is_still_closed_and_the_error_still_propagates(
+    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Proves (Gap A, D8): a graph that raises leaves the run with a `finished_at` (so it does not look
+    # "in progress" forever) and the exception reaches the caller, neither swallowed nor replaced. Without
+    # the `finally`, `finished_at` stays NULL and a crash is indistinguishable from a run still going.
+    async def boom(*_: Any, **__: Any) -> None:
+        raise RuntimeError("the graph blew up")
+
+    monkeypatch.setattr(main, "compiled_graph", SimpleNamespace(ainvoke=boom))
+    with pytest.raises(RuntimeError, match="the graph blew up"):
+        await run_venue(venue, ctx, trigger=RunTrigger.MANUAL)
+    async with factory() as session:
+        runs = list((await session.execute(select(AgentRun))).scalars())
+    assert len(runs) == 1 and runs[0].finished_at is not None
+
+
+async def test_run_venue_binds_the_run_id_for_log_lines_and_unbinds_it_after(
+    ctx: WorkerContext, venue: VenueFacts, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Proves (Gap A, D7): while the graph runs, structlog's context carries `run_id` and `venue_id`, so every
+    # log line of the run joins to its audit rows; afterwards they are gone, so the next venue's lines are
+    # not tagged with the previous run's id.
+    import structlog
+
+    seen: dict[str, Any] = {}
+
+    async def spy(state: Any, **_: Any) -> dict[str, Any]:
+        seen.update(structlog.contextvars.get_contextvars())
+        return state.model_dump()
+
+    monkeypatch.setattr(main, "compiled_graph", SimpleNamespace(ainvoke=spy))
+    result = await run_venue(venue, ctx, trigger=RunTrigger.MANUAL)
+    assert seen == {"run_id": result.run_id, "venue_id": venue.id}
+    assert structlog.contextvars.get_contextvars() == {}
+
+
+async def test_the_step_rows_of_a_run_are_the_six_steps_named_in_the_plan(
+    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Proves: end to end through Postgres, a passing run leaves the five steps a pass visits, as rows of
+    # `audit_log` in step order (the enum labels are the Python values).
+    page = tmp_path / "page.html"
+    page.write_text(PAGE_WITH_ONE_SHOW)
+    monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [NONA]}))
+    state = await run_venue(venue, ctx, calendar_url=str(page), fetched_on=fakes.FETCHED)
+    async with factory() as session:
+        steps = [s for (s,) in await session.execute(
+            select(AuditLog.step_type).where(AuditLog.run_id == state.run_id).order_by(AuditLog.id)
+        )]
+    assert steps == [StepType.FETCH, StepType.EXTRACT, StepType.VALIDATE, StepType.RECONCILE, StepType.COMMIT]
+
+
+# ---------------------------------------------------------------------------
+# main
+# ---------------------------------------------------------------------------
+
+
+async def test_main_refuses_to_start_without_a_mongodb_uri(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Proves (D3): the worker fails fast, with a non-zero status, when MONGODB_URI is unset. An audit trail
+    # that silently skipped its raw record would not be auditable. Nothing is connected to: `main` returns
+    # before it builds a client or reads the database.
+    monkeypatch.setattr(main.settings, "mongodb_uri", None)
+    assert await main.main([]) == 2

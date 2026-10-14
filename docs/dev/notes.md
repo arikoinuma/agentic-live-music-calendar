@@ -402,3 +402,20 @@ cleaned text writes `&`, so `url in page_html` is false for a URL it copied corr
 (`validation.verify_image_url`) and the eval's `invented_image_urls` compare against the *unescaped* HTML. The eval's
 old check (against cleaned text) also counted every JSON-LD URL as invented (225 in `a21-confirm`), since a
 structured source's URL never appears in visible text; it now skips `jsonld` and `image` runs.
+
+---
+
+## A graph node wrapper must not use `functools.wraps`, and BSON cannot store a `date`
+
+Two things found while building A4's audit wrapper (`agent_worker/trace.py`), both verified, not assumed.
+
+**`functools.wraps` hides LangGraph's `runtime` parameter.** LangGraph decides whether to inject the runtime
+context by inspecting the node function's signature. `functools.wraps(node)` makes the wrapper report the
+*inner* node's signature, which has no `runtime`, so nothing is injected and the call fails with
+`TypeError: inner() missing 1 required positional argument: 'runtime'`. The message names the inner function,
+not the cause. Declare `runtime: Runtime[WorkerContext]` on the wrapper itself and don't copy metadata onto it.
+
+**`pymongo` cannot encode `datetime.date`.** `bson.encode({"d": datetime.date.today()})` raises
+`InvalidDocument`. Anything untyped that reaches a Mongo document (an extraction's `notes` dict) has to go
+through `pydantic_core.to_jsonable_python` first (`agent_worker/staging.document_for`). A `datetime.datetime`
+is fine; BSON stores it natively.

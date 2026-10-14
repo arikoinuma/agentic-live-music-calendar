@@ -32,6 +32,12 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      # A4: the one real-MongoDB test (agent_worker/tests/test_staging_mongo.py) runs here. It skips
+      # where no server answers, but fails under CI, so a missing service can't pass silently.
+      mongo:
+        image: mongo:8
+        ports:
+          - 27017:27017
     env:
       # DATABASE_URL only has to make Settings() resolve at import time; the
       # tests never write to it. They use calendar_test, via the variable
@@ -39,6 +45,7 @@ jobs:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/ci
       TEST_DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/calendar_test
       MODEL_NAME: ci-placeholder
+      MONGODB_TEST_URI: mongodb://localhost:27017
     steps:
       - uses: actions/checkout@v4
 

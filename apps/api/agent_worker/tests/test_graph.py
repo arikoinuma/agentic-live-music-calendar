@@ -28,6 +28,7 @@ import openai
 import pytest
 
 from agent_worker import extraction, nodes
+from agent_worker.context import WorkerContext
 from agent_worker.graph import compiled_graph
 from agent_worker.policy import RetryPolicy
 from agent_worker.state import VenueGraphState
@@ -35,6 +36,8 @@ from agent_worker.tests import fakes
 from agent_worker.tests.fakes import (
     PAGE,
     SPLITTER,
+    RecordingAudit,
+    RecordingStager,
     completions,
     event,
     jsonld_page,
@@ -50,12 +53,16 @@ from agent_worker.validation import FailureReason, Verdict
 MODEL = extraction.PIPELINE_OPTIONS.model
 
 
-def run_graph(
+async def run_graph(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, html: str | None, script: dict[Any, list[Any]],
     policy: RetryPolicy | None = None, url: str | None = None,
 ) -> tuple[VenueGraphState, Any]:
     """Write `html` to a file (or use `url`), swap the model for the scripted client, run the real
-    graph, and return the final state and the client (for its recorded calls)."""
+    graph, and return the final state and the client (for its recorded calls).
+
+    A4: the graph is `ainvoke`-only and writes its audit trail through a `WorkerContext`; these tests are
+    about the retry loop, not the trail, so they hand in recording fakes and ignore them
+    (test_graph_audit.py is about the trail)."""
     if url is None:
         assert html is not None
         path = tmp_path / "page.html"
@@ -65,9 +72,10 @@ def run_graph(
     monkeypatch.setattr(nodes, "instructor_client", client)
     state = VenueGraphState(
         venue_id=1, calendar_url=url, venue_name="The Venue", metro_timezone="America/Chicago",
-        fetched_on=fakes.FETCHED, **({"policy": policy} if policy else {}),
+        fetched_on=fakes.FETCHED, run_id=1, **({"policy": policy} if policy else {}),
     )
-    return VenueGraphState(**compiled_graph.invoke(state)), client
+    context = WorkerContext(audit=RecordingAudit(), stager=RecordingStager())
+    return VenueGraphState(**await compiled_graph.ainvoke(state, context=context)), client
 
 
 def reached_reconcile(state: VenueGraphState) -> bool:
@@ -120,12 +128,12 @@ def test_every_node_returns_the_state_it_was_given(
 # ---------------------------------------------------------------------------
 
 
-def test_a_clean_json_ld_page_passes_on_the_first_attempt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_a_clean_json_ld_page_passes_on_the_first_attempt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Proves: the happy path on the adopted JSON-LD route — one attempt, a PASSED verdict, reconcile
     # reached, one history row. The confidence is None, not 1.0: the route stamps a placeholder that is
     # not evidence (D9), and a None here must not crash the router (G6). Only the splitter calls a model.
     page = jsonld_page(event("Nona", "2026-10-20T21:00:00-05:00"))
-    state, client = run_graph(tmp_path, monkeypatch, page, {SPLITTER: [NONA]})
+    state, client = await run_graph(tmp_path, monkeypatch, page, {SPLITTER: [NONA]})
     assert state.attempt_count == 1 and len(state.attempt_history) == 1
     assert state.validation is not None and state.validation.verdict is Verdict.PASSED
     assert state.confidence is None and state.extraction_source == "jsonld"
@@ -133,14 +141,14 @@ def test_a_clean_json_ld_page_passes_on_the_first_attempt(tmp_path: Path, monkey
     assert len(completions(client).calls) == 1
 
 
-def test_a_model_call_that_raises_once_is_a_recorded_failed_attempt_and_the_retry_recovers(
+async def test_a_model_call_that_raises_once_is_a_recorded_failed_attempt_and_the_retry_recovers(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves (Gap A, G2): the failure Phase 5 documented (a model call that errors) no longer kills the
     # graph: attempt 1 is recorded as `extract_failed`, the existing retry edge fires, attempt 2
     # succeeds. The attempt was counted (attempt_count == 2, not 1) and attempt 1's error didn't
     # outlive it (the per-attempt reset). RED today: the exception escapes `invoke`.
-    state, _ = run_graph(
+    state, _ = await run_graph(
         tmp_path, monkeypatch, GOOD_PAGE,
         {PAGE: [ValueError("the model server went away"), listings_answer(GOOD_LISTING)], SPLITTER: [NONA]},
     )
@@ -151,22 +159,22 @@ def test_a_model_call_that_raises_once_is_a_recorded_failed_attempt_and_the_retr
     assert state.extract_error is None and reached_reconcile(state)
 
 
-def test_a_model_call_that_always_raises_escalates_after_the_cap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_a_model_call_that_always_raises_escalates_after_the_cap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Proves (Gap A, G2): a real `openai` connection error on every attempt is retried to the cap (3
     # attempts, arch-initial.md §7) and then escalated, never retried forever and never crashing; the
     # escalation reason says what failed.
     boom = openai.APIConnectionError(request=httpx.Request("POST", "http://localhost:11434/v1"))
-    state, client = run_graph(tmp_path, monkeypatch, GOOD_PAGE, {PAGE: [boom]})
+    state, client = await run_graph(tmp_path, monkeypatch, GOOD_PAGE, {PAGE: [boom]})
     assert len(completions(client).calls_for(PAGE)) == 3
     assert state.attempt_count == 3 and len(state.attempt_history) == 3
     assert reached_escalate(state) and not reached_reconcile(state)
     assert "APIConnectionError" in (state.escalation_reason or "")
 
 
-def test_a_page_with_nothing_listed_is_a_confirmed_empty_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_a_page_with_nothing_listed_is_a_confirmed_empty_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Proves (G3): `page_readable: true, shows: []` on a page that names no dates is a legitimate
     # pass on the first attempt — it does not burn three retries and escalate, which was the bug.
-    state, _ = run_graph(
+    state, _ = await run_graph(
         tmp_path, monkeypatch, text_page("No events scheduled right now."), {PAGE: [listings_answer()]},
     )
     assert state.attempt_count == 1
@@ -174,10 +182,10 @@ def test_a_page_with_nothing_listed_is_a_confirmed_empty_pass(tmp_path: Path, mo
     assert reached_reconcile(state)
 
 
-def test_an_unreadable_page_retries_and_recovers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_an_unreadable_page_retries_and_recovers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Proves (G3): `page_readable: false` is a failure worth a retry, twice here, and the third attempt
     # (the last the cap allows) recovers.
-    state, _ = run_graph(
+    state, _ = await run_graph(
         tmp_path, monkeypatch, GOOD_PAGE,
         {PAGE: [listings_answer(readable=False), listings_answer(readable=False), listings_answer(GOOD_LISTING)],
          SPLITTER: [NONA]},
@@ -187,11 +195,11 @@ def test_an_unreadable_page_retries_and_recovers(tmp_path: Path, monkeypatch: py
     assert reached_reconcile(state)
 
 
-def test_a_check_error_retries_even_at_high_confidence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_a_check_error_retries_even_at_high_confidence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Proves (Gap D, end to end): free admission together with a price is a deterministic error; the
     # model's 0.99 confidence does not outvote it. Attempt 1 fails with CHECK_ERRORS (not
     # low_confidence) and the page is retried.
-    state, _ = run_graph(
+    state, _ = await run_graph(
         tmp_path, monkeypatch, GOOD_PAGE,
         {PAGE: [listings_answer(BAD_LISTING), listings_answer(GOOD_LISTING)], SPLITTER: [NONA]},
     )
@@ -200,11 +208,11 @@ def test_a_check_error_retries_even_at_high_confidence(tmp_path: Path, monkeypat
     assert state.attempt_history[1].verdict is Verdict.PASSED and reached_reconcile(state)
 
 
-def test_low_confidence_on_the_model_route_retries(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_low_confidence_on_the_model_route_retries(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Proves: low confidence fails a model-route record (below 0.8, plan D9) when nothing deterministic
     # has, and the retry recovers.
     unsure = listing("2026-10-20", "Nona", time="20:00", confidence=0.5)
-    state, _ = run_graph(
+    state, _ = await run_graph(
         tmp_path, monkeypatch, GOOD_PAGE, {PAGE: [listings_answer(unsure), listings_answer(GOOD_LISTING)], SPLITTER: [NONA]},
     )
     assert state.attempt_history[0].reasons == [FailureReason.LOW_CONFIDENCE]
@@ -216,7 +224,7 @@ def test_low_confidence_on_the_model_route_retries(tmp_path: Path, monkeypatch: 
 # ---------------------------------------------------------------------------
 
 
-def test_a_retry_sends_a_different_request_and_the_last_one_uses_the_larger_model(
+async def test_a_retry_sends_a_different_request_and_the_last_one_uses_the_larger_model(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves (Gap E, G5): at temperature 0 an identical retry returns an identical answer (A2.1's
@@ -225,7 +233,7 @@ def test_a_retry_sends_a_different_request_and_the_last_one_uses_the_larger_mode
     # THIS is the test that fails if someone reverts to identical re-calls. Every attempt here fails the
     # same check, so the loop runs to its cap.
     policy = RetryPolicy(escalation_model="gemma-big")
-    state, client = run_graph(
+    state, client = await run_graph(
         tmp_path, monkeypatch, GOOD_PAGE, {PAGE: [listings_answer(BAD_LISTING)], SPLITTER: [NONA]}, policy=policy,
     )
     calls = completions(client).calls_for(PAGE)
@@ -239,9 +247,9 @@ def test_a_retry_sends_a_different_request_and_the_last_one_uses_the_larger_mode
     assert [r.larger_model_used for r in state.attempt_history] == [False, False, True]
 
 
-def test_the_first_attempts_page_request_is_the_pipelines_own(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_the_first_attempts_page_request_is_the_pipelines_own(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Proves: attempt 1 carries no hint — its instruction is exactly what the eval measured (plan §3).
-    state, client = run_graph(tmp_path, monkeypatch, GOOD_PAGE, {PAGE: [listings_answer(GOOD_LISTING)], SPLITTER: [NONA]})
+    state, client = await run_graph(tmp_path, monkeypatch, GOOD_PAGE, {PAGE: [listings_answer(GOOD_LISTING)], SPLITTER: [NONA]})
     first = message_text(completions(client).calls_for(PAGE)[0])
     assert first.startswith(extraction.instruction_for(extraction.PIPELINE_CONFIG))
     assert "earlier attempt" not in first and reached_reconcile(state)
@@ -256,13 +264,13 @@ UNDER_REPORTED = jsonld_page(
 )
 
 
-def test_a_json_ld_page_that_under_reports_falls_back_to_the_model_route(
+async def test_a_json_ld_page_that_under_reports_falls_back_to_the_model_route(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves (E16, plan §2): the text names five upcoming dates the one JSON-LD event doesn't cover, so
     # attempt 1 fails `jsonld_under_reported`; attempt 2 reads the page text with the model route (a page
     # call that attempt 1 never made) and passes. A JSON-LD retry would have been byte-identical.
-    state, client = run_graph(
+    state, client = await run_graph(
         tmp_path, monkeypatch, UNDER_REPORTED, {PAGE: [listings_answer(GOOD_LISTING)], SPLITTER: [NONA]},
     )
     assert [r.route for r in state.attempt_history] == ["jsonld", "model"]
@@ -271,14 +279,14 @@ def test_a_json_ld_page_that_under_reports_falls_back_to_the_model_route(
     assert reached_reconcile(state)
 
 
-def test_the_route_fallback_is_sticky_and_an_escalation_names_both_routes(
+async def test_the_route_fallback_is_sticky_and_an_escalation_names_both_routes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves (round 1 #1): attempt 1 under-reports on JSON-LD, attempt 2 (model route) fails low
     # confidence, and attempt 3 STAYS on the model route instead of going back to the JSON-LD route that
     # already failed. The escalation reason says both routes failed — what a human needs to know.
     unsure = listing("2026-10-20", "Nona", time="20:00", confidence=0.5)
-    state, _ = run_graph(
+    state, _ = await run_graph(
         tmp_path, monkeypatch, UNDER_REPORTED, {PAGE: [listings_answer(unsure)], SPLITTER: [NONA]},
     )
     assert [r.route for r in state.attempt_history] == ["jsonld", "model", "model"]
@@ -286,14 +294,14 @@ def test_the_route_fallback_is_sticky_and_an_escalation_names_both_routes(
     assert "jsonld and model" in (state.escalation_reason or "")
 
 
-def test_a_malformed_json_ld_date_is_recorded_and_the_retry_uses_the_model_route(
+async def test_a_malformed_json_ld_date_is_recorded_and_the_retry_uses_the_model_route(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves (Gap A, round 2 #3): a deterministic ValueError from `fromisoformat` is a failed attempt that
     # records the route it used (`jsonld`, even though `extraction_source` is None for a failed attempt),
     # and — because a JSON-LD retry would raise identically — attempt 2 runs the model route.
     page = jsonld_page(event("Nona", "not-a-date"), body="Nona Oct 20 8 pm")
-    state, client = run_graph(
+    state, client = await run_graph(
         tmp_path, monkeypatch, page, {PAGE: [listings_answer(GOOD_LISTING)], SPLITTER: [NONA]},
     )
     first, second = state.attempt_history
@@ -302,11 +310,11 @@ def test_a_malformed_json_ld_date_is_recorded_and_the_retry_uses_the_model_route
     assert len(completions(client).calls_for(PAGE)) == 1
 
 
-def test_a_far_future_json_ld_event_is_excluded_and_not_retried(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_a_far_future_json_ld_event_is_excluded_and_not_retried(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Proves (D13): a stale or far-future event is excluded with a warning in ONE attempt; the page passes
     # and nothing is retried (the model route's year rule would have re-dated it into a wrong date).
     page = jsonld_page(event("Nona", "2026-10-20T21:00:00-05:00"), event("Far Away", "2028-03-01T20:00:00-06:00"))
-    state, _ = run_graph(
+    state, _ = await run_graph(
         tmp_path, monkeypatch, page, {SPLITTER: [split_answer(("Nona", ["Nona"]), ("Far Away", ["Far Away"]))]},
     )
     assert state.attempt_count == 1 and reached_reconcile(state)
@@ -314,7 +322,7 @@ def test_a_far_future_json_ld_event_is_excluded_and_not_retried(tmp_path: Path, 
     assert state.validated_extraction is not None and len(state.validated_extraction.shows) == 1
 
 
-def test_a_json_ld_page_of_only_stale_events_is_excluded_not_sent_to_the_model_route(
+async def test_a_json_ld_page_of_only_stale_events_is_excluded_not_sent_to_the_model_route(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves (code review round 1, #1; D13): every event is more than 31 days back, so each is excluded
@@ -328,14 +336,14 @@ def test_a_json_ld_page_of_only_stale_events_is_excluded_not_sent_to_the_model_r
         event("C", "2026-08-03T20:00:00-05:00"), body="A Aug 1 8 pm B Aug 2 8 pm C Aug 3 8 pm",
     )
     answer = split_answer(("A", ["A"]), ("B", ["B"]), ("C", ["C"]))
-    state, client = run_graph(tmp_path, monkeypatch, page, {SPLITTER: [answer]})
+    state, client = await run_graph(tmp_path, monkeypatch, page, {SPLITTER: [answer]})
     assert state.attempt_count == 1 and [r.route for r in state.attempt_history] == ["jsonld"]
     assert state.validation is not None and state.validation.excluded == [0, 1, 2] and state.validation.errors == []
     assert state.validated_extraction is not None and state.validated_extraction.shows == []
     assert completions(client).calls_for(PAGE) == [] and reached_reconcile(state)
 
 
-def test_an_end_time_equal_to_the_start_is_repaired_and_the_json_ld_route_is_kept(
+async def test_an_end_time_equal_to_the_start_is_repaired_and_the_json_ld_route_is_kept(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves (round 2 #4): a plugin that writes endDate == startDate does not send the page to the model
@@ -343,19 +351,19 @@ def test_an_end_time_equal_to_the_start_is_repaired_and_the_json_ld_route_is_kep
     page = jsonld_page(
         event("Nona", "2026-10-20T20:00:00-05:00", endDate="2026-10-20T20:00:00-05:00"), body="Nona 8:00 pm",
     )
-    state, _ = run_graph(tmp_path, monkeypatch, page, {SPLITTER: [NONA]})
+    state, _ = await run_graph(tmp_path, monkeypatch, page, {SPLITTER: [NONA]})
     assert state.attempt_count == 1 and state.attempt_history[0].route == "jsonld"
     assert state.validation is not None and [r.field for r in state.validation.repairs] == ["end_time"]
     assert state.validated_extraction is not None and state.validated_extraction.shows[0].end_time is None
 
 
-def test_a_page_whose_every_show_is_excluded_and_undated_passes_without_crashing(
+async def test_a_page_whose_every_show_is_excluded_and_undated_passes_without_crashing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves (round 1 #4): the splitter says the only event isn't music. Nothing is kept, confidence is
     # None (not `min([])`, which would raise in validate_node), the page passes, and the exclusion is on record.
     page = jsonld_page(event("Karaoke Night", "2026-10-20T21:00:00-05:00"), body="Karaoke Night")
-    state, _ = run_graph(tmp_path, monkeypatch, page, {SPLITTER: [split_answer(("Karaoke Night", []))]})
+    state, _ = await run_graph(tmp_path, monkeypatch, page, {SPLITTER: [split_answer(("Karaoke Night", []))]})
     assert state.attempt_count == 1 and reached_reconcile(state)
     assert state.validation is not None and state.validation.excluded == [0]
     assert state.confidence is None
@@ -366,21 +374,21 @@ def test_a_page_whose_every_show_is_excluded_and_undated_passes_without_crashing
 # ---------------------------------------------------------------------------
 
 
-def test_a_page_that_cannot_be_read_escalates_without_calling_the_model(
+async def test_a_page_that_cannot_be_read_escalates_without_calling_the_model(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves (D6): a fetch failure is recorded and routed to escalate (arch-initial.md §7 names it as the
     # other failure mode), instead of raising out of the graph. The empty script asserts no model call.
-    state, client = run_graph(tmp_path, monkeypatch, None, {}, url=str(tmp_path / "missing.html"))
+    state, client = await run_graph(tmp_path, monkeypatch, None, {}, url=str(tmp_path / "missing.html"))
     assert reached_escalate(state) and state.attempt_count == 0
     assert (state.escalation_reason or "").startswith("the page could not be fetched")
     assert completions(client).calls == []
 
 
-def test_an_empty_page_escalates_instead_of_reaching_the_model(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_an_empty_page_escalates_instead_of_reaching_the_model(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Proves (round 1 #3): arch-initial.md §7 counts an "empty response" as a fetch failure. A model handed
     # a blank page can answer `page_readable: true, shows: []`, which would pass as a confirmed-empty
     # calendar. The empty script asserts the model is never called.
-    state, client = run_graph(tmp_path, monkeypatch, "<html><body>  </body></html>", {})
+    state, client = await run_graph(tmp_path, monkeypatch, "<html><body>  </body></html>", {})
     assert reached_escalate(state) and "nothing to read" in (state.fetch_error or "")
     assert completions(client).calls == []

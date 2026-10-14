@@ -12,5 +12,15 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql
 
+  # MongoDB: the worker's raw extraction staging (arch-initial.md §6; A4, D3). Local only; Atlas is H3's.
+  # No auth, and published on localhost only: this is a dev database that holds scraped page text.
+  mongo:
+    image: mongo:8
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - mongodata:/data/db
+
 volumes:
   pgdata:
+  mongodata:

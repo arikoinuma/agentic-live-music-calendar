@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,6 +25,18 @@ class Settings(BaseSettings):
     # and the attempt record says no escalation happened. Until H1 makes model endpoints
     # configurable, it must be a model name Ollama serves.
     escalation_model_name: str | None = None
+
+    # MongoDB, where the worker stages each extraction attempt's raw record before validation judges it
+    # (arch-initial.md §6; A4, docs/dev/implementations/a4-auditability.md, D3/D4). Locally this is the
+    # docker-compose `mongo` service; Atlas is H3's. Optional here because the API never uses it; the
+    # worker's entry point refuses to start without it, since an audit trail that silently skips its raw
+    # record isn't auditable.
+    mongodb_uri: str | None = None
+    mongodb_database: str = "calendar"
+
+    # How the worker renders log lines (app/log_config.py, D7): "auto" picks a readable console format on a
+    # terminal and JSON otherwise, so a cron job on Railway gets JSON without configuration.
+    log_format: Literal["auto", "console", "json"] = "auto"
 
 
 # instantiate the class once at module load time, e.g.:
