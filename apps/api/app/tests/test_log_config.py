@@ -29,6 +29,7 @@ def _clean_logging() -> Iterator[None]:
 
 
 def lines(capsys: pytest.CaptureFixture[str]) -> list[str]:
+    """The non-blank lines the code under test wrote to stderr, where structlog's output goes."""
     return [line for line in capsys.readouterr().err.splitlines() if line.strip()]
 
 

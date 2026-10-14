@@ -75,7 +75,7 @@ async def main() -> None:
 
     # A4: the run is in the database now. These are the questions to ask it (docs/dev/audit-queries.sql).
     print(f"\nrun {state.run_id} is in the audit trail:  make db-shell, then")
-    print(f"  \\set run_id {state.run_id}\n  \\i docs/dev/audit-queries.sql   (the run_history query)")
+    print(f"  \\set run_id {state.run_id}\n  \\set show_id 0\n  \\i docs/dev/audit-queries.sql   (runs all four queries)")
 
 
 if __name__ == "__main__":

@@ -48,6 +48,8 @@ def base_state(**changes: object) -> VenueGraphState:
 
 
 def passed_validation(**changes: object) -> ValidationResult:
+    """A `ValidationResult` that passed at 0.9 confidence, with one warning, one repair and one excluded show,
+    so the validate row's counts have something to count. A test overrides what it needs."""
     fields: dict[str, object] = {
         "outcome": None, "verdict": Verdict.PASSED, "confidence": 0.9,
         "findings": [Finding(CheckCode.AMBIGUOUS, Severity.WARNING, "maybe two shows", 0)],

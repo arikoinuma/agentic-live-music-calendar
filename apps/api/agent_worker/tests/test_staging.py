@@ -26,6 +26,8 @@ PLAN = AttemptPlan(tier="narrowed", config=extraction.PIPELINE_CONFIG, options=e
 
 
 def state_with(**changes: Any) -> VenueGraphState:
+    """A state as `extract_node` leaves it on attempt 2 (venue 4, run 9, a plan, the model route); a test
+    overrides what it needs."""
     fields: dict[str, Any] = {
         "venue_id": 4, "calendar_url": "https://venue.example/events", "venue_name": "The Venue",
         "metro_timezone": "America/Chicago", "run_id": 9, "attempt_count": 2, "last_plan": PLAN,

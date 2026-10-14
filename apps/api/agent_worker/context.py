@@ -6,7 +6,7 @@ HOW TO READ THIS
   an event loop, so they do not belong in the state: they are not serialisable, and a test would have to
   build them to build a state. LangGraph's runtime context is the place for them. `graph.py` declares
   `context_schema=WorkerContext`; the caller passes `context=WorkerContext(...)` to `ainvoke`; and
-  `audit.audited` reads it from the `runtime` argument LangGraph injects.
+  `trace.audited` reads it from the `runtime` argument LangGraph injects.
 
   The fields are the `AuditWriter` and `Stager` protocols (audit.py, staging.py), not the concrete classes, so
   the graph tests hand in recording fakes and the real worker hands in `PostgresAuditWriter` and

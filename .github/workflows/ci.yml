@@ -38,6 +38,11 @@ jobs:
         image: mongo:8
         ports:
           - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ping:1}).ok'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       # DATABASE_URL only has to make Settings() resolve at import time; the
       # tests never write to it. They use calendar_test, via the variable

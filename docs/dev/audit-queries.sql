@@ -71,7 +71,8 @@ ORDER BY al.id;
 -- name: unfinished_runs
 -- Runs that did not end properly: still open (no finished_at), or closed without ever reaching commit or
 -- escalate, which means the process crashed mid-run (agent_worker/main.py closes a crashed run in a finally,
--- so the two cases look different here: open = the process died; closed with neither = an exception).
+-- so the two cases look different here). A run with no finished_at is either still in progress or its
+-- process died without reaching the finally; check the time. Closed with neither step = an exception.
 SELECT r.id AS run_id,
        v.name AS venue,
        r.started_at,

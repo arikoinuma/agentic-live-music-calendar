@@ -42,6 +42,7 @@ async def venue_id(factory: async_sessionmaker[AsyncSession]) -> int:
 
 
 def entry(run_id: int, **changes: Any) -> AuditEntry:
+    """An extract-step `AuditEntry` for `run_id` with sensible defaults; a test overrides what it cares about."""
     fields: dict[str, Any] = {
         "run_id": run_id, "attempt_number": 1, "step_type": StepType.EXTRACT, "source": AuditSource.AGENT,
         "entity_type": EntityType.VENUE, "entity_id": 1, "outcome": None, "model_used": "m",
@@ -52,6 +53,7 @@ def entry(run_id: int, **changes: Any) -> AuditEntry:
 
 
 async def rows(factory: async_sessionmaker[AsyncSession], run_id: int) -> list[AuditLog]:
+    """The `audit_log` rows of one run, oldest first, read through a fresh session (as a query would)."""
     async with factory() as session:
         return list((await session.execute(select(AuditLog).where(AuditLog.run_id == run_id).order_by(AuditLog.id))).scalars())
 
@@ -141,3 +143,32 @@ def test_the_writer_has_no_method_that_changes_an_audit_row() -> None:
     # `finish_run`, which touches `agent_run`. There is no update/delete/replace of an audit row to call.
     names = {n for n in dir(PostgresAuditWriter) if not n.startswith("_")}
     assert names == {"start_run", "record", "finish_run"}
+
+
+async def test_the_writer_works_with_a_default_session_factory(db_conn: AsyncConnection, venue_id: int) -> None:
+    # Proves (code review #4): the writer does not depend on the factory being built with
+    # `expire_on_commit=False`. It reads each new row's id before committing, so a factory with SQLAlchemy's
+    # default (`True`) works too. Reading `run.id` after `commit()` on such a factory raises `MissingGreenlet`,
+    # an error that does not point at the cause; the next milestone to build its own factory would hit it.
+    default_factory = async_sessionmaker(bind=db_conn, join_transaction_mode="create_savepoint")
+    writer = PostgresAuditWriter(default_factory)
+    run_id = await writer.start_run(venue_id, RunTrigger.MANUAL)
+    entry_id = await writer.record(entry(run_id))
+    assert isinstance(run_id, int) and isinstance(entry_id, int)
+
+
+async def test_finished_at_is_after_started_at_on_the_databases_own_clock(
+    factory: async_sessionmaker[AsyncSession], venue_id: int,
+) -> None:
+    # Proves (code review #5): both timestamps come from Postgres, so a run's duration is one clock's
+    # difference and cannot go negative under worker/database clock skew. Inside the tests' one rolled-back
+    # transaction `now()` is frozen at the transaction's start; `clock_timestamp()` (what `finish_run` uses)
+    # is the real time, so it is strictly later than `started_at`. (This passes on the earlier Python-clock
+    # version too, since the worker's clock is also later than the transaction start; the property it pins
+    # is "after", the single-clock point is in `finish_run`'s comment.)
+    writer = PostgresAuditWriter(factory)
+    run_id = await writer.start_run(venue_id, RunTrigger.MANUAL)
+    await writer.finish_run(run_id)
+    async with factory() as session:
+        run = await session.get(AgentRun, run_id)
+    assert run is not None and run.finished_at is not None and run.finished_at > run.started_at

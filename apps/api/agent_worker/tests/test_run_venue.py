@@ -16,6 +16,7 @@ from typing import Any
 
 import pytest
 import pytest_asyncio
+from pymongo.errors import ServerSelectionTimeoutError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession, async_sessionmaker
 
@@ -42,11 +43,19 @@ PAGE_WITH_ONE_SHOW = jsonld_page(event("Nona", "2026-10-20T21:00:00-05:00"))
 
 @pytest.fixture
 def factory(db_conn: AsyncConnection) -> async_sessionmaker[AsyncSession]:
+    """A session factory on the test connection (`db_conn`, app/testing/db.py), in savepoint mode.
+
+    The worker's writer opens its own session per call and `commit()`s each one. Here every such commit only
+    releases a savepoint inside `db_conn`'s outer transaction, which the fixture rolls back at the end of the
+    test, so the writes are real (visible to the next session on this connection) and leave nothing behind.
+    """
     return async_sessionmaker(bind=db_conn, join_transaction_mode="create_savepoint", expire_on_commit=False)
 
 
 @pytest.fixture
 def ctx(factory: async_sessionmaker[AsyncSession]) -> WorkerContext:
+    """What the worker hands every node: the real Postgres audit writer (on the test connection) and a
+    recording stager standing in for MongoDB."""
     return WorkerContext(audit=PostgresAuditWriter(factory), stager=RecordingStager())
 
 
@@ -61,6 +70,7 @@ async def venue(factory: async_sessionmaker[AsyncSession]) -> VenueFacts:
 
 
 async def count(factory: async_sessionmaker[AsyncSession], model: type) -> int:
+    """How many rows `model`'s table holds right now (used to assert a call opened no run)."""
     async with factory() as session:
         return (await session.execute(select(func.count()).select_from(model))).scalar_one()
 
@@ -188,7 +198,7 @@ async def test_run_venue_binds_the_run_id_for_log_lines_and_unbinds_it_after(
     assert structlog.contextvars.get_contextvars() == {}
 
 
-async def test_the_step_rows_of_a_run_are_the_six_steps_named_in_the_plan(
+async def test_a_passing_run_leaves_the_five_steps_a_pass_visits(
     factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts,
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -215,4 +225,28 @@ async def test_main_refuses_to_start_without_a_mongodb_uri(monkeypatch: pytest.M
     # that silently skipped its raw record would not be auditable. Nothing is connected to: `main` returns
     # before it builds a client or reads the database.
     monkeypatch.setattr(main.settings, "mongodb_uri", None)
+    assert await main.main([]) == 2
+
+
+async def test_main_refuses_to_start_when_mongodb_does_not_answer(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Proves (code review #3, D3): "fail fast" covers a MongoDB that is configured but not running, not only
+    # one that is unset. The driver connects lazily, so without a ping at startup each venue would do its
+    # fetch and a full model call, then wait ~30 s for server selection and fail. A stand-in client whose
+    # ping raises `ServerSelectionTimeoutError` makes `main` return 2 before any venue is touched.
+    class DeadClient:
+        def __init__(self, *_: Any, **__: Any) -> None:
+            self.admin = SimpleNamespace(command=self._ping)
+
+        async def _ping(self, *_: Any, **__: Any) -> None:
+            raise ServerSelectionTimeoutError("no server")
+
+        async def close(self) -> None:
+            pass
+
+    async def must_not_run(*_: Any, **__: Any) -> int:
+        raise AssertionError("run_all was reached with MongoDB down")
+
+    monkeypatch.setattr(main.settings, "mongodb_uri", "mongodb://localhost:1")
+    monkeypatch.setattr(main, "AsyncMongoClient", DeadClient)
+    monkeypatch.setattr(main, "run_all", must_not_run)
     assert await main.main([]) == 2

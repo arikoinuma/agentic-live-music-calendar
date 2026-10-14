@@ -66,6 +66,8 @@ def audited(step: StepType, node: Node) -> Callable[..., Awaitable[VenueGraphSta
             #   describes what that attempt produced.
             # Code:
             #   staging_id = await runtime.context.stager.stage(staging.document_for(state))
+            #   Then delete the `# noqa` on the `staging` import at the top of this file: it exists only while
+            #   this gap is open, and ruff flags it (RUF100) once the name is used.
             # Check: `uv run pytest agent_worker/tests/test_graph_audit.py -k "retry_adds_rows"` — it checks
             #   each document's attempt and error, not just the count. Likeliest mistakes: guarding with
             #   `if state.extraction is not None` (the failed attempt's document goes missing, and the test

@@ -123,8 +123,8 @@ FETCHED = datetime.date(2026, 10, 12)
 # The graph writes its audit trail through `WorkerContext.audit` and its raw staging record through
 # `WorkerContext.stager` (agent_worker/context.py). These two stand in for Postgres and MongoDB so the
 # graph tests need neither; the tests against the real stores are test_audit_writer.py and
-# test_staging_mongo.py. Imported lazily inside the classes' methods' annotations only, so this module
-# still loads when a test only needs the model fakes above.
+# test_staging_mongo.py. They are typed loosely (`Any`) so this module does not import `agent_worker.audit`
+# and stay loadable for tests that only need the model fakes above.
 
 
 class RecordingAudit:

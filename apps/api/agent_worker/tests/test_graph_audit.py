@@ -11,7 +11,7 @@ the recorded `(step, attempt)` sequence, the entries' fields, and the staged doc
 sequences come from the graph's shape (`graph.py` diagram) and the 3-attempt cap (arch-initial.md §7), not
 from the code under test.
 
-Until Ari fills Gap C (the staging write in `audit.audited`) every test here that reaches `extract` is red,
+Until Ari fills Gap C (the staging write in `trace.audited`) every test here that reaches `extract` is red,
 by design; the two fetch-failure tests, which never reach extract, are green.
 """
 
@@ -220,7 +220,8 @@ async def test_a_staging_write_that_fails_stops_the_run(tmp_path: Path, monkeypa
 async def test_the_context_reaches_the_audited_nodes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Proves: the known gotcha (plan, "Known gotchas"): LangGraph injects `runtime` by inspecting the node's
     # signature, so a wrapper built with `functools.wraps` (which copies the inner node's signature, with no
-    # `runtime`) silently loses the context. Here the recorders are populated, so the context arrived.
+    # `runtime`) makes LangGraph skip the injection and the call fail with a `TypeError` about the missing
+    # `runtime` argument (verified). Here the recorders are populated, so the context arrived.
     page = jsonld_page(event("Nona", "2026-10-20T21:00:00-05:00"))
     _, audit, _ = await run_traced(tmp_path, monkeypatch, page, {SPLITTER: [NONA]})
     assert audit.entries, "no audit rows: the WorkerContext never reached the wrapper"

@@ -24,13 +24,12 @@ WHY IT'S SHAPED THIS WAY
 docs/dev/implementations/a4-auditability.md.
 """
 
-import datetime
 import decimal
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from pydantic_core import to_jsonable_python
-from sqlalchemy import update
+from sqlalchemy import func, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agent_worker.state import VenueGraphState
@@ -200,8 +199,13 @@ class PostgresAuditWriter:
         async with self._session_factory() as session:
             run = AgentRun(venue_id=venue_id, trigger=trigger)
             session.add(run)
+            # flush assigns the id; read it BEFORE commit. After a commit a session built with SQLAlchemy's
+            # default `expire_on_commit=True` has expired the attribute, and reading it under asyncio raises
+            # `MissingGreenlet`, an error that doesn't point at the cause (code review #4).
+            await session.flush()
+            run_id = run.id
             await session.commit()
-            return run.id
+            return run_id
 
     async def record(self, entry: AuditEntry) -> int:
         async with self._session_factory() as session:
@@ -212,13 +216,20 @@ class PostgresAuditWriter:
                 detail=entry.detail,
             )
             session.add(row)
+            await session.flush()
+            row_id = row.id  # before commit, for the reason in `start_run`
             await session.commit()
-            return row.id
+            return row_id
 
     async def finish_run(self, run_id: int) -> None:
         # The one UPDATE in this class, and it is on `agent_run` (its lifecycle timestamp), not on the
         # append-only `audit_log`.
+        # `clock_timestamp()`, Postgres's real current time, not `now()` (the transaction's start, which
+        # inside one transaction, as in the tests, equals `started_at`) and not the worker's own clock:
+        # `started_at` and `created_at` come from the database, so a run's duration should be one clock's
+        # difference and not go negative under worker/database skew (code review #5).
         async with self._session_factory() as session:
-            now = datetime.datetime.now(datetime.UTC)
-            await session.execute(update(AgentRun).where(AgentRun.id == run_id).values(finished_at=now))
+            await session.execute(
+                update(AgentRun).where(AgentRun.id == run_id).values(finished_at=func.clock_timestamp())
+            )
             await session.commit()

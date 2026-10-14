@@ -23,7 +23,7 @@ from app.enums import StepType
 #   - Each node receives a real VenueGraphState instance mid-graph, with
 #     full attribute access (state.page_content, etc.) — the existing
 #     node functions in nodes.py don't need any changes for this.
-#   - compiled_graph.invoke(...)'s return value is a plain dict, not a
+#   - compiled_graph.ainvoke(...)'s return value is a plain dict, not a
 #     VenueGraphState — and it only contains fields that were explicitly
 #     set at construction or touched by some node; anything left at its
 #     class default is simply absent as a key, not present-with-default.
@@ -42,12 +42,21 @@ graph = StateGraph(VenueGraphState, context_schema=WorkerContext)
 
 # One add_node per node function. The name each is registered under is what the conditional
 # edges' path maps and the add_edge calls below refer to.
-graph.add_node(NodeNames.FETCH, audited(StepType.FETCH, fetch_node))
-graph.add_node(NodeNames.EXTRACT, audited(StepType.EXTRACT, extract_node))
-graph.add_node(NodeNames.VALIDATE, audited(StepType.VALIDATE, validate_node))
-graph.add_node(NodeNames.RECONCILE, audited(StepType.RECONCILE, reconcile_node))
-graph.add_node(NodeNames.COMMIT, audited(StepType.COMMIT, commit_node))
-graph.add_node(NodeNames.ESCALATE, audited(StepType.ESCALATE, escalate_node))
+#
+# A4 (code review #2): the node name and the audit step are the same six strings (`NodeNames` here,
+# `StepType` in app/enums.py), so the step is DERIVED from the name, `StepType(name.value)`, instead of
+# being paired by hand in six lines. A node added to this table without a matching `StepType` fails at
+# import with a ValueError; test_graph_wiring.py pins the table to both enums.
+NODE_FUNCTIONS = {
+    NodeNames.FETCH: fetch_node,
+    NodeNames.EXTRACT: extract_node,
+    NodeNames.VALIDATE: validate_node,
+    NodeNames.RECONCILE: reconcile_node,
+    NodeNames.COMMIT: commit_node,
+    NodeNames.ESCALATE: escalate_node,
+}
+for node_name, node_function in NODE_FUNCTIONS.items():
+    graph.add_node(node_name, audited(StepType(node_name.value), node_function))
 
 # The shape (docs/dev/implementations/a3-validation-and-retry.md, Design §4):
 #

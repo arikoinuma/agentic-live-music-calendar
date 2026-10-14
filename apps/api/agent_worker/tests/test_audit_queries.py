@@ -57,11 +57,18 @@ def parse_queries(sql: str) -> dict[str, str]:
 
 @pytest.fixture(scope="module")
 def queries() -> dict[str, str]:
+    """The saved queries from docs/dev/audit-queries.sql, parsed once per module: name -> runnable SQL."""
     return parse_queries(SQL_FILE.read_text())
 
 
 @pytest.fixture
 def factory(db_conn: AsyncConnection) -> async_sessionmaker[AsyncSession]:
+    """A session factory on the test connection (`db_conn`, app/testing/db.py), in savepoint mode.
+
+    The worker's writer opens its own session per call and `commit()`s each one. Here every such commit only
+    releases a savepoint inside `db_conn`'s outer transaction, which the fixture rolls back at the end of the
+    test, so the writes are real (visible to the next session on this connection) and leave nothing behind.
+    """
     return async_sessionmaker(bind=db_conn, join_transaction_mode="create_savepoint", expire_on_commit=False)
 
 

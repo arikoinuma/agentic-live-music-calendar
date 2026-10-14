@@ -116,6 +116,8 @@ async def run_venue(
     #   finally:
     #       await ctx.audit.finish_run(run_id)
     #       structlog.contextvars.unbind_contextvars("run_id", "venue_id")
+    #   Then delete the two `# noqa` markers (`compiled_graph` in the imports, and `initial =` just above):
+    #   they exist only while this gap is open, and ruff flags them (RUF100) once the names are used.
     # Check: `uv run pytest agent_worker/tests/test_run_venue.py` — the crash test finds `finished_at` null
     #   if `finish_run` isn't in a `finally`. Likeliest mistake: calling `finish_run` after `ainvoke` with no
     #   `finally`, so an exception skips it.
@@ -168,8 +170,16 @@ async def main(argv: list[str] | None = None) -> int:
         log.error("MONGODB_URI is not set; the worker stages every extraction in MongoDB (see .env.example)")
         return 2
 
-    mongo: AsyncMongoClient = AsyncMongoClient(settings.mongodb_uri)
+    # A short server-selection timeout: the driver connects lazily, so without the ping below an unreachable
+    # server would only show up at the first staging write, after the venue's fetch and model call, and
+    # after a 30 s wait (code review #3).
+    mongo: AsyncMongoClient = AsyncMongoClient(settings.mongodb_uri, serverSelectionTimeoutMS=5000)
     try:
+        try:
+            await mongo.admin.command("ping")
+        except PyMongoError as err:
+            log.error("MongoDB did not answer; start it with `make db-up` or check MONGODB_URI", error=str(err))
+            return 2
         ctx = WorkerContext(
             audit=PostgresAuditWriter(SessionFactory),
             stager=MongoStager(mongo[settings.mongodb_database][COLLECTION]),
