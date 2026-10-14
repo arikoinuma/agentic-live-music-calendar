@@ -50,6 +50,7 @@ import type {
   ArtistListResponse,
   CalendarMonthsResponse,
   MetroSummary,
+  ShowDetail,
   ShowListResponse,
   VenueDetail,
   VenueListResponse,
@@ -87,6 +88,8 @@ export class ApiError extends Error {
 export interface ApiClient {
   getMetro(): Promise<MetroSummary>;
   getShows(query?: Partial<ShowsQuery>): Promise<ShowListResponse>;
+  /** `null` means the API answered 404. */
+  getShow(id: number): Promise<ShowDetail | null>;
   getVenues(): Promise<VenueListResponse>;
   /** `null` means the API answered 404 — the caller decides that's a 404 page. */
   getVenue(id: number): Promise<VenueDetail | null>;
@@ -301,7 +304,13 @@ export function createApiClient(opts: {
         end: query.end,
         venue_id: query.venueIds,
         artist_id: query.artistIds,
+        // "Every show from the server's today on" (B4, D2): sent as the
+        // string "true" (QueryValue has no boolean) or not at all, so a
+        // false flag leaves the default URL unchanged. The API refuses it
+        // with `start`/`end` — that rule lives on the server.
+        upcoming: query.upcoming ? "true" : undefined,
       }),
+    getShow: (id) => getOrNull<ShowDetail>(`/shows/${id}`),
     // The month dropdown's options (B3): future-facing months that have
     // shows. The server decides both; the client never derives them.
     getCalendarMonths: () => get<CalendarMonthsResponse>("/calendar/months"),
@@ -324,21 +333,27 @@ const live = () =>
     logBodies: bodyLoggingEnabled(process.env),
   });
 
-// React's `cache()` de-duplicates calls within ONE server render: the
-// root layout's footer and `generateMetadata` both ask for the metro, and
-// this makes that a single API request. Only getMetro is wrapped because
-// only it takes no arguments — `cache()` compares arguments by identity,
-// so the other getters' object arguments would never hit, and each of
-// them is called once per page anyway. (Next's own fetch memoization is
-// not an option here: it is switched off whenever a `signal` is passed.)
-// Measured: one /metro request per page that renders, but TWO when a page
-// calls `notFound()` — Next renders the not-found tree as a second render,
-// and `cache()` is scoped to one render (code review round 1, #5).
+// React's `cache()` de-duplicates calls within ONE server render. It is
+// applied to the getters whose arguments are PRIMITIVES, because `cache()`
+// compares arguments with Object.is: `getMetro()` (no arguments), and
+// `getVenue(id)`, `getArtist(id)` and `getShow(id)` (a number compares by
+// value). The reason is `generateMetadata` (B4, D7): a detail page needs
+// its record twice per render, once for the tab title and once for the
+// body, and this makes that one API request. The root layout's footer and
+// `generateMetadata` share the metro the same way. `getShows` takes an
+// object, which `cache()` would compare by identity and never hit, and
+// it is called once per page. (Next's own fetch memoization is not an
+// option: it is switched off whenever a `signal` is passed.)
+// Measured in B2: one /metro request per page that renders, but TWO when a
+// page calls `notFound()` — Next renders the not-found tree as a second
+// render, and `cache()` is scoped to one render (B2 code review #5). The
+// same applies to a detail page's record.
 export const getMetro = cache(() => live().getMetro());
 
 export const getShows = (query?: Partial<ShowsQuery>) => live().getShows(query);
 export const getCalendarMonths = () => live().getCalendarMonths();
 export const getVenues = () => live().getVenues();
-export const getVenue = (id: number) => live().getVenue(id);
+export const getVenue = cache((id: number) => live().getVenue(id));
 export const getArtists = () => live().getArtists();
-export const getArtist = (id: number) => live().getArtist(id);
+export const getArtist = cache((id: number) => live().getArtist(id));
+export const getShow = cache((id: number) => live().getShow(id));

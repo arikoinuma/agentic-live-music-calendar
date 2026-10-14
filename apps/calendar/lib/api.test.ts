@@ -4,6 +4,7 @@ import artistDetail from "./fixtures/artist-detail.json";
 import artists from "./fixtures/artists.json";
 import calendarMonths from "./fixtures/calendar-months.json";
 import metro from "./fixtures/metro.json";
+import showDetail from "./fixtures/show-detail.json";
 import shows from "./fixtures/shows.json";
 import venueDetail from "./fixtures/venue-detail.json";
 import venues from "./fixtures/venues.json";
@@ -80,6 +81,22 @@ describe("typed getters", () => {
   });
 });
 
+describe("getShow", () => {
+  it("requests /shows/{id} and returns the record unchanged", async () => {
+    // Proves: the show page's getter builds `/shows/{id}` and hands the
+    // body back as-is (show-detail.json is a ShowDetail dumped from the
+    // Pydantic model).
+    const fetchImpl = respondWith(showDetail);
+    expect(await clientFor(fetchImpl).getShow(2)).toEqual(showDetail);
+    expect(calledUrl(fetchImpl)).toBe(`${BASE}/shows/2`);
+  });
+
+  it("returns null on 404 so the page can call notFound()", async () => {
+    // Proves: same contract as getVenue/getArtist — a miss is data.
+    expect(await clientFor(respondWith({ detail: "x" }, 404)).getShow(9999)).toBeNull();
+  });
+});
+
 describe("getShows", () => {
   it("sends start, end and repeated venue_id / artist_id", async () => {
     // Proves: the ShowsQuery -> API-parameter mapping, including the
@@ -96,6 +113,35 @@ describe("getShows", () => {
     expect(calledUrl(fetchImpl)).toBe(
       `${BASE}/shows?start=2026-10-01&end=2026-10-31&venue_id=1&venue_id=3&artist_id=7`,
     );
+  });
+
+  it("sends only a start for the venue page's paging, never an end", async () => {
+    // Proves: paging sends `start` ALONE, so the window length stays the
+    // server's decision (the API fills `end` = start + DEFAULT_WINDOW). A
+    // later "both or neither" refactor of the query mapping would silently
+    // put a client-chosen length back in charge.
+    const fetchImpl = respondWith(shows);
+    await clientFor(fetchImpl).getShows({ start: "2026-10-26", venueIds: [3], artistIds: [] });
+    expect(calledUrl(fetchImpl)).toBe(`${BASE}/shows?start=2026-10-26&venue_id=3`);
+  });
+
+  it("sends upcoming=true with no dates for the artist page", async () => {
+    // Proves: D2 — "every upcoming show" is the SERVER's question. The
+    // client sends the flag and the artist, and no start or end (the API
+    // answers 422 to the combination).
+    const fetchImpl = respondWith(shows);
+    await clientFor(fetchImpl).getShows({ artistIds: [1], venueIds: [], upcoming: true });
+    expect(calledUrl(fetchImpl)).toBe(`${BASE}/shows?artist_id=1&upcoming=true`);
+  });
+
+  it("omits upcoming when it is false or absent", async () => {
+    // Proves: the default URL is unchanged by the new option — a false
+    // flag is simply not sent.
+    const fetchImpl = respondWith(shows);
+    await clientFor(fetchImpl).getShows({ artistIds: [1], venueIds: [], upcoming: false });
+    expect(calledUrl(fetchImpl)).toBe(`${BASE}/shows?artist_id=1`);
+    await clientFor(fetchImpl).getShows({ artistIds: [1], venueIds: [] });
+    expect(calledUrl(fetchImpl)).toBe(`${BASE}/shows?artist_id=1`);
   });
 
   it("omits absent filters, so the server picks its default window", async () => {

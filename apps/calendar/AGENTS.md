@@ -66,11 +66,24 @@ HTTP against the API for anything else — the routes exist and serve the same d
   `buildCalendarHref` back) never throw: bad entries are dropped, the result is
   canonical (de-duplicated, numerically sorted), so one filter set has one URL. Keys:
   `venue`, `artist` (repeatable ids) and `month=YYYY-MM` (the whole calendar month).
+  Two more search params, each on one page and each parsed to a canonical value or ignored:
+  **`?from=YYYY-MM-DD`** on `/venue/[id]` (`parseFromParam`) moves the venue calendar's window, and
+  **`?sort=time|artist`** on `/day/[date]` (`parseDaySort`; the default view is the bare URL, so each view has one
+  URL). The artist page takes **no** search params: it asks the API for `upcoming: true` (every show from the
+  server's today on), so a stray `?from=` there is ignored.
+- **The client never computes a date window.** The venue page sends only a `start`; the API fills `end` and echoes
+  what it served, and `lib/calendar-window.ts` builds the Earlier/Later links from that echo. `upcoming` is exclusive
+  with `start`/`end` and needs a `venue_id` or `artist_id` — the server answers 422 otherwise.
 - `lib/calendar-href.ts` holds `CalendarFilters`, `buildCalendarHref` and `withIds` — the
   **Temporal-free** half of URL state, re-exported from `params.ts`. A Client Component
   must import from here, never `params.ts` or `lib/dates.ts`: both pull the ~36 KB gzipped
   Temporal polyfill into the browser bundle. (Check: `grep -rl "Do not use built-in
   arithmetic operators with" .next/static` after a build must find nothing.)
+- `lib/detail-format.ts` (`httpUrlOrNull`: **every URL rendered from scraped data goes through it** — website,
+  source, images, the JSON-LD `image`; label maps for the enums; `mapsUrl`), `lib/json-ld.ts` (schema.org events:
+  `startDate` carries the metro's UTC offset, an unstated price is *no* `offers`, and `jsonLdScriptContent` escapes
+  `<` because names are scraped text printed inside a `<script>`), `lib/show-order.ts` (the day view's orderings)
+  and `lib/calendar-window.ts` are B4's pure, tested modules.
 - `lib/dates.ts` (Temporal formatting, `metroToday`, the 5:00 AM after-midnight rule),
   `lib/calendar.ts` (shows → date rows → venue columns) and `lib/show-format.ts` (prices and
   admission) are the calendar's pure, tested core. A show's own date and time are wall-clock
@@ -94,6 +107,13 @@ HTTP against the API for anything else — the routes exist and serve the same d
   `catch` turns it into a build failure (`docs/dev/notes.md`).
 - Every route is dynamic (`ƒ`) in B2: the root layout fetches the metro with `no-store`
   (decision D1 in the B2 plan). `next build` therefore doesn't need the API running.
+- **Images:** the one place a remote image is rendered is `app/_components/remote-image.tsx` (a plain `<img>`,
+  `no-referrer`, lazy, height-capped, http(s) only), and it carries the app's **only**
+  `@next/next/no-img-element` exception (B4 D4; `grep -rn no-img-element app` should find one line). Show blocks
+  render no images; the show page, venue page and artist page do.
+- **`sr-only` inside the calendar's scrollers needs a positioned ancestor** (`relative` on its link), and values in a
+  `grid-cols-[auto_1fr]` list need `min-w-0 [overflow-wrap:anywhere]` — both widen the *page* otherwise
+  (`docs/dev/notes.md`).
 - `/` streams (B3, decision D4): its API-dependent body sits inside a `<Suspense>` in the
   page, not a root `loading.tsx`, because streaming makes `notFound()` answer 200 (a soft
   404) and the detail routes need real 404s. With the API down `/` is a 200 with the shell
@@ -124,8 +144,10 @@ B1 stripped the `create-turbo` template (`docs/dev/alpha-build-plan.md`): Tailwi
 only styling system and the root layout has real metadata and chrome. B2 added the six routes
 (`/`, `/day/[date]`, `/venue/[id]`, `/venues`, `/artist/[id]`, `/artists`), `not-found.tsx`,
 `error.tsx` and the API client. B3 built the calendar on `/` (grid, show block, filter header,
-empty state) and gave `/day/[date]` the same show blocks; the venue, artist and list pages
-are still deliberately plain until B4. `/health` is the diagnostics page.
+empty state) and gave `/day/[date]` the same show blocks. B4 finished the detail pages: the venue page (metadata,
+Maps link, its calendar with paging, JSON-LD), the artist page (every upcoming show), the day view's three
+orderings, and the new `/show/[id]` with Event JSON-LD; `/venues` and `/artists` stayed as B2 built them.
+`/health` is the diagnostics page.
 
 - Tests: `pnpm test` (Vitest, node environment). jsdom and Testing Library arrive with
   the first component tests (B5). Don't unit-test async Server Components — see the

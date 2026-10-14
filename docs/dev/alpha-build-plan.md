@@ -307,11 +307,15 @@ Plan and reviews: `docs/dev/implementations/b3-the-calendar.md` (decisions D1–
 
 ### B4. Detail pages
 
-- [ ] **[fill-in]** Venue page: metadata plus the calendar filtered to that venue
-- [ ] **[fill-in]** Artist page: metadata plus upcoming shows as a list
-- [ ] **[fill-in]** `/venues` and `/artists` — flat alphabetical lists, deliberately simple per the requirements
-- [ ] **[fill-in]** `/day/[date]` with its three sort modes (venue-alpha, venue-time, artist-alpha), also in URL params
-- [ ] **[written]** `schema.org` Event JSON-LD on show and venue pages, per `arch-initial.md` Section 4's SEO reasoning
+Plan and reviews: `docs/dev/implementations/b4-detail-pages.md` (decisions D1–D8 settled by Ari October 14, 2026; D2 and D4 took the alternative). **Built October 14, 2026; the four `TODO(Ari)` gaps (A–D) are open, so the boxes below stay unticked until Ari fills them and signs off.** Departures from the original wording are marked *Departure*.
+
+- [ ] **[fill-in]** Venue page: metadata plus the calendar filtered to that venue. *Built (`app/venue/[id]/page.tsx`): readable metadata, a Google Maps link, B3's `CalendarGrid` over the venue's shows, Earlier/Later paging through `?from=` (the server picks the window; `lib/calendar-window.ts`), and Event JSON-LD. Gap B (`windowLinks`) is the open gap.*
+- [ ] **[written]** Artist page: metadata plus upcoming shows as a list. *Departure (D2, D5): re-marked [written] (no new line carries a lesson), and "upcoming" is literal: a new `GET /shows?upcoming=true` (from the server's today, no upper limit; 422 with `start`/`end` and without a venue or artist) feeds an unpaged list. The API change is its own early commit (step 0), with one sample show added outside the default window so the parameter is observable.*
+- [ ] **[written]** `/venues` and `/artists` — flat alphabetical lists, deliberately simple per the requirements. *Departure (D5): re-marked [written]; B2 had already built exactly this and B4 changed no code there.*
+- [ ] **[fill-in]** `/day/[date]` with its three sort modes (venue-alpha, venue-time, artist-alpha), also in URL params. *Built: `?sort=time|artist`, the default is the bare URL, switched with plain links (`lib/show-order.ts`). Gaps C (`artistRows`) and D (the two venue-mode comparators) are open.*
+- [ ] **[written]** `schema.org` Event JSON-LD on show and venue pages, per `arch-initial.md` Section 4's SEO reasoning. *Departure (D3): `/show/[id]` did not exist, so B4 builds it (and `getShow()`, and the link to it from every show block's time line). Departure (D8): one line of this item, `withOffset` in `lib/json-ld.ts`, is Gap A: a wall-clock time becomes an instant only with the metro's zone.*
+- [x] **[written]** *Added during B4:* posters and photos render as plain `<img>` through one `RemoteImage` component, the app's only `@next/next/no-img-element` exception (D4); every URL scraped from a page goes through `httpUrlOrNull` (http(s) only); real page titles through `generateMetadata`, with `getVenue`/`getArtist`/`getShow` wrapped in `cache()` (D7).
+- [ ] Sign-off — Ari
 
 ### B5. Frontend testing
 

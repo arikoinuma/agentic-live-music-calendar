@@ -143,6 +143,11 @@ export function formatDayHeading(date: string): string {
   });
 }
 
+/** "2026-10-12" -> "Mon, Oct 12, 2026": the heading plus its year, for lists that can cross a year. */
+export function formatDayHeadingWithYear(date: string): string {
+  return `${formatDayHeading(date)}, ${Temporal.PlainDate.from(date).year}`;
+}
+
 /**
  * "20:00:00" -> "8:00 PM".
  *
