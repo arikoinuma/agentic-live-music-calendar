@@ -427,4 +427,3 @@ page after its body is in.
 The pattern matches the shell's own command line (it contains "next start"), so the shell dies with exit 144 and the
 rest of the command never runs. Find the server's pid with `ps -eo pid,args | grep "[n]ext-server"` (the bracket keeps
 grep from matching itself) and kill that.
-

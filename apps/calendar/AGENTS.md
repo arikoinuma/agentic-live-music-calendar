@@ -58,8 +58,10 @@ HTTP against the API for anything else — the routes exist and serve the same d
 
 - `lib/api.ts` is the only code that talks to FastAPI. It is `server-only` (it reads
   `API_BASE_URL`, which must never reach a browser bundle), every request is `no-store`
-  with a timeout, and `getVenue`/`getArtist` return `null` on 404 so the page can call
-  `notFound()`. Tests use `createApiClient({ baseUrl, fetchImpl })` with a fake `fetch`.
+  with a timeout, and `getVenue`/`getArtist`/`getShow` return `null` on 404 so the page can call
+  `notFound()`. `getMetro`, `getVenue`, `getArtist` and `getShow` are wrapped in React `cache()` (their arguments are
+  primitives, so it keys by value): a detail page's `generateMetadata` and its body share one API request per
+  render. `getShows` takes an object, so it isn't wrapped. Tests use `createApiClient({ baseUrl, fetchImpl })` with a fake `fetch`.
 - `lib/params.ts` is the other half: pure parsing of URL state. **Path params**
   (`parseIdParam`, `parseDateParam`) return `null` for anything non-canonical → the page
   calls `notFound()`. **Search params** (`parseCalendarFilters` → `toShowsQuery`, and

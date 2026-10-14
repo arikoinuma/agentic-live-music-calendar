@@ -191,6 +191,9 @@ CHARLIE_PARR_IN_WINDOW = ["2026-09-28", "2026-10-07", "2026-10-08", "2026-10-20"
 
 
 def _dates(query: str) -> list[str]:
+    # The dates of the shows `GET /shows?<query>` returns, in the order the
+    # API returned them (date, then time), so a test can compare a whole
+    # result against a list written out by hand.
     return [s["date"] for s in client.get(f"/shows?{query}").json()["shows"]]
 
 

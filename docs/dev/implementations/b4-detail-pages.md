@@ -1,9 +1,9 @@
 # B4 — detail pages
 
-**Status:** Awaiting approval
+**Status:** Awaiting sign-off
 **Date:** October 14, 2026
 **Author model:** Claude Opus 5.5 (plan, plan-review resolution); Claude Sonnet 5.5 (revisions after Ari's D2 and D4 decisions, October 14, 2026)
-**Reviewer model:** Claude Sonnet 5.5 (plan review round 1)
+**Reviewer model:** Claude Sonnet 5.5 (plan review round 1); Claude Opus 5.5 (code review round 1)
 **Spec:** `docs/dev/alpha-build-plan.md` §6 B4; `docs/arch/requirements-initial.md` ("Main Views & URL Scheme",
 "Calendar" → "/Day view", "Venue", "Venues", "Artist", "Artists", "Show" — including "Times after midnight", "Metro");
 `docs/arch/arch-initial.md` §4 (content model and JSON-LD, filter and view state in the URL, Google Maps links);
@@ -145,7 +145,7 @@ time is after midnight **or** earlier than the start ("An end time earlier than 
 
 ## Decisions for Ari
 
-**Settled by Ari, October 14, 2026.** D1, D3, D5, D6, D7 and D8 are accepted as recommended. **D2 and D4 take the
+**Settled by Ari, October 14, 2026 (D9, below, is new and still open).** D1, D3, D5, D6, D7 and D8 are accepted as recommended. **D2 and D4 take the
 alternative** and are rewritten below as decided; their superseded recommendations are summarised in one line each so
 the reasoning stays on record. The plan is adjusted throughout (Departures 5–7; the "`upcoming`" section; step 0; the
 `RemoteImage` component; the artist page, tests and verification). Status stays *Awaiting approval*: settling the
@@ -210,6 +210,15 @@ decisions is not the approval gate.
   `CalendarBody` already teaches and has a Check that passes whichever way it's written. So the venue page's loading is
   written complete and the gap moves here. Changing a marking is Ari's call, hence a decision. *Alternative:* keep the
   marking — JSON-LD fully [written], and B4 has three gaps (B, C, D).
+
+- **D9 — Open (raised by code review #2): how wide is Gap A? Recommended: keep it as built.** D8 approved a gap with
+  *two* ideas: the after-midnight date shift and the zone/offset. While building I made the shift a written helper
+  (`instantDay`, `lib/json-ld.ts`) because the unknown-zone fallback needs it too, which left Gap A (`withOffset`) as one
+  line carrying one idea (attach the zone; the offset depends on the date). That narrowing was my call, not yours (Implementation
+  log, departure 1). *Keep:* the shift is the same `isAfterMidnight` + `add({ days: 1 })` that B3's Gap B and
+  `formatShowTime` already taught, so the new lesson is the zone line. *Widen:* make `instantDay`'s one-line body part of Gap
+  A (same TODO block, one more line; its Check and the tests are unchanged, since the fallback path would simply stay red
+  with the rest of Gap A). Say which and I'll adjust the scaffold; nothing else depends on it.
 
 ## Test approach (written first, watched fail, then made green)
 
@@ -700,8 +709,11 @@ Lands **first and on its own** (see "Contract changes land first"): green under 
      Node; recorded as measured.
    - **De-duplication (D7):** one `[api] GET /venues/1` line per load of `/venue/1` (not two), and likewise for
      `/artist/1` and `/show/2` — except the 404 pages, which render twice (B2 code review #5).
-5. **JSON-LD validity** — Ari, locally: paste `/show/2`'s and `/venue/3`'s JSON-LD into validator.schema.org (or the
-   Rich Results Test's code tab). The cloud sandbox can't reach either.
+5. **JSON-LD validity** — Ari, locally: paste `/show/2`'s, `/venue/3`'s **and `/show/23`'s** JSON-LD into
+   validator.schema.org (or the Rich Results Test's code tab). `/show/23` is at The White Squirrel Bar, which has no
+   address in the sample data, so its `location` has no `address`: Google may treat the address as required for a physical
+   location, and this is the only way to find out whether events at address-less venues lose rich results (code review
+   #8). The cloud sandbox can't reach either validator.
 6. **API down at runtime:** `/venue/1`, `/artist/1`, `/show/2`, `/day/2026-10-07` give B2's bare 500, with no error
    text, URL or stack in the body; `/` keeps B3's 200 with the skeleton; `/health` 200. Recorded as measured.
 7. **Layout** (headless Chromium, `/opt/pw-browsers`, snippets applied): page `scrollWidth === clientWidth` at 375 and
@@ -779,3 +791,122 @@ round 2 was started:
 - Where to look hardest if a round 2 is run: the `upcoming` semantics (is `end` = last returned date the right echo? is
   422 right for `upcoming` + no filter, or should it be a bounded default?), the fixture-generator filter against B3's
   tests, and whether step 0 should be its own PR.
+
+## Implementation log
+
+### Round 1 — Claude Sonnet 5.5, October 14, 2026
+
+**Approval:** the plan's Status was `Awaiting approval`; invoking `/build-milestone` counted as Ari's approval and I set it to `Approved` first. All six plan-review Resolution cells were filled.
+
+**Scope.** Step 0 is already committed on its own: **`2231f5e`** ("B4 step 0: GET /shows?upcoming=true …", pushed). Review everything after it as `git diff 2231f5e` plus the untracked files (nothing else is committed): 14 tracked files changed and 14 untracked.
+- *Step 0 (committed, `2231f5e`):* `apps/api/app/routers/shows.py`, `app/sample_data.py` (show id 26), `app/tests/test_routers.py` (+9 tests), `scripts/generate_fixtures.py`; generated `apps/calendar/lib/api-types.ts` and `lib/fixtures/calendar-months.json`; `docs/dev/api-contract.md`.
+- *New lib:* `lib/{detail-format,json-ld,calendar-window,show-order,todo}.ts` and `.test.ts` for the first four. *Modified lib:* `lib/{api,params,dates}.ts`, `lib/{api,params,dates}.test.ts`.
+- *New app:* `app/show/[id]/page.tsx`; `app/_components/{json-ld,remote-image,window-nav,detail-row}.tsx`. *Modified app:* `app/{venue/[id],artist/[id],day/[date]}/page.tsx`, `app/_components/show-block.tsx`.
+- *Docs:* `docs/dev/{alpha-build-plan,notes}.md`, `apps/calendar/AGENTS.md`, this file.
+- *Unchanged on purpose:* `apps/api/app/schemas.py`, every fixture except `calendar-months.json` (`shows.json` is byte-identical), `app/{venues,artists}/page.tsx`, `calendar-grid.tsx`.
+
+**Departures from the plan.**
+1. **Gap A is narrower than the plan wrote it.** The plan's Gap A was three lines (shift the date past midnight, attach the zone, print the offset). The unknown-zone fallback also needs the shifted date, so the after-midnight shift lives once in a written helper, `instantDay`, and Gap A is the one line that attaches the zone and prints the offset (`withOffset`, `lib/json-ld.ts`). The lesson (a wall time is an instant only with a zone; the offset depends on the date) is unchanged; "dropping the date shift" is no longer a way to get the gap wrong, and its Check still fails on every offset row.
+2. **`formatDayHeadingWithYear` added to `lib/dates.ts`** (not in the plan): four pages print "Mon, Oct 12, 2026". **Its test and implementation were written in the same step and I never watched the test fail first**; it's a one-liner, but it is a departure from tests-first.
+3. **Unrelated json-ld tests run with no zone** (`noZone`), so offers, lineup, image and venue-null tests don't depend on Gap A and stay green while it is open. The plan's §4 had them all use the Chicago context.
+4. **New `DetailRow` component** (`app/_components/detail-row.tsx`) for the repeated `<dt>/<dd>` pairs; not in the plan. It also carries the overflow fix (below).
+5. **Two bugs found by measurement, fixed, and recorded in `notes.md`** (the unit tests could not see either): `.sr-only` inside a scroll container widened `/` to 889px at 375px (fixed with `relative` on the show block's link), and a long URL widened `/venue/3` by 9px (`min-w-0 [overflow-wrap:anywhere]` on `DetailRow`'s `<dd>`).
+6. **`windowNavLinks`'s bound test was wrong in my first draft** (I expected `9999-11-03` to survive; the parser rejects all of year 9999). The implementation matched the plan's "years 1..9998"; I rewrote the test to show each direction dropping independently.
+7. **The router's range checks moved into an `else` branch** (`if upcoming: … else: <existing checks>`), so the open-ended request stays out of `MAX_RANGE`; the plan said only "unchanged otherwise". Behaviour without `upcoming` is unchanged (the existing router tests pass untouched).
+8. **I committed step 0** although the skill says not to commit unless asked: the approved plan says step 0 "lands first and on its own", and a cloud session's work is lost unless pushed. Everything after it is uncommitted, as the skill says.
+9. `lib/todo.ts` was recreated (B3's was deleted with its last gap); `byVenueName` is passed into the placeholders so it counts as used while Gap D is open; the artist-mode row for an untimed act shows "Time not listed · Details".
+
+**`TODO(Ari)` gaps (all four open; none filled by anyone).** Review the code as it stands; open gaps aren't findings.
+- **Gap A** — `withOffset`, [lib/json-ld.ts:77](apps/calendar/lib/json-ld.ts#L77): a wall-clock time becomes an instant only with the metro's zone, and the offset depends on the date.
+- **Gap B** — `windowLinks`, [lib/calendar-window.ts:24](apps/calendar/lib/calendar-window.ts#L24): paging links come from the range the server echoed, never a clock or a constant 28 (inclusive length, so `+ 1`).
+- **Gap C** — `artistRows`, [lib/show-order.ts:74](apps/calendar/lib/show-order.ts#L74): artist mode is a different shape (one row per act), made with `flatMap`.
+- **Gap D** — `venueOrder` and `timeOrder`, [lib/show-order.ts:46](apps/calendar/lib/show-order.ts#L46): the two venue modes are the same two keys in opposite priority, chained with `||`.
+Tests: `pnpm --filter calendar test json-ld calendar-window show-order`. Suggested order A, B, C, D. While they are open the pages that call them render the error page (`/show/[id]` and `/venue/[id]` need A, `/venue/[id]` needs B, `/day/[date]?sort=artist|time|venue` needs C and D), so the browser check comes after all four.
+
+**Verification.**
+- **Tests first.** Python: 9 tests written and run first, 8 failed for the right reason (missing 2026-10-29 show, no 422, parameter absent from OpenAPI); `upcoming=false` passed because the parameter was still ignored (a regression guard). Frontend: stubs that throw, then tests, **88 failed**, all "not implemented" or a missing method (no import errors); then implemented. Exception: departure 2.
+- **Baseline before any change:** `make check` green (566 Python, 187 Vitest, contract current).
+- **Step 0 alone (`2231f5e`):** `make check` green: **575 Python passed** (566 + 9), 187 Vitest, contract current. `make types` emitted `upcoming?: boolean` on `GET /shows` exactly as the plan expected; `git diff` of fixtures: only `calendar-months.json`, October 22 → 23; `shows.json` unchanged.
+- **`make check` at handoff (scaffold as committed-to-be):** ruff, mypy (29 files), eslint, `next typegen` + tsc, pytest (575) all clean; `make contract-check` current; **Vitest 250 passed, 31 failed** — exactly the open gaps: `json-ld.test.ts` 14 (A), `calendar-window.test.ts` 6 (B), `show-order.test.ts` 11 (C 4, D 7). (`make check` stops at Vitest, so tsc, eslint and contract-check were also run on their own, all clean.)
+- **Snippets validated.** The four `Code:` snippets were applied exactly as written (a script first asserted every snippet line appears in its gap comment) in the working tree, everything run, and the scaffold restored from a copy: SHA-256 of `json-ld.ts`, `calendar-window.ts`, `show-order.ts` identical before and after. With them applied: **`make check` fully green — 575 Python, 281 Vitest**, tsc and eslint clean, contract current.
+- **V3 (build, API unreachable, snippets applied):** `API_BASE_URL=http://127.0.0.1:9 pnpm build` succeeds; `/`, `/_not-found`, `/artist/[id]`, `/artists`, `/day/[date]`, `/health`, `/show/[id]`, `/venue/[id]`, `/venues` all `ƒ`. Bundle check: the polyfill's error text is in **no** `.next/static` file. `grep -rn no-img-element apps/calendar/app` finds **one** line (`remote-image.tsx`).
+- **V4 (HTTP matrix, `next start` against uvicorn, snippets applied; 85 checks scripted, all pass).** `GET /shows`: `artist_id=1&upcoming=true` 200, 5 shows ending 2026-10-29, `end` 2026-10-29; `artist_id=1` 4 shows, `end` 2026-10-25; `upcoming=true` alone and with `start` both 422. Pages: `/venue/1` 8 blocks, Earlier `?from=2026-08-31`, Later `?from=2026-10-26`, one JSON-LD script with 8 events; `/venue/3` 6 blocks, events carry the address, photo `<img>`, tel/mailto links, "21+"/"Served" and no raw enum text; `/venue/1?from=2026-10-26` 1 block with Earlier `?from=2026-09-28` and Later `?from=2026-11-23`; `?from=2026-11-23` "No shows listed", back link, no JSON-LD; `?from=garbage|9999-12-20|20261026` the default window; `/artist/1` 5 shows ascending, "Everything listed from Mon, Sep 28, 2026 on" (React inserts `<!-- -->` between the pieces; my first check missed that), one untimed show with a "Details" link, no pager, `?from=` ignored; `/day/2026-10-07` block order `[25, 8, 22, 23, 24]`, `?sort=time` `[22, 24, 8, 23, 25]`, `?sort=bogus` the venue order, `?sort=artist` 8 rows alphabetical from Beasthead with "1:00 AM Thu" and "11:15 PM"; `/show/2` JSON-LD parses, `startDate` `2026-09-30T21:00:00-05:00`, offers 18.00/22.00 as strings, poster `<img>` with `loading="lazy"`, `referrerPolicy="no-referrer"` and alt text; `/show/25` `startDate` `2026-10-08T01:00:00-05:00`, one offer price "0"; `/show/22` no `offers`, no `<img>`; `/show/26` (2026-10-29) `-05:00`, one unlabelled "10.00" offer; `/` 25 blocks, each linking to its show, no `<img>`. 404s: `/venue/9999|abc`, `/artist/9999|abc`, `/day/2026-02-30|garbage|20261007`, `/show/9999|abc`, `/nope`. **De-duplication:** one `GET /venues/1`, `/artists/1`, `/shows/2` per page load (a 404 page renders twice, as in B2).
+- **V6 (API stopped):** `/venue/1`, `/artist/1`, `/show/2`, `/day/2026-10-07` answer the bare **500** with no `ApiError`, URL or stack in the body; `/` **200**; `/health` 200; `/venue/abc` and `/nope` 404.
+- **V7 (headless Chromium via the sandbox's Playwright, snippets applied, fully loaded):** page `scrollWidth === clientWidth` at **375, 768 and 1280px** on `/`, `/venue/1`, `/venue/3`, `/artist/1`, `/day/2026-10-07`, `/day/2026-10-07?sort=artist`, `/show/2`, `/show/22`, after the two fixes in departure 5 (before them: `/` 889px and `/venue/3` 384px at 375px). The sample's `example.com` images are unreachable here, so this measured the broken-image path (the alt text in a bordered box). Screenshots of the show, artist and day-by-artist pages at 375 and 1280 read as intended.
+- **Not verified:** that Google and validator.schema.org accept the JSON-LD (no route from the sandbox; V5 is Ari's); a real image rendering (no reachable image), including the `max-h-80` cap on a tall poster; touch tap targets and the screen-reader name of the "show details" link; dark mode; a real phone; Vercel's build and Node 24 (the sandbox has Node 22); the `RemoteImage` markup beyond the served-HTML attributes (no component tests until B5); that A1b's SQL can reproduce `upcoming`.
+
+**Where to look hardest.**
+1. **Step 0, `routers/shows.py`.** The `upcoming` semantics are the least reviewed part of the plan (it changed after the plan review): `end` echoed as the last returned date, 422 for `upcoming` with no venue or artist, and the `if upcoming: … else:` restructure. Whether `datetime.date.max` as a temporary `end` is clear enough, and whether the new sample row (id 26) is a good way to make the parameter observable.
+2. **`lib/json-ld.ts`.** The `eventEndDateTime` comparison uses `nightSortKey` of start and end; check the odd inputs (start 01:00 and end 00:30 gives a next-next-day end, a 23.5-hour show). `withOffset` being a one-line gap (departure 1). The JSON-LD on the venue page is a top-level array of events (valid JSON-LD, but unvalidated). No `url`, `availability` or `validFrom` on offers.
+3. **`app/_components/show-block.tsx`.** The time line is the link and the `relative` fix for `sr-only`; the "Details" link for untimed shows; `inline-block py-1` as the tap target.
+4. **`remote-image.tsx` and the three pages that use it.** The one lint exception and its accepted costs (D4); that `httpUrlOrNull` is applied to every URL that reaches an `href`, an `<img>` or JSON-LD (website, calendar URL, Source, photo, poster, image) — `tel:` and `mailto:` are built from scraped text with a fixed prefix and are not run through it.
+5. **`lib/calendar-window.ts` and `window-nav.tsx`:** the pager at the year bounds; `rel="nofollow"`.
+6. **Whether the four gaps are still the right lines** now that the scaffold exists (A in particular, narrowed to one line).
+
+### Round 2 — Claude Sonnet 5.5, October 14, 2026 (the fixes for code review round 1)
+
+**Scope.** Only the fixes, on top of the committed scaffold `6b1cb39`: `apps/calendar/lib/json-ld.ts` and `json-ld.test.ts` (#1, #3), `apps/calendar/app/venue/[id]/page.tsx` (#7), `apps/api/app/tests/test_routers.py` (#6), `apps/calendar/AGENTS.md`, `docs/dev/{alpha-build-plan,notes}.md` and this file (#2, #4, #5, #8). The log's round 1 said "nothing else is committed" and "everything after it is uncommitted": that was true when written; **the scaffold was committed as `6b1cb39` (and pushed) during the review**, at the repository stop hook's request, with the plan file left out because the reviewer was writing into it. Reviewers' scope was unaffected (`git diff 2231f5e` shows the same changes either way).
+
+**Departures.**
+10. **The day view's active mode is a `<span aria-current="page">`, not a `<Link>`** (plan D6 said three links with `aria-current` on the active one). A link to the page you are on is noise. (Missed in round 1's list; found by code review #4.)
+11. **`eventEndDateTime` returns `null` for a contradictory both-before-5:00 AM listing** (#3). The plan specified only the cases in its test table; this is the rule for the one the review found.
+
+**`TODO(Ari)` gaps (all four still open).** Gap A [lib/json-ld.ts:77](apps/calendar/lib/json-ld.ts#L77), Gap B [lib/calendar-window.ts:24](apps/calendar/lib/calendar-window.ts#L24), Gap D [lib/show-order.ts:46](apps/calendar/lib/show-order.ts#L46), Gap C [lib/show-order.ts:74](apps/calendar/lib/show-order.ts#L74) (line numbers re-checked after the edits). **D9 is open**: whether Gap A should be widened back to the two ideas D8 approved.
+
+**Verification.** See the end of code review round 1 for the suite results. Process notes: #3's two tests were written and run against the committed code first (failing), then the fix; #1's strengthened assertion and the comment fix were written together. The four snippets were re-applied (each asserted to appear in its gap comment) and the scaffold restored by SHA-256, because `json-ld.ts` changed.
+
+**Where to look hardest.** The `null` rule in `eventEndDateTime` (is "omit" the right answer, or should the listing be flagged upstream in validation?) and D9.
+
+## Code review
+
+### Round 1 — Claude Opus 5.5, October 14, 2026
+
+**Scope.** Step 0 (`2231f5e`) plus the scaffold. The log describes the scaffold as the uncommitted tree on top of `2231f5e`. While this review ran, it was committed as **`6b1cb39`** ("B4: detail pages scaffold with four open TODO(Ari) gaps", branch `claude/practical-davinci-ur4444`, 18:33 UTC), which left only this file modified. I checked that this changes nothing for the review: a scripted per-file comparison shows every tracked file's diff in `2231f5e..6b1cb39` is identical to the `git diff 2231f5e` I reviewed, and the new files I had already read have the same content at HEAD (the gap line numbers, and the text in finding 1). The reviewed range is therefore `2231f5e^..6b1cb39`.
+
+**What I checked, and how.**
+- **Read:** the whole plan (plan review round 1 and the Implementation log included); `nextjs-style-guide.md` (routing, metadata, `next/image`, Testing, Anti-patterns); the Anti-patterns table in `fastapi-style-guide.md`; `apps/calendar/AGENTS.md`. In scope I read every file: `routers/shows.py`, `sample_data.py`, `generate_fixtures.py`, the 9 new router tests, the `api-contract.md` edit, the generated `api-types.ts` hunk, every new or modified `lib/` module and test, the four new components, the four pages, `show-block.tsx`, and the doc edits.
+- **`make check` on the scaffold as committed:** ruff, eslint, mypy (29 files), and `next typegen` + tsc are clean. pytest: **575 passed, 14 skipped**. Vitest: **250 passed, 31 failed**, and every one of the 31 throws `TODO(Ari)` from the four gaps (json-ld 14, calendar-window 6, show-order 11). `make contract-check` is current. CONFIRMED; this matches the log.
+- **Gaps filled in a throwaway `git worktree`** (removed afterwards): at `2231f5e` plus the scaffold, I filled the four gaps verbatim from their own `Code:` comments. Vitest **281/281**; tsc and eslint clean, with `lib/todo.ts` left unreferenced. The snippets fit. CONFIRMED.
+- **Build with the API unreachable:** in the same worktree, `API_BASE_URL=http://127.0.0.1:9 pnpm build` succeeds, and all nine routes are `ƒ`. CONFIRMED.
+- **HTTP checks** against `next start` + uvicorn (worktree, gaps filled):
+  - **API:** `/shows?artist_id=1&upcoming=true` returns start 2026-09-28, end 2026-10-29 and the five expected dates. `upcoming=true` alone, and with `start`, return 422 with readable details. `upcoming=` (empty) gets FastAPI's own 422.
+  - **Status codes:** 200 for `/venue/1` (bare, `?from=2026-10-26`, `?from=0001-01-01`, `?from=9998-12-31`), `/venue/3`, `/artist/1|2`, `/day/2026-10-07` in all three modes, and `/show/2|22|23|25|26`. 404 for `/show/9999`, `/venue/9999` and `/show/abc`.
+  - **JSON-LD, parsed from the served HTML:**
+    - `/show/23`: `2026-10-07T22:00:00-05:00` to `2026-10-08T00:30:00-05:00`.
+    - `/show/2`: offers "18.00"/"22.00" as strings, plus the address.
+    - `/show/25`: `2026-10-08T01:00:00-05:00`, price "0".
+    - `/show/22`: no `offers` key.
+    - `/venue/1?from=2026-10-26`: one event.
+  - **Titles:** "Nooky Jones, Beasthead at Zhora Darling, Wed, Sep 30, 2026 · …". The venue page's description includes the address.
+  - **Pager at the year bound:** `/venue/1?from=9998-12-31` shows Earlier and "Back to upcoming dates" but no Later.
+  - All CONFIRMED.
+- **API stopped:** `/show/2`, `/venue/1`, `/artist/1` and `/day/2026-10-07?sort=artist` return 500, with no `ApiError` and no API URL in the body. `/show/abc` returns 404. CONFIRMED.
+- **Layout:** headless Chromium (`/opt/pw-browsers`), measured after `networkidle`. `scrollWidth === clientWidth` at 375 and 1280 px on `/`, `/venue/1`, `/venue/3`, `/venue/1?from=9998-12-31`, `/artist/1`, `/day/2026-10-07` in all three modes, `/show/2` and `/show/23`. CONFIRMED.
+- **`eventEndDateTime` on contradictory inputs:** run through Vitest from a scratch config outside the repo, with no zone, so no gap is involved. See finding 3. CONFIRMED.
+- **Anti-patterns tables (Next.js and FastAPI):** no hits. No Client Component was added. `params` and `searchParams` are awaited. `notFound()` sits outside every `try`. There is no `images.domains` and no broad `except`.
+- **The log's "Where to look hardest", answered:**
+  1. Step 0 is sound. Setting `end` to the last returned date keeps `end >= start`. Both 422s are justified. The `else` restructure leaves the old path unchanged (the old tests pass untouched). The `datetime.date.max` sentinel is commented where it is set.
+  2. `json-ld.ts`: see finding 3. A top-level array of events on the venue page is valid JSON-LD.
+  3. Show block: the `relative` fix holds (no overflow measured).
+  4. Every `href`, `src` and JSON-LD URL built from data goes through `httpUrlOrNull`. `tel:` and `mailto:` have fixed prefixes, so they can't become a script URL.
+  5. Pager bounds: confirmed above.
+  6. The gaps: B, C and D are the right lines. For A, see finding 2.
+
+**Counts:** 0 blocker, 1 should-fix, 7 nit. **Verdict: proceed after fixes.** The code does what the plan says, the four snippets fit their gaps, and everything I measured matches the log. The findings are one wrong comment about the app's only XSS defence, one undecided edge case, and bookkeeping.
+
+| # | Sev | Finding | Evidence | What goes wrong | Resolution |
+|---|---|---|---|---|---|
+| 1 | should-fix | The comment explaining why `dangerouslySetInnerHTML` is safe has lost its escape. `lib/json-ld.ts:240` reads "Replacing `<` with its JSON escape `<` is lossless", and `lib/json-ld.test.ts:220` reads "(< -> <)". The code itself (`json-ld.ts:245`) is right. The prose should name the six-character JSON escape (a backslash, then `u003c`), but as written it describes a no-op. | `grep -n "JSON escape" apps/calendar/lib/json-ld.ts`; `cat -A` shows a literal `<` where the escape should be. CONFIRMED. | In a project where the comments are the lesson, the explanation of the app's only XSS defence says nothing happens. A reader either doesn't learn why it's safe or "fixes" the code to match the comment. Probably whatever wrote the comment turned the escape sequence into the character, so verify the fix byte-wise (e.g. `grep -c u003c` on both files). |  **Fixed.** Both comments now spell the escape (`json-ld.ts` and `json-ld.test.ts`); verified byte-wise (`grep -c u003c`: 2 in each file). The cause was my own tooling converting the six characters to a literal `<` when I wrote the comments. The test also now asserts the output *contains* the escape, not only that `<` is absent, so the comment's claim is pinned. |
+| 2 | nit | Gap A is narrower than the gap Ari approved in D8. D8 and the plan's Gap A put the after-midnight date shift inside the gap ("the after-midnight rule meeting a real instant"; likeliest mistake "dropping the `add`"). The scaffold pre-writes that shift as `instantDay` (`json-ld.ts:69-71`) and leaves a single line (`withOffset`, `:101-103`) that its own Code comment prints almost verbatim. The log records this (departure 1), and the remaining line is where the zone concept lives, so the gap is still legitimate. But the stated reason doesn't force the narrowing: if `instantDay` were left open, the fallback path that calls it would just stay red along with the rest of Gap A. | Plan D8 and "TODO(Ari) gaps", Gap A, against `json-ld.ts:63-103`. CONFIRMED (text). | Ari approved a gap with two ideas and gets one with one idea, without being asked. The half where the after-midnight rule meets a real instant is no longer typed. Fix: name it as a question for Ari in the handoff: keep it as is, or make `instantDay`'s body part of Gap A (same block, one more line). |  **Fixed (put to Ari).** Raised as open decision **D9** in the plan's Decisions section with a recommendation (keep the narrow gap, since the date shift is the same line B3's Gap B taught) and the cost of widening it. Code unchanged until Ari answers; the handoff repeats the question. |
+| 3 | nit | `eventEndDateTime` produces an event about a day long when a start before 5:00 AM has an end that is earlier still. Listed 2026-10-07 at 01:00–00:30 (so the start is `2026-10-08T01:00`), the end comes out as `2026-10-09T00:30:00`, 23.5 hours later. 03:00–02:00 gives `2026-10-09T02:00:00`. Both rules fire: `endsNextMorning` moves the anchor a day (the night key of 00:30 is less than that of 01:00), then `instantDay` moves it again. The listing contradicts itself, so no answer is "right", but the current behaviour is pinned by no test (the log flags this case). | `json-ld.ts:148-150`. Output from a scratch Vitest run, no zone. CONFIRMED. | A model-extraction slip publishes an end time a day after the start in search results. Fix: decide and pin it with a test. For example, omit `endDate` when both times are after midnight and the end is earlier (the contract prefers "not stated" over a guess), or keep today's behaviour and pin it. |  **Fixed.** Test first: two cases (`01:00` to `00:30`, `03:00` to `02:00`) written and watched fail against the committed code, then `eventEndDateTime` returns `null` (no `endDate`) when start and end are both before 5:00 AM and the end is earlier — a contradictory listing publishes "not stated" rather than a ~23-hour show. The `01:00` to `06:00` row stays a real same-morning end. Comment at the rule and a `Proves:` comment on the test. |
+| 4 | nit | D6 and step 7 specify three `<Link>`s, with `aria-current="page"` on the active one. The day view instead renders the active mode as a `<span aria-current="page">`. This departure isn't in the log. For accessibility it's fine (`aria-current` is a global attribute) and arguably clearer. But on `?sort=venue` (accepted, not canonical), nothing links back to the canonical bare URL. | `app/day/[date]/page.tsx:59-68`; served HTML of `/day/2026-10-07?sort=artist`. CONFIRMED. | An unrecorded departure from an Ari-approved decision, with a small canonical-URL gap. Fix: record it as a departure, or follow the plan. |  **Fixed (recorded); part rejected.** Recorded as departure 10 in Implementation log round 2: the active mode is a `<span aria-current="page">`, because a link to the page you are already on is noise and `aria-current` is global. **Rejected:** the canonical-URL concern. Nothing in the app writes `?sort=venue` (`dayHref` never emits it), so it is reachable only by hand-editing, and the plan already says it is accepted and treated as the default. |
+| 5 | nit | Bookkeeping left over from step 10 and from the commit made during the review:<br>(a) `apps/calendar/AGENTS.md` still says "`getVenue`/`getArtist` return `null` on 404". It doesn't mention `getShow`, or that the three getters are now wrapped in `cache()` (step 10 asked for "`/show/[id]` and the cached getters").<br>(b) `alpha-build-plan.md` B4 ticks the "Added during B4" item `[x]` but says "the boxes below stay unticked until Ari fills them and signs off", and leaves the two finished, gap-free [written] items unticked.<br>(c) The log's scope ("nothing else is committed"; departure 8, "Everything after it is uncommitted") has been stale since `6b1cb39`.<br>(d) `git diff --check` flags a new blank line at the end of `docs/dev/notes.md`. | `apps/calendar/AGENTS.md:59-62`; the `alpha-build-plan.md` B4 block; `git diff --check 2231f5e 6b1cb39`. CONFIRMED. | The next agent reads the AGENTS.md line as the full list of getters. The tick marks contradict the sentence above them. The code reviewer's scope is wrong. Fix: one line per item. |  **Fixed.** (a) `apps/calendar/AGENTS.md` now lists `getShow` and says `getMetro`/`getVenue`/`getArtist`/`getShow` are `cache()`-wrapped and why. (b) `alpha-build-plan.md`: the sentence now says the three items with a gap stay unticked and the two gap-free items are ticked (artist page, `/venues` + `/artists`). (c) The log's scope note is corrected in round 2 (the scaffold is `6b1cb39`). (d) the trailing blank line in `notes.md` removed; `git diff --check` is clean. |
+| 6 | nit | The `_dates` helper in `test_routers.py` (step 0) has no comment. Root AGENTS.md says to "explain each helper and fixture in plain terms". | `git show 2231f5e -- apps/api/app/tests/test_routers.py`. CONFIRMED. | A small convention miss. One line fixes it ("dates of the shows `GET /shows?<query>` returns, in response order"). |  **Fixed.** `_dates` in `test_routers.py` now has a comment saying what it returns and why. |
+| 7 | nit | The venue page keys its phone and email spans by value (`key={phone}`, `key={email}`). Both lists are scraped, and a site that lists the same number twice gives React duplicate keys. | `app/venue/[id]/page.tsx:114,126`. PLAUSIBLE (no sample venue has a duplicate). | A duplicate-key warning, and possibly a wrong reconciliation, from ordinary dirty data. `key={i}` (the list is static) or de-duplicating fixes it. |  **Fixed.** The phone and email spans are keyed `${i}:${value}`, so a duplicated scraped value can't produce duplicate keys (the lists are static, so the index is stable). |
+| 8 | nit | Shows at a venue with no address get JSON-LD with no `location.address`. Google's Event rich result treats the address as required for a physical location, but Verification 5 validates only `/show/2` and `/venue/3`, which both have addresses. Venue 1 (The White Squirrel Bar) has none in the sample: `/show/23`'s served JSON-LD has no `address`. | Served JSON-LD of `/show/23` (CONFIRMED). Google's requirement: PLAUSIBLE (the sandbox can't reach Google's docs or the validator). | Without that check, nobody learns whether a third of the venues' events lose rich results. Fix: add `/show/23` to Ari's V5 paste. Any real fix is data (the A track filling addresses), not an invented address. |  **Fixed.** `/show/23` added to Verification 5 (Ari's validator paste), with the reason: its venue has no address, so its `location` has none. No address is invented; filling addresses is the data's job (A track). |
+
+Rejected: part of #4 only (the canonical-link concern, reason above). Everything else was fixed in the code or the docs; #2 is put to Ari as D9 rather than decided here.
+
+**Test-suite result after the fixes.** Handoff state (scaffold with the four gaps open): ruff, mypy (29 files), eslint, `next typegen` + tsc and pytest (**575 passed**, 14 skipped) clean; `make contract-check` current; Vitest **252 passed, 31 failed** — exactly the open gaps (json-ld 14, calendar-window 6, show-order 11), the same 31 as before. With the four `Code:` snippets applied from their comments (scaffold restored by checksum afterwards): `make check` fully green, **575 Python and 283 Vitest**.
+
+**Round 2 is not warranted.** The one behaviour change (#3) is a small, test-pinned `null` case; the rest is comments, docs and a key. The open question for Ari is D9, which is a design choice, not a defect.

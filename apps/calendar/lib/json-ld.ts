@@ -145,6 +145,18 @@ export function eventEndDateTime(
   timeZone: string | null,
 ): string | null {
   if (!end) return null;
+  // A start AND an end both before 5:00 AM, the end earlier than the start
+  // (01:00 to 00:30): the listing contradicts itself. Obeying "an earlier end
+  // is the next morning" would publish a ~23-hour show, so publish no end
+  // (B4 code review #3; pinned in json-ld.test.ts).
+  if (
+    start &&
+    isAfterMidnight(Temporal.PlainTime.from(start)) &&
+    isAfterMidnight(Temporal.PlainTime.from(end)) &&
+    nightSortKey(end) < nightSortKey(start)
+  ) {
+    return null;
+  }
   const endsNextMorning = !!start && nightSortKey(end) < nightSortKey(start);
   const anchor = endsNextMorning ? Temporal.PlainDate.from(date).add({ days: 1 }).toString() : date;
   return eventDateTime(anchor, end, timeZone);
@@ -237,7 +249,7 @@ export function showJsonLd(
  *
  * `JSON.stringify` does not sanitise, and a name scraped from a venue's
  * website could contain `</script>`, which would close the tag and let the
- * rest run as page markup. Replacing `<` with its JSON escape `<` is
+ * rest run as page markup. Replacing `<` with its JSON escape `\u003c` is
  * lossless (JSON.parse gives the original back) and removes every way to
  * write a closing tag. Next's own JSON-LD guide recommends exactly this.
  */

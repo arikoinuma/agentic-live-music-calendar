@@ -111,7 +111,7 @@ export default async function VenuePage(props: PageProps<"/venue/[id]">) {
           {venue.phone_numbers && venue.phone_numbers.length > 0 && (
             <DetailRow label="Phone">
               {venue.phone_numbers.map((phone, i) => (
-                <span key={phone}>
+                <span key={`${i}:${phone}`}>
                   {i > 0 && ", "}
                   <a className="underline" href={`tel:${phone}`}>
                     {phone}
@@ -123,7 +123,7 @@ export default async function VenuePage(props: PageProps<"/venue/[id]">) {
           {venue.emails && venue.emails.length > 0 && (
             <DetailRow label="Email">
               {venue.emails.map((email, i) => (
-                <span key={email}>
+                <span key={`${i}:${email}`}>
                   {i > 0 && ", "}
                   <a className="underline" href={`mailto:${email}`}>
                     {email}

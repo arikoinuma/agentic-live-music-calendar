@@ -91,6 +91,22 @@ describe("eventEndDateTime", () => {
     expect(eventEndDateTime(date, start, end, CHICAGO)).toBe(expected);
   });
 
+  it.each([
+    ["01:00:00", "00:30:00"],
+    ["03:00:00", "02:00:00"],
+  ])("is null when a start after midnight (%s) has an even earlier end (%s)", (start, end) => {
+    // Proves: a listing that contradicts itself publishes NO endDate rather
+    // than a guess. Both times are in the after-midnight stretch of the
+    // night (before 5:00 AM) and the end is before the start, so the only
+    // way to honour "an end earlier than its start is the next morning"
+    // would be a show about 23 hours long (01:00 Thu to 00:30 FRI) — an
+    // extraction slip, not a show. The contract prefers "not stated" to a
+    // wrong answer someone acts on (api-contract.md §4). Contrast the
+    // 01:00 to 06:00 row above: the end is not after midnight, so it is
+    // the same morning and stays a real end time. (B4 code review #3.)
+    expect(eventEndDateTime("2026-10-07", start, end, CHICAGO)).toBeNull();
+  });
+
   it("is null when there is no end time", () => {
     // Proves: the caller omits the key rather than printing a made-up end.
     expect(eventEndDateTime("2026-10-07", "20:00:00", null, CHICAGO)).toBeNull();
@@ -217,10 +233,13 @@ describe("jsonLdScriptContent", () => {
     // is printed inside. Next's JSON-LD guide warns that JSON.stringify
     // doesn't sanitise; show and artist names here are model-extracted from
     // arbitrary web pages — exactly the untrusted text it means. The
-    // escape (< -> <) is lossless: JSON.parse gives the name back.
+    // escape (< -> \u003c) is lossless: JSON.parse gives the name back.
     const hostile = "</script><script>alert(1)</script>";
     const out = jsonLdScriptContent({ name: hostile });
     expect(out).not.toContain("<");
+    // ...and what replaced it is the JSON escape (backslash, u, 0, 0, 3, c),
+    // so the comment above describes a real transformation.
+    expect(out).toContain("\\u003c");
     expect(JSON.parse(out)).toEqual({ name: hostile });
   });
 });
