@@ -37,9 +37,18 @@ class RequestOptions:
     temperature: float | None = None
     # A page with many shows needs a genuinely large structured answer; Phase 5's value.
     max_tokens: int = 16000
-    # instructor's default, stated: up to 4 attempts per call, and the graph's own 3-attempt
-    # cap multiplies it (A2, Step 0; A3 revisits the number).
-    max_retries: int = 3
+    # instructor's re-asks after a response that fails the schema: 1 means up to 2 attempts per call.
+    # A3 (D7) lowered it from instructor's default of 3 (4 attempts). The graph's own 3-attempt cap
+    # multiplies it, and a venue makes up to three model calls per attempt (page, splitter, status),
+    # so 3 meant up to 3 x (4 + 4 + 4) = 36 calls for one venue. Measured: the 45 `a21-confirm` runs
+    # used 0 re-asks (mean 1.0 attempts, 0 parse failures), so the extra budget had never earned its
+    # cost. One re-ask is kept: instructor sends the validation error back, which is a different
+    # request from the first, and exactly what recovers a time the normalizer refused.
+    # NO SLACK ON MORTIMER'S: the current pipeline (`a21-review2`, `a3-confirm`) spends that one re-ask on
+    # Mortimer's page on every run (2 attempts, 1 parse failure, deterministic at temperature 0). So 1 is
+    # the minimum, not a margin: lowering it to 0, or a change that adds a second schema failure there,
+    # turns that page into a failed attempt.
+    max_retries: int = 1
     # Still sent, though Ollama's /v1 endpoint ignores it (docs/dev/notes.md); the working
     # window comes from the derived model's Modelfile. Kept so the request is unchanged.
     num_ctx: int = 32768

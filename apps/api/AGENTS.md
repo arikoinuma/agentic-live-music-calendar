@@ -92,3 +92,11 @@ The pipeline's shape, the retry and escalation rules, and what each node must wr
 audit trail are specified in `arch-initial.md` §7. The known gaps between that spec and the
 current code are catalogued in `docs/dev/alpha-build-plan.md` §1.3 as G1–G10 — check there
 before treating something in `nodes.py` as intentional.
+
+Validation and retry (A3) live in two modules that nodes and graph only wire together:
+`validation.py` (pure checks; gathers evidence and decides nothing) and `policy.py` (the verdict,
+the router's decision, what each retry changes). Import order is `validation` ← `policy` ←
+`state` ← `nodes`/`graph`; keep it a DAG. The tests for them need no model: `tests/fakes.py`'s
+`ScriptedClient` stands in for the model. `tests/test_validation_on_real_pages.py` replays stored
+real extractions and **skips where `eval/fixtures/` and `eval/results/` are absent** — they are
+gitignored, so CI never runs it.

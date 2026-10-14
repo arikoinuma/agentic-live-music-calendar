@@ -267,6 +267,14 @@ Every extracted Show is checked before being written to the calendar:
 
 If validation fails, the system retries a bounded number of times before giving up and flagging the item for human review. A show that fails validation is never silently dropped — it's always visible somewhere as needing attention.
 
+*(Settled while building A3, October 12, 2026 — `docs/dev/implementations/a3-validation-and-retry.md`.)*
+
+* A listing that names **no act** isn't a show, so it is left out of what is written and reported as a warning, not failed. *Left out does not mean confirmed not music*: the act splitter returns no acts for real shows too (Mortimer's, two of them on every run), so each one is recorded with its title for a person to look at.
+* A date up to 31 days before the fetch date is plausible (pages keep last week's shows); one earlier, or more than 366 days ahead, is not. A structured source's implausible event is left out with a warning; a model's implausible date fails the page and is retried.
+* An end time **equal** to the start time is dropped (a zero-length show); an end time **earlier** than the start is the next morning and is fine. An end time with no start time is dropped. A value that fails verification is **dropped, never moved or rewritten**: missing is tolerated, wrong is not.
+* `is_ambiguous` means "a person may want to look". It never changes whether a page passes.
+* A page whose model says "readable, no shows" but whose text names three or more upcoming dates is not a confirmed empty calendar: an empty list is the most dangerous output, since reconcile would remove every stored show.
+
 ### Agent Reconciliation (Update, Remove, No-op)
 
 On each fetch, every show currently on the venue's page is compared against what's already stored for that venue:

@@ -144,8 +144,9 @@ def false_to_none(value: Any) -> Any:
 
 # How far before the fetch date a listed date may fall and still be read as this year: a page
 # can keep a show up for a few weeks after it happens, but nothing further back than this is
-# an upcoming listing (A2.1 plan, D13).
-_YEAR_LOOKBACK = datetime.timedelta(days=31)
+# an upcoming listing (A2.1 plan, D13). Public since A3: validation.py's date-plausibility window
+# uses the same number, so the year rule and the check can't drift apart.
+YEAR_LOOKBACK = datetime.timedelta(days=31)
 
 
 def infer_year(listed: datetime.date, fetch_date: datetime.date) -> datetime.date:
@@ -161,7 +162,7 @@ def infer_year(listed: datetime.date, fetch_date: datetime.date) -> datetime.dat
     A Feb 29 in a year that has none returns the date unchanged (A3's plausibility check is the
     backstop) rather than raising.
     """
-    earliest = fetch_date - _YEAR_LOOKBACK
+    earliest = fetch_date - YEAR_LOOKBACK
     # Compare (month, day) pairs rather than building dates, so Feb 29 can be placed before
     # knowing whether the chosen year has one.
     month_day = (listed.month, listed.day)

@@ -181,7 +181,7 @@ def test_no_prompt_quotes_a_labelled_answer() -> None:
     # an act name from the eval's labels, so a score on the labelled pages is out of sample. (The
     # first conventions quoted the gated pages' own hard titles with their answers; three were
     # added right after their row failed.) Expected act names come from labels.py, not prompts.py.
-    from agent_worker import act_split
+    from agent_worker import act_split, extraction, policy
     from agent_worker.eval.labels import PAGE_LABELS
     from agent_worker.normalize import fold_text
     from agent_worker.schemas import SPLIT_ACTS_DESCRIPTION
@@ -191,6 +191,9 @@ def test_no_prompt_quotes_a_labelled_answer() -> None:
         prompts._act_conventions(), prompts._non_music_rule(), prompts._one_show_rule(),
         prompts._date_heading_rule(), prompts._title_rule(), prompts._cancelled_rule(),
         act_split._act_split_instruction(), SPLIT_ACTS_DESCRIPTION,
+        # A3's retry hints (policy.py): the fixed sentences sent on every retry, and what introduces them.
+        *policy._ADVICE.values(), *policy._REASON_ADVICE.values(), policy._FINAL_PAGE_ADVICE,
+        policy._FINAL_SPLITTER_ADVICE, extraction._HINT_INTRO, act_split._HINT_INTRO,
     ]
     texts = fold_text(" ".join(sent))
     names = {fold_text(a) for page in PAGE_LABELS.values() for show in page.shows for a in show.acts}
@@ -312,9 +315,10 @@ def test_both_callers_send_the_real_instruction(
 
 
 def test_retries_are_stated_not_implicit(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    # Proves: both call sites pass `max_retries=3` explicitly. instructor's default is the
-    # same number, but implicit — and the graph's own 3-attempt cap multiplies it (up to 12
-    # model calls per venue), so it should be visible where it's spent.
+    # Proves: both call sites pass `max_retries=1` explicitly. A3 (D7) lowered it from instructor's
+    # default of 3: the graph's own 3-attempt cap multiplies it (3 x (4 + 4 + 4) = 36 model calls per
+    # venue before), and the 45 a21-confirm runs used none. The literal is the decision; it should be
+    # visible where it's spent, and a change to it should be a decision, not a drift.
     page = tmp_path / "page.html"
     page.write_text(PAGE_HTML)
     node_client, eval_client = fake_client(), fake_client()
@@ -322,8 +326,8 @@ def test_retries_are_stated_not_implicit(monkeypatch: pytest.MonkeyPatch, tmp_pa
     nodes.extract_node(node_state())
     monkeypatch.setattr(run_eval, "instructor_client", eval_client)
     eval_extract(page)
-    assert node_client.chat.completions.calls[0]["max_retries"] == 3
-    assert eval_client.chat.completions.calls[0]["max_retries"] == 3
+    assert node_client.chat.completions.calls[0]["max_retries"] == 1
+    assert eval_client.chat.completions.calls[0]["max_retries"] == 1
 
 
 def test_eval_passes_its_seed_as_a_top_level_argument(

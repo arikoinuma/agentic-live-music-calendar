@@ -35,3 +35,15 @@ for key in ("page_content", "page_html"):
 output_path = Path(__file__).parent / "local_test_output.json"
 output_path.write_text(json.dumps(dump, indent=2, default=str))
 print(f"Wrote result to {output_path}")
+
+# A3: what validation decided, and what each attempt did. The same fields are in the JSON above
+# (`validation`, `attempt_history`); this is the part worth reading first.
+verdict = state.validation.verdict.value if state.validation and state.validation.verdict else "none"
+print(f"verdict: {verdict} after {state.attempt_count} attempt(s); source: {state.extraction_source}")
+for record in state.attempt_history:
+    print(
+        f"  attempt {record.attempt} [{record.tier}, {record.route}, {record.model}]: {record.verdict.value}"
+        f"{' — ' + ', '.join(r.value for r in record.reasons) if record.reasons else ''}"
+    )
+if state.escalation_reason:
+    print(f"escalated: {state.escalation_reason}")

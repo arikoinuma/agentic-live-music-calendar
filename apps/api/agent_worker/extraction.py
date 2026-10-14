@@ -41,7 +41,7 @@ from app.config import settings
 
 __all__ = [
     "PIPELINE_CONFIG", "PIPELINE_OPTIONS", "ExtractionConfig", "PageExtractionResult",
-    "RequestOptions", "clean_text", "extract_image", "extract_page", "instructor_client",
+    "RequestOptions", "clean_text", "extract_image", "extract_page", "instructor_client", "usable_events",
 ]
 
 
@@ -73,6 +73,17 @@ class ExtractionConfig:
     # S6 (October 11): the page model copies each listing's performer text verbatim and the act
     # splitter splits it, as on the JSON-LD route. Rung `a21-title-split`.
     title_split: bool = False
+    # A3, G25: keep each <img> URL in the cleaned text as a "[image: URL]" line so the model can copy
+    # a poster's address (it was null in practice before: cleaning kept visible text only). Off until
+    # one gated eval run shows the gate holds (A3 plan, D12) — adding text to every page the model reads
+    # is exactly the kind of change that moved act splitting before.
+    keep_image_urls: bool = False
+    # A3, G5: what a retry adds to its requests. Empty on the first attempt, which leaves the
+    # request byte-identical to the one that scored 56/60. `policy.plan_for_attempt` sets them from
+    # what the earlier attempts failed on, each aimed at the call that produces the field: `retry_hint`
+    # is appended to the page model's instruction, `splitter_hint` to the act splitter's.
+    retry_hint: str = ""
+    splitter_hint: str = ""
 
 
 # What the pipeline runs. The harness starts from this same pair and overrides one field per
@@ -109,18 +120,47 @@ class PageExtractionResult:
 # ---------------------------------------------------------------------------
 
 
-def clean_text(html: str, keep_line_breaks: bool) -> str:
+def clean_text(html: str, keep_line_breaks: bool, keep_image_urls: bool = False) -> str:
     """The page's visible text: <script> and <style> dropped (A2/Phase 5: a 93 KB page was
     97% markup around 2.7 KB of content). With `keep_line_breaks`, each element and <br> line
-    becomes its own line instead of being joined with spaces."""
+    becomes its own line instead of being joined with spaces.
+
+    With `keep_image_urls` (A3, G25) each <img> becomes a "[image: URL]" piece of text where it sits,
+    so a poster's address is something the model can copy. The URL is the attribute as the page wrote
+    it (entities already unescaped by the parser), not resolved against the page's address, so it
+    stays checkable as "appears verbatim in the page". `data-src` stands in when `src` is absent or a
+    `data:` placeholder (lazy-loaded images); an image with neither, or only a `data:` URI, adds nothing.
+    """
     soup = BeautifulSoup(html, "html.parser")
     for tag in soup(["script", "style"]):
         tag.decompose()
+    if keep_image_urls:
+        for img in soup.find_all("img"):
+            src = str(img.get("src") or "")
+            if not src or src.startswith("data:"):
+                src = str(img.get("data-src") or "")
+            if src and not src.startswith("data:"):
+                img.replace_with(f"[image: {src}]")
     return soup.get_text(separator="\n" if keep_line_breaks else " ", strip=True)
 
 
+# What the retry hints are introduced with. Fixed text, so a hint never changes the first attempt's
+# request (an empty hint adds nothing at all).
+_HINT_INTRO = "Problems found in an earlier attempt at this page; fix them this time:\n"
+
+
 def instruction_for(config: ExtractionConfig) -> str:
-    """The instruction text this configuration sends (prompts.py assembles it)."""
+    """The instruction text this configuration sends (prompts.py assembles it), with the retry
+    hint for the page model appended when there is one."""
+    text = _base_instruction_for(config)
+    if config.retry_hint:
+        # Two newlines at the end: the unhinted instruction ends with a blank line before the page
+        # text, and the hinted one must keep it, or the last hint line runs into the page's first.
+        text += "\n" + _HINT_INTRO + config.retry_hint + "\n\n"
+    return text
+
+
+def _base_instruction_for(config: ExtractionConfig) -> str:
     return extraction_instruction(
         config.include_new_rules,
         cancelled_rule=config.status_field,
@@ -130,6 +170,15 @@ def instruction_for(config: ExtractionConfig) -> str:
         date_heading=config.act_conventions or config.title_split,
         title_split=config.title_split,
     )
+
+
+def usable_events(html: str) -> list[dict[str, Any]]:
+    """The page's JSON-LD events that can produce a show: they need a start (the date) and a name
+    (what the act splitter reads). Every page carries SOME JSON-LD (WebSite, Restaurant…), so "the
+    page has JSON-LD" is the wrong test, and an Event that can't produce a show doesn't count. The
+    routing condition, shared by `extract_page` and `extract_node` (which records the route an
+    attempt used even when the attempt fails)."""
+    return [e for e in jsonld.find_events(html) if e.get("startDate") and e.get("name")]
 
 
 def page_model_for(config: ExtractionConfig) -> type[BaseModel]:
@@ -156,7 +205,7 @@ def _from_model(
     config: ExtractionConfig, seed: int | None,
 ) -> PageExtractionResult:
     """The full-page model extraction, as A2 built it: cleaned text after the instruction."""
-    text = clean_text(html, config.keep_line_breaks)
+    text = clean_text(html, config.keep_line_breaks, config.keep_image_urls)
     answer = client.chat.completions.create(
         response_model=page_model_for(config),
         messages=[{"role": "user", "content": instruction_for(config) + text}],
@@ -165,7 +214,7 @@ def _from_model(
     notes: dict[str, Any] = {}
     if config.title_split:
         extraction = _shows_from_listings(
-            answer, client=client, options=options, seed=seed, notes=notes
+            answer, client=client, options=options, seed=seed, notes=notes, hint=config.splitter_hint
         )
     else:
         extraction = answer
@@ -179,27 +228,32 @@ def _from_model(
             if asked else status_check.StatusAnswer(items=[])
         )
         splitter = (
-            (lambda titles: act_split.split_titles(titles, client=client, options=options, seed=seed).acts)
+            (lambda titles: act_split.split_titles(
+                titles, client=client, options=options, seed=seed, hint=config.splitter_hint,
+            ).acts)
             if config.title_split else None
         )
         extraction, merge_notes = status_check.apply(
             extraction, answer, page_text=text, fetch_date=fetch_date if config.year_rule else None,
             venue_name=venue_name, split_titles=splitter,
         )
+        # The positions of shows the merge added (placeholder confidence, no model judged them) go to the
+        # top level, where validation reads them; the rest of the merge's notes stay nested.
+        notes["added_indices"] = merge_notes.pop("added_indices", [])
         notes["status_question"] = {"asked": asked, "listings": len(answer.items), **merge_notes}
     return PageExtractionResult(extraction=extraction, source="model", sent_text=text, notes=notes)
 
 
 def _shows_from_listings(
     listings: VenueListingsExtraction, *, client: Any, options: RequestOptions, seed: int | None,
-    notes: dict[str, Any],
+    notes: dict[str, Any], hint: str = "",
 ) -> VenuePageExtraction:
     """The title-split route's second step: split every listing's verbatim title into acts with
     the act splitter (the JSON-LD route's narrow task), keeping every other field as the page
     model read it. A title the splitter gives no acts is kept with `acts: []` for A3, as on both
     other routes. The titles go into `notes` (the verbatim display text, D5)."""
     titles = [item.title for item in listings.listings]
-    split = act_split.split_titles(titles, client=client, options=options, seed=seed)
+    split = act_split.split_titles(titles, client=client, options=options, seed=seed, hint=hint)
     shows = [
         ShowExtraction(
             **item.model_dump(exclude={"title"}),
@@ -218,7 +272,7 @@ def _shows_from_listings(
 
 def _from_jsonld(
     events: list[dict[str, Any]], *, html: str, venue_name: str, metro_timezone: str, client: Any,
-    options: RequestOptions, seed: int | None,
+    options: RequestOptions, seed: int | None, hint: str = "",
 ) -> PageExtractionResult:
     """Shows from the venue's JSON-LD; only the acts come from a model (act_split.py).
 
@@ -233,7 +287,7 @@ def _from_jsonld(
     names = [str(e.get("name", "")) for e in events]
     structured = [jsonld.to_structured_show(e, metro_timezone, page_text, names) for e in events]
     titles = [s.title for s in structured]
-    split = act_split.split_titles(titles, client=client, options=options, seed=seed)
+    split = act_split.split_titles(titles, client=client, options=options, seed=seed, hint=hint)
 
     show_cls = show_model(status=True, split_acts=False)
     shows = [
@@ -249,6 +303,9 @@ def _from_jsonld(
     page_cls = page_model(status=True, split_acts=False)
     notes = {
         "events": len(events),
+        # The verbatim titles, in show order: A3's checks pair each show with its title (act names
+        # must appear in it; an end time must be stated near it).
+        "titles": titles,
         "no_acts": [t for t, acts in zip(titles, split.acts, strict=True) if not acts],
         "missing_ids": split.missing_ids,
         "title_mismatches": split.title_mismatches,
@@ -284,10 +341,10 @@ def extract_page(
         #   start (the date) and a name (what the splitter reads). AGENTS.md names routing
         #   branch conditions as the model of a good gap.
         # Code (replace the `raise` below; the model-route `return` after this block stays):
-        events = [e for e in jsonld.find_events(html) if e.get("startDate") and e.get("name")]
+        events = usable_events(html)
         if events:
             return _from_jsonld(events, html=html, venue_name=venue_name, metro_timezone=metro_timezone,
-                                client=client, options=options, seed=seed)
+                                client=client, options=options, seed=seed, hint=config.splitter_hint)
         # Check: `uv run pytest agent_worker/tests/test_extraction.py -k route` — the routing
         #   cases go green. Likeliest mistake: `if jsonld.find_events(html):` without the
         #   startDate/name filter is fine for White Squirrel but sends an undated or unnamed

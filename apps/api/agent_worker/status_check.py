@@ -118,7 +118,7 @@ def apply(
     when given (the title-split route's act splitter, #4). Its date follows the year rule when
     `fetch_date` is given (D13); it has no time (the question doesn't ask for one: missing is
     tolerated, a wrong value is not) and `confidence` 1.0 — a placeholder, like the JSON-LD
-    route's, until A3 decides how confidence is used.
+    route's, which A3's confidence aggregate ignores (`notes["added_indices"]`).
     """
     show_cls = show_model(status=True, split_acts=False)
     shows = [show_cls.model_validate({**s.model_dump(), "status": "scheduled"}) for s in extraction.shows]
@@ -146,6 +146,9 @@ def apply(
     if to_add and split_titles is not None:
         split = split_titles([", ".join(acts) for _, acts, _ in to_add])
         to_add = [(d, acts_split or acts, st) for (d, acts, st), acts_split in zip(to_add, split, strict=True)]
+    # Where the merge's own additions sit in the returned list: they carry a placeholder confidence of
+    # 1.0 that no model judged, so validation leaves them out of the confidence minimum (A3).
+    notes["added_indices"] = list(range(len(shows), len(shows) + len(to_add)))
     for listed, acts, status in to_add:
         shows.append(show_cls(
             venue=venue_name, date=listed, acts=[ActExtraction(name=a) for a in acts],

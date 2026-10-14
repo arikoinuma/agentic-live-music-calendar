@@ -51,7 +51,7 @@ from instructor import Mode
 from openai import OpenAI
 from pydantic import ValidationError
 
-from agent_worker import act_split, extraction, status_check
+from agent_worker import act_split, extraction, status_check, validation
 from agent_worker.eval import legacy as legacy_config
 from agent_worker.eval import scoring
 from agent_worker.eval.labels import (
@@ -203,12 +203,13 @@ def add_override_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--acts-desc", dest="acts_split_description", help="the split-acts description (rung a21-acts-desc)", **flag)
     parser.add_argument("--status-pass", dest="status_pass", help="the separate cancelled/postponed question (rung a21-status-pass)", **flag)
     parser.add_argument("--title-split", dest="title_split", help="verbatim titles + the act splitter on the model route (rung a21-title-split)", **flag)
+    parser.add_argument("--image-urls", dest="keep_image_urls", help="keep <img> URLs in the cleaned text (rung a3-image-urls, G25)", **flag)
     parser.add_argument("--old-rules", dest="include_new_rules", action="store_const", const=False, default=None,
                         help="extraction_instruction(include_new_rules=False): A2's schema-only label")
 
 
 _CONFIG_FIELDS = ("route", "keep_line_breaks", "status_field", "year_rule", "act_conventions",
-                  "acts_split_description", "include_new_rules", "status_pass", "title_split")
+                  "acts_split_description", "include_new_rules", "status_pass", "title_split", "keep_image_urls")
 
 
 def overrides_from(args: argparse.Namespace) -> dict[str, Any]:
@@ -251,13 +252,20 @@ def _act_name(act: Any) -> str:
 
 
 def score_extraction(
-    extraction: dict[str, Any], ref: FixtureReference, page_text: str
+    extraction: dict[str, Any], ref: FixtureReference, page_text: str, *,
+    source: str = "model", page_html: str = "",
 ) -> dict[str, Any]:
     """Count what one run filled in and what it got wrong, against the hand reference.
 
     `invented_*` means "the page states no such thing (reference.py), yet the model
     returned one". `leaks` are returned acts matching a non-music term. Both are only as
     good as reference.py, which is written by hand and kept deliberately small.
+
+    `source` and `page_html` make the invented-image-URL count meaningful (A3, round 1 #11): a URL on
+    a JSON-LD show came from structured data, not a model, and an image run has no page to check,
+    so neither can be "invented" — checked against the cleaned text, every JSON-LD URL was (225 in
+    a21-confirm). The rest are checked against the unescaped HTML as well as the text: the same
+    rule as the pipeline's repair (validation.verify_image_url).
     """
     fills: Counter[str] = Counter()
     act_counts: list[int] = []
@@ -302,10 +310,14 @@ def score_extraction(
         "invented_time": 0 if ref.states_start_time else fills["time"],
         "invented_end_time": 0 if ref.states_end_time else fills["end_time"],
         "invented_price": 0 if ref.states_price else sum(fills[f] for f in _PRICE_FIELDS),
-        # The cleaned page text contains no URLs (html_clean keeps visible text only),
-        # so a non-null image_url that isn't a substring of it is almost certainly made up.
+        # A model-route URL must appear verbatim in the page (the cleaned text, which carries
+        # "[image: URL]" lines when keep_image_urls is on, or the unescaped HTML); one that doesn't is
+        # almost certainly made up. Not checked for jsonld or image runs (see the docstring).
         "image_urls": image_urls,
-        "invented_image_urls": [u for u in image_urls if u not in page_text],
+        "invented_image_urls": (
+            [] if source in ("jsonld", "image")
+            else [u for u in image_urls if not validation.verify_image_url(u, page_html, page_text)]
+        ),
     }
 
 
@@ -396,7 +408,9 @@ def run_once(
         record["source"] = result.source
         record["sent_text"] = result.sent_text
         record["notes"] = result.notes
-        record["score"] = score_extraction(dump, ref, page_text)
+        record["score"] = score_extraction(
+            dump, ref, page_text, source=result.source, page_html="" if is_image else item.read_text(),
+        )
         record["extraction"] = dump
         # Scored outside the try above: a scoring bug must surface, not be recorded as a
         # model failure.

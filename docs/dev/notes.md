@@ -374,3 +374,31 @@ harmless. The fix for a wrapper is `min-w-0` (or `minmax(0, 1fr)` on the track).
 Also: `position: sticky` sticks only within its own grid *area*. In a one-column grid that is the heading's
 own row, so it never sticks; below `md` the row is plain block flow (the `<li>` is the containing block),
 and only from `md` up is it a two-column grid.
+
+---
+
+## An unchanged retry at temperature 0 is the same call — including attempt 3 when attempt 2 failed the same way
+
+Found by A3's graph test, not by reading. The pipeline runs at temperature 0, so a retry that sends the same
+request returns the same answer (A2.1's `a21-confirm`: five runs, byte-identical). A3 makes each retry
+different by adding a hint built from the findings that failed. But the hint for attempt 3 is the union of every
+earlier attempt's findings, and if attempt 2 failed the *same* check as attempt 1, that union is the same text as
+attempt 2's: on a machine with no larger model to swap in, attempt 3 was byte-identical to attempt 2. The last
+attempt therefore adds a sentence of its own (`policy._FINAL_PAGE_ADVICE`). Anything that builds retry requests
+from history needs a test that asserts *consecutive attempts differ*, not just that "a hint is present".
+
+## A fixture-based test can't run in CI: `eval/fixtures/` and `eval/results/` are gitignored
+
+The venue pages and the stored eval results are not in the repo, so CI and a fresh clone have neither, and the
+existing tests never read them (`test_extraction.py` says so). Tests that need real pages are therefore a separate,
+local-only layer that skips when the data is absent (`tests/test_validation_on_real_pages.py`, visible with `-rs`);
+everything CI must prove is tested on small synthetic pages in the fixtures' shapes, with any real artefact pinned as
+a literal (the SHA-256 of today's four request texts, checked locally against `a21-review2.json`).
+
+## An image `src` with `&amp;` isn't a substring of the HTML that contains it
+
+`<img src="a?b=1&amp;c=2">` is read by the HTML parser as `a?b=1&c=2`. A model that copies the URL from the
+cleaned text writes `&`, so `url in page_html` is false for a URL it copied correctly. The pipeline's image check
+(`validation.verify_image_url`) and the eval's `invented_image_urls` compare against the *unescaped* HTML. The eval's
+old check (against cleaned text) also counted every JSON-LD URL as invented (225 in `a21-confirm`), since a
+structured source's URL never appears in visible text; it now skips `jsonld` and `image` runs.

@@ -1,9 +1,17 @@
 import datetime
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from agent_worker.policy import (
+    DEFAULT_POLICY,
+    AttemptPlan,
+    AttemptRecord,
+    RetryPolicy,
+    Route,
+)
 from agent_worker.schemas import VenuePageExtraction
+from agent_worker.validation import ValidationResult
 
 # Pydantic model vs TypedDict — the doc leaves this open, and it's a
 # real choice, not a formality. LangGraph supports both equally; TypedDict
@@ -69,15 +77,12 @@ class VenueGraphState(BaseModel):
     # just now coming from a live fetch instead of a static fixture.
     extraction: VenuePageExtraction | None = None
 
-    # confidence — float | None. Distinct from the per-show
-    # confidence field already inside each ShowExtraction in
-    # `extraction.shows` — this is what validate_node reads to make its
-    # conditional-edge routing decision, so decide now whether it's an
-    # aggregate (e.g. the minimum, or the average, across
-    # extraction.shows) computed by validate_node, or something else.
-    # Worth deciding deliberately rather than leaving implicit, since
-    # the next Phase 6 step wires add_conditional_edges directly against
-    # this field.
+    # confidence — float | None. Decided in A3 (it was an open question here): the minimum of the
+    # model's per-show confidence over the shows a model judged and that were kept, or None when no
+    # model judged the record (the JSON-LD route stamps a placeholder 1.0 on every show; a page with
+    # nothing kept has nothing to be confident about). It is one input to the verdict
+    # (`validation.verdict`, set by policy.combine) and the number A8 checks for calibration. The
+    # router does not read it: it reads the verdict, so a `None` here can't reach a comparison.
     confidence: float | None = None
 
     # attempt_count — int, defaulting to 0. Incremented each time
@@ -100,3 +105,46 @@ class VenueGraphState(BaseModel):
     reconcile_decision: (
         Literal["no_op", "delete", "insert", "update", "ambiguous_match"] | None
     ) = None
+
+    # ---------------------------------------------------------------------
+    # A3: validation and retry. Everything below is defaulted, so
+    # `VenueGraphState(**result)` re-wrapping still works. Who sets each field and who reads it:
+    # ---------------------------------------------------------------------
+
+    # policy — the retry settings for this run (confidence threshold, attempt cap, escalation
+    # model). On the state rather than in a graph factory (A3 plan, D11): the compiled graph stays
+    # a singleton, and A8 or a test varies a run by passing a different policy. Read by the
+    # routers and by extract_node / validate_node.
+    policy: RetryPolicy = DEFAULT_POLICY
+
+    # fetch_error — set by fetch_node when the page couldn't be fetched (after the transient-error
+    # retries), or came back empty. Read by route_after_fetch and by escalate_node.
+    fetch_error: str | None = None
+
+    # extraction_source / route_attempted / extraction_notes / extract_error / last_plan — what
+    # extract_node did this attempt. All are assigned on EVERY attempt (to None where nothing was
+    # produced): LangGraph keeps a field's old value when a node leaves it alone, so without the
+    # reset an attempt-2 success would still carry attempt 1's error. `route_attempted` is set
+    # before the call, so a failed attempt still says which route it used (the sticky fallback
+    # reads it). The notes are PageExtractionResult.notes (route, titles, status merge) — A4
+    # persists them (A2.1 E17).
+    extraction_source: Route | None = None
+    route_attempted: Route | None = None
+    extraction_notes: dict[str, Any] = Field(default_factory=dict)
+    extract_error: str | None = None
+    last_plan: AttemptPlan | None = None
+
+    # validation — validate_node's evidence plus the verdict (None before it has run); read by
+    # route_after_validate. validated_extraction is the shows to commit: repairs applied, excluded
+    # shows removed. `extraction` stays the model's raw answer (the audit record). Reconcile (A5)
+    # reads `validated_extraction`, and the graph only reaches it on a pass.
+    validation: ValidationResult | None = None
+    validated_extraction: VenuePageExtraction | None = None
+
+    # attempt_history — one AttemptRecord per attempt, appended by validate_node. Retries add rows;
+    # nothing is overwritten (the same idea as `audit_log`). A4 persists it; A8 measures the retry
+    # loop from it; plan_for_attempt reads it to build the next attempt's hints and route.
+    attempt_history: list[AttemptRecord] = Field(default_factory=list)
+
+    # escalation_reason — a plain-English reason, composed by escalate_node. A6 writes it.
+    escalation_reason: str | None = None

@@ -82,16 +82,25 @@ def _act_split_instruction() -> str:
     #   Friends" two acts.
 
 
+# What a retry's splitter hint is introduced with (A3). Fixed text; an empty hint adds nothing.
+_HINT_INTRO = "Problems found in an earlier attempt; fix them this time:\n"
+
+
 def split_titles(
-    titles: list[str], *, client: Any, options: RequestOptions, seed: int | None = None
+    titles: list[str], *, client: Any, options: RequestOptions, seed: int | None = None, hint: str = ""
 ) -> SplitResult:
-    """Ask the model which acts each title names; return them aligned to `titles`."""
+    """Ask the model which acts each title names; return them aligned to `titles`. `hint` is a
+    retry's note about what went wrong with the splitter's earlier answer (policy.retry_hint); empty
+    on a first attempt, which leaves the request byte-identical."""
     if not titles:  # nothing to split: no model call
         return SplitResult(acts=[])
     numbered = "\n".join(f"{i}: {title}" for i, title in enumerate(titles))
+    instruction = _act_split_instruction()
+    if hint:
+        instruction += "\n" + _HINT_INTRO + hint + "\n"
     answer: ActSplitAnswer = client.chat.completions.create(
         response_model=ActSplitAnswer,
-        messages=[{"role": "user", "content": _act_split_instruction() + "\n" + numbered}],
+        messages=[{"role": "user", "content": instruction + "\n" + numbered}],
         **request_kwargs(options, seed),
     )
 

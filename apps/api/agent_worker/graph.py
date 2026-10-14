@@ -9,6 +9,7 @@ from agent_worker.nodes import (
     reconcile_node,
     validate_node,
 )
+from agent_worker.policy import decide_route
 from agent_worker.state import VenueGraphState
 
 # Confirmed directly against the pinned langgraph==1.2.11 (not assumed —
@@ -29,11 +30,8 @@ from agent_worker.state import VenueGraphState
 
 graph = StateGraph(VenueGraphState)
 
-# add_node once for each of the six imported functions. The name
-# you register each under (the first argument) is what
-# add_conditional_edges' path_map, and add_edge calls below, need to
-# reference — e.g. graph.add_node(NodeNames.FETCH, fetch_node).
-
+# One add_node per node function. The name each is registered under is what the conditional
+# edges' path maps and the add_edge calls below refer to.
 graph.add_node(NodeNames.FETCH, fetch_node)
 graph.add_node(NodeNames.EXTRACT, extract_node)
 graph.add_node(NodeNames.VALIDATE, validate_node)
@@ -41,69 +39,60 @@ graph.add_node(NodeNames.RECONCILE, reconcile_node)
 graph.add_node(NodeNames.COMMIT, commit_node)
 graph.add_node(NodeNames.ESCALATE, escalate_node)
 
-# the straight-line edges — the parts of the pipeline with no
-# branching decision involved:
-#   START -> fetch
-#   fetch -> extract
-#   extract -> validate
-#   reconcile -> commit
-#   commit -> END
-#   escalate -> END
-# (validate's outgoing edges are NOT in this list — see below, they're
-# conditional, not straight-line.)
+# The shape (docs/dev/implementations/a3-validation-and-retry.md, Design §4):
+#
+#   START -> fetch --ok--------------> extract -> validate --pass--------> reconcile -> commit -> END
+#              |                          ^           |
+#              +--fetch_error--> escalate +--retry----+
+#                                  ^                  +--escalate--> escalate -> END
+#
+# The straight-line edges are the parts with no decision in them. Fetch and validate each have a
+# conditional edge instead of a plain one.
 graph.add_edge(START, NodeNames.FETCH)
-graph.add_edge(NodeNames.FETCH, NodeNames.EXTRACT)
 graph.add_edge(NodeNames.EXTRACT, NodeNames.VALIDATE)
-# Validate node will have a conditional edge below
 graph.add_edge(NodeNames.RECONCILE, NodeNames.COMMIT)
 graph.add_edge(NodeNames.COMMIT, END)
 graph.add_edge(NodeNames.ESCALATE, END)
 
-# the one real branch point. Per the architecture doc: validate
-# passing routes to reconcile; a low-confidence/inconsistent result
-# retries extract if attempts remain; retries exhausted routes to
-# escalate. That's a function of state.confidence and state.attempt_count
-# — both of which validate_node already sets — plus one more thing this
-# scaffold deliberately leaves for you to decide: what confidence value
-# actually counts as "passing"? Nothing in this codebase has picked a
-# threshold yet.
-#
-# Shape to follow — a routing function returning a short string label,
-# then add_conditional_edges mapping those labels to the real node names
-# from your add_node calls above:
-#
-#   def route_after_validate(state: VenueGraphState) -> str:
-#       if state.confidence >= SOME_THRESHOLD:
-#           return node_outcomes.PASS
-#       elif state.attempt_count < 3:
-#           return node_outcomes.RETRY
-#       else:
-#           return NodeNames.ESCALATE
-#
-#   graph.add_conditional_edges(
-#       NodeNames.VALIDATE,
-#       route_after_validate,
-#       {node_outcomes.PASS: NodeNames.RECONCILE, node_outcomes.RETRY: NodeNames.EXTRACT, NodeNames.ESCALATE: NodeNames.ESCALATE},
-#   )
 
-def route_after_validate(state: VenueGraphState) -> str:
-    if state.confidence >= 0.8:
-        return NodeOutcomes.PASS
-    elif state.attempt_count < 3:
-        return NodeOutcomes.RETRY
-    else:
-        return NodeNames.ESCALATE
+def route_after_fetch(state: VenueGraphState) -> NodeOutcomes:
+    """A page that couldn't be fetched (or came back empty) is escalated: there is nothing to
+    extract from, and a model handed a blank page can answer "confirmed empty" (D6)."""
+    return NodeOutcomes.ESCALATE if state.fetch_error else NodeOutcomes.PASS
+
+
+def route_after_validate(state: VenueGraphState) -> NodeOutcomes:
+    """Read the verdict validate_node produced and the attempt count; nothing else.
+
+    A thin reader of `policy.decide_route`, where the decision lives. It returns `NodeOutcomes`
+    members only, and says so in its annotation (G6): the old router returned `NodeNames.ESCALATE`
+    against a path map keyed on `NodeOutcomes.ESCALATE`, which worked only because two different
+    StrEnums happen to share the string "escalate", and compared `state.confidence >= 0.8`
+    where the field is `float | None`. The verdict is never None here, and confidence never
+    reaches a comparison in this file.
+    """
+    verdict = state.validation.verdict if state.validation is not None else None
+    return decide_route(verdict, state.attempt_count, state.policy)
+
+
+graph.add_conditional_edges(
+    NodeNames.FETCH,
+    route_after_fetch,
+    {
+        NodeOutcomes.PASS: NodeNames.EXTRACT,
+        NodeOutcomes.ESCALATE: NodeNames.ESCALATE,
+    },
+)
 
 graph.add_conditional_edges(
     NodeNames.VALIDATE,
     route_after_validate,
     {
-        NodeOutcomes.PASS: NodeNames.RECONCILE, 
-        NodeOutcomes.RETRY: NodeNames.EXTRACT, 
-        NodeOutcomes.ESCALATE: NodeNames.ESCALATE
+        NodeOutcomes.PASS: NodeNames.RECONCILE,
+        NodeOutcomes.RETRY: NodeNames.EXTRACT,
+        NodeOutcomes.ESCALATE: NodeNames.ESCALATE,
     },
 )
-    
 
 # compile without a checkpointer, deliberately — graph.compile()
 # with nothing else. Per the architecture doc, this job completes in one
