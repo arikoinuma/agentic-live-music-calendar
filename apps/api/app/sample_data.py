@@ -130,6 +130,29 @@ _SHOW_ROWS: list[tuple] = [
     (23, "The Midway Saloon", None, None, _lineup("Tarnation"), None, "5.00", None, None),
     (24, "The Terminal Bar", "21:00", None, _lineup("Nooky Jones"), "18.00", None, None, None),
     (26, "The White Squirrel Bar", "20:00", "23:00", _lineup("The Cactus Blossoms", "Dead Man Winter"), "24.00", "28.00", None, None),
+
+    # Added for B3 (docs/dev/implementations/b3-the-calendar.md, D5), and
+    # appended so ids 1-21 don't change. The rows above never put two
+    # shows at one venue on one date, never run past midnight and never
+    # put more than two venues on a date, so the calendar's hardest cases
+    # had no data. All four land on 2026-10-07 (offset 9), which already
+    # has The Terminal Bar at 21:00 (Jaedyn James, Tarnation, Beasthead —
+    # none of them reused here, so nobody is double-booked), giving that
+    # one date all four venues.
+    #   - two shows at one venue, the early one with no admission info at
+    #     all (renders nothing — not "Free"):
+    (9, "The White Squirrel Bar", "18:00", None, _lineup("Lanue"), None, None, None, None),
+    #   - the late one ends after midnight, has per-act times, and an
+    #     unlabelled (so day-of-show) price:
+    (9, "The White Squirrel Bar", "22:00", "00:30", _lineup("Nooky Jones", "Pert Near Sandstone", times=("22:00", "23:15")), None, "10.00", None, None),
+    #   - an artist who also plays another venue on another date, for the
+    #     artist filter:
+    (9, "Zhora Darling", "20:00", None, _lineup("Charlie Parr"), "20.00", "25.00", None, None),
+    #   - a show listed under the 7th at 1:00 AM: after midnight, so it
+    #     belongs to the 7th's night and displays as the 8th ("1:00 AM
+    #     Thu"), sorting after the evening's shows (requirements-initial.md,
+    #     "Times after midnight"):
+    (9, "The Midway Saloon", "01:00", None, _lineup("Dead Man Winter"), None, None, True, None),
 ]
 
 

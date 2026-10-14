@@ -148,7 +148,7 @@ make contract-check   # fail if the committed output is stale
 | File | Shape |
 |---|---|
 | `metro.json` | `MetroSummary` |
-| `shows.json` | `ShowListResponse` — 21 shows across 2026-09-28 → 2026-10-25 |
+| `shows.json` | `ShowListResponse` — 25 shows across 2026-09-28 → 2026-10-25 (B3 appended four on 2026-10-07: two at one venue, one ending after midnight, one at 1:00 AM) |
 | `show-detail.json` | `ShowDetail` |
 | `venues.json` | `VenueListResponse` — the four Phase 5 venues, alphabetical |
 | `venue-detail.json` | `VenueDetail` |

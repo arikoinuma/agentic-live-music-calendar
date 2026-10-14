@@ -37,6 +37,7 @@ approach — most "what should we do about X" questions have an answer with reas
 | How was the environment set up? | `docs/dev/env-setup.md` |
 | What non-obvious thing bit us before? | `docs/dev/notes.md` |
 | How is a given milestone being implemented? | `docs/dev/implementations/` |
+| How do I trace a request through Next.js and FastAPI with breakpoints? | `docs/dev/debugging.md` (configs in `.vscode/launch.json`) |
 
 When a real debugging session turns up something non-obvious, add it to `docs/dev/notes.md`.
 When a design decision gets made, record it where the surrounding reasoning lives.

@@ -577,6 +577,110 @@
       "admission_day": "28.00",
       "free_admission": null,
       "image_url": null
+    },
+    {
+      "id": 22,
+      "date": "2026-10-07",
+      "start_time": "18:00:00",
+      "end_time": null,
+      "venue": {
+        "id": 1,
+        "name": "The White Squirrel Bar"
+      },
+      "lineup": [
+        {
+          "artist": {
+            "id": 4,
+            "name": "Lanue"
+          },
+          "start_time": null,
+          "sequence_number": 1
+        }
+      ],
+      "admission_advance": null,
+      "admission_day": null,
+      "free_admission": null,
+      "image_url": null
+    },
+    {
+      "id": 23,
+      "date": "2026-10-07",
+      "start_time": "22:00:00",
+      "end_time": "00:30:00",
+      "venue": {
+        "id": 1,
+        "name": "The White Squirrel Bar"
+      },
+      "lineup": [
+        {
+          "artist": {
+            "id": 2,
+            "name": "Nooky Jones"
+          },
+          "start_time": "22:00:00",
+          "sequence_number": 1
+        },
+        {
+          "artist": {
+            "id": 8,
+            "name": "Pert Near Sandstone"
+          },
+          "start_time": "23:15:00",
+          "sequence_number": 2
+        }
+      ],
+      "admission_advance": null,
+      "admission_day": "10.00",
+      "free_admission": null,
+      "image_url": null
+    },
+    {
+      "id": 24,
+      "date": "2026-10-07",
+      "start_time": "20:00:00",
+      "end_time": null,
+      "venue": {
+        "id": 3,
+        "name": "Zhora Darling"
+      },
+      "lineup": [
+        {
+          "artist": {
+            "id": 1,
+            "name": "Charlie Parr"
+          },
+          "start_time": null,
+          "sequence_number": 1
+        }
+      ],
+      "admission_advance": "20.00",
+      "admission_day": "25.00",
+      "free_admission": null,
+      "image_url": null
+    },
+    {
+      "id": 25,
+      "date": "2026-10-07",
+      "start_time": "01:00:00",
+      "end_time": null,
+      "venue": {
+        "id": 2,
+        "name": "The Midway Saloon"
+      },
+      "lineup": [
+        {
+          "artist": {
+            "id": 5,
+            "name": "Dead Man Winter"
+          },
+          "start_time": null,
+          "sequence_number": 1
+        }
+      ],
+      "admission_advance": null,
+      "admission_day": null,
+      "free_admission": true,
+      "image_url": null
     }
   ]
 }

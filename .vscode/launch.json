@@ -1,6 +1,58 @@
 {
   "version": "0.2.0",
+  // Debugging the whole app: docs/dev/debugging.md is the guided tour (what
+  // runs where, which breakpoints to set, what to look at).
+  //
+  // Three processes, three debuggers:
+  //   "API: FastAPI"              the Python API on :8000          (debugpy)
+  //   "Calendar: Next.js server"  the Node process on :3000 that runs your
+  //                               Server Components and lib/api.ts (node)
+  //   "Calendar: browser"         Chrome, for the "use client" code (chrome)
+  // The browser never talks to FastAPI — the Next.js server does — which is
+  // why the Network tab shows no API requests. Breakpoints in the server
+  // config are how you see them.
+  //
+  // Ports 3000 and 8000 are the ones `make dev` uses, so STOP `make dev`
+  // before starting these.
   "configurations": [
+    {
+      "name": "API: FastAPI",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      // No --reload: the reloader runs the app in a child process, and a
+      // breakpoint has to survive a restart to be useful while learning.
+      // Restart the config after editing Python.
+      "args": ["app.main:app", "--port", "8000"],
+      "cwd": "${workspaceFolder}/apps/api",
+      "envFile": "${workspaceFolder}/apps/api/.env",
+      "python": "${workspaceFolder}/apps/api/.venv/bin/python",
+      "justMyCode": true
+    },
+    {
+      "name": "Calendar: Next.js server",
+      // node-terminal runs the command in a terminal and attaches the
+      // debugger to every Node process it starts — Next starts more than
+      // one. `--inspect` is Next's own flag (docs: debugging.md); it must
+      // be `next dev`, not `next start`, or there are no source maps.
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "pnpm --filter calendar dev --inspect",
+      "cwd": "${workspaceFolder}",
+      "skipFiles": ["<node_internals>/**", "**/node_modules/**"]
+    },
+    {
+      "name": "Calendar: browser",
+      // Start this AFTER the Next.js server says "Ready". It opens a fresh
+      // Chrome with the debugger attached; only code that runs in the
+      // browser stops here (app/_components/filter-header.tsx and the
+      // generated primitives in packages/ui).
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}/apps/calendar",
+      "skipFiles": ["<node_internals>/**", "**/node_modules/**"]
+    },
     {
       "name": "eval: one poster, legacy",
       "type": "debugpy",
@@ -11,6 +63,15 @@
       "envFile": "${workspaceFolder}/apps/api/.env",
       "python": "${workspaceFolder}/apps/api/.venv/bin/python",
       "justMyCode": true
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Full stack: API + Next.js server",
+      // Starts the two server-side processes together. Then start
+      // "Calendar: browser" to add the third debugger.
+      "configurations": ["API: FastAPI", "Calendar: Next.js server"],
+      "stopAll": true
     }
   ]
 }

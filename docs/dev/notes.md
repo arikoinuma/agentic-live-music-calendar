@@ -97,19 +97,22 @@ but the specificity matters. If shadcn ever generates `.ts` files elsewhere
 
 ## Tailwind v4 doesn't scan `packages/ui` — shared components render unstyled
 
-**Symptom (predicted, not yet hit):** the first calendar page that imports
-`@repo/ui/components/button` will compile, type-check and render, but without the
-button's classes (`bg-primary`, `h-8`, …). A B1 review confirmed the calendar's built
-CSS contains none of them.
+**Symptom (predicted in B1, hit and confirmed in B3):** the first calendar page that
+imports a `@repo/ui` component compiles, type-checks and renders, but without the
+component's classes. B3's filter header (the combobox and select) is the first such page;
+the built CSS contained none of the combobox classes until `@source` was added.
 
 **Root cause:** Tailwind v4 generates only the utilities it finds by scanning source
 files, and its automatic detection starts from the app's own directory. Class names that
 live in `../../packages/ui/src` are outside it, so those utilities are never emitted.
 
-**Fix, when the first shared component is used in `apps/calendar`:** add
-`@source "../../packages/ui/src";` to `apps/calendar/app/globals.css` (path is relative to
-the CSS file). Deliberately not added in B1 — nothing in calendar imports `@repo/ui` yet.
-`apps/admin` has no Tailwind at all, which is why its shared button renders unstyled.
+**Fix:** add `@source "../../../packages/ui/src";` to `apps/calendar/app/globals.css`. The
+path is relative to the CSS file, which is `apps/calendar/app/`, so it takes **three** `..`
+to reach the repo root. **This entry used to say `"../../packages/ui/src"` — that is wrong**
+(it resolves to `apps/packages/ui/src`, which doesn't exist, and Tailwind silently scans
+nothing). Measured in B3 by building three ways and grepping the CSS for `combobox-chip`:
+old two-`..` path → absent; no `@source` → absent; three-`..` path → present. `apps/admin`
+has no Tailwind at all, which is why its shared button renders unstyled.
 
 ---
 
@@ -319,3 +322,55 @@ evidence the route works. The gate now counts the pages in scope and never passe
 
 *Rechecked October 10, 2026 on Ollama 0.40.2:* `/v1` still ignores `options.num_ctx` (a request for 8192 left
 `gemma4-e4b-32k` loaded at 32768 per `/api/ps`), so the derived model is still how the working window is set.
+
+---
+
+## `PlainYearMonth.toLocaleString("en-US", …)` throws
+
+Found writing B3's month dropdown labels (`lib/dates.ts`). `Temporal.PlainYearMonth.from("2026-10")
+.toLocaleString("en-US", { month: "long", year: "numeric" })` throws `cannot format PlainYearMonth with
+calendar iso8601 in locale with calendar gregory`: a year-month has no day, so the polyfill refuses to
+guess which calendar to apply. Go through a full date instead — `ym.toPlainDate({ day: 1 })
+.toLocaleString(...)` gives "October 2026". (`PlainDate` and `PlainTime` format fine; and a `PlainDate`
+prints the same text under any `TZ`, because it has no zone to shift.)
+
+Related: Temporal objects throw on `<`, `>` and `<=` (their `valueOf()` raises on purpose, so a bare
+comparison can't silently compare strings). Use `Temporal.PlainDate.compare` / `PlainTime.compare`.
+
+---
+
+## The shadcn CLI in this monorepo: run it from `packages/ui`, then fix what it writes
+
+B3 added the combobox and select (`pnpm dlx shadcn@latest add combobox select`). Four surprises, none
+visible until the files were on disk:
+
+1. **Run it from `packages/ui`, not `apps/calendar`.** From the app it stops with `Could not resolve the
+   following aliases … ui` — the app's `components.json` points `ui` at `@repo/ui/components`, which the
+   CLI can only resolve from inside the package that owns that tsconfig path. (`--dry-run` is safe and
+   shows the file list first.)
+2. **It writes `import { cn } from "cn"`** into every generated file and adds an unrelated npm package
+   called `cn` to `packages/ui/package.json`. The repo's helper is `@repo/ui/lib/utils`. Rewrite the
+   imports and remove the dependency.
+3. **It offers to overwrite `components/button.tsx`** (the combobox depends on `button`). The registry
+   version differs from ours only in that same `cn` import, so restore ours with `git checkout`.
+4. **Its dependencies come along**: `combobox` also writes `input-group`, `input` and `textarea`, and
+   imports `lucide-react`, which `apps/calendar` had but `packages/ui` didn't (pnpm doesn't hoist across
+   workspaces, so `@repo/ui` failed to resolve it until it was added to `packages/ui/package.json`).
+
+---
+
+## A scroll container must be the grid item itself, or it widens the page
+
+Found checking B3's calendar rows (`app/_components/calendar-grid.tsx`). A grid item's automatic minimum
+width is its content's min-content width — *unless the item is itself a scroll container*, whose automatic
+minimum is 0. So a row `<div class="overflow-x-auto">` that is the direct child of a `1fr` grid track
+scrolls sideways on its own. Wrap it in a bare `<div>` and that wrapper's minimum becomes the combined width
+of every venue column: the track grows to fit it and the **page** scrolls sideways. Measured in headless
+Chrome on the real calendar, page `scrollWidth` with the scroller direct / wrapped / wrapped with `min-w-0`:
+768px **768 / 1232 / 768**, 1024px **1024 / 1232 / 1024**, 1280px **1280 / 1296 / 1280** (only 16px there, easy to
+miss — test at tablet width), and at 375px **375 / 375 / 375**: below `md` the row is block flow, where a wrapper is
+harmless. The fix for a wrapper is `min-w-0` (or `minmax(0, 1fr)` on the track).
+
+Also: `position: sticky` sticks only within its own grid *area*. In a one-column grid that is the heading's
+own row, so it never sticks; below `md` the row is plain block flow (the `<li>` is the containing block),
+and only from `md` up is it a two-column grid.

@@ -19,29 +19,28 @@
  * parsed defensively and written canonically (one filter set, one URL).
  *
  * Pure functions with no env and no fetch, so they're unit tested without
- * mocks (params.test.ts). Not `server-only`: B3's filter header will build
- * hrefs from a Client Component.
+ * mocks (params.test.ts). Not `server-only`. B3's filter header, a Client
+ * Component, builds hrefs too, but imports them from lib/calendar-href.ts
+ * (Temporal-free) rather than from here, where the polyfill would ride along.
  */
 
 // Explicit import: Node 24 has no global Temporal, so the polyfill is the
 // implementation. Temporal, not Date — `new Date("2026-09-28")` parses as
 // UTC midnight and renders as the 27th west of Greenwich (api-contract.md §3).
 import { Temporal } from "@js-temporal/polyfill";
+import type { CalendarFilters } from "./calendar-href";
+
+// `CalendarFilters` and `buildCalendarHref` live in lib/calendar-href.ts so
+// a Client Component can import them without pulling in Temporal (B3).
+// Re-exported here so every existing import keeps working.
+export { buildCalendarHref } from "./calendar-href";
+export type { CalendarFilters } from "./calendar-href";
 
 // What Next hands a page as `searchParams` (after `await`): a key that
 // appears once is a string, a repeated key is a string[], an absent key is
 // undefined. Declared here rather than imported so tests and non-page
 // callers don't need Next's generated PageProps.
 export type SearchParams = { [key: string]: string | string[] | undefined };
-
-// The calendar's filter state. `venueIds` / `artistIds` are canonical:
-// de-duplicated and ascending. `month` is "YYYY-MM" or null (no month
-// filter -> the server's default four-week window).
-export type CalendarFilters = {
-  venueIds: number[];
-  artistIds: number[];
-  month: string | null;
-};
 
 // What `getShows` (lib/api.ts) is called with. `start` / `end` are
 // inclusive ISO dates and are either both present or both absent.
@@ -204,23 +203,4 @@ export function toShowsQuery(filters: CalendarFilters): ShowsQuery {
     Object.assign(query, monthRange(filters.month));
   }
   return query;
-}
-
-/**
- * Filters -> the canonical href: `/` when empty, otherwise
- * `/?venue=1&venue=3&artist=7&month=2026-10`, keys always in that order.
- *
- * The write side of parseCalendarFilters. Together they make the URL a
- * faithful serialisation of the filter state; params.test.ts checks both
- * directions (round trip for clean input, canonicalisation for messy).
- * Callers are expected to pass canonical filters (as parseCalendarFilters
- * returns) — this doesn't re-sort.
- */
-export function buildCalendarHref(filters: CalendarFilters): string {
-  const params = new URLSearchParams();
-  for (const id of filters.venueIds) params.append("venue", String(id));
-  for (const id of filters.artistIds) params.append("artist", String(id));
-  if (filters.month !== null) params.append("month", filters.month);
-  const queryString = params.toString();
-  return queryString ? `/?${queryString}` : "/";
 }

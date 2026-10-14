@@ -66,6 +66,27 @@ HTTP against the API for anything else — the routes exist and serve the same d
   `buildCalendarHref` back) never throw: bad entries are dropped, the result is
   canonical (de-duplicated, numerically sorted), so one filter set has one URL. Keys:
   `venue`, `artist` (repeatable ids) and `month=YYYY-MM` (the whole calendar month).
+- `lib/calendar-href.ts` holds `CalendarFilters`, `buildCalendarHref` and `withIds` — the
+  **Temporal-free** half of URL state, re-exported from `params.ts`. A Client Component
+  must import from here, never `params.ts` or `lib/dates.ts`: both pull the ~36 KB gzipped
+  Temporal polyfill into the browser bundle. (Check: `grep -rl "Do not use built-in
+  arithmetic operators with" .next/static` after a build must find nothing.)
+- `lib/dates.ts` (Temporal formatting, `metroToday`, the 5:00 AM after-midnight rule),
+  `lib/calendar.ts` (shows → date rows → venue columns) and `lib/show-format.ts` (prices and
+  admission) are the calendar's pure, tested core. A show's own date and time are wall-clock
+  strings with **no timezone** — the metro's zone is needed only to ask what "today" is.
+- The calendar's one Client Component is `app/_components/filter-header.tsx`. It holds no
+  results: a selection calls `router.push` with the new URL and the server page re-renders.
+- Every API call logs one line to the Next server's terminal from `send()` in `lib/api.ts`:
+  `[api] GET /shows?venue_id=3 -> 200 in 41ms` (or `-> failed (timed out) in …ms`). It's how you
+  see server-to-server requests the browser's Network tab can't (`docs/dev/debugging.md`). It
+  writes path and query only, never the base URL, and it must never be able to throw — it runs
+  inside the error path (`api.test.ts`, "request log"). Each 2xx body also gets a one-line
+  **summary** (`[api] GET /shows?venue_id=3 body (2.0 KB): 6 shows (…); 0 without start_time; …`,
+  built by the pure functions in `lib/api-log.ts`), and `LOG_API_BODIES=1` in `.env.local`
+  adds the full JSON on one line. The flag is ignored when `NODE_ENV` is `production`: hosted
+  logs get summaries only. Summary lines carry their own `GET <path>` because the page's five
+  calls run in parallel and their lines interleave.
 - Vitest aliases `server-only` to an empty stub (`test/server-only-stub.ts`); the real
   package throws outside Next's `react-server` condition.
 - **Never wrap a `fetch` in a `catch` without `unstable_rethrow(err)` first.** During
@@ -73,6 +94,10 @@ HTTP against the API for anything else — the routes exist and serve the same d
   `catch` turns it into a build failure (`docs/dev/notes.md`).
 - Every route is dynamic (`ƒ`) in B2: the root layout fetches the metro with `no-store`
   (decision D1 in the B2 plan). `next build` therefore doesn't need the API running.
+- `/` streams (B3, decision D4): its API-dependent body sits inside a `<Suspense>` in the
+  page, not a root `loading.tsx`, because streaming makes `notFound()` answer 200 (a soft
+  404) and the detail routes need real 404s. With the API down `/` is a 200 with the shell
+  and a skeleton; the detail routes are still B2's bare 500.
 
 ## Rules that bite most often here
 
@@ -96,11 +121,11 @@ HTTP against the API for anything else — the routes exist and serve the same d
 ## Known state and open cleanups
 
 B1 stripped the `create-turbo` template (`docs/dev/alpha-build-plan.md`): Tailwind is the
-only styling system, `packages/ui/src/components/button.tsx` (shadcn) is the only
-button, and the root layout has real metadata and chrome. B2 added the six routes
+only styling system and the root layout has real metadata and chrome. B2 added the six routes
 (`/`, `/day/[date]`, `/venue/[id]`, `/venues`, `/artist/[id]`, `/artists`), `not-found.tsx`,
-`error.tsx` and the API client; their markup is deliberately plain until B3/B4.
-`/health` is the diagnostics page.
+`error.tsx` and the API client. B3 built the calendar on `/` (grid, show block, filter header,
+empty state) and gave `/day/[date]` the same show blocks; the venue, artist and list pages
+are still deliberately plain until B4. `/health` is the diagnostics page.
 
 - Tests: `pnpm test` (Vitest, node environment). jsdom and Testing Library arrive with
   the first component tests (B5). Don't unit-test async Server Components — see the
@@ -108,6 +133,8 @@ button, and the root layout has real metadata and chrome. B2 added the six route
 - Shared-package imports go through `packages/ui/package.json` `exports`, not its
   tsconfig `paths` — a new folder of `.ts` files under `packages/ui/src` needs its own
   `exports` entry (`docs/dev/notes.md`).
-- Tailwind doesn't scan `packages/ui`. The first time this app imports a shared
-  component, add `@source "../../packages/ui/src";` to `app/globals.css` or it renders
-  unstyled (`docs/dev/notes.md`).
+- Tailwind doesn't scan `packages/ui`, so `app/globals.css` has
+  `@source "../../../packages/ui/src";` (three `..`: the path is relative to the CSS file in
+  `app/`; an earlier version of this note said two and was wrong — `docs/dev/notes.md`).
+  The shadcn CLI must be run from `packages/ui`, and needs its output fixed afterwards
+  (same file).

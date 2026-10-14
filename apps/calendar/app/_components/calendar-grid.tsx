@@ -1,0 +1,121 @@
+import Link from "next/link";
+import { formatDayHeading } from "@/lib/dates";
+import type { CalendarRow } from "@/lib/calendar";
+import { ShowBlock } from "./show-block";
+
+/**
+ * The calendar: a vertical list of dates, each date a horizontally
+ * scrolling row of venue columns, each column holding that venue's shows
+ * that day (requirements-initial.md, "Calendar").
+ *
+ * A Server Component: nothing here is interactive (the sideways scroll is
+ * the browser's own), so it ships no JavaScript, and the Temporal
+ * formatting stays on the server.
+ *
+ * Plan D1/D2: a row lists only the venues with a show that date, and every
+ * date in the served range gets a row — a date with nothing on it is a thin
+ * "Nothing listed" line, not a gap.
+ */
+export function CalendarGrid({ rows }: { rows: CalendarRow[] }) {
+  return (
+    <ol className="mt-6 divide-y">
+      {rows.map((row) => {
+        const heading = formatDayHeading(row.date);
+        return (
+          // Below `md` the row is plain block flow, above it a two-column
+          // grid (date | venues). Block flow on phones is deliberate: a
+          // `sticky` element only sticks within its own grid AREA, and in a
+          // one-column grid the heading's area is just its own height, so
+          // it would never stick. In block flow the <li> is the containing
+          // block and the heading stays visible while its row is on screen.
+          <li
+            key={row.date}
+            aria-current={row.isToday ? "date" : undefined}
+            className="py-3 md:grid md:grid-cols-[9rem_1fr] md:gap-3"
+          >
+            <h2 className="sticky top-0 z-10 bg-background py-1 text-base font-semibold md:self-start">
+              <Link className="underline" href={`/day/${row.date}`}>
+                {heading}
+              </Link>
+              {row.isToday && (
+                <span className="ml-2 rounded bg-primary px-1.5 py-0.5 text-xs font-medium text-primary-foreground">
+                  Today
+                </span>
+              )}
+            </h2>
+
+            {row.venues.length === 0 ? (
+              <p className="py-1 text-sm text-muted-foreground">Nothing listed</p>
+            ) : (
+              // THE SCROLLER IS THE <li>'s DIRECT GRID ITEM — do not wrap it
+              // in another element. (This matters from `md` up, where the <li>
+              // is a grid; below it the row is block flow and a wrapper's
+              // width is just its container's, so a wrapper does no harm on
+              // a phone.) A grid item's automatic minimum width is
+              // its content's min-content width, unless the item is itself a
+              // scroll container (whose automatic minimum is 0). Wrap this in
+              // a plain <div> and THAT <div>'s minimum becomes the full width
+              // of every venue column, the `1fr` track grows to fit it, and
+              // the whole PAGE scrolls sideways instead of this row. (If a
+              // wrapper is ever needed: `min-w-0` on it.) B3 plan, Gap E.
+              //
+              // `role="region"` + `aria-label` + `tabIndex={0}`: a scrollable
+              // area must be reachable by keyboard, or keyboard users can't
+              // scroll it.
+              //
+              // (Ari) — Gap E. Lesson: see the paragraph above; what you type
+              //   is the scroll container's classes. `overflow-x-auto` makes
+              //   it a scroll container (and so lets the `1fr` track stay the
+              //   page's width); `overscroll-x-contain` stops a swipe that
+              //   reaches the row's end from chaining into the browser's Back
+              //   gesture; scroll-snap keeps columns aligned after a flick.
+              // Code (replace the className below):
+              //   className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2"
+              // Check: in the browser at 1280px and at phone width,
+              //   `document.documentElement.scrollWidth ===
+              //   document.documentElement.clientWidth` in the console is
+              //   `true` WHILE the 2026-10-07 row (four venues: 9rem + 4 ×
+              //   16rem is wider than `max-w-6xl`'s content box) scrolls
+              //   sideways on its own. Then the experiment that makes the
+              //   lesson observable — run it at 768px to 1024px (devtools
+              //   responsive mode), where it is clearest: wrap the scroller
+              //   in a bare <div> and the check turns `false` (the page
+              //   grows from 768 to about 1232 wide; at 1280px it is only
+              //   16px, easy to miss); add `min-w-0` to the wrapper and it
+              //   turns `true` again; remove the wrapper. Until the classes
+              //   are typed the row doesn't scroll and the page overflows
+              //   sideways — that IS the failure.
+              <div
+                role="region"
+                aria-label={`Shows on ${heading}`}
+                tabIndex={0}
+                className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2"
+              >
+                {row.venues.map((column) => (
+                  <section
+                    key={column.venue.id}
+                    className="w-[min(80vw,16rem)] shrink-0 snap-start"
+                  >
+                    <h3 className="mb-2 font-medium">
+                      <Link className="underline" href={`/venue/${column.venue.id}`}>
+                        {column.venue.name}
+                      </Link>
+                    </h3>
+                    {/* Every show, no cap at two (plan D7): "1-2 shows" in
+                        the requirements describes the usual case, and a
+                        cap would hide real shows. The column grows taller. */}
+                    <div className="space-y-2">
+                      {column.shows.map((show) => (
+                        <ShowBlock key={show.id} show={show} withVenue={false} />
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}

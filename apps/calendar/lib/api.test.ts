@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, createApiClient } from "./api";
 import artistDetail from "./fixtures/artist-detail.json";
 import artists from "./fixtures/artists.json";
+import calendarMonths from "./fixtures/calendar-months.json";
 import metro from "./fixtures/metro.json";
 import shows from "./fixtures/shows.json";
 import venueDetail from "./fixtures/venue-detail.json";
@@ -39,6 +40,18 @@ const dynamicUsageError = () =>
     digest: "DYNAMIC_SERVER_USAGE",
   });
 
+// The client logs one line per API call (see "request log" below), through
+// console.log. Silence it for every test, so test output stays readable;
+// the "request log" tests read the spy to assert on the lines.
+let log: ReturnType<typeof vi.spyOn>;
+beforeEach(() => {
+  log = vi.spyOn(console, "log").mockImplementation(() => {});
+});
+afterEach(() => vi.restoreAllMocks());
+
+// The lines the client has logged so far, as plain strings.
+const loggedLines = () => log.mock.calls.map((args: unknown[]) => String(args[0]));
+
 // --- the happy paths -------------------------------------------------------
 
 describe("typed getters", () => {
@@ -46,6 +59,7 @@ describe("typed getters", () => {
     ["getMetro", "/metro", metro, (c: ReturnType<typeof clientFor>) => c.getMetro()],
     ["getVenues", "/venues", venues, (c: ReturnType<typeof clientFor>) => c.getVenues()],
     ["getArtists", "/artists", artists, (c: ReturnType<typeof clientFor>) => c.getArtists()],
+    ["getCalendarMonths", "/calendar/months", calendarMonths, (c: ReturnType<typeof clientFor>) => c.getCalendarMonths()],
   ])("%s calls %s and returns the body unchanged", async (_name, path, body, call) => {
     // Proves: each list/reference getter hits the right URL and returns
     // the parsed JSON as-is (no reshaping layer to drift from the contract).
@@ -193,5 +207,164 @@ describe("request options", () => {
         signal: expect.any(AbortSignal),
       }),
     );
+  });
+});
+
+// --- the request log ---------------------------------------------------------
+// One line per API call, in the Next.js server's terminal: the substitute
+// for the browser's Network tab, which can't see server-to-server requests
+// (docs/dev/debugging.md). Expected values are the format written in
+// lib/api.ts's docstring, not read back from the code.
+
+describe("request log", () => {
+  it("logs the method, path, status and elapsed time", async () => {
+    // Proves: a successful call leaves a status line, in the documented
+    // format — the line a developer greps the terminal for — followed by
+    // the body summary (tested under "response body log").
+    await clientFor(respondWith(venues)).getVenues();
+    expect(loggedLines()).toHaveLength(2);
+    expect(loggedLines()[0]).toMatch(/^\[api\] GET \/venues -> 200 in \d+ms$/);
+  });
+
+  it("includes the query string, with repeated keys", async () => {
+    // Proves: the line shows what was actually asked for (the filters),
+    // which is the thing you open the log to check.
+    await clientFor(respondWith(shows)).getShows({ venueIds: [1, 3], start: "2026-10-01", end: "2026-10-31" });
+    expect(loggedLines()[0]).toContain("/shows?start=2026-10-01&end=2026-10-31&venue_id=1&venue_id=3");
+  });
+
+  it("logs the real status of a 404, even though getVenue treats it as data", async () => {
+    // Proves: the log reports what the API said, not what the caller made
+    // of it; "no such venue" must still be visible as a 404 in the log.
+    await clientFor(respondWith({ detail: "Venue not found" }, 404)).getVenue(9999);
+    expect(loggedLines()[0]).toMatch(/GET \/venues\/9999 -> 404 in \d+ms$/);
+  });
+
+  it("logs a failed call instead of a status", async () => {
+    // Proves: an unreachable API shows up in the log with a reason, at the
+    // moment it happens.
+    const fetchImpl = vi.fn(async () => {
+      throw new TypeError("fetch failed");
+    });
+    await clientFor(fetchImpl as unknown as typeof fetch).getVenues().catch(() => {});
+    expect(loggedLines()[0]).toMatch(/GET \/venues -> failed \(could not reach the API\) in \d+ms$/);
+  });
+
+  it("says when a call timed out", async () => {
+    // Proves: a timeout is told apart from an unreachable host in the log,
+    // since the fix differs (a slow API versus a stopped one).
+    const fetchImpl = vi.fn(async () => {
+      throw new DOMException("timed out", "TimeoutError");
+    });
+    await clientFor(fetchImpl as unknown as typeof fetch).getVenues().catch(() => {});
+    expect(loggedLines()[0]).toMatch(/-> failed \(timed out\) in \d+ms$/);
+  });
+
+  it("never prints the base URL", async () => {
+    // Proves: deployment config (API_BASE_URL) stays out of logs; only the
+    // path and query are written.
+    await clientFor(respondWith(venues)).getVenues();
+    expect(loggedLines().join("\n")).not.toContain(BASE);
+  });
+
+  it("does not log Next's dynamic-usage signal as a failure", async () => {
+    // Proves: during `next build` a no-store fetch throws this on purpose
+    // to mark the route dynamic. It is control flow, not an API failure,
+    // so it must pass through silently (same rule as the ApiError wrapping
+    // above) — a "failed" line here would be a false alarm on every build.
+    const fetchImpl = vi.fn(async () => {
+      throw dynamicUsageError();
+    });
+    await clientFor(fetchImpl as unknown as typeof fetch).getVenues().catch(() => {});
+    expect(loggedLines()).toEqual([]);
+  });
+
+  it("cannot break the request it is logging", async () => {
+    // Proves: a malformed API_BASE_URL (no scheme, a typo) still surfaces
+    // as the ApiError the pages handle, not as a raw TypeError thrown by
+    // the log line's own URL parsing. A logger must never be able to fail
+    // a request; it falls back to the bare path.
+    const fetchImpl = vi.fn(async () => {
+      throw new TypeError("Failed to parse URL");
+    });
+    const client = createApiClient({ baseUrl: "localhost:8000", fetchImpl: fetchImpl as unknown as typeof fetch });
+    const error = await client.getVenues().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(loggedLines()[0]).toMatch(/GET \/venues -> failed \(could not reach the API\) in \d+ms$/);
+  });
+});
+
+// --- the response body log -----------------------------------------------------
+// After the status line, a one-line SUMMARY of the parsed body (lib/api-log.ts
+// decides its content); the full JSON only when the client is told to
+// (LOG_API_BODIES -> `logBodies`). Sizes are the compact JSON lengths of
+// the fixtures, measured with `json.dumps(..., separators=(",", ":"))`.
+
+describe("response body log", () => {
+  const withBodies = (fetchImpl: typeof fetch) =>
+    createApiClient({ baseUrl: BASE, fetchImpl, logBodies: true });
+
+  it("logs a summary line after the status line, by default", async () => {
+    // Proves: the default leaves a short, searchable line describing what
+    // came back — size and shape — so an anomaly (an empty list, a missing
+    // field) is visible without reading JSON. venues.json is 156 bytes
+    // compact and holds four venues.
+    await clientFor(respondWith(venues)).getVenues();
+    expect(loggedLines()).toHaveLength(2);
+    expect(loggedLines()[1]).toBe("[api] GET /venues body (156 B): venues[4]");
+  });
+
+  it("carries its own method and path, because calls interleave", async () => {
+    // Proves: the page's five API calls run in parallel, so their lines
+    // interleave in the terminal. A summary that said only "25 shows" could
+    // not be attributed; this one starts with the same "GET <path+query>"
+    // as its status line, so a search for that request finds both.
+    await clientFor(respondWith(shows)).getShows({ venueIds: [3] });
+    expect(loggedLines()[1]).toMatch(
+      /^\[api\] GET \/shows\?venue_id=3 body \(8\.1 KB\): 25 shows \(2026-09-28\.\.2026-10-25\); 3 without start_time/,
+    );
+  });
+
+  it("does not write the full body unless asked", async () => {
+    // Proves: the default never prints the JSON itself (large lines, and
+    // data in hosted logs by accident).
+    await clientFor(respondWith(venues)).getVenues();
+    expect(loggedLines().join("\n")).not.toContain('"venues":[');
+  });
+
+  it("writes the full body, on one line, when asked", async () => {
+    // Proves: the LOG_API_BODIES switch gives the exact JSON the API sent
+    // (re-serialised compactly), for chasing one specific problem.
+    await withBodies(respondWith(venues)).getVenues();
+    expect(loggedLines()).toHaveLength(3);
+    expect(loggedLines()[2]).toBe(`[api] GET /venues body JSON: ${JSON.stringify(venues)}`);
+  });
+
+  it("cuts a very large full body", async () => {
+    // Proves: even with the switch on, one response can't flood the log:
+    // the 8 KB /shows body (compact) is longer than the 4000-character cap
+    // and the line says how much was cut.
+    await withBodies(respondWith(shows)).getShows();
+    expect(loggedLines()[2]).toMatch(/…\(\+\d+ chars\)$/);
+  });
+
+  it("logs no body for an error response or one that isn't JSON", async () => {
+    // Proves: there is no body line where there is no usable body — the
+    // status line alone says what happened — and the pages still get their
+    // ApiError.
+    const failing = await clientFor(respondWith({ detail: "boom" }, 500)).getVenues().catch((e: unknown) => e);
+    expect(failing).toBeInstanceOf(ApiError);
+    expect(loggedLines()).toHaveLength(1);
+
+    log.mockClear();
+    const garbled = await clientFor(respondWith("<html>not json")).getVenues().catch((e: unknown) => e);
+    expect(garbled).toBeInstanceOf(ApiError);
+    expect(loggedLines()).toHaveLength(1); // only the "-> 200" status line
+  });
+
+  it("returns the same data it logged", async () => {
+    // Proves: reading the body as text (to measure it) and parsing it is
+    // transparent — the caller gets exactly the API's object.
+    expect(await withBodies(respondWith(shows)).getShows()).toEqual(shows);
   });
 });

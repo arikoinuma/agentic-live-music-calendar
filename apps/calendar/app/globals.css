@@ -2,6 +2,15 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* Tailwind v4 only generates the utilities it finds by scanning source
+   files, and its automatic scan starts at this app's directory — so the
+   classes inside `packages/ui` (the combobox and select the filter header
+   uses, first imported in B3) are invisible to it and render unstyled.
+   `@source` adds the shared package. The path is relative to THIS FILE
+   (apps/calendar/app/), so it takes three `..` to reach the repo root
+   (docs/dev/notes.md). */
+@source "../../../packages/ui/src";
+
 @custom-variant dark (&:is(.dark *));
 
 /*
@@ -15,7 +24,7 @@
  *
  *   `html, body { overflow-x: hidden }` — with both set, `body` becomes
  *   the scroll container, which breaks `position: sticky` (B3's sticky
- *   date and venue headers). Inner `overflow-x: auto` regions would
+ *   date headings on phones). Inner `overflow-x: auto` regions would
  *   still have scrolled; sticky is the real casualty.
  */
 

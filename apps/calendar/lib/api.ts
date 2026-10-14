@@ -17,9 +17,21 @@
  *    caching is deliberately deferred (arch-initial.md §11); this is the
  *    one place to change when it arrives.
  *  - Every request has a timeout, so a hung API can't hold a page open.
+ *  - Every request is LOGGED, one line each, to the Next.js server's
+ *    terminal:  `[api] GET /shows?venue_id=3 -> 200 in 41ms`  (or
+ *    `-> failed (timed out) in 5003ms`). The browser's Network tab can't
+ *    show these calls — they go server to server — so this is the place to
+ *    see what the app asked the API for (docs/dev/debugging.md). It writes
+ *    the path and query only, never the base URL (deployment config).
+ *  - Every 2xx response body gets a one-line SUMMARY, naming its request
+ *    (parallel calls interleave in the terminal):
+ *      `[api] GET /shows?venue_id=3 body (2.0 KB): 6 shows (…); 1 without start_time; …`
+ *    With `LOG_API_BODIES=1` (never in production) the full JSON follows
+ *    on one line, cut at 4000 characters. What goes in those lines is
+ *    decided in lib/api-log.ts.
  *
  * Shape of the file: `createApiClient({ baseUrl, fetchImpl })` builds the
- * six getters over an injectable `fetch` — that's what api.test.ts drives
+ * getters over an injectable `fetch` — that's what api.test.ts drives
  * with fake responses. The exported functions at the bottom bind the real
  * `fetch` and the real env var, and are what pages import.
  */
@@ -31,10 +43,12 @@ import { cache } from "react";
 // this file can't work without it.
 import { unstable_rethrow } from "next/navigation";
 import { apiUrl } from "./api-url";
+import { bodyLoggingEnabled, compactJson, describeSize, summarizeBody } from "./api-log";
 import type { ShowsQuery } from "./params";
 import type {
   ArtistDetail,
   ArtistListResponse,
+  CalendarMonthsResponse,
   MetroSummary,
   ShowListResponse,
   VenueDetail,
@@ -76,6 +90,7 @@ export interface ApiClient {
   getVenues(): Promise<VenueListResponse>;
   /** `null` means the API answered 404 — the caller decides that's a 404 page. */
   getVenue(id: number): Promise<VenueDetail | null>;
+  getCalendarMonths(): Promise<CalendarMonthsResponse>;
   getArtists(): Promise<ArtistListResponse>;
   /** `null` means the API answered 404. */
   getArtist(id: number): Promise<ArtistDetail | null>;
@@ -87,6 +102,66 @@ function isTimeout(err: unknown): boolean {
 }
 
 /**
+ * The "path?query" an API call is logged under — the full URL minus the
+ * base URL (deployment config, which stays out of logs).
+ *
+ * A logger must never be able to fail the request it is describing, nor
+ * print nonsense. A malformed API_BASE_URL (no scheme, a typo) either
+ * makes `new URL` throw — inside the error path, where a throw would
+ * replace the ApiError the pages handle with a raw TypeError — or, for
+ * something like "localhost:8000", parse "successfully" as a URL whose
+ * scheme is "localhost:" and whose path is "8000/venues". So trust the
+ * parse only if it came out http(s); otherwise fall back to the bare path.
+ */
+function targetOf(url: string, path: string): string {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+      return `${parsed.pathname}${parsed.search}`;
+    }
+  } catch {
+    // fall through to the bare path
+  }
+  return path;
+}
+
+/**
+ * Writes the status line described at the top of this file. The "in Nms"
+ * is the time until the API's response HEADERS arrived — reading the body
+ * comes after, and is covered by the same timeout. Every call this client
+ * makes is a GET, so the method is a constant, not a parameter.
+ */
+function logRequest(target: string, outcome: string, startedAt: number): void {
+  const ms = Math.round(performance.now() - startedAt);
+  console.log(`[api] GET ${target} -> ${outcome} in ${ms}ms`);
+}
+
+/**
+ * Writes the body summary line, and the full body when `full` is set.
+ * Never throws: it runs after the response was parsed successfully, and a
+ * logging problem must not turn good data into an error.
+ *
+ * Each line starts with the same "GET <path+query>" as the status line,
+ * because the page's calls run in parallel and their lines interleave.
+ * `route` is the path without its query, for api-log.ts to pick a summary.
+ */
+function logBody(
+  target: string,
+  route: string,
+  text: string,
+  body: unknown,
+  full: boolean,
+): void {
+  try {
+    const size = describeSize(new TextEncoder().encode(text).length);
+    console.log(`[api] GET ${target} body (${size}): ${summarizeBody(route, body)}`);
+    if (full) console.log(`[api] GET ${target} body JSON: ${compactJson(body)}`);
+  } catch {
+    // A log line is not worth a failed request.
+  }
+}
+
+/**
  * Builds the client. `baseUrl` is allowed to be undefined so that a
  * missing env var surfaces as a clear error from the first CALL (naming
  * API_BASE_URL) rather than a crash at import time — module-load-time
@@ -95,30 +170,43 @@ function isTimeout(err: unknown): boolean {
 export function createApiClient(opts: {
   baseUrl: string | undefined;
   fetchImpl?: typeof fetch;
+  // Also log each response body in full (LOG_API_BODIES; see api-log.ts).
+  // Off by default: the one-line summary is always logged, the JSON is for
+  // chasing one specific problem.
+  logBodies?: boolean;
 }): ApiClient {
-  const { baseUrl, fetchImpl = fetch } = opts;
+  const { baseUrl, fetchImpl = fetch, logBodies = false } = opts;
 
   /**
    * The one place a request is made. Returns the raw Response once the
    * API has answered with ANY status; status handling is the caller's
-   * (a 404 is data for getVenue and an error for getVenues).
+   * (a 404 is data for getVenue and an error for getVenues). `target` is
+   * the "path?query" the request is logged under, carried along so the
+   * body summary can name its request.
    */
   async function send(
     path: string,
     query?: Parameters<typeof apiUrl>[2],
-  ): Promise<Response> {
+  ): Promise<{ response: Response; target: string }> {
     if (!baseUrl) {
       throw new ApiError(
         "API_BASE_URL is not set (see apps/calendar/.env.local)",
         { path },
       );
     }
+    const url = apiUrl(baseUrl, path, query);
+    const target = targetOf(url, path);
+    const startedAt = performance.now();
     try {
-      return await fetchImpl(apiUrl(baseUrl, path, query), {
+      const response = await fetchImpl(url, {
         // D1: never cached. Explicit at the call site, as in lib/health.ts.
         cache: "no-store",
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
+      // Logged whatever the status: a 404 here is "no such venue", which
+      // the caller turns into data — but the log reports what the API said.
+      logRequest(target, String(response.status), startedAt);
+      return { response, target };
     } catch (err) {
       // MUST be first. During `next build`, a `no-store` fetch THROWS a
       // DynamicServerError, on purpose and before any network call, to
@@ -129,6 +217,14 @@ export function createApiClient(opts: {
       // Next its control-flow errors back untouched, then handle the
       // errors that are really ours.
       unstable_rethrow(err);
+      // Only now, so that Next's control-flow error (above) is never
+      // logged as an API failure — it would print a false alarm on every
+      // `next build`.
+      logRequest(
+        target,
+        `failed (${isTimeout(err) ? "timed out" : "could not reach the API"})`,
+        startedAt,
+      );
       throw new ApiError(
         isTimeout(err)
           ? `API request timed out after ${TIMEOUT_MS}ms`
@@ -139,18 +235,25 @@ export function createApiClient(opts: {
   }
 
   /** Non-2xx -> ApiError; 2xx -> the parsed JSON body, trusted as `T`. */
-  async function readJson<T>(response: Response, path: string): Promise<T> {
+  async function readJson<T>(
+    response: Response,
+    path: string,
+    target: string,
+  ): Promise<T> {
     if (!response.ok) {
       throw new ApiError(`API answered HTTP ${response.status}`, {
         path,
         status: response.status,
       });
     }
+    let text: string;
+    let body: unknown;
     try {
-      // `as T` is a trust boundary, not a check: the generated types say
-      // what the API SHOULD send. Runtime validation (zod) is deferred
-      // until the edit forms need it (api-contract.md §7).
-      return (await response.json()) as T;
+      // Read as text and parse, rather than `response.json()`, so the
+      // body's size can be logged. Same failure modes: a stalled body
+      // rejects here, malformed JSON in JSON.parse.
+      text = await response.text();
+      body = JSON.parse(text);
     } catch (err) {
       unstable_rethrow(err); // same reason as in send()
       // The timeout also covers reading the body, so a stalled body shows
@@ -162,21 +265,29 @@ export function createApiClient(opts: {
         { path, status: response.status, cause: err },
       );
     }
+    // After the try, not inside it: a logging problem must not be reported
+    // as "not valid JSON". logBody never throws.
+    logBody(target, path, text, body, logBodies);
+    // `as T` is a trust boundary, not a check: the generated types say
+    // what the API SHOULD send. Runtime validation (zod) is deferred
+    // until the edit forms need it (api-contract.md §7).
+    return body as T;
   }
 
   async function get<T>(
     path: string,
     query?: Parameters<typeof apiUrl>[2],
   ): Promise<T> {
-    return readJson<T>(await send(path, query), path);
+    const { response, target } = await send(path, query);
+    return readJson<T>(response, path, target);
   }
 
   // Detail endpoints: a 404 is an expected answer ("no such venue"), so
   // it's `null`, not an exception. Anything else non-2xx still throws.
   async function getOrNull<T>(path: string): Promise<T | null> {
-    const response = await send(path);
+    const { response, target } = await send(path);
     if (response.status === 404) return null;
-    return readJson<T>(response, path);
+    return readJson<T>(response, path, target);
   }
 
   return {
@@ -191,6 +302,9 @@ export function createApiClient(opts: {
         venue_id: query.venueIds,
         artist_id: query.artistIds,
       }),
+    // The month dropdown's options (B3): future-facing months that have
+    // shows. The server decides both; the client never derives them.
+    getCalendarMonths: () => get<CalendarMonthsResponse>("/calendar/months"),
     getVenues: () => get<VenueListResponse>("/venues"),
     getVenue: (id) => getOrNull<VenueDetail>(`/venues/${id}`),
     getArtists: () => get<ArtistListResponse>("/artists"),
@@ -202,7 +316,13 @@ export function createApiClient(opts: {
 //
 // A fresh client per call, so `process.env.API_BASE_URL` is read when the
 // request happens, not when the module loads.
-const live = () => createApiClient({ baseUrl: process.env.API_BASE_URL });
+const live = () =>
+  createApiClient({
+    baseUrl: process.env.API_BASE_URL,
+    // LOG_API_BODIES=1 in apps/calendar/.env.local (restart `next dev`)
+    // logs full response bodies; ignored in production (api-log.ts).
+    logBodies: bodyLoggingEnabled(process.env),
+  });
 
 // React's `cache()` de-duplicates calls within ONE server render: the
 // root layout's footer and `generateMetadata` both ask for the metro, and
@@ -217,6 +337,7 @@ const live = () => createApiClient({ baseUrl: process.env.API_BASE_URL });
 export const getMetro = cache(() => live().getMetro());
 
 export const getShows = (query?: Partial<ShowsQuery>) => live().getShows(query);
+export const getCalendarMonths = () => live().getCalendarMonths();
 export const getVenues = () => live().getVenues();
 export const getVenue = (id: number) => live().getVenue(id);
 export const getArtists = () => live().getArtists();
