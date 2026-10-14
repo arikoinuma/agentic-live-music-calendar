@@ -245,3 +245,49 @@ build plan §3) and whether the `TODO(Ari)` gaps are the right ones.
   - **Where to look hardest:** what the author is least sure of.
 
 A second implementation pass after code review gets its own log round, scoped to the fixes.
+
+## Cloud sessions — what runs there, and how it hands work back
+
+Claude Code cloud sessions (`CLAUDE_CODE_REMOTE=true`) are set up by `scripts/cloud-setup.sh`,
+a SessionStart hook in `.claude/settings.json`. The sandbox has Postgres and the full
+`make check` suite, but **no Ollama, no gitignored eval fixtures, and no route to venue
+websites** (Trusted network access only). So a cloud session cannot run live extraction, the
+eval harness, `local_test`, or fixture capture, and 14 tests in
+`agent_worker/tests/test_validation_on_real_pages.py` skip there. Don't try to work around
+this; leave that work for a local session and say so in the PR. The sandbox has Node 22 and
+CI uses 24, so a green JS check there is not quite a green CI.
+
+Suited to cloud: deterministic, DB-tested work (reconcile, commit, audit writes, routes onto
+the DB), the Next.js track, plan and code review rounds, docs. Needs local: anything that
+calls the model, and filling `TODO(Ari)` gaps.
+
+`/plan-milestone` can run in the cloud for any milestone, since it writes no code, with one
+exception: if the plan's design depends on measurements only the local model can produce
+(eval results, extraction-quality experiments such as H1's act splitter), plan it locally or
+mark those facts as unverified in the plan. `/build-milestone` is cloud-suited only where
+the milestone itself is (see the list above). The skills are user-invoked, so type them;
+the session model is the author, and the reviewer subagent gets a different one, as
+"Running a review round" requires.
+
+### Branches and PRs
+
+1. Work on a branch named `<milestone>-<slug>` (e.g. `a5-reconcile`), matching the plan
+   file's name. Never commit to `main`. One milestone per branch.
+2. Open the PR as a **draft**. Ari reviews and merges; don't merge it yourself.
+3. Run `make check` before pushing and put its result in the PR description. Don't hand-edit
+   generated files (`lib/api-types.ts`, `lib/fixtures/`); regenerate with `make types` /
+   `make fixtures` if you change `schemas.py` or `sample_data.py`.
+4. The plan file stays the only channel between author and reviewer: update its `Status` and
+   append your rounds **on the same branch**, so they arrive with the code.
+5. For a **[fill-in]** task, push the scaffold with its tests red, and list each
+   `TODO(Ari)` gap in the PR description as a file:line link with its lesson and the test
+   command, exactly as "[fill-in] tasks" above says. Ari fills the gaps locally by checking
+   out the branch (or `claude --teleport`) and pushing to it.
+6. At an Ari gate (plan approval, sign-off) or a decision that is his to make, stop and say so
+   at the top of the PR description. Don't proceed past it.
+
+**Parallel tracks.** The A (Python) and B (Next.js) tracks run at the same time and meet at the
+API contract, so a change to `app/schemas.py` regenerates files that B-track branches depend
+on. Keep schema changes in their own early PR so the other track can rebase onto them. Keep
+edits to shared docs (`alpha-build-plan.md`, `notes.md`) small and append-only to avoid merge
+conflicts. A5 and A6 write the same tables, so they are not run in parallel.
