@@ -153,6 +153,17 @@ _SHOW_ROWS: list[tuple] = [
     #     Thu"), sorting after the evening's shows (requirements-initial.md,
     #     "Times after midnight"):
     (9, "The Midway Saloon", "01:00", None, _lineup("Dead Man Winter"), None, None, True, None),
+
+    # Added for B4 (docs/dev/implementations/b4-detail-pages.md, D2), and
+    # appended so ids 1-25 don't change. Every show above sits inside the
+    # 28-day default window (START..END), so against this data
+    # `GET /shows?artist_id=1&upcoming=true` and the plain default window
+    # return the same rows and nothing could tell them apart. This one is
+    # deliberately OUTSIDE the window: Thursday 2026-10-29 (offset 31),
+    # Charlie Parr again, at a venue he has played in the window, so the
+    # artist page lists five shows while the default window holds four.
+    # The generator keeps it out of shows.json (see generate_fixtures.py).
+    (31, "The White Squirrel Bar", "20:00", None, _lineup("Charlie Parr"), None, "10.00", None, None),
 ]
 
 

@@ -46,7 +46,13 @@ def main() -> None:
     print("Writing fixtures:")
 
     write("metro.json", data.METRO)
-    write("shows.json", ShowListResponse(start=data.START, end=data.END, shows=data.SHOWS))
+    # shows.json is a DEFAULT-WINDOW response, so it holds only the shows
+    # inside START..END -- what GET /shows returns with no parameters. Not
+    # `data.SHOWS` wholesale: B4 appended one show past END (to make
+    # `?upcoming=true` observable), and a fixture claiming END while holding
+    # a later show would be lying about its own range.
+    in_window = [s for s in data.SHOWS if data.START <= s.date <= data.END]
+    write("shows.json", ShowListResponse(start=data.START, end=data.END, shows=in_window))
     write("show-detail.json", data.show_detail(2))
     write("venues.json", VenueListResponse(venues=sorted(data.VENUES, key=lambda v: v.name)))
     write("venue-detail.json", data.venue_detail(3))

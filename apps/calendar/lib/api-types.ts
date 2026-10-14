@@ -25,6 +25,16 @@ export interface paths {
          *     Filters are AND-ed across types and OR-ed within one: two venue_ids
          *     means "either venue", which is what a multi-select visibly implies,
          *     while a venue_id plus an artist_id means both must hold.
+         *
+         *     `upcoming=true` replaces the date range with "from the server's today,
+         *     no upper limit". It is refused (422) when combined with `start` or
+         *     `end` -- the two contradict each other, and silently preferring one
+         *     would hide a client bug -- and when neither `venue_id` nor `artist_id`
+         *     is given: every show in the metro with no upper bound is exactly the
+         *     unbounded scan MAX_RANGE exists to prevent, while one artist or venue
+         *     is bounded by what they can play. The response keeps its shape:
+         *     `start` is today and `end` is the date of the last show returned (or
+         *     `start` when there is none), so the echoed range is always valid.
          */
         get: operations["list_shows_shows_get"];
         put?: never;
@@ -535,6 +545,7 @@ export interface operations {
                 end?: string | null;
                 venue_id?: number[] | null;
                 artist_id?: number[] | null;
+                upcoming?: boolean;
             };
             header?: never;
             path?: never;

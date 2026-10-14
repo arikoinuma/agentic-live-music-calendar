@@ -12,6 +12,8 @@ for every unknown id. The happy path passed by hand; only the miss path
 caught it.
 """
 
+import datetime
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -168,3 +170,123 @@ def test_openapi_exposes_the_metro_route() -> None:
     assert "/metro" in paths
     ref = paths["/metro"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
     assert ref == {"$ref": "#/components/schemas/MetroSummary"}
+
+
+# --- GET /shows?upcoming=true (B4, plan decision D2) ----------------------
+# The artist page lists EVERY future show of an artist, not just the next
+# four weeks. The client can't ask for that with dates (the server owns
+# "now", api-contract.md §3), so `upcoming=true` means "from the server's
+# today, no upper limit".
+#
+# Where the expected values come from: worked out by hand from the rows in
+# sample_data.py, not read back from the code under test. Charlie Parr is
+# artist 1 and plays: 2026-09-28 (venue 1), 2026-10-07 (venue 3),
+# 2026-10-08 (venue 1), 2026-10-20 (venue 3) -- all inside the default
+# window, which is 2026-09-28..2026-10-25 -- plus the one row B4 appended
+# on purpose OUTSIDE it: 2026-10-29 at venue 1. Without that row `upcoming`
+# and the default window are indistinguishable and nothing here could tell
+# them apart.
+
+CHARLIE_PARR_IN_WINDOW = ["2026-09-28", "2026-10-07", "2026-10-08", "2026-10-20"]
+
+
+def _dates(query: str) -> list[str]:
+    return [s["date"] for s in client.get(f"/shows?{query}").json()["shows"]]
+
+
+def test_upcoming_reaches_past_the_default_window() -> None:
+    """Proves: `upcoming=true` returns shows beyond the 28-day default window.
+
+    The contrast is in one test on purpose: the same artist, with and
+    without the parameter, differs by exactly the 2026-10-29 show. If the
+    parameter were ignored (FastAPI silently ignores unknown query
+    parameters) both requests would return four shows and this fails on
+    the content, not on a status code.
+    """
+    without = client.get("/shows?artist_id=1").json()
+    assert [s["date"] for s in without["shows"]] == CHARLIE_PARR_IN_WINDOW
+    assert without["end"] == "2026-10-25"
+
+    upcoming = client.get("/shows?artist_id=1&upcoming=true").json()
+    assert [s["date"] for s in upcoming["shows"]] == [*CHARLIE_PARR_IN_WINDOW, "2026-10-29"]
+    # The echoed range: from the server's today to the last show returned.
+    assert upcoming["start"] == "2026-09-28"
+    assert upcoming["end"] == "2026-10-29"
+
+
+def test_upcoming_starts_from_the_servers_today(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Proves: shows before the server's "today" are excluded, and "today" is the server's.
+
+    The router reads `data.START` (the sample data's pinned "today") at
+    call time, so moving it moves the lower bound. A client that computed
+    its own start date would not be affected by this -- which is the
+    point: the server decides what "upcoming" means.
+    """
+    monkeypatch.setattr(data, "START", datetime.date(2026, 10, 8))
+    body = client.get("/shows?artist_id=1&upcoming=true").json()
+    assert [s["date"] for s in body["shows"]] == ["2026-10-08", "2026-10-20", "2026-10-29"]
+    assert body["start"] == "2026-10-08"
+
+
+def test_upcoming_with_no_matches_is_a_valid_empty_range() -> None:
+    """Proves: no upcoming shows is a 200 with an empty list and start == end, not an error.
+
+    `end` falls back to `start` when nothing matched, so the echoed range
+    is always valid (end >= start) and the page can still print "from ...".
+    """
+    response = client.get("/shows?artist_id=9999&upcoming=true")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["shows"] == []
+    assert body["start"] == body["end"] == "2026-09-28"
+
+
+def test_upcoming_combines_with_the_other_filters() -> None:
+    """Proves: `upcoming` is one more AND-ed filter, like any other.
+
+    Venue 3 (Zhora Darling) hosts two of Charlie Parr's five shows
+    (2026-10-07 and 2026-10-20); the other three are at venue 1. And
+    `venue_id=1` alone, upcoming, includes the 2026-10-29 show.
+    """
+    assert _dates("venue_id=3&artist_id=1&upcoming=true") == ["2026-10-07", "2026-10-20"]
+    venue_one = _dates("venue_id=1&upcoming=true")
+    assert "2026-10-29" in venue_one
+    assert min(venue_one) >= "2026-09-28"
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        # No venue or artist: every show in the metro with no upper bound is the
+        # unbounded scan MAX_RANGE exists to prevent. One artist or venue
+        # bounds the result by what they can play.
+        "upcoming=true",
+        # An explicit range contradicts "from today, open-ended"; silently
+        # preferring one would hide a client bug.
+        "artist_id=1&upcoming=true&start=2026-10-01",
+        "artist_id=1&upcoming=true&end=2026-11-30",
+    ],
+)
+def test_upcoming_rejects_contradictory_or_unbounded_requests(query: str) -> None:
+    """Proves: the two guards on `upcoming` answer 422 rather than guessing."""
+    assert client.get(f"/shows?{query}").status_code == 422
+
+
+def test_upcoming_false_changes_nothing() -> None:
+    """Proves: an explicit `upcoming=false` is the same request as leaving it out.
+
+    A client that always sends the parameter (true or false) must not get
+    different behaviour for false.
+    """
+    assert _dates("artist_id=1&upcoming=false") == _dates("artist_id=1")
+
+
+def test_openapi_exposes_the_upcoming_parameter() -> None:
+    """Proves: `upcoming` is in GET /shows's documented parameters.
+
+    That document is what `make types` turns into lib/api-types.ts; if the
+    parameter weren't declared on the route it would never reach the
+    frontend's types (same reasoning as test_openapi_exposes_the_response_schemas).
+    """
+    parameters = app.openapi()["paths"]["/shows"]["get"]["parameters"]
+    assert "upcoming" in {p["name"] for p in parameters}

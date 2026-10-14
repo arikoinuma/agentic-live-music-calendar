@@ -41,6 +41,14 @@ Listed here as the agreed surface; each lands with its milestone. All routes exi
 
 **Filtering.** `venue_id` and `artist_id` repeat for multi-select (`?venue_id=1&venue_id=3`). Both filters are AND-ed with the date range and OR-ed within themselves — picking two venues means "either venue," which is what a multi-select visibly implies.
 
+**Open-ended ranges: `start` alone, and `upcoming`.** `start` without `end` means "the default window from `start`" (the
+venue page's Earlier/Later paging sends only a `start`, so the window length stays the server's decision). `upcoming=true`
+(B4) means "every show from the server's today on, with no upper limit" — the artist page's list. It is refused with a
+422 when combined with `start` or `end` (an explicit range contradicts it) and when neither `venue_id` nor `artist_id`
+is given (every show in the metro with no upper bound is the unbounded scan `MAX_RANGE` exists to prevent). The response
+is still a `ShowListResponse`: `start` is today, `end` is the date of the last show returned, or `start` when there is
+none, so the echoed range is always valid. `upcoming=false` is the same as leaving it out.
+
 **Metro scoping.** Every response is implicitly scoped to the single live metro. No `metro_id` parameter exists yet; adding one later is additive. `arch-initial.md` Section 11 already tracks multi-metro enforcement as deferred.
 
 **Pagination.** None. One metro has tens of venues and hundreds of artists, and a four-week window has a bounded number of shows. The envelope shapes leave room to add it without a breaking change — see below.
@@ -148,7 +156,7 @@ make contract-check   # fail if the committed output is stale
 | File | Shape |
 |---|---|
 | `metro.json` | `MetroSummary` |
-| `shows.json` | `ShowListResponse` — 25 shows across 2026-09-28 → 2026-10-25 (B3 appended four on 2026-10-07: two at one venue, one ending after midnight, one at 1:00 AM) |
+| `shows.json` | `ShowListResponse` — 25 shows across 2026-09-28 → 2026-10-25, the default window (B3 appended four on 2026-10-07: two at one venue, one ending after midnight, one at 1:00 AM). The sample data holds a 26th show, 2026-10-29, which B4 added so `?upcoming=true` has something to reach; the generator keeps it out of this fixture because it is outside the range the fixture claims |
 | `show-detail.json` | `ShowDetail` |
 | `venues.json` | `VenueListResponse` — the four Phase 5 venues, alphabetical |
 | `venue-detail.json` | `VenueDetail` |
