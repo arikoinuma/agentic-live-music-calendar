@@ -203,17 +203,13 @@ def extract_node(state: VenueGraphState) -> VenueGraphState:
     state.extraction_notes = {}
     state.extract_error = None
 
-    # (Ari) Gap A — Lesson: a failed model call is an OUTCOME, not a crash. The retry loop was
-    #   built to handle exactly this failure (a thinking model exhausting its budget on a judgment
-    #   call, env-setup.md Phase 5) and could never fire: the exception skipped the increment below
-    #   and killed the graph (alpha-build-plan.md G2; arch-initial.md §7). Two things carry it:
-    #   COUNT the attempt BEFORE the call, so a failure can't skip it, and catch a NAMED tuple of
-    #   expected errors (`EXTRACTION_ERRORS`, above, with the reason for each member), never
-    #   `Exception`. A failed attempt leaves `extraction` None; validate_node then fails it with
-    #   reason `extract_failed`, so the existing `retry` edge handles it — no new edge.
-    # Check: `uv run pytest agent_worker/tests/test_graph.py -k "raises"` (the model call raising once,
-    #   and always). Likeliest mistakes: leaving the increment AFTER the call, outside any `try`, which
-    #   is exactly today's code (an exception skips it); and catching `Exception`.
+    # A failed model call is an OUTCOME, not a crash. The retry loop exists for exactly this failure
+    # (a thinking model exhausting its budget on a judgment call, env-setup.md Phase 5). Two things
+    # make it work. The attempt is COUNTED before the call, so an exception can't skip the increment
+    # and kill the graph (alpha-build-plan.md G2; arch-initial.md §7). And only a NAMED tuple of
+    # expected errors (`EXTRACTION_ERRORS`, above) is caught, never `Exception`. A failed attempt
+    # leaves `extraction` None, and validate_node fails it with reason `extract_failed`, so the
+    # existing `retry` edge handles it with no new edge.
     state.attempt_count += 1
     try:
         result = _run_extraction(state, plan)

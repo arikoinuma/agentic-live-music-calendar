@@ -42,20 +42,18 @@ listings — regardless of how many shows you end up returning.
 
 def _non_music_rule() -> str:
     """The exclusion rule: what is NOT a show, stated for the model."""
-    # (Ari) — Lesson: venues list entries that aren't live music with a performing
-    #   artist, and the requirements say to skip them ("Karaoke night", "Party", "Open
-    #   mic" without an identifiable artist; "Hosted by" is not a performance —
-    #   requirements-initial.md, "Agent Handling of Entries … that don't have performing
-    #   artists"). Stating the rule is a correctness fix AND a reliability fix: Phase 5's
-    #   one documented failure was a non-music entry mixed into a musical listing
-    #   exhausting the model's token budget (env-setup.md Phase 5). Decided scope (Ari,
-    #   Oct 9 2026): a *named* DJ is an identifiable performing artist, so a DJ night with
-    #   a named DJ is a show; comedy is not music and is excluded like karaoke and open
-    #   mic; a party or "night" naming no artist is excluded. "Hosted by" alone doesn't make a
-    #   non-music night a show — but since October 11, 2026 a named host of a *music* show is
-    #   one of its acts (Ari, A2.1 plan D5; code review round 2, #12).
-    #   It belongs in the prompt, not the schema: it is about what counts as a show at
-    #   all (a cross-cutting rule), not about one field's meaning.
+    # Venues list entries that aren't live music with a performing artist, and the requirements say to
+    # skip them ("Karaoke night", "Party", "Open mic" without an identifiable artist; "Hosted by" is not
+    # a performance: requirements-initial.md, "Agent Handling of Entries … that don't have performing
+    # artists"). Stating the rule is a correctness fix AND a reliability fix: Phase 5's one documented
+    # failure was a non-music entry mixed into a musical listing, exhausting the model's token budget
+    # (env-setup.md Phase 5). Decided scope (Ari, Oct 9 2026): a *named* DJ is an identifiable
+    # performing artist, so a DJ night with a named DJ is a show; comedy is not music and is excluded
+    # like karaoke and open mic; a party or "night" naming no artist is excluded. "Hosted by" alone
+    # doesn't make a non-music night a show, but since October 11, 2026 a named host of a *music* show
+    # is one of its acts (Ari, A2.1 plan D5; code review round 2, #12).
+    # It belongs in the prompt, not the schema: it is about what counts as a show at all (a
+    # cross-cutting rule), not about one field's meaning.
     # Reworded October 11, 2026 (A2.1) to Ari's "when in doubt, include it": a missed show
     # costs the calendar more than a stray non-music listing. The earlier wording ("Only extract
     # entries that name an identifiable performing artist… Skip karaoke nights, open mics, comedy
@@ -80,14 +78,13 @@ def _one_show_rule(per_act_times: bool = True) -> str:
     no field to follow). That route loses per-act start times — a known limit, recorded with
     #9's resolution in the A2.1 plan and left to Ari against A2 Decision 8.
     """
-    # (Ari) — Lesson: one listing can be one show with several artists, or several
-    #   distinct shows back to back, and the answer decides insert-vs-update downstream:
-    #   reconcile's composite key is (venue, date, time), so a model that splits or merges
-    #   differently between runs reads as shows appearing and disappearing. The
-    #   requirements' rule (requirements-initial.md, "One Show or Several?"): listings
-    #   under one time / ticket link are a single multi-artist show; separately timed or
-    #   separately ticketed listings are distinct shows; and several start times with ONE
-    #   ticket link is still one multi-artist show (each act carrying its own start time).
+    # One listing can be one show with several artists, or several distinct shows back to back, and
+    # the answer decides insert-vs-update downstream: reconcile's composite key is (venue, date, time),
+    # so a model that splits or merges differently between runs reads as shows appearing and
+    # disappearing. The requirements' rule (requirements-initial.md, "One Show or Several?"): listings
+    # under one time / ticket link are a single multi-artist show; separately timed or separately
+    # ticketed listings are distinct shows; and several start times with ONE ticket link is still one
+    # multi-artist show (each act carrying its own start time).
     rule = (
         "A listing under a single time or ticket link is a single show with several "
         "artists, not several shows. Listings with separate start times or separate "

@@ -35,33 +35,20 @@ export function siteDescription(metro: MetroSummary | null): string {
  * Runs `fetcher` (the API client's `getMetro`) and returns its result, or
  * `null` if the API is unavailable.
  *
- * (Ari) — Gap C. Lesson: every page renders the root layout, so a
- *   failed metro call must not fail the shell — but a blanket `catch`
- *   also swallows Next's internal control-flow errors (the dynamic-usage
- *   signal `fetch` throws during prerender), which turns a working build
- *   into a failing one. `unstable_rethrow` first, then handle.
- * Code:
- *   try {
- *     return await fetcher();
- *   } catch (err) {
- *     unstable_rethrow(err);
- *     console.error("[metro] unavailable:", err);
- *     return null;
- *   }
- * Check: `pnpm --filter calendar test metro` — the "rethrows Next's
- *   dynamic-usage signal" case. Likeliest mistake: `catch { return null }`,
- *   which passes the other two cases and then fails `next build`.
+ * A failed metro call must not fail the shell, because every page renders
+ * the root layout. A blanket `catch` would also swallow Next's internal
+ * control-flow errors (the dynamic-usage signal `fetch` throws during
+ * prerender), turning a working build into a failing one. `unstable_rethrow`
+ * runs first, so those pass through and everything else is handled here.
  */
 export async function getMetroOrNull(
   fetcher: () => Promise<MetroSummary> = getMetro,
 ): Promise<MetroSummary | null> {
-  // Referenced so the scaffold type-checks and lints before the gap is
-  // filled; the filled version uses both.
   try {
-      return await fetcher();
-    } catch (err) {
-      unstable_rethrow(err);
-      console.error("[metro] unavailable:", err);
-      return null;
-    }
+    return await fetcher();
+  } catch (err) {
+    unstable_rethrow(err);
+    console.error("[metro] unavailable:", err);
+    return null;
+  }
 }

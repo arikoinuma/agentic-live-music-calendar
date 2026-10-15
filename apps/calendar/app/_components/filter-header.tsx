@@ -75,30 +75,14 @@ export function FilterHeader({
   const [current, setOptimistic] = useOptimistic(filters);
 
   function navigate(next: CalendarFilters) {
-    // (Ari) — Gap D. Lesson: the Client Component never holds the
-    //   calendar's results. A selection changes the URL; the server page
-    //   re-renders from `searchParams` and streams new props down.
-    //   `router.push` runs inside a transition, so `isPending` says a
-    //   navigation is in flight; `useOptimistic` shows the new selection
-    //   at once and reverts to the server's value if the navigation
-    //   fails or lands elsewhere. `scroll: false` keeps the reader's
-    //   place instead of jumping to the top.
-    // Code (replace the `todo` line):
-    //   startTransition(() => {
-    //     setOptimistic(next);
-    //     router.push(buildCalendarHref(next), { scroll: false });
-    //   });
-    //   (add `buildCalendarHref` to the "@/lib/calendar-href" import, and delete
-    //   `import { todo } from "@/lib/todo"` — nothing else here calls it)
-    // Check: `pnpm check-types`, then in the browser: picking a venue
-    //   sets the URL to `/?venue=N` and the grid updates; a second venue
-    //   gives `/?venue=1&venue=3` whichever order they were picked; Back
-    //   restores the previous filters. Likeliest mistakes: keeping the
-    //   selection in `useState` and filtering client-side (works until the
-    //   URL is shared — the recipient sees an unfiltered calendar), or
-    //   `router.push` without `{ scroll: false }` (the page jumps to the
-    //   top on every change). Plan D8: push, not replace, so Back undoes a
-    //   filter change.
+    // The Client Component never holds the calendar's results. A selection
+    // changes the URL; the server page re-renders from `searchParams` and
+    // streams new props down. `router.push` runs inside a transition, so
+    // `isPending` says a navigation is in flight, and `useOptimistic` shows
+    // the new selection at once, reverting to the server's value if the
+    // navigation fails or lands elsewhere. `scroll: false` keeps the reader's
+    // place instead of jumping to the top. Plan D8: push, not replace, so
+    // Back undoes a filter change.
     startTransition(() => {
       setOptimistic(next);
       router.push(buildCalendarHref(next), { scroll: false });

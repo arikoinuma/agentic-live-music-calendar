@@ -15,39 +15,15 @@ export const metadata: Metadata = { title: "Venue" };
 // (lib/api.ts) is `server-only`, so it couldn't be used from a Client
 // Component here even by accident.
 export default async function VenuePage(props: PageProps<"/venue/[id]">) {
-  // (Ari) — Gap D. Lesson: in Next 16 `params` (and `searchParams`) are
-  //   Promises with no synchronous fallback (nextjs-style-guide.md, Routing
-  //   conventions and the Anti-patterns table). The route's whole
-  //   filesystem-routing story — folder `[id]` becomes a parameter — only
-  //   becomes real when the value arrives in the component.
-  // Code:
-  //   const { id: rawId } = await props.params;
-  //   (then delete the `todo` line below; `props` is typed by the
-  //   generated PageProps<"/venue/[id]">)
-  // Check: `pnpm check-types` (runs `next typegen`) — using `props.params`
-  //   without `await` is a type error. That is Gap D's own check. A curl
-  //   check needs Gaps C AND E filled too: while Gap C (lib/metro.ts) is
-  //   open, the layout throws and EVERY route 500s, `/health` included.
-  //   Likeliest mistake: destructuring without `await`.
+  // In Next 16 `params` is a Promise with no synchronous fallback
+  // (nextjs-style-guide.md, Routing conventions). The folder `[id]` only
+  // becomes a usable value once it is awaited here.
   const { id: rawId } = await props.params;
 
-  // (Ari) — Gap E. Lesson: the RSC idea. `await getVenue(id)` sits
-  //   directly in the component and runs on the server before any HTML is
-  //   sent. A miss is signalled with `notFound()`, which THROWS, producing
-  //   a real HTTP 404; returning "not found" markup instead gives a 200
-  //   (a soft 404, which search engines index).
-  // Code (add `import { notFound } from "next/navigation"`, and
-  //   `getVenue` from "@/lib/api", `parseIdParam` from "@/lib/params";
-  //   then delete the `todo` line below):
-  //   const id = parseIdParam(rawId);
-  //   if (id === null) notFound();
-  //   const venue = await getVenue(id);
-  //   if (venue === null) notFound();
-  // Check (fill Gap C in lib/metro.ts first, or every URL 500s):
-  //   `curl -s -o /dev/null -w "%{http_code}" localhost:3000/venue/1`
-  //   → 200, `/venue/9999` → 404, `/venue/abc` → 404. Likeliest
-  //   mistakes: `return <p>Not found</p>` (a 200), or calling `notFound()`
-  //   inside a try/catch that swallows it.
+  // `await getVenue(id)` runs on the server before any HTML is sent. A miss
+  // is signalled with `notFound()`, which THROWS and so produces a real HTTP
+  // 404; returning "not found" markup instead would give a 200 (a soft 404,
+  // which search engines index).
   const id = parseIdParam(rawId);
   if (id === null) notFound();
   const venue = await getVenue(id);

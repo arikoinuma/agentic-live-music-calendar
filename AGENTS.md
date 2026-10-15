@@ -92,6 +92,9 @@ mypy, pytest) and is not in the pipeline.
   the doc and section. When it deliberately departs, say so and why.
 - **Verify, don't assume.** Claims in this repo's docs were checked against real behavior.
   Keep that standard: run it before saying it works.
+- **Commit attribution names the model.** Git commit messages end with the trailer
+  `Co-Authored-By: Claude <model name>` (for example `Co-Authored-By: Claude Haiku 5.5`), with
+  no email address. Model names are allowed in commits, PR titles and PR bodies.
 
 ## Current phase
 

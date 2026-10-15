@@ -9,8 +9,6 @@ How to read it: verdict precedence (Gap D) -> the route table (Gap D) -> the rou
 the retry hints -> the attempt plans (Gap E). Every expected value is a literal whose source is the
 plan section named in the test: the precedence is plan §1, the cap of 3 is arch-initial.md §7, the tier
 order is §3. Nothing is read from the code under test.
-
-Tests marked (Gap D) / (Gap E) stay red until Ari fills the `TODO(Ari)` blocks in policy.py.
 """
 
 from dataclasses import replace
