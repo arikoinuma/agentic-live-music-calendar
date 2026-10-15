@@ -8,7 +8,7 @@ answer "which acts, or none" per title (D4, D5 of
 docs/dev/implementations/a2.1-extraction-reliability.md).
 
 How to read it: the response models (`ActSplitItem`, `ActSplitAnswer`) are what the model
-fills in; `_act_split_instruction` is the instruction (TODO(Ari) Gap D); `split_titles` numbers
+fills in; `_act_split_instruction` is the instruction; `split_titles` numbers
 the titles, makes the call, and aligns the answer back to the titles **by id**, so a dropped or
 reordered item can never put one show's acts on another.
 
@@ -55,17 +55,15 @@ class SplitResult:
 
 def _act_split_instruction() -> str:
     """The narrow instruction for splitting titles into acts."""
-    # (Ari) — Lesson: narrow the task. arch-initial.md §7's escalation order starts with
-    #   "narrow the task": a model asked only "which acts does this title name, and is it a
-    #   music show at all?" has one judgement to make per title, not a whole page's worth
-    #   (dates, times, prices are already exact from JSON-LD). The conventions it must follow
-    #   are D5's, in ONE shared text (`prompts._act_conventions()`) that the full-page model
-    #   route also gets, so the two routes can't disagree (plan review round 2, #2); the
-    #   exclusion rule is the same one the model route uses, because JSON-LD lists every
-    #   event on the calendar, karaoke included. Ask for every id back — with an empty list
-    #   for a non-music title — so a dropped title is visible rather than silent.
-    # Code (replace the `raise` below, and delete the noqa comment on the `prompts` import at the
-    #   top of this file — once it is used, ruff flags the noqa as unused):
+    # Narrow the task. arch-initial.md §7's escalation order starts with "narrow the task": a model
+    # asked only "which acts does this title name, and is it a music show at all?" has one judgement
+    # to make per title, not a whole page's worth (dates, times, prices are already exact from
+    # JSON-LD). The conventions it must follow are D5's, in ONE shared text (`prompts._act_conventions()`)
+    # that the full-page model route also gets, so the two routes can't disagree (plan review round 2,
+    # #2). Keep the rules there rather than writing them here, or the splitter and the model route
+    # drift apart. The exclusion rule is the same one the model route uses, because JSON-LD lists
+    # every event on the calendar, karaoke included. Ask for every id back, with an empty list for a
+    # non-music title, so a dropped title is visible rather than silent.
     return (
         "You are given numbered event titles from a live-music venue's calendar. For "
         "each id, list the performing acts the title names, in the order they appear, "
@@ -75,11 +73,6 @@ def _act_split_instruction() -> str:
         + prompts._act_conventions()
         + prompts._non_music_rule()
     )
-    # Check: `uv run pytest agent_worker/tests/test_act_split.py` goes green; then the
-    #   `a21-structured` eval label. Likeliest mistake: writing the splitting rules here
-    #   instead of using `_act_conventions()` — the model route then gets different rules
-    #   than the splitter, and dropping the "& inside a name" rule makes "Martin Devaney &
-    #   Friends" two acts.
 
 
 # What a retry's splitter hint is introduced with (A3). Fixed text; an empty hint adds nothing.

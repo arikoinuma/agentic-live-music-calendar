@@ -5,7 +5,7 @@ import metro from "./fixtures/metro.json";
 
 afterEach(() => vi.restoreAllMocks());
 
-// --- getMetroOrNull (Gap C) -------------------------------------------------
+// --- getMetroOrNull-------------------------------------------------
 
 describe("getMetroOrNull", () => {
   it("returns the metro when the fetch succeeds", async () => {

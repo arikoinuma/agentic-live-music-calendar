@@ -31,7 +31,7 @@ const squirrel = { id: 1, name: "The White Squirrel Bar" };
 const midway = { id: 2, name: "The Midway Saloon" };
 const zhora = { id: 3, name: "Zhora Darling" };
 
-// --- the rows (Gap C) -------------------------------------------------------
+// --- the rows-------------------------------------------------------
 
 describe("groupCalendar rows", () => {
   const group = (start: string, end: string, shows: ShowSummary[] = [], today: string | null = null) =>

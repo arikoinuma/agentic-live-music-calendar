@@ -13,7 +13,7 @@ tiered, and this module counts exactly its tiers:
   non-show entry) at most 1 per page.
 
 How to read it: `ReturnedShow` normalises one returned show (including A2's legacy
-string-acts form); `match_shows` pairs labelled and returned shows (TODO(Ari) Gap B);
+string-acts form); `match_shows` pairs labelled and returned shows;
 `score_page` counts one page; `gate` applies the standard to every run of a label. A returned
 show with `acts: []` is dropped before anything is counted — both routes keep rejected
 non-music entries that way for A3's completeness check to drop (plan review #4).
@@ -100,7 +100,7 @@ def acts_correct(label: LabelledShow, acts: tuple[str, ...]) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Matching (TODO(Ari) Gap B)
+# Matching
 # ---------------------------------------------------------------------------
 
 
@@ -115,16 +115,14 @@ class Matching:
 
 def match_shows(labelled: list[LabelledShow], returned: list[ReturnedShow]) -> Matching:
     """Pair each labelled show with at most one returned show on the same date."""
-    # (Ari) — Lesson: what counts as correct is a design decision. Ari's standard (D1)
-    #   makes a show's IDENTITY its date and acts, and makes time a field with its own
-    #   tolerance — so match on date, then judge acts and fields. Matching on (date, time),
-    #   the key reconcile uses, would turn a found show with a missed time into a missed show
-    #   AND a fabricated one: the opposite of the tiers. When several returned shows share a
-    #   date (White Squirrel's 6 pm and 9 pm sets; 7th St Entry's two untimed Oct 31 shows),
-    #   pair the right ones first: acts that are correct, then a time that agrees, then
-    #   whatever is left — in three passes over all labels, so a weak pairing for one label
-    #   can't take a strong one from another. Each returned show is used once.
-    # Code (replace the `raise` below):
+    # What counts as correct is a design decision. Ari's standard (D1) makes a show's IDENTITY its
+    # date and acts, and makes time a field with its own tolerance, so match on date, then judge acts
+    # and fields. Matching on (date, time), the key reconcile uses, would turn a found show with a
+    # missed time into a missed show AND a fabricated one: the opposite of the tiers. When several
+    # returned shows share a date (White Squirrel's 6 pm and 9 pm sets; 7th St Entry's two untimed
+    # Oct 31 shows), pair the right ones first: acts that are correct, then a time that agrees, then
+    # whatever is left. That runs in three passes over all labels, so a weak pairing for one label
+    # can't take a strong one from another. Each returned show is used once.
     remaining = list(returned)
     pairs: dict[LabelledShow, ReturnedShow] = {}
     for prefer in (lambda lbl, r: acts_correct(lbl, r.acts), lambda lbl, r: r.time == lbl.time, lambda lbl, r: True):
@@ -134,10 +132,6 @@ def match_shows(labelled: list[LabelledShow], returned: list[ReturnedShow]) -> M
                 remaining.remove(hit)
                 pairs[lbl] = hit
     return Matching(matched=list(pairs.items()), missed=[lbl for lbl in labelled if lbl not in pairs], extras=remaining)
-    # Check: `uv run pytest agent_worker/tests/test_scoring.py` goes green. Likeliest
-    #   mistakes: matching on (date, time) — test_a_missed_time_is_a_missing_field fails;
-    #   taking the first same-date candidate — test_two_sets_on_one_night fails; not removing
-    #   a hit — test_a_duplicate_is_fabricated fails.
 
 
 

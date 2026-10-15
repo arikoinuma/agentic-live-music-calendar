@@ -269,12 +269,11 @@ PAGE_LABELS: dict[str, PageLabel] = {
     # -------------------------------------------------------------------------------------
     # Mortimer's — gated. The labelling fill-in (D11): rows by Ari and Claude, October 10.
     # -------------------------------------------------------------------------------------
-    # (Ari) — Lesson: ground truth is a set of decisions, and writing it is where you find
-    #   out how many there are. The scorer can only be as right as these rows: each one
-    #   decides what "correct" means for one listing (D1, D5). Mortimer's has the most calls of
-    #   any page: weekly comedy and karaoke between real shows, a night's name in front of its
-    #   performers, a B2B DJ set, a parenthetical hometown, and an album-release show that ends
-    #   in "+ Karaoke".
+    # Ground truth is a set of decisions, and writing it is where you find out how many there are.
+    # The scorer can only be as right as these rows: each one decides what "correct" means for one
+    # listing (D1, D5). Mortimer's has the most calls of any page: weekly comedy and karaoke between
+    # real shows, a night's name in front of its performers, a B2B DJ set, a parenthetical hometown,
+    # and an album-release show that ends in "+ Karaoke".
     #
     # No times are labelled, on purpose. The site shows start and end times (Ari checked:
     # e.g. Flange August Back to Back 10 pm), but they live in the page's embedded Wix event
