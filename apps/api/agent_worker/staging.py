@@ -17,7 +17,7 @@ HOW TO READ THIS
   * The id `stage` returns is stored on the extract audit row as `detail.staging_id`, which is how the two
     stores join (plan A4-D4).
 
-docs/dev/implementations/a4-auditability.md, decisions A4-D3 and A4-D4; A4-R1-1 and A4-R1-6.
+docs/dev/implementations/a4-auditability.md, decisions A4-D3 and A4-D4; A4-PR1-1 and A4-PR1-6.
 """
 
 import dataclasses
@@ -44,7 +44,7 @@ def document_for(state: VenueGraphState) -> dict[str, Any]:
 
     Everything except `staged_at` goes through `to_jsonable_python` first: `notes` is an untyped dict and
     BSON cannot encode a `datetime.date` (nor a dataclass), so a date in a route's notes would otherwise
-    raise `InvalidDocument` inside the staging write, which halts the run (A4-R1-1).
+    raise `InvalidDocument` inside the staging write, which halts the run (A4-PR1-1).
     `staged_at` stays a timezone-aware `datetime`, which BSON stores natively.
     """
     plan = state.last_plan

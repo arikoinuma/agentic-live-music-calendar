@@ -43,7 +43,7 @@ graph = StateGraph(VenueGraphState, context_schema=WorkerContext)
 # One add_node per node function. The name each is registered under is what the conditional
 # edges' path maps and the add_edge calls below refer to.
 #
-# A4 (A4-R2-2): the node name and the audit step are the same six strings (`NodeNames` here,
+# A4 (A4-CR1-2): the node name and the audit step are the same six strings (`NodeNames` here,
 # `StepType` in app/enums.py), so the step is DERIVED from the name, `StepType(name.value)`, instead of
 # being paired by hand in six lines. A node added to this table without a matching `StepType` fails at
 # import with a ValueError; test_graph_wiring.py pins the table to both enums.

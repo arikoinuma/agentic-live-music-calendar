@@ -1,9 +1,9 @@
 """Tests for `staging.document_for`: the raw record of one extract attempt, as plain data.
 
-Milestone A4 (docs/dev/implementations/a4-auditability.md, step 5; A4-D4; A4-R1-1 and A4-R1-6). The document
+Milestone A4 (docs/dev/implementations/a4-auditability.md, step 5; A4-D4; A4-PR1-1 and A4-PR1-6). The document
 is what lands in MongoDB before validation judges the attempt, and it is the A2.1-E17 record: the route, the
 text sent, the route's notes, the raw model output and the request configuration. It must be BSON-encodable:
-BSON cannot encode a `datetime.date` (confirmed with `bson.encode`, A4-R1-1). So these tests encode the
+BSON cannot encode a `datetime.date` (confirmed with `bson.encode`, A4-PR1-1). So these tests encode the
 document with `bson.encode`, the driver's own encoder: if that accepts it, the real write will.
 
 How to read it: states are built by hand to look like what `extract_node` leaves behind, a successful
@@ -57,7 +57,7 @@ def test_a_successful_attempts_document_has_the_e17_record() -> None:
 
 
 def test_a_failed_attempts_document_keeps_the_error_and_the_page_it_started_from() -> None:
-    # Proves (A4-R1-6): a failed call has no `sent_text` (`extract_page` raised before returning it)
+    # Proves (A4-PR1-6): a failed call has no `sent_text` (`extract_page` raised before returning it)
     # and no raw extraction, but the document still exists, with the error and the cleaned page text the
     # route started from: the record a person debugging an escalation needs most.
     doc = document_for(state_with(extract_error="ValueError: bad json"))
@@ -74,7 +74,7 @@ def test_a_failed_poster_attempt_does_not_store_the_base64_image_as_page_text() 
 
 
 def test_notes_holding_dates_enums_and_tuples_become_plain_data() -> None:
-    # Proves (A4-R1-1): `notes` is an untyped dict, so a date, a StrEnum or a tuple can appear in it.
+    # Proves (A4-PR1-1): `notes` is an untyped dict, so a date, a StrEnum or a tuple can appear in it.
     # BSON cannot encode `datetime.date` (confirmed with `bson.encode`), so `document_for` converts first
     # and the finished document encodes. Without the conversion `bson.encode` raises `InvalidDocument` here,
     # and in production A4-K3 would propagate it and halt the run.

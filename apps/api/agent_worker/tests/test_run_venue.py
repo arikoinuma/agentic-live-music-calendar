@@ -229,7 +229,7 @@ async def test_main_refuses_to_start_without_a_mongodb_uri(monkeypatch: pytest.M
 
 
 async def test_main_refuses_to_start_when_mongodb_does_not_answer(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Proves (A4-R2-3, A4-D3): "fail fast" covers a MongoDB that is configured but not running, not only
+    # Proves (A4-CR1-3, A4-D3): "fail fast" covers a MongoDB that is configured but not running, not only
     # one that is unset. The driver connects lazily, so without a ping at startup each venue would do its
     # fetch and a full model call, then wait ~30 s for server selection and fail. A stand-in client whose
     # ping raises `ServerSelectionTimeoutError` makes `main` return 2 before any venue is touched.

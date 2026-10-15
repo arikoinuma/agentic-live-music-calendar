@@ -146,7 +146,7 @@ def test_the_writer_has_no_method_that_changes_an_audit_row() -> None:
 
 
 async def test_the_writer_works_with_a_default_session_factory(db_conn: AsyncConnection, venue_id: int) -> None:
-    # Proves (A4-R2-4): the writer does not depend on the factory being built with
+    # Proves (A4-CR1-4): the writer does not depend on the factory being built with
     # `expire_on_commit=False`. It reads each new row's id before committing, so a factory with SQLAlchemy's
     # default (`True`) works too. Reading `run.id` after `commit()` on such a factory raises `MissingGreenlet`,
     # an error that does not point at the cause; the next milestone to build its own factory would hit it.
@@ -160,7 +160,7 @@ async def test_the_writer_works_with_a_default_session_factory(db_conn: AsyncCon
 async def test_finished_at_is_after_started_at_on_the_databases_own_clock(
     factory: async_sessionmaker[AsyncSession], venue_id: int,
 ) -> None:
-    # Proves (A4-R2-5): both timestamps come from Postgres, so a run's duration is one clock's
+    # Proves (A4-CR1-5): both timestamps come from Postgres, so a run's duration is one clock's
     # difference and cannot go negative under worker/database clock skew. Inside the tests' one rolled-back
     # transaction `now()` is frozen at the transaction's start; `clock_timestamp()` (what `finish_run` uses)
     # is the real time, so it is strictly later than `started_at`. (This passes on the earlier Python-clock

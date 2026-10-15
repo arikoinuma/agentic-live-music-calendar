@@ -12,10 +12,9 @@
 **Designations.** Inside this plan the decisions are `D1`–`D8` and the fill-in key points `K1` (the run's
 lifecycle, `main.run_venue`), `K2` (`audit_confidence`, re-marked [written] at approval) and `K3` (the extract
 staging write, `trace.audited`); elsewhere they are written `A4-D1`, `A4-K1` and so on
-(`docs/dev/conventions.md`). Review items are numbered across the whole file, because both review sections
-start at "Round 1": the plan review round is `A4-R1` and the code review round is `A4-R2`, so
-`A4-R1-4` is plan review item 4 and `A4-R2-4` is code review item 4. Other plans' IDs carry their scope
-(`A3-D9`, `A2.1-E17`, `v0.1-G12`).
+(`docs/dev/conventions.md`). Review items are `A4-PR<round>-<n>` for the plan review (`A4-PR1-4` is item 4
+of plan review round 1) and `A4-CR<round>-<n>` for the code review (`A4-CR1-4` is item 4 of code review
+round 1). Other plans' IDs carry their scope (`A3-D9`, `A2.1-E17`, `v0.1-G12`).
 
 ## Context
 
@@ -181,7 +180,7 @@ inputs, never from the code under test.
     right on all three routes:** the JSON-LD route also calls the model, for the act split and the status
     question, with the same `RequestOptions` (`llm.request_kwargs`), so a model did make that attempt's
     judgement calls. What differs is *which* judgement, so both rows carry `detail.route`, and A8 separates
-    "the model read the page" from "the model split titles" by it (A4-R1-2);
+    "the model read the page" from "the model split titles" by it (A4-PR1-2);
   - validate records the same `model_used` and `confidence = state.confidence`. On the JSON-LD route that
     is a model name with a NULL confidence, which is accurate: the model ran, and gave no confidence that
     validation could weigh (A3-D9);
@@ -198,7 +197,7 @@ inputs, never from the code under test.
   - reconcile/commit: `{"stub": true, "decision": ...}`;
   - escalate: reason, with `outcome = escalated`.
 - **Staging document is plain data:** `staging.document_for` on a state whose `extraction_notes` holds a
-  `date`, a `StrEnum` and a tuple returns a document that `bson.encode` accepts (A4-R1-1).
+  `date`, a `StrEnum` and a tuple returns a document that `bson.encode` accepts (A4-PR1-1).
 - **JSON-serializable:** `json.dumps(entry.detail)` succeeds for each step, including a validate state
   carrying enum reasons and dated findings. Guards against a `date` or `StrEnum` reaching JSONB unconverted.
 
@@ -291,7 +290,7 @@ including the tests for the gaps, is written and green where it doesn't depend o
 
 **Fill order:** K3, then K1. K3's graph test needs only K3 (the recording fakes stand in for Postgres). K1's DB
 tests need both. **Until K3 is filled, no test that runs the graph is green** (`test_graph.py` included, which
-is green today): the placeholder sits on the path every run takes (A4-R1-4). K1's placeholder
+is green today): the placeholder sits on the path every run takes (A4-PR1-4). K1's placeholder
 turns `test_run_venue.py` and `test_audit_queries.py` red as well.
 
 - **K1 — the run's lifecycle, in `agent_worker/main.py` (`run_venue`)** (the `agent_run` bullet).
@@ -301,7 +300,7 @@ turns `test_run_venue.py` and `test_audit_queries.py` red as well.
     (D8). Otherwise it looks "in progress" forever.
   - *Code:*
 
-    Written just above the gap, so the snippet pastes as is (A4-R1-8):
+    Written just above the gap, so the snippet pastes as is (A4-PR1-8):
     `initial = VenueGraphState(venue_id=venue.id, calendar_url=calendar_url or venue.calendar_url,
     venue_name=venue.name, metro_timezone=venue.metro_timezone, fetched_on=fetched_on)`.
 
@@ -316,7 +315,7 @@ turns `test_run_venue.py` and `test_audit_queries.py` red as well.
         structlog.contextvars.unbind_contextvars("run_id", "venue_id")
     ```
 
-  - *Then:* delete the two `# noqa` markers in `main.py` (`compiled_graph` in the imports, and `initial =`); same reason (A4-R2-1).
+  - *Then:* delete the two `# noqa` markers in `main.py` (`compiled_graph` in the imports, and `initial =`); same reason (A4-CR1-1).
   - *Check:* `uv run pytest agent_worker/tests/test_run_venue.py`. The likeliest mistake is calling
     `finish_run` after `ainvoke` with no `finally`: the crash test then finds `finished_at` null.
 - ~~**K2 — `audit_confidence`**~~ **Re-marked [written] by Ari at approval (October 14, 2026).** Written
@@ -341,12 +340,12 @@ turns `test_run_venue.py` and `test_audit_queries.py` red as well.
 
     `state` here is the one the node *returned* from `asyncio.to_thread`, written just above the gap. The
     document needs what the attempt produced (`extract_error`, `extraction_sent_text`, `extraction_notes`).
-  - *Then:* delete the `# noqa` on the `staging` import at the top of `trace.py`; it exists only while the gap is open, and ruff flags it (RUF100) once the name is used (A4-R2-1).
+  - *Then:* delete the `# noqa` on the `staging` import at the top of `trace.py`; it exists only while the gap is open, and ruff flags it (RUF100) once the name is used (A4-CR1-1).
   - *Check:* `uv run pytest agent_worker/tests/test_graph_audit.py -k retry_adds_rows`. The test checks each
     document's `attempt` and `error`, not just the count. The likeliest mistake is guarding with
     `if state.extraction is not None`: the failed attempt's document is then missing, and the test counts one
     document instead of two. The second likeliest is staging before the node runs: the documents then carry
-    the previous attempt's fields, which the per-document `attempt`/`error` check catches (A4-R1-5).
+    the previous attempt's fields, which the per-document `attempt`/`error` check catches (A4-PR1-5).
 
 ### 1. Schema: `audit_log.detail` (written)
 
@@ -409,7 +408,7 @@ turns `test_run_venue.py` and `test_audit_queries.py` red as well.
 
 - `document_for(state) -> dict` builds the A2.1-E17 record. Everything except `staged_at` passes through
   `pydantic_core.to_jsonable_python` first, so a `date`, a `StrEnum`, a tuple or a dataclass in the untyped
-  `notes` becomes plain JSON before it reaches BSON, which can't encode `datetime.date` (A4-R1-1).
+  `notes` becomes plain JSON before it reaches BSON, which can't encode `datetime.date` (A4-PR1-1).
   `staged_at` is a timezone-aware `datetime`, which BSON stores natively. The record holds:
   - run_id, venue_id, attempt, tier, route;
   - model and request options (`asdict(plan.options)`) and configuration (`asdict(plan.config)`);
@@ -417,7 +416,7 @@ turns `test_run_venue.py` and `test_audit_queries.py` red as well.
   - on a failed call, `sent_text` is None (`extract_page` raised before returning it), so the document stores
     `page_text = state.page_content` instead, labelled as the cleaned page the route started from, not the
     exact request. The exact request is reproducible from that text plus the stored configuration
-    (A4-R1-6);
+    (A4-PR1-6);
   - error;
   - `staged_at`.
 - The `Stager` protocol and `MongoStager(collection)`. `stage` is `insert_one`, returning
@@ -443,7 +442,7 @@ turns `test_run_venue.py` and `test_audit_queries.py` red as well.
 - `load_venues(session, venue_id=None)`: venue rows joined to their metro.
 - `run_venue(venue, ctx, *, trigger=RunTrigger.MANUAL, calendar_url=None, fetched_on=None)` (K1
   inside). The overrides exist for `local_test.py`'s fixture run. (`venue.calendar_url` is non-null in the
-  model, so there is no missing-URL branch; A4-R1-7.)
+  model, so there is no missing-URL branch; A4-PR1-7.)
 - `main()`:
   - parse `--venue` and `--trigger`;
   - call `configure_logging()`;
@@ -525,7 +524,7 @@ The file's header shows how to run it: `make db-shell`, then `\set run_id 3`, th
 
 **In the cloud session (this author's):**
 
-1. `make check`. Expect red, by design, wherever a run goes through the audit wrapper (A4-R1-4).
+1. `make check`. Expect red, by design, wherever a run goes through the audit wrapper (A4-PR1-4).
    K3 sits in every extract step, so **all of `test_graph.py` and `test_graph_audit.py` are red until K3
    is filled**, and `test_run_venue.py` and `test_audit_queries.py` also need K1. Everything else (the direct
    node tests, the pure entry tests, the writer, the stager, logging, the migration) must be green. The
@@ -642,7 +641,7 @@ Files touched:
    The injection is proved by `test_the_context_reaches_the_audited_nodes`.
 5. **Entity on reconcile/commit rows is NULL** (the plan's "four venue-level steps" wording was ambiguous). Fetch,
    extract, validate and escalate name the venue; the two stubs name nothing until A5/A6 write per-show rows.
-6. **The staging document stores `page_text` on a failed attempt** (A4-R1-6) except on the poster route, where
+6. **The staging document stores `page_text` on a failed attempt** (A4-PR1-6) except on the poster route, where
    `page_content` is base64 (megabytes, against Mongo's 16 MB limit). Not in the plan; a guard I added.
 7. **`finish_run` stamps `finished_at` with Python's `datetime.now(UTC)`**, not `func.now()`: inside the tests' rolled-back
    transaction `now()` equals the transaction start, which would make "finished" indistinguishable from "started".
@@ -675,7 +674,7 @@ different exception and get the placeholder's). Fill **C first**, then A.
 | `make contract-check` | "Generated contract output is current" (`schemas.py` is untouched, so nothing to regenerate) |
 | `pytest` in the scaffold state (this tree) | **620 passed, 15 skipped, 29 failed, 5 errors**; the 34 are the gap tests above and nothing else |
 | `make check` | stops at the test step for the same reason (lint, typecheck pass first); not green by design while gaps are open |
-| Both gaps filled on a scratch copy (the filled lines are the `Code:` blocks; K1's one `ainvoke(...)` call is on a single line instead of wrapped), then restored | **654 passed, 15 skipped, 0 failed** (corrected from 652, A4-R2-10; 660 after the review fixes); the diff after restoring is exactly the two gap bodies and their `noqa` markers |
+| Both gaps filled on a scratch copy (the filled lines are the `Code:` blocks; K1's one `ainvoke(...)` call is on a single line instead of wrapped), then restored | **654 passed, 15 skipped, 0 failed** (corrected from 652, A4-CR1-10; 660 after the review fixes); the diff after restoring is exactly the two gap bodies and their `noqa` markers |
 | Migration | `upgrade head` / `downgrade -1` / `upgrade head` on `calendar_dev`; the test fixtures also round-trip it |
 | Real `psql` | all four saved queries run via `\set run_id …` + `\i docs/dev/audit-queries.sql` against two scripted runs written to `calendar_dev` (rows then deleted); `run_history` read as the story, the retry visible |
 | Terminal log output | a run's lines carry `run_id` and `venue_id` (seen in the console renderer) |
@@ -719,16 +718,16 @@ every new or changed file in the diff (code, tests, migration, SQL, CI, Makefile
   `test_run_venue.py` 4, `test_audit_queries.py` 5 setup errors), and every one fails on `NotImplementedError: TODO(Ari)`.
 - In a throwaway `git worktree` (removed afterwards), with the venv symlinked, I filled K1 and K3 with their `Code:`
   blocks verbatim and ran `REQUIRE_DB=1 pytest`: **654 passed, 15 skipped, 0 failed**, so no test is red for any reason
-  other than a gap. Then `ruff check .` gave **3 errors (RUF100)** (A4-R2-1). In the same worktree I ran a probe test of
-  `PostgresAuditWriter` with a default (`expire_on_commit=True`) session factory (A4-R2-4).
-- `psql` against `calendar_dev` (at head `67609c405218`): `\set run_id 1` then `\i docs/dev/audit-queries.sql` (A4-R2-8);
-  `now()` vs `clock_timestamp()` inside one transaction (A4-R2-5); `enum_range(NULL::step_type)` is pipeline order, so
+  other than a gap. Then `ruff check .` gave **3 errors (RUF100)** (A4-CR1-1). In the same worktree I ran a probe test of
+  `PostgresAuditWriter` with a default (`expire_on_commit=True`) session factory (A4-CR1-4).
+- `psql` against `calendar_dev` (at head `67609c405218`): `\set run_id 1` then `\i docs/dev/audit-queries.sql` (A4-CR1-8);
+  `now()` vs `clock_timestamp()` inside one transaction (A4-CR1-5); `enum_range(NULL::step_type)` is pipeline order, so
   `max(step_type)` in `unfinished_runs` means "furthest step".
 - Probes in the repo venv, nothing written: `compiled_graph.invoke(...)` raises `TypeError: No synchronous function
   provided to "fetch"`, and a `functools.wraps` wrapper raises `inner() missing 1 required positional argument:
   'runtime'`. Both CONFIRM the claims in `AGENTS.md`, `notes.md` and `trace.py`. `AsyncMongoClient` construction is
   lazy, and the first `insert_one` against a closed port waits out `serverSelectionTimeoutMS` (default 30 s) before
-  raising `ServerSelectionTimeoutError` (A4-R2-3).
+  raising `ServerSelectionTimeoutError` (A4-CR1-3).
 
 Not run: anything needing Docker, MongoDB or Ollama (`test_staging_mongo.py` skips here; `make worker`;
 Verification 4–8). The JS tests didn't run, because `make check` stops at the red Python step; A4 touches no JS.
@@ -745,12 +744,12 @@ Verification 4–8). The JS tests didn't run, because `make check` stops at the 
   no logging, and mypy's CI scope is unchanged.
 - No style-guide anti-pattern: nothing sync-blocking inside `async def` (the sync bodies run via `to_thread`), and no
   bare `Exception`.
-- Departures 1–10 in the log are reasoned. They're consistent with the code, except where A4-R2-6 and A4-R2-12 below say
+- Departures 1–10 in the log are reasoned. They're consistent with the code, except where A4-CR1-6 and A4-CR1-12 below say
   otherwise.
 
 **Counts:** 0 blocker, 3 should-fix, 9 nit. **Verdict: proceed after fixes.** The scaffold is sound: the trail's shape,
 the wrapper, the stores, and the queries all work once the gaps are filled. The should-fixes are about what happens the
-moment Ari fills them (A4-R2-1), a hand-off A1 left for A4 (A4-R2-2), and D3's "fail fast" not covering an unreachable Mongo (A4-R2-3).
+moment Ari fills them (A4-CR1-1), a hand-off A1 left for A4 (A4-CR1-2), and D3's "fail fast" not covering an unreachable Mongo (A4-CR1-3).
 
 | # | Sev | Finding | Evidence | What goes wrong | Resolution |
 |---|---|---|---|---|---|
@@ -767,9 +766,9 @@ moment Ari fills them (A4-R2-1), a hand-off A1 left for A4 (A4-R2-2), and D3's "
 | 11 | nit | `alpha-build-plan.md` A6 still lists "**[fill-in]** Async vs. sync: … Deciding whether to make the nodes async" as open, though A4's D1 decided it (the build plan's own A4 text says the question is A4's, "not A6's"). | CONFIRMED: `alpha-build-plan.md`, A6 list, the last bullet, unchanged by the diff. The A4 paragraph added above it says "settled (D1)". | Whoever plans A6 finds an open [fill-in] for a decision that's already made, and may reopen it. Annotate it as decided in A4 (D1), the way the escalate bullet was. || **Fixed.** `alpha-build-plan.md` A6's async-vs-sync bullet is ticked and annotated as decided and built in A4 (D1). |
 | 12 | nit | CI's `mongo` service has no health check, while the test fails (rather than skips) under `CI` after a one-second server selection. | `ci.yml` (the `mongo:` service has only `image`/`ports`; the Postgres service beside it has `--health-cmd`), and `test_staging_mongo.py:35-41`. PLAUSIBLE: services start before the checkout/`uv sync` steps, so a race is unlikely, but nothing guarantees readiness. | A rare CI-only flake on a slow runner. Fix: add `options: --health-cmd "mongosh --quiet --eval 'db.runCommand({ping:1})'" --health-interval 5s ...` to match Postgres. || **Fixed.** The CI `mongo` service has a `--health-cmd` (`mongosh … ping`) with the same interval, timeout and retries as the Postgres service. |
 
-**Rejected:** none. 12 of 12 fixed (A4-R2-6 as a recorded departure, not a code change; A4-R2-5's test pins the property but passes before the fix, as its comment says).
+**Rejected:** none. 12 of 12 fixed (A4-CR1-6 as a recorded departure, not a code change; A4-CR1-5's test pins the property but passes before the fix, as its comment says).
 
-**Resolved by the author (Claude Sonnet 5.5), October 14, 2026.** Testable findings (A4-R2-2, A4-R2-3, A4-R2-4) have a failing test written first and watched fail (A4-R2-5's passes on the old code, noted above). Departures added by this round: **11.** the K3 guard (`staging_id = None`, `if step is StepType.EXTRACT:`) is written in the scaffold, Ari types the `await` line (A4-R2-6); **12.** the Mongo test variable is `MONGODB_TEST_URI`, not `…_URL` as the plan first said (the repo's name for the connection string is `MONGODB_URI`, A4-R1-3).
+**Resolved by the author (Claude Sonnet 5.5), October 14, 2026.** Testable findings (A4-CR1-2, A4-CR1-3, A4-CR1-4) have a failing test written first and watched fail (A4-CR1-5's passes on the old code, noted above). Departures added by this round: **11.** the K3 guard (`staging_id = None`, `if step is StepType.EXTRACT:`) is written in the scaffold, Ari types the `await` line (A4-CR1-6); **12.** the Mongo test variable is `MONGODB_TEST_URI`, not `…_URL` as the plan first said (the repo's name for the connection string is `MONGODB_URI`, A4-PR1-3).
 
 **Test-suite result after the fixes** (`apps/api`): scaffold state (gaps A and C open): **626 passed, 15 skipped, 29 failed, 5 errors**, the same 34 gap tests as before and nothing else (`test_graph.py` 16, `test_graph_audit.py` 9, `test_run_venue.py` 4, `test_audit_queries.py` 5), every one `NotImplementedError: TODO(Ari)`. With both gaps filled exactly as their `Code:` blocks say, `noqa` markers deleted: **660 passed, 15 skipped, 0 failed**, `ruff check .` clean. `mypy app/` clean. Restored to the scaffold afterwards (the diff against the filled copy is only the two gap bodies and their markers).
 

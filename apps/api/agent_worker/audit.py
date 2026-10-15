@@ -201,7 +201,7 @@ class PostgresAuditWriter:
             session.add(run)
             # flush assigns the id; read it BEFORE commit. After a commit a session built with SQLAlchemy's
             # default `expire_on_commit=True` has expired the attribute, and reading it under asyncio raises
-            # `MissingGreenlet`, an error that doesn't point at the cause (A4-R2-4).
+            # `MissingGreenlet`, an error that doesn't point at the cause (A4-CR1-4).
             await session.flush()
             run_id = run.id
             await session.commit()
@@ -227,7 +227,7 @@ class PostgresAuditWriter:
         # `clock_timestamp()`, Postgres's real current time, not `now()` (the transaction's start, which
         # inside one transaction, as in the tests, equals `started_at`) and not the worker's own clock:
         # `started_at` and `created_at` come from the database, so a run's duration should be one clock's
-        # difference and not go negative under worker/database skew (A4-R2-5).
+        # difference and not go negative under worker/database skew (A4-CR1-5).
         async with self._session_factory() as session:
             await session.execute(
                 update(AgentRun).where(AgentRun.id == run_id).values(finished_at=func.clock_timestamp())

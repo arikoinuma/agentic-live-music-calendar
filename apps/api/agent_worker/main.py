@@ -165,7 +165,7 @@ async def main(argv: list[str] | None = None) -> int:
 
     # A short server-selection timeout: the driver connects lazily, so without the ping below an unreachable
     # server would only show up at the first staging write, after the venue's fetch and model call, and
-    # after a 30 s wait (A4-R2-3).
+    # after a 30 s wait (A4-CR1-3).
     mongo: AsyncMongoClient = AsyncMongoClient(settings.mongodb_uri, serverSelectionTimeoutMS=5000)
     try:
         try:
