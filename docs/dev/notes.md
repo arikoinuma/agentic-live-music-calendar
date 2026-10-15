@@ -195,7 +195,7 @@ Without a `<Suspense>`/`loading.tsx` above the page, a Server Component that thr
 first flush makes Next answer HTTP 500 with a bare `<html id="__next_error__">` document: no
 header, footer or `error.tsx` markup in the server HTML (React's server renderer doesn't run
 error boundaries). `error.tsx` renders only after hydration. Adding `loading.tsx` streams the shell
-first, but then `notFound()` returns 200 (a soft 404) — a trade-off recorded as D4 in the B2 plan.
+first, but then `notFound()` returns 200 (a soft 404) — a trade-off recorded as B2-D4 in the B2 plan.
 Separately, in Next 16.3 `error.tsx`'s `reset()` re-renders the *same* failed payload; `retry()`
 re-fetches, so it is the one a "Try again" button needs.
 
@@ -300,7 +300,7 @@ JavaScript. One plain GET per venue showed the difference decides everything:
   client-side.
 - **Midway**: the saved page had a full month grid; the plain fetch gets **HTTP 403** and a
   Cloudflare "Enable JavaScript and cookies to continue" page — a bot challenge. Not something to
-  work around (A2.1 plan, D3).
+  work around (A2.1-D3).
 - **White Squirrel** and **Terminal Bar**: the same listings either way (and White Squirrel's
   schema.org JSON-LD is server-rendered, so it survives the plain fetch).
 
