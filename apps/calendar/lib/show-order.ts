@@ -1,6 +1,6 @@
 /**
  * The day view's three orderings, and the artist page's chronological
- * order (B4 plan, D6).
+ * order (B4-D6).
  *
  * `/day/[date]` lets the reader choose how to view one night
  * (requirements-initial.md, "/Day view"): by venue by alpha (the default),
@@ -39,7 +39,7 @@ export type ArtistRow = {
 const byVenueName = (a: ShowSummary, b: ShowSummary): number =>
   a.venue.name.localeCompare(b.venue.name, "en-US");
 
-// --- venue modes ------------------------------------------------------------------
+// --- venue modes (B4-K4) ----------------------------------------------------------
 
 // "By venue" and "by time" are the SAME two keys in opposite priority. A
 // comparator chain is `primary || secondary`: a tie returns 0, 0 is falsy, so
@@ -50,7 +50,7 @@ const byVenueName = (a: ShowSummary, b: ShowSummary): number =>
 export const venueOrder = (a: ShowSummary, b: ShowSummary): number => byVenueName(a, b) || nightSortKey(a.start_time) - nightSortKey(b.start_time);
 export const timeOrder = (a: ShowSummary, b: ShowSummary): number => nightSortKey(a.start_time) - nightSortKey(b.start_time) || byVenueName(a, b);
 
-// --- artist mode ------------------------------------------------------------------
+// --- artist mode (B4-K3) ----------------------------------------------------------
 
 /**
  * One row per ACT, alphabetical by artist, an artist's own rows in night

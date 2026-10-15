@@ -26,7 +26,7 @@ import { Temporal } from "@js-temporal/polyfill";
  * `start.until(end).days + 1` — INCLUSIVE, hence the `+ 1` — so the next
  * window starts the day after `end` and the previous one starts one whole
  * window before `start`. Temporal does the month, year and leap-day
- * arithmetic.
+ * arithmetic. (B4-K2)
  */
 export function windowLinks(start: string, end: string): { earlier: string; later: string } {
   const s = Temporal.PlainDate.from(start);

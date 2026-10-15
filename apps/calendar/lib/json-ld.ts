@@ -83,7 +83,7 @@ function instantDay(date: string, t: Temporal.PlainTime): Temporal.PlainDate {
  * gap) or exists twice (fall back) is resolved by Temporal's default rather
  * than thrown on. `day` is already shifted past midnight by `instantDay`; an
  * unknown zone id throws RangeError, which the caller (`eventDateTime`)
- * handles, not this function.
+ * handles, not this function. (B4-K1)
  */
 function withOffset(day: Temporal.PlainDate, t: Temporal.PlainTime, timeZone: string): string {
   return day.toZonedDateTime({ timeZone, plainTime: t }).toString({ timeZoneName: "never" });

@@ -30,7 +30,7 @@ const MODES: { sort: DaySort; label: string }[] = [
 ];
 
 // One day's shows, in the order the reader chose. The mode lives in the URL
-// (`?sort=time`, `?sort=artist`; the default is the bare URL — B4 plan, D6),
+// (`?sort=time`, `?sort=artist`; the default is the bare URL — B4-D6),
 // like every other view state (arch-initial.md §4): shareable, bookmarkable,
 // and the server renders the right result directly from it. The switch is
 // three plain links, not a Client Component — changing the view is a

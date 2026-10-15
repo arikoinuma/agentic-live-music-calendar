@@ -304,7 +304,7 @@ export function createApiClient(opts: {
         end: query.end,
         venue_id: query.venueIds,
         artist_id: query.artistIds,
-        // "Every show from the server's today on" (B4, D2): sent as the
+        // "Every show from the server's today on" (B4-D2): sent as the
         // string "true" (QueryValue has no boolean) or not at all, so a
         // false flag leaves the default URL unchanged. The API refuses it
         // with `start`/`end` — that rule lives on the server.
@@ -337,7 +337,7 @@ const live = () =>
 // applied to the getters whose arguments are PRIMITIVES, because `cache()`
 // compares arguments with Object.is: `getMetro()` (no arguments), and
 // `getVenue(id)`, `getArtist(id)` and `getShow(id)` (a number compares by
-// value). The reason is `generateMetadata` (B4, D7): a detail page needs
+// value). The reason is `generateMetadata` (B4-D7): a detail page needs
 // its record twice per render, once for the tab title and once for the
 // body, and this makes that one API request. The root layout's footer and
 // `generateMetadata` share the metro the same way. `getShows` takes an

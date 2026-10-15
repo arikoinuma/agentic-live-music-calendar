@@ -9,7 +9,7 @@ import { windowHref, windowLinks, windowNavLinks } from "./calendar-window";
 // Oct 26. The paging links are computed from the range the SERVER echoed
 // (api-contract.md §3), never from a clock or a constant 28.
 
-// --- windowLinks -----------------------------------------------------------------
+// --- windowLinks (B4-K2) ---------------------------------------------------------
 
 describe("windowLinks", () => {
   it("steps back one window length and forward to the day after the end", () => {

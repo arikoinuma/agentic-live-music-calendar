@@ -12,7 +12,7 @@ import type { ShowListResponse, ShowSummary } from "./types";
 
 // Where the expected values come from. The "fixture day" is 2026-10-07 in
 // lib/fixtures/shows.json (a Wednesday), whose five shows were built hard
-// on purpose (B3 plan, D5) and are listed in apps/api/app/sample_data.py:
+// on purpose (B3-D5) and are listed in apps/api/app/sample_data.py:
 //
 //   id  venue                    start  lineup (per-act time)
 //    8  The Terminal Bar         21:00  Jaedyn James, Tarnation, Beasthead
@@ -49,7 +49,7 @@ it("the fixture day is the five shows this file's expectations assume", () => {
   expect(ids(fixtureDay).sort((a, b) => a - b)).toEqual([8, 22, 23, 24, 25]);
 });
 
-// --- venueOrder / timeOrder -----------------------------------------------------------
+// --- venueOrder / timeOrder (B4-K4) ---------------------------------------------------
 
 describe("venueOrder", () => {
   it("sorts by venue name, then by time within a venue", () => {
@@ -102,7 +102,7 @@ describe("timeOrder", () => {
   });
 });
 
-// --- artistRows -----------------------------------------------------------------------
+// --- artistRows (B4-K3) ---------------------------------------------------------------
 
 describe("artistRows", () => {
   it("makes one row per act, alphabetical by artist", () => {
@@ -183,7 +183,7 @@ describe("parseDaySort", () => {
 
 describe("dayHref", () => {
   it("writes the default view as the bare URL", () => {
-    // Proves: one canonical URL per view (D6) — venue order has no query.
+    // Proves: one canonical URL per view (B4-D6) — venue order has no query.
     expect(dayHref("2026-10-07", "venue")).toBe("/day/2026-10-07");
     expect(dayHref("2026-10-07", "time")).toBe("/day/2026-10-07?sort=time");
     expect(dayHref("2026-10-07", "artist")).toBe("/day/2026-10-07?sort=artist");

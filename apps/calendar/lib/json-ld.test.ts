@@ -33,7 +33,7 @@ const ctx = { venue, timeZone: CHICAGO };
 // only its own rule. Tests that assert an offset use `ctx`.
 const noZone = { venue, timeZone: null };
 
-// --- eventDateTime -----------------------------------------------------------------------
+// --- eventDateTime (B4-K1) ---------------------------------------------------------------
 
 describe("eventDateTime", () => {
   it.each([

@@ -5,7 +5,7 @@ import { formatDayHeadingWithYear } from "@/lib/dates";
 /**
  * Earlier / Later links around a window of dates, for the venue page's
  * embedded calendar ("go back and forth to past or future with that exact
- * calendar", requirements-initial.md, "Venue"; B4 plan, D1).
+ * calendar", requirements-initial.md, "Venue"; B4-D1).
  *
  * A Server Component of plain links: paging is a navigation, and the server
  * renders the new window from `?from=`. Every link is computed from the

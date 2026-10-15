@@ -148,8 +148,11 @@ code.**
      the `Lesson:` / `Code:` / `Check:` labels, test-command pointers, the "likeliest mistake"
      list and any "replace the `todo` line" instructions. **Keep the reasoning** (why it is done
      this way here, the doc that decided it, what goes wrong otherwise) as sentences of rationale.
-   - Remove the gap labels around the code: `(Gap D)` in test section headers and `Proves (Gap D, …)`
-     lines, and "stay red until Ari fills …" in test docstrings.
+   - Keep the plan-level references, written as K-forms (`A3-K4`; see `docs/dev/conventions.md`).
+     A key point the plan names stays where it helps a reader follow the plan: a test section
+     header, a `Proves (…)` line, a module docstring's reading order. The old letter becomes its
+     K number, and what goes is the scaffolding: `TODO(Ari)` markers and "stay red until Ari fills
+     …" notes in test docstrings.
    - Delete the placeholder helper (`lib/todo.ts`) once no gap calls it, along with any import or
      `noqa` the scaffold left for the gap.
    - It is a comment-only pass, so verify it as one (see Conventions): compare syntax trees before

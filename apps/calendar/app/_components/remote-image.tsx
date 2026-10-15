@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 /**
  * A poster or photo hosted on someone else's site: the app's ONE place that
  * renders a remote image, and so the only `@next/next/no-img-element`
- * exception (B4 plan, decision D4).
+ * exception (B4-D4).
  *
  * WHY A PLAIN <img> AND NOT `next/image`. `image_url` and `photo_url` point
  * at arbitrary venue and artist hosts. `next/image` would need an
@@ -22,9 +22,9 @@ import { cn } from "@/lib/utils";
  *    doesn't hold up the page.
  *  - A height cap with `object-contain`, so a huge or oddly shaped image
  *    can't break the layout. No dimensions are known, so no space is
- *    reserved and the layout can shift as the image loads (accepted, D4).
+ *    reserved and the layout can shift as the image loads (accepted, B4-D4).
  *
- * ACCEPTED COSTS (D4): the reader's browser contacts a third-party host
+ * ACCEPTED COSTS (B4-D4): the reader's browser contacts a third-party host
  * (it sees their IP); a dead link shows the browser's broken-image marker
  * with the `alt` text, because a cosmetic `onError` fallback would need a
  * Client Component. Copies served from our own storage (R2, hosted phase)

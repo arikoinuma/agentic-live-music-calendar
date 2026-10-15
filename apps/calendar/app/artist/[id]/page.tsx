@@ -22,7 +22,7 @@ export async function generateMetadata(props: PageProps<"/artist/[id]">): Promis
 
 // An artist: their metadata, then "the list view of their upcoming shows"
 // (requirements-initial.md, "Artist") — EVERY upcoming show, not just the
-// next four weeks (B4 plan, decision D2). We ask the API for
+// next four weeks (B4-D2). We ask the API for
 // `upcoming: true`: "from the server's today, no upper limit". The client
 // sends no date at all, because the server owns "now" (api-contract.md §3),
 // and prints the `start` the server echoes. Unlike the venue page there is

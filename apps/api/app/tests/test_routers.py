@@ -172,7 +172,7 @@ def test_openapi_exposes_the_metro_route() -> None:
     assert ref == {"$ref": "#/components/schemas/MetroSummary"}
 
 
-# --- GET /shows?upcoming=true (B4, plan decision D2) ----------------------
+# --- GET /shows?upcoming=true (B4-D2) ----------------------
 # The artist page lists EVERY future show of an artist, not just the next
 # four weeks. The client can't ask for that with dates (the server owns
 # "now", api-contract.md §3), so `upcoming=true` means "from the server's

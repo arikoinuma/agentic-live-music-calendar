@@ -126,7 +126,7 @@ describe("getShows", () => {
   });
 
   it("sends upcoming=true with no dates for the artist page", async () => {
-    // Proves: D2 — "every upcoming show" is the SERVER's question. The
+    // Proves: B4-D2 — "every upcoming show" is the SERVER's question. The
     // client sends the flag and the artist, and no start or end (the API
     // answers 422 to the combination).
     const fetchImpl = respondWith(shows);

@@ -46,7 +46,7 @@ def list_shows(
     venue_id: Annotated[list[int] | None, Query()] = None,
     artist_id: Annotated[list[int] | None, Query()] = None,
     # "Every show from today on, however far out" -- the artist page's
-    # "upcoming shows" (B4, decision D2). A client can't ask for that with
+    # "upcoming shows" (B4-D2). A client can't ask for that with
     # dates: the server owns "now" (api-contract.md section 3), and an
     # open-ended range has no end date to send. A plain bool needs no
     # Query() marker, unlike the list parameters above.

@@ -406,7 +406,7 @@ structured source's URL never appears in visible text; it now skips `jsonld` and
 ## Two ways a calendar page scrolls sideways that no unit test can see, and the measuring trap that hid one
 
 Found in B4 by measuring `document.documentElement.scrollWidth` against `clientWidth` in headless Chromium at 375px.
-Both are the same family as B3's Gap E (what the scroll container actually contains):
+Both are the same family as B3-K5 (what the scroll container actually contains):
 
 1. **`.sr-only` inside a scroll container widens the page.** `sr-only` is `position: absolute`, and an `overflow-x: auto`
    container does not clip an absolutely positioned descendant whose containing block lies *outside* it. B4 put a
@@ -418,7 +418,7 @@ Both are the same family as B3's Gap E (what the scroll container actually conta
    longest unbreakable word, and the detail pages print URLs and emails scraped from the web: a calendar URL pushed
    `/venue/3` 9px past a 375px screen. `min-w-0 [overflow-wrap:anywhere]` on the `<dd>` (`DetailRow`).
 
-**The measuring trap:** `/` streams (B3 D4), so `waitUntil: "load"` can fire before the Suspense body arrives, and the
+**The measuring trap:** `/` streams (B3-D4), so `waitUntil: "load"` can fire before the Suspense body arrives, and the
 page measures as the skeleton: `/` read "fine" at 375px until the check waited for `networkidle`. Measure a streamed
 page after its body is in.
 

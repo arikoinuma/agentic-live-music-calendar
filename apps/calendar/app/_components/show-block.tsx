@@ -12,7 +12,7 @@ import type { ShowSummary } from "@/lib/types";
  * false inside the grid, where the column header already names the venue,
  * and true where the block stands alone.
  *
- * The time line is the link to the show's own page (`/show/[id]`, B4 D3):
+ * The time line is the link to the show's own page (`/show/[id]`, B4-D3):
  * the venue and artist links below can't nest inside a block-wide link, and
  * the time is the one line that is about the show itself. A show with no
  * start time has no time to link, so its line stays plain text and a
@@ -22,7 +22,7 @@ import type { ShowSummary } from "@/lib/types";
  * Deliberately NOT here:
  *  - The poster (`image_url`). The block's focus is names, and 25 remote
  *    images on `/` would be 25 requests to third-party hosts. The show page
- *    renders the poster (`RemoteImage`, B4 D4).
+ *    renders the poster (`RemoteImage`, B4-D4).
  *
  * Optional fields from the generated types are `T | null | undefined`
  * (api-contract.md §7) — truthiness checks handle both.

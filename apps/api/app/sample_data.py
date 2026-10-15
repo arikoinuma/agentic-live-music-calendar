@@ -154,7 +154,7 @@ _SHOW_ROWS: list[tuple] = [
     #     "Times after midnight"):
     (9, "The Midway Saloon", "01:00", None, _lineup("Dead Man Winter"), None, None, True, None),
 
-    # Added for B4 (docs/dev/implementations/b4-detail-pages.md, D2), and
+    # Added for B4 (B4-D2, docs/dev/implementations/b4-detail-pages.md), and
     # appended so ids 1-25 don't change. Every show above sits inside the
     # 28-day default window (START..END), so against this data
     # `GET /shows?artist_id=1&upcoming=true` and the plain default window

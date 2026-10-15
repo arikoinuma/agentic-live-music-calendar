@@ -54,7 +54,7 @@ export async function generateMetadata(props: PageProps<"/venue/[id]">): Promise
 //
 // NO <Suspense> here, on purpose: a boundary above `notFound()` would turn
 // a missing venue into a soft 404 (a 200). That is why this page, like the
-// other detail routes, answers an API outage with the bare 500 (B3 D4).
+// other detail routes, answers an API outage with the bare 500 (B3-D4).
 export default async function VenuePage(props: PageProps<"/venue/[id]">) {
   const [{ id: rawId }, search] = await Promise.all([props.params, props.searchParams]);
 

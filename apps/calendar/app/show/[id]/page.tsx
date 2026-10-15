@@ -31,7 +31,7 @@ export async function generateMetadata(props: PageProps<"/show/[id]">): Promise<
   return { title: `${names || "Live music"} at ${show.venue.name}, ${formatDayHeadingWithYear(show.date)}` };
 }
 
-// One show's own page (B4 plan, D3): the thing every show block's time line
+// One show's own page (B4-D3): the thing every show block's time line
 // links to, and the reason each show is indexable and shareable
 // (arch-initial.md §4: "every event … has its own server-rendered detail
 // page"). It carries the schema.org Event JSON-LD.
