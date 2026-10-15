@@ -14,6 +14,11 @@ This application is intentionally built robustly: audit trails, accuracy gates a
 
 PolyForm Noncommercial 1.0.0. You may read, run and learn from this code for noncommercial purposes. Commercial use needs Ari's written permission. Reviewing the code as part of a hiring evaluation is welcome.
 
+## Status
+
+Building Alpha currently, not yet deployed.  Last update: Oct 15, 2026
+
+
 ## How it fits together
 
 | Piece | Path | Role |
