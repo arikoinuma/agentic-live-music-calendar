@@ -5,7 +5,7 @@ import metro from "./fixtures/metro.json";
 
 afterEach(() => vi.restoreAllMocks());
 
-// --- getMetroOrNull (B2-Gap-C) -------------------------------------------------
+// --- getMetroOrNull (B2-K3) -------------------------------------------------
 
 describe("getMetroOrNull", () => {
   it("returns the metro when the fetch succeeds", async () => {
@@ -46,7 +46,7 @@ describe("getMetroOrNull", () => {
 describe("siteDescription", () => {
   it("names the metro when there is one", () => {
     // Proves: the page description names the metro it was given, so "Minneapolis/St. Paul" comes from the API
-    // rather than a literal (G24).
+    // rather than a literal (v0.1-G24).
     expect(siteDescription(metro)).toContain(metro.name);
   });
 

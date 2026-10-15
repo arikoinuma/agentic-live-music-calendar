@@ -8,9 +8,9 @@ How to read it, top to bottom:
 1. `RetryPolicy` — the named, injectable settings (the confidence threshold and the attempt cap
    used to be literals inside the routing function). A8 varies them by passing a different policy.
 2. `AttemptRecord` / `AttemptPlan` — what one attempt did, and what the next one will change.
-3. `combine` (A3-Gap-D) — evidence + confidence -> one verdict, and `decide_route` — verdict
+3. `combine` (A3-K4) — evidence + confidence -> one verdict, and `decide_route` — verdict
    + attempt count -> the graph's next step.
-4. `retry_hint` and `plan_for_attempt` (A3-Gap-E) — what makes a retry different from the
+4. `retry_hint` and `plan_for_attempt` (A3-K5) — what makes a retry different from the
    call before it. At temperature 0 an unchanged retry returns the same answer (A2.1's confirmation
    run: five runs, byte-identical output), so without this the retry loop is a loop, not a retry.
 
@@ -64,8 +64,8 @@ class RetryPolicy:
 
     def __post_init__(self) -> None:
         # `ESCALATION_MODEL_NAME=` (uncommented, left empty) is read as "" and not None, which would
-        # make A3-Gap-E record `larger_model_used=True` while the same model runs — the misreport A3-D5
-        # exists to stop (code review round 1, #3). An empty name means "none configured".
+        # make A3-K5 record `larger_model_used=True` while the same model runs — the misreport A3-D5
+        # exists to stop (A3-R1-3). An empty name means "none configured".
         if not self.escalation_model:
             object.__setattr__(self, "escalation_model", None)
 
@@ -113,7 +113,7 @@ class AttemptRecord:
 
 
 # ---------------------------------------------------------------------------
-# One verdict, not one float (A3-Gap-D)
+# One verdict, not one float (A3-K4)
 # ---------------------------------------------------------------------------
 
 
@@ -124,7 +124,7 @@ def combine(result: ValidationResult, policy: RetryPolicy) -> ValidationResult:
     # record whatever the confidence (a model that is 0.99 sure of a past date is still wrong). Low
     # confidence fails it only when nothing else has. A confidence of None means "no model judged
     # this": no evidence, not zero, which is why the `is not None` guard below matters (comparing
-    # None would raise on every JSON-LD page, G6's original bug). The reasons keep everything that
+    # None would raise on every JSON-LD page, v0.1-G6's original bug). The reasons keep everything that
     # applies, strongest first, so the retry hint and the audit trail can say why (alpha-build-plan.md
     # A3: "collapsing both into one float may be losing information").
     reasons = []
@@ -149,7 +149,7 @@ def decide_route(verdict: Verdict | None, attempt_count: int, policy: RetryPolic
         # validate_node always sets one; None means the graph was wired wrong. Loud, not routed.
         raise ValueError("decide_route called before validation produced a verdict")
     # The router reads the verdict and the attempt count only, and returns `NodeOutcomes` members
-    # only (G6). The old router returned `NodeNames.ESCALATE` against a path map keyed on
+    # only (v0.1-G6). The old router returned `NodeNames.ESCALATE` against a path map keyed on
     # `NodeOutcomes.ESCALATE`; it worked only because two different StrEnums share the string
     # "escalate". The cap comes from the policy, not a literal 3, so A8 can vary it.
     if verdict is not Verdict.FAILED:
@@ -160,7 +160,7 @@ def decide_route(verdict: Verdict | None, attempt_count: int, policy: RetryPolic
 
 
 # ---------------------------------------------------------------------------
-# A retry that changes the request (A3-Gap-E)
+# A retry that changes the request (A3-K5)
 # ---------------------------------------------------------------------------
 
 # One fixed sentence per check code: what to look at again. Used beside the finding's own message,
@@ -183,7 +183,7 @@ _REASON_ADVICE: dict[FailureReason, str] = {
 
 # What the last attempt adds beyond the findings (A3, found by test_graph's different-request test):
 # when attempt 2 failed the same check as attempt 1, the union of findings is the same text, so
-# without this attempt 3 on a machine with no larger model would be byte-identical to attempt 2 — G5
+# without this attempt 3 on a machine with no larger model would be byte-identical to attempt 2 — v0.1-G5
 # again. It also states Ari's tiered standard to the model: a missing field is tolerated, a wrong one
 # is not.
 _FINAL_PAGE_ADVICE = (

@@ -93,10 +93,11 @@ mypy, pytest) and is not in the pipeline.
   the doc and section. When it deliberately departs, say so and why.
 - **Verify, don't assume.** Claims in this repo's docs were checked against real behavior.
   Keep that standard: run it before saying it works.
-- **Designations are scoped.** Write plan-local IDs with the scope of the plan that defines
-  them: `A2.1-D5`, `A3-Gap-B`, `A2-F9`. A bare `D5` is ambiguous, because several plans each
-  have their own D5. The build-plan `G<n>` catalogue is the one exception and stays unscoped.
-  Inside a plan file, bare IDs are fine. The full rules and the check command are in
+- **Designations are scoped, everywhere.** Every ID carries the scope of the document that
+  defines it: `A2.1-D5` (decision), `A2-F9` (eval failure), `A3-K2` (fill-in key point),
+  `A2.1-R2-3` (review item), `v0.1-G6` (catalogue gap). A bare `D5` is ambiguous, because
+  several plans each have their own D5, and a bare `G6` won't survive a second version. The
+  full forms, the mapping from the old gap letters, and the check command are in
   `docs/dev/conventions.md`.
 - **Commit attribution names the model.** Git commit messages end with the trailer
   `Co-Authored-By: Claude <model name>` (for example `Co-Authored-By: Claude Haiku 5.5`), with

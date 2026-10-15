@@ -57,7 +57,7 @@ export function CalendarGrid({ rows }: { rows: CalendarRow[] }) {
               // a plain <div> and THAT <div>'s minimum becomes the full width
               // of every venue column, the `1fr` track grows to fit it, and
               // the whole PAGE scrolls sideways instead of this row. (If a
-              // wrapper is ever needed: `min-w-0` on it.) B3-Gap-E.
+              // wrapper is ever needed: `min-w-0` on it.) B3-K5.
               //
               // Deliberately NO `tabIndex`, `role="region"` or `aria-label`
               // here (code review #4; Ari tried it and it was noise). A

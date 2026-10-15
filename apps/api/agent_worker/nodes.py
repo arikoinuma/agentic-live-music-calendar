@@ -2,7 +2,7 @@
 
 Each is a plain function of `VenueGraphState` (state.py); graph.py wires them. A3 made the first three
 real: fetch records a failure instead of raising, extract records a failed model call as an attempt
-instead of crashing the graph (G2), and validate reads the evidence from validation.py and the
+instead of crashing the graph (v0.1-G2), and validate reads the evidence from validation.py and the
 policy from policy.py to produce a verdict. Reconcile, commit and escalate's writes are still
 stubs (A5, A6), and nothing here writes an audit row yet (A4): the state carries what A4 will log
 (`extraction_source`, `extraction_notes`, `validation`, `attempt_history`, `escalation_reason`).
@@ -47,7 +47,7 @@ from agent_worker.validation import ValidationResult, Verdict, validate_extracti
 
 IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp")
 
-# What a failed model call is allowed to be (A3, G2). A named tuple, never a bare `Exception`: a
+# What a failed model call is allowed to be (A3, v0.1-G2). A named tuple, never a bare `Exception`: a
 # KeyError or AttributeError in OUR code is a bug and should crash, not be recorded as a "failed
 # attempt". Each member and why:
 #   InstructorError   instructor re-asked and the answer still wouldn't validate (its
@@ -206,7 +206,7 @@ def extract_node(state: VenueGraphState) -> VenueGraphState:
     # A failed model call is an OUTCOME, not a crash. The retry loop exists for exactly this failure
     # (a thinking model exhausting its budget on a judgment call, env-setup.md Phase 5). Two things
     # make it work. The attempt is COUNTED before the call, so an exception can't skip the increment
-    # and kill the graph (alpha-build-plan.md G2; arch-initial.md §7). And only a NAMED tuple of
+    # and kill the graph (alpha-build-plan.md v0.1-G2; arch-initial.md §7). And only a NAMED tuple of
     # expected errors (`EXTRACTION_ERRORS`, above) is caught, never `Exception`. A failed attempt
     # leaves `extraction` None, and validate_node fails it with reason `extract_failed`, so the
     # existing `retry` edge handles it with no new edge.
