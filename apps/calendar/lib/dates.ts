@@ -43,24 +43,13 @@ const UNTIMED_KEY = 2 * MINUTES_PER_DAY;
 /**
  * The date it is RIGHT NOW in the metro's timezone.
  *
- * (Ari) — Gap A. Lesson: "today" is a question about a place. This code
- *   runs on the Next server, whose zone is UTC on Vercel, so any
- *   zone-less "now" is TOMORROW from early evening Central time on (7 PM
- *   in summer, 6 PM in winter). Ask for the date in the metro's IANA zone
- *   (`MetroSummary.timezone`, requirements-initial.md "Metro"). A show's
- *   own date needs no zone (it is a wall-clock PlainDate); this is the one
- *   place the metro's zone is needed. `now` is a parameter so tests can
- *   fix the clock.
- * Code:
- *   return now.toZonedDateTimeISO(timeZone).toPlainDate();
- *   (and delete `import { todo } from "./todo"` once no gap in this file still
- *   calls it — Gap B does too, so the second one filled removes it)
- * Check: `pnpm --filter calendar test dates` — "is the metro's date when
- *   UTC has already rolled to the next day" and its three siblings (the
- *   DST and east-of-UTC cases). Likeliest mistakes:
- *   `Temporal.Now.plainDateISO()` with no zone argument (the SERVER's
- *   zone — and it ignores `now`, so every case fails), or
- *   `new Date().toISOString().slice(0, 10)` (UTC).
+ * "Today" is a question about a place. This code runs on the Next server,
+ * whose zone is UTC on Vercel, so any zone-less "now" is TOMORROW from early
+ * evening Central time on (7 PM in summer, 6 PM in winter). The date is asked
+ * for in the metro's IANA zone (`MetroSummary.timezone`, requirements-initial.md
+ * "Metro"). A show's own date needs no zone (it is a wall-clock PlainDate);
+ * this is the one place the metro's zone is needed. `now` is a parameter so
+ * tests can fix the clock.
  */
 export function metroToday(
   timeZone: string,
@@ -75,7 +64,7 @@ export function metroToday(
  * `toZonedDateTimeISO` throws a RangeError for an id it doesn't know;
  * "Today" is cosmetic, so a typo in a metro row shouldn't be a 500
  * (B3 plan review #9). Only RangeError is caught — anything else
- * (including an open gap's TODO error) is a real bug and passes through.
+ * is a real bug and passes through.
  */
 export function metroTodayOrNull(
   timeZone: string,
@@ -96,20 +85,12 @@ export function metroTodayOrNull(
  * True for a clock time that belongs to the early hours AFTER the night
  * it is listed under: 00:00 up to, not including, 05:00.
  *
- * (Ari) — Gap B. Lesson: Ari's after-midnight rule as ONE comparison — and
- *   Temporal refuses `<`: its objects throw on `valueOf()` precisely so
- *   `a < b` can't silently compare strings or NaN. Ordering goes through
- *   `compare`. Both `formatShowTime` (the "Sat" suffix) and `nightSortKey`
- *   (sorts after the evening's shows) call this, so the rule lives in
- *   exactly one line.
- * Code:
- *   return Temporal.PlainTime.compare(time, NIGHT_CUTOFF) < 0;
- *   (and delete the `todo` import if Gap A is already filled)
- * Check: `pnpm --filter calendar test dates` — `isAfterMidnight`'s
- *   04:59 (true) and 05:00 (false); the `formatShowTime` and
- *   `nightSortKey` cases go green with it. Likeliest mistakes:
- *   `time < NIGHT_CUTOFF` (throws a TypeError that tells you to use
- *   `compare`), or `<= 0` (makes 5:00 AM "after midnight").
+ * The cut-off is Ari's after-midnight rule (requirements-initial.md, "Show")
+ * as ONE comparison, and it goes through `compare` because Temporal objects
+ * throw on `<`: their `valueOf()` is deliberately unusable, so `a < b` can't
+ * silently compare strings or NaN. Both `formatShowTime` (the "Sat" suffix)
+ * and `nightSortKey` (sorts after the evening's shows) call this, so the rule
+ * lives in exactly one line.
  */
 export function isAfterMidnight(time: Temporal.PlainTime): boolean {
   return Temporal.PlainTime.compare(time, NIGHT_CUTOFF) < 0;

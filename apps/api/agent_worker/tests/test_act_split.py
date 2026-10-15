@@ -3,8 +3,8 @@
 On the JSON-LD route, dates and times come from the venue's structured data; the model is
 asked only the question JSON-LD doesn't answer — which performing acts a title names, and
 whether it is a music show at all (D4, D5, D12 of the A2.1 plan). The narrow instruction is
-(Ari) Gap D; everything around it — numbering the titles, aligning the answer back to
-them — is written, and these tests pin that the alignment can't silently put one show's acts
+one piece; everything around it — numbering the titles, aligning the answer back to
+them — is plain code, and these tests pin that the alignment can't silently put one show's acts
 on another.
 
 How to read it: a fake client returns a canned answer -> instruction content -> alignment by

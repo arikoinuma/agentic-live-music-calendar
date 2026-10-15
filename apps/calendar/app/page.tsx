@@ -63,7 +63,7 @@ async function CalendarBody({ filters }: { filters: CalendarFilters }) {
     getMetroOrNull(),
   ]);
 
-  // "Today" is the metro's date, not the server's (lib/dates.ts, Gap A).
+  // "Today" is the metro's date, not the server's (lib/dates.ts, `metroToday`).
   // With no metro, or a timezone we can't use, no row is marked — better
   // than guessing a zone.
   const today = (metro && metroTodayOrNull(metro.timezone)?.toString()) ?? null;

@@ -16,7 +16,7 @@ export function DetailRow({ label, children }: { label: string; children: ReactN
           are URLs and email addresses scraped from the web. Without this a
           calendar URL on a 375px phone widens the whole grid past the
           screen (measured: the page scrolled sideways by 9px). Same family
-          of bug as B3's Gap E. */}
+          of bug as the calendar row's scroller (calendar-grid.tsx). */}
       <dd className="min-w-0 [overflow-wrap:anywhere]">{children}</dd>
     </>
   );

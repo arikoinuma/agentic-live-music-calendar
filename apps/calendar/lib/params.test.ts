@@ -128,7 +128,7 @@ describe("parseMonthParam", () => {
   });
 });
 
-// --- parseCalendarFilters (Gap A) -------------------------------------------
+// --- parseCalendarFilters ---------------------------------------------------
 
 describe("parseCalendarFilters", () => {
   it("returns no filters for an empty query", () => {
@@ -184,7 +184,7 @@ describe("parseCalendarFilters", () => {
   });
 });
 
-// --- toShowsQuery (Gap B) ---------------------------------------------------
+// --- toShowsQuery -----------------------------------------------------------
 
 describe("toShowsQuery", () => {
   it("sends no start/end without a month, so the server picks its default window", () => {

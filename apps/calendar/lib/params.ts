@@ -124,22 +124,13 @@ export function parseMonthParam(raw: string | undefined): string | null {
 /**
  * Parses ONE repeatable id key (`venue`, `artist`) into a canonical list.
  *
- * (Ari) — Gap A. Lesson: Next hands search params over as
- *   `string | string[] | undefined` — one `venue=1` is a string, a
- *   repeated key is an array — and the API contract also uses repeated
- *   keys (api-contract.md §2). The URL is the state (arch-initial.md §4),
- *   so parsing must be TOTAL (bad entries dropped one by one, never a
- *   throw) and CANONICAL (de-duplicated, numerically sorted) so that one
- *   filter set has exactly one URL.
- * Code:
- *   const asList = (v: string | string[] | undefined) =>
- *     v === undefined ? [] : Array.isArray(v) ? v : [v];
- *   return [...new Set(asList(value).map(parseIdParam).filter((n): n is number => n !== null))]
- *     .sort((a, b) => a - b);
- * Check: `pnpm --filter calendar test params` — the "reads a single value
- *   and a repeated key", "drops invalid entries" and "collapses duplicates
- *   and sorts numerically" cases. Likeliest mistake: `.sort()` with no
- *   comparator, which is lexicographic and gives [10, 9] for 9 and 10.
+ * Next hands search params over as `string | string[] | undefined` — one
+ * `venue=1` is a string, a repeated key is an array — and the API contract
+ * also uses repeated keys (api-contract.md §2). The URL is the state
+ * (arch-initial.md §4), so parsing is TOTAL (bad entries are dropped one by
+ * one, never a throw) and CANONICAL (de-duplicated and sorted numerically, as
+ * a bare `.sort()` is lexicographic and would give [10, 9]) so that one filter
+ * set has exactly one URL.
  */
 function parseIdList(value: string | string[] | undefined): number[] {
   const asList = (v: string | string[] | undefined) =>
@@ -169,22 +160,13 @@ export function parseCalendarFilters(searchParams: SearchParams): CalendarFilter
  * "2026-10" -> the first and last day of that month, as inclusive ISO
  * dates. The input must already be valid (parseMonthParam).
  *
- * (Ari) — Gap B. Lesson: `month=2026-10` becomes the API's inclusive
- *   `start`/`end`. The client does calendar ARITHMETIC but consults no
- *   clock (decision D2; api-contract.md §3 "the server owns now"), so a
- *   month means the whole month, past days included. Use Temporal, not
- *   `Date`: month lengths and leap Februaries are exactly what `Date`
- *   arithmetic gets subtly wrong.
- * Code:
- *   const ym = Temporal.PlainYearMonth.from(month);
- *   return {
- *     start: ym.toPlainDate({ day: 1 }).toString(),
- *     end: ym.toPlainDate({ day: ym.daysInMonth }).toString(),
- *   };
- * Check: `pnpm --filter calendar test params` — "month … covers … inclusive"
- *   (31-/30-day, leap and common February, December). Likeliest mistakes:
- *   `end` = the first of the NEXT month (the API's `end` is inclusive), or
- *   a hard-coded 31.
+ * `month=2026-10` becomes the API's inclusive `start`/`end`. The client does
+ * calendar ARITHMETIC but consults no clock (decision D2; api-contract.md §3
+ * "the server owns now"), so a month means the whole month, past days
+ * included. Temporal, not `Date`: month lengths and leap Februaries are
+ * exactly what `Date` arithmetic gets subtly wrong. `end` is the last day of
+ * the month rather than the first of the next, because the API's `end` is
+ * inclusive.
  */
 function monthRange(month: string): { start: string; end: string } {
   const ym = Temporal.PlainYearMonth.from(month);

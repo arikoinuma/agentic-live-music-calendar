@@ -12,8 +12,7 @@ How to read it, top to bottom:
 1. The types. `Finding` (something noticed, error or warning), `Repair` (a value dropped because it
    failed verification), `ValidationResult`. All the types live here, so `policy.py` and `state.py`
    import from this module and never the other way round.
-2. The per-show checks, one function each so a test can call one alone. Gaps B and C are
-   `TODO(Ari)` blocks; the rest is written.
+2. The per-show checks, one function each so a test can call one alone.
 3. The page-level guards: JSON-LD under-reporting and "empty but dated".
 4. `validate_extraction`, which runs it all and returns the result plus the shows to keep.
 
@@ -182,20 +181,18 @@ class PlausibilityFlags:
 
 
 # ---------------------------------------------------------------------------
-# Page outcome (Gap B)
+# Page outcome
 # ---------------------------------------------------------------------------
 
 
 def classify_page(extraction: VenuePageExtraction) -> PageOutcome:
     """Which of the three things this page turned out to be, from `page_readable` and `shows`."""
-    # (Ari) — Lesson: `page_readable` exists to tell two situations apart that both look like
-    #   `shows: []` — a venue that genuinely lists nothing (a legitimate pass) and a page the model
-    #   couldn't read (a failure worth a retry) — see the comment on it in schemas.py. So the
-    #   order of the questions is the lesson: readability first. An unreadable page that also
-    #   returned a stray show is still unreadable (a model that says "I couldn't read this"
-    #   shouldn't be trusted on what it then returned). arch-initial.md §7; build plan G3.
-    # Check: `uv run pytest agent_worker/tests/test_validation.py -k page_outcome`. Likeliest mistake:
-    #   testing `shows` first, so an unreadable page that returned a show reads as normal.
+    # `page_readable` exists to tell two situations apart that both look like `shows: []` — a venue
+    # that genuinely lists nothing (a legitimate pass) and a page the model couldn't read (a failure
+    # worth a retry) — see the comment on it in schemas.py. So readability is asked first: an
+    # unreadable page that also returned a stray show is still unreadable (a model that says "I
+    # couldn't read this" shouldn't be trusted on what it then returned). arch-initial.md §7; build
+    # plan G3.
     if not extraction.page_readable:
         return PageOutcome.UNREADABLE
     return PageOutcome.HAS_SHOWS if extraction.shows else PageOutcome.CONFIRMED_EMPTY
@@ -253,19 +250,16 @@ def check_start_time(show: ShowExtraction, index: int) -> list[Finding]:
 
 def check_plausibility(show: ShowExtraction, fetched_on: datetime.date) -> PlausibilityFlags:
     """Plausibility, relative to when the page was fetched (not to the wall clock)."""
-    # (Ari) — Lesson: plausibility is relative to *when the page was fetched* and to the
-    #   venue's *night*, not to the data alone. The date window is `fetched_on - 31 days` to
-    #   `fetched_on + 366 days` (D2; the lookback is normalize.YEAR_LOOKBACK, shared with the year
-    #   rule so the two can't drift). And an `end_time` EARLIER than `time` is NOT a finding:
-    #   "9:00 pm - 12:00 am" ends the next morning (requirements-initial.md, Show), so a naive
-    #   `end <= start` check flags a correct record. Only an end EQUAL to the start is wrong — a
-    #   zero-length show (the JSON-LD route can produce one; it is repaired, not failed). Be honest
-    #   about reach: with the year rule on, the window mostly guards the JSON-LD route and the
-    #   Feb 29 that infer_year leaves unchanged.
-    # Check: `uv run pytest agent_worker/tests/test_validation.py -k "window or feb_29 or end_time"` — the 31/32 and
-    #   366/367 day boundaries and the "Nona" case (21:00 to 00:00, no flag). Likeliest mistakes:
-    #   `show.end_time < show.time` as a problem; or measuring against `datetime.date.today()`,
-    #   which fails every test of a replayed capture.
+    # Plausibility is relative to *when the page was fetched* and to the venue's *night*, not to the
+    # data alone, so the window is measured against `fetched_on` (never `datetime.date.today()`,
+    # which would fail every test of a replayed capture): `fetched_on - 31 days` to
+    # `fetched_on + 366 days` (D2; the lookback is normalize.YEAR_LOOKBACK, shared with the year rule
+    # so the two can't drift). An `end_time` EARLIER than `time` is NOT a finding: "9:00 pm - 12:00
+    # am" ends the next morning (requirements-initial.md, Show), so a naive `end <= start` check
+    # flags a correct record. Only an end EQUAL to the start is wrong — a zero-length show (the
+    # JSON-LD route can produce one; it is repaired, not failed). To be honest about reach: with the
+    # year rule on, the window mostly guards the JSON-LD route and the Feb 29 that infer_year leaves
+    # unchanged.
     earliest = fetched_on - YEAR_LOOKBACK
     latest = fetched_on + datetime.timedelta(days=366)
     return PlausibilityFlags(

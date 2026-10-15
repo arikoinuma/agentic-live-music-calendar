@@ -49,7 +49,7 @@ it("the fixture day is the five shows this file's expectations assume", () => {
   expect(ids(fixtureDay).sort((a, b) => a - b)).toEqual([8, 22, 23, 24, 25]);
 });
 
-// --- venueOrder / timeOrder (Gap D) ---------------------------------------------------
+// --- venueOrder / timeOrder -----------------------------------------------------------
 
 describe("venueOrder", () => {
   it("sorts by venue name, then by time within a venue", () => {
@@ -102,7 +102,7 @@ describe("timeOrder", () => {
   });
 });
 
-// --- artistRows (Gap C) -----------------------------------------------------------------
+// --- artistRows -----------------------------------------------------------------------
 
 describe("artistRows", () => {
   it("makes one row per act, alphabetical by artist", () => {

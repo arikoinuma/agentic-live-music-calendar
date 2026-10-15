@@ -57,7 +57,7 @@ export function CalendarGrid({ rows }: { rows: CalendarRow[] }) {
               // a plain <div> and THAT <div>'s minimum becomes the full width
               // of every venue column, the `1fr` track grows to fit it, and
               // the whole PAGE scrolls sideways instead of this row. (If a
-              // wrapper is ever needed: `min-w-0` on it.) B3 plan, Gap E.
+              // wrapper is ever needed: `min-w-0` on it.)
               //
               // Deliberately NO `tabIndex`, `role="region"` or `aria-label`
               // here (code review #4; Ari tried it and it was noise). A
@@ -68,28 +68,11 @@ export function CalendarGrid({ rows }: { rows: CalendarRow[] }) {
               // before that date's first link, and `role="region"` added 20
               // near-identical landmarks to a screen reader's list.
               //
-              // (Ari) — Gap E. Lesson: see the paragraph above; what you type
-              //   is the scroll container's classes. `overflow-x-auto` makes
-              //   it a scroll container (and so lets the `1fr` track stay the
-              //   page's width); `overscroll-x-contain` stops a swipe that
-              //   reaches the row's end from chaining into the browser's Back
-              //   gesture; scroll-snap keeps columns aligned after a flick.
-              // Code (replace the className below):
-              //   className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2"
-              // Check: in the browser at 1280px and at phone width,
-              //   `document.documentElement.scrollWidth ===
-              //   document.documentElement.clientWidth` in the console is
-              //   `true` WHILE the 2026-10-07 row (four venues: 9rem + 4 ×
-              //   16rem is wider than `max-w-6xl`'s content box) scrolls
-              //   sideways on its own. Then the experiment that makes the
-              //   lesson observable — run it at 768px to 1024px (devtools
-              //   responsive mode), where it is clearest: wrap the scroller
-              //   in a bare <div> and the check turns `false` (the page
-              //   grows from 768 to about 1232 wide; at 1280px it is only
-              //   16px, easy to miss); add `min-w-0` to the wrapper and it
-              //   turns `true` again; remove the wrapper. Until the classes
-              //   are typed the row doesn't scroll and the page overflows
-              //   sideways — that IS the failure.
+              // The scroller's classes: `overflow-x-auto` makes it a scroll
+              // container (which is what lets the `1fr` track stay the page's
+              // width); `overscroll-x-contain` stops a swipe that reaches the
+              // row's end from chaining into the browser's Back gesture; and
+              // scroll-snap keeps columns aligned after a flick.
               <div
                 className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2"
               >

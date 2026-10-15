@@ -1,6 +1,6 @@
 /**
  * The day view's three orderings, and the artist page's chronological
- * order (B4 plan, D6 and "Test approach §1").
+ * order (B4 plan, D6).
  *
  * `/day/[date]` lets the reader choose how to view one night
  * (requirements-initial.md, "/Day view"): by venue by alpha (the default),
@@ -39,45 +39,28 @@ export type ArtistRow = {
 const byVenueName = (a: ShowSummary, b: ShowSummary): number =>
   a.venue.name.localeCompare(b.venue.name, "en-US");
 
-// --- venue modes (Gap D) ------------------------------------------------------------
+// --- venue modes ------------------------------------------------------------------
 
-/*
- * (Ari) — Gap D. Lesson: "by venue" and "by time" are the SAME two keys
- *   in opposite priority. A comparator chain is `primary || secondary`:
- *   a tie returns 0, 0 is falsy, so `||` falls through to the next key.
- *   The time key is `nightSortKey`, not the clock — the 1:00 AM show is the
- *   END of the night (requirements-initial.md, "Times after midnight").
- *   `byVenueName` is written above.
- * Code (replace both `todo` lines; delete `import { todo } from "./todo"`
- *   once no gap in this file still calls it — Gap C does too):
- * Check: `pnpm --filter calendar test show-order` — venue order
- *   [25, 8, 22, 23, 24] and time order [22, 24, 8, 23, 25] on the fixture
- *   day. Likeliest mistakes: comparing `a.start_time < b.start_time` as
- *   strings (puts 01:00 first), or `&&` instead of `||` (every non-tie then
- *   returns the second key).
- */
-// (`byVenueName` is passed in only so it counts as used while the gap is open.)
+// "By venue" and "by time" are the SAME two keys in opposite priority. A
+// comparator chain is `primary || secondary`: a tie returns 0, 0 is falsy, so
+// `||` falls through to the next key. The time key is `nightSortKey`, not the
+// clock: the 1:00 AM show is the END of the night (requirements-initial.md,
+// "Times after midnight"), and comparing `start_time` strings would put it
+// first.
 export const venueOrder = (a: ShowSummary, b: ShowSummary): number => byVenueName(a, b) || nightSortKey(a.start_time) - nightSortKey(b.start_time);
 export const timeOrder = (a: ShowSummary, b: ShowSummary): number => nightSortKey(a.start_time) - nightSortKey(b.start_time) || byVenueName(a, b);
 
-// --- artist mode (Gap C) ------------------------------------------------------------
+// --- artist mode ------------------------------------------------------------------
 
 /**
  * One row per ACT, alphabetical by artist, an artist's own rows in night
  * order.
  *
- * (Ari) — Gap C. Lesson: artist mode isn't a different SORT of the
- *   same list — it's a different SHAPE. A three-act bill becomes three
- *   rows, and an artist on two bills the same night gets two. That is why
- *   the API returns flat shows and leaves grouping to the frontend
- *   (routers/shows.py). `flatMap` makes the shape; then the sort. Each
- *   row's time is the act's own when the listing gave one, else the show's.
- * Code (replace the `todo` line below):
- *   
- * Check: `pnpm --filter calendar test show-order` — the 8-row fixture case
- *   and the same-artist-twice case. Likeliest mistakes: `map` instead of
- *   `flatMap` (an array of arrays; the type error says so), or the show's
- *   time for every act (Pert Near Sandstone at 22:00 instead of 23:15).
+ * Artist mode isn't a different SORT of the same list, it's a different
+ * SHAPE: a three-act bill becomes three rows, and an artist on two bills the
+ * same night gets two. That is why the API returns flat shows and leaves
+ * grouping to the frontend (routers/shows.py). Each row's time is the act's
+ * own when the listing gave one, else the show's.
  */
 export function artistRows(shows: ShowSummary[]): ArtistRow[] {
   const rows = shows.flatMap((show) =>

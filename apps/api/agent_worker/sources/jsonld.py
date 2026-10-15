@@ -14,7 +14,7 @@ an offset — and each function below handles the shapes the fixtures actually u
 events lack `name` or `startDate` isn't usable here and falls back to the model route.
 
 How to read it: `find_events` pulls Event objects out of a page; `local_wall_clock` turns a
-schema.org date-time into the metro's local date and time (TODO(Ari) Gap A); `to_structured_show`
+schema.org date-time into the metro's local date and time; `to_structured_show`
 maps one event to a `StructuredShow`, the route's intermediate record.
 """
 
@@ -114,23 +114,17 @@ def local_wall_clock(value: str, metro_timezone: str) -> tuple[datetime.date, da
     if _is_date_only(value):
         return datetime.date.fromisoformat(value), None
 
-    # (Ari) — Lesson: convert, don't drop. A2 Decision #3 drops a zone suffix from a
-    #   *model's* time, because a model's "Z" is noise. A structured source's offset is
-    #   information: DICE's "2026-08-17T23:00:00Z" IS 18:00 in Minneapolis, and after the
-    #   November 1 change a UTC evening is the PREVIOUS local day ("2026-11-06T02:00:00Z" is
-    #   Nov 5, 20:00). So an aware value is converted into the metro's zone (`metro.timezone`,
-    #   data-model-initial.md — the source of truth for which clock a show's time is on); a
-    #   naive value is already local. Take the date AFTER converting.
-    # Code (replace the `raise` below, and delete the noqa comment on the ZoneInfo import at the
-    #   top of this file — once ZoneInfo is used, ruff flags the noqa as unused):
+    # Convert, don't drop. A2 Decision #3 drops a zone suffix from a *model's* time, because a
+    # model's "Z" is noise. A structured source's offset is information: DICE's
+    # "2026-08-17T23:00:00Z" IS 18:00 in Minneapolis, and after the November 1 change a UTC evening
+    # is the PREVIOUS local day ("2026-11-06T02:00:00Z" is Nov 5, 20:00). So an aware value is
+    # converted into the metro's zone (`metro.timezone`, data-model-initial.md — the source of truth
+    # for which clock a show's time is on); a naive value is already local. The date is taken AFTER
+    # converting.
     parsed = datetime.datetime.fromisoformat(value)
     if parsed.tzinfo is not None:
         parsed = parsed.astimezone(ZoneInfo(metro_timezone))
     return parsed.date(), parsed.time().replace(tzinfo=None)
-    # Check: `uv run pytest agent_worker/tests/test_jsonld.py -k wall_clock` — four cases go
-    #   green. Likeliest mistakes: `.replace(tzinfo=None)` without `astimezone` (drops instead
-    #   of converting: 23:00), or taking `.date()` before converting (the November case keeps
-    #   Nov 6).
 
 
 # ---------------------------------------------------------------------------

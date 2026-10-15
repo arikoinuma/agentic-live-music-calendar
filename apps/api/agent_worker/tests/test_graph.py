@@ -14,10 +14,6 @@ reconcile_node, `escalation_reason` only by escalate_node.
 
 Expected values come from the plan, not from the code under test: the cap of 3 attempts is
 arch-initial.md §7; which route each attempt uses is plan §2-§3; the dates are literals.
-
-Many of these stay red until Ari fills Gaps A-E (the whole graph runs through validation, the
-verdict and the plan); the graph is verified with the gaps filled on a scratch copy and the result
-recorded in the plan's Implementation log.
 """
 
 from pathlib import Path
@@ -97,9 +93,9 @@ def test_every_node_returns_the_state_it_was_given(
 ) -> None:
     # Proves: a node that forgets `return state` returns None, and LangGraph then drops the node's
     # changes: the attempt count never advances and a retrying graph loops until its recursion limit
-    # (10,007 steps, about a minute). It happened once, when Gap A's block was replaced and the line below
-    # it went with it; only the whole-graph tests noticed, and they were red for other reasons at the
-    # time. Calling each node directly makes the failure immediate and says what is wrong.
+    # (10,007 steps, about a minute). It happened once, when a node's body was replaced and the line
+    # below it went with it; only the whole-graph tests noticed. Calling each node directly makes the
+    # failure immediate and says what is wrong.
     path = tmp_path / "page.html"
     path.write_text(GOOD_PAGE)
     monkeypatch.setattr(nodes, "instructor_client", scripted_client({PAGE: [listings_answer(GOOD_LISTING)], SPLITTER: [NONA]}))
@@ -136,7 +132,7 @@ def test_a_clean_json_ld_page_passes_on_the_first_attempt(tmp_path: Path, monkey
 def test_a_model_call_that_raises_once_is_a_recorded_failed_attempt_and_the_retry_recovers(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Proves (Gap A, G2): the failure Phase 5 documented (a model call that errors) no longer kills the
+    # Proves (G2): the failure Phase 5 documented (a model call that errors) no longer kills the
     # graph: attempt 1 is recorded as `extract_failed`, the existing retry edge fires, attempt 2
     # succeeds. The attempt was counted (attempt_count == 2, not 1) and attempt 1's error didn't
     # outlive it (the per-attempt reset). RED today: the exception escapes `invoke`.
@@ -152,7 +148,7 @@ def test_a_model_call_that_raises_once_is_a_recorded_failed_attempt_and_the_retr
 
 
 def test_a_model_call_that_always_raises_escalates_after_the_cap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # Proves (Gap A, G2): a real `openai` connection error on every attempt is retried to the cap (3
+    # Proves (G2): a real `openai` connection error on every attempt is retried to the cap (3
     # attempts, arch-initial.md §7) and then escalated, never retried forever and never crashing; the
     # escalation reason says what failed.
     boom = openai.APIConnectionError(request=httpx.Request("POST", "http://localhost:11434/v1"))
@@ -188,7 +184,7 @@ def test_an_unreadable_page_retries_and_recovers(tmp_path: Path, monkeypatch: py
 
 
 def test_a_check_error_retries_even_at_high_confidence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # Proves (Gap D, end to end): free admission together with a price is a deterministic error; the
+    # Proves (end to end): free admission together with a price is a deterministic error; the
     # model's 0.99 confidence does not outvote it. Attempt 1 fails with CHECK_ERRORS (not
     # low_confidence) and the page is retried.
     state, _ = run_graph(
@@ -212,14 +208,14 @@ def test_low_confidence_on_the_model_route_retries(tmp_path: Path, monkeypatch: 
 
 
 # ---------------------------------------------------------------------------
-# A retry changes the request (Gap E)
+# A retry changes the request
 # ---------------------------------------------------------------------------
 
 
 def test_a_retry_sends_a_different_request_and_the_last_one_uses_the_larger_model(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Proves (Gap E, G5): at temperature 0 an identical retry returns an identical answer (A2.1's
+    # Proves (G5): at temperature 0 an identical retry returns an identical answer (A2.1's
     # confirmation run: five byte-identical runs), so each retry must change what is sent. Attempt 2's
     # message is not attempt 1's and names the problem; attempt 3 runs the configured larger model.
     # THIS is the test that fails if someone reverts to identical re-calls. Every attempt here fails the
@@ -289,7 +285,7 @@ def test_the_route_fallback_is_sticky_and_an_escalation_names_both_routes(
 def test_a_malformed_json_ld_date_is_recorded_and_the_retry_uses_the_model_route(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Proves (Gap A, round 2 #3): a deterministic ValueError from `fromisoformat` is a failed attempt that
+    # Proves (round 2 #3): a deterministic ValueError from `fromisoformat` is a failed attempt that
     # records the route it used (`jsonld`, even though `extraction_source` is None for a failed attempt),
     # and — because a JSON-LD retry would raise identically — attempt 2 runs the model route.
     page = jsonld_page(event("Nona", "not-a-date"), body="Nona Oct 20 8 pm")

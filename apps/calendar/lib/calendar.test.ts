@@ -31,7 +31,7 @@ const squirrel = { id: 1, name: "The White Squirrel Bar" };
 const midway = { id: 2, name: "The Midway Saloon" };
 const zhora = { id: 3, name: "Zhora Darling" };
 
-// --- the rows (Gap C) -------------------------------------------------------
+// --- the rows ---------------------------------------------------------------
 
 describe("groupCalendar rows", () => {
   const group = (start: string, end: string, shows: ShowSummary[] = [], today: string | null = null) =>
@@ -147,8 +147,8 @@ describe("groupCalendar venue columns", () => {
 });
 
 describe("groupCalendar on the fixture", () => {
-  // Computed inside each test (not at collection time), so an open gap
-  // fails these tests one by one instead of failing the whole file.
+  // Computed inside each test (not at collection time), so a failure
+  // shows up in that test instead of failing the whole file at import.
   const oct7 = () =>
     groupCalendar({ start: served.start, end: served.end, shows: served.shows, today: null }).find(
       (r) => r.date === "2026-10-07",

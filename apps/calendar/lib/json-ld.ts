@@ -73,29 +73,17 @@ function instantDay(date: string, t: Temporal.PlainTime): Temporal.PlainDate {
  * A wall-clock day and time, in the metro's zone, as an ISO string WITH
  * its UTC offset ("2026-10-07T20:00:00-05:00").
  *
- * TODO(Ari) — Gap A. Lesson: a wall-clock time becomes an INSTANT only
- *   when a zone is attached, and the offset depends on the date (CDT
- *   -05:00 until the first Sunday of November, then CST -06:00), so it
- *   can't be a constant and has to come from the metro's IANA zone. This
- *   is the second and last place that zone matters (the first is "today",
- *   lib/dates.ts `metroToday`). `toZonedDateTime` attaches the zone;
- *   `toString({ timeZoneName: "never" })` prints the offset WITHOUT the
- *   "[America/Chicago]" suffix that schema.org doesn't expect. For a
- *   wall time that doesn't exist (the spring-forward gap) or exists twice
- *   (fall back) Temporal's default picks the sensible one; nothing throws.
- *   `day` is already shifted past midnight by `instantDay`.
- * Code (replace the `todo` line below, and delete `import { todo } from "./todo"`
- *   once no gap in the codebase still calls it — Gaps C and D in
- *   lib/show-order.ts and Gap B in lib/calendar-window.ts do too):
- *   
- * Check: `pnpm --filter calendar test json-ld` — the 2026-10-07 20:00 row
- *   (-05:00) and the 2026-12-05 row (-06:00); the after-midnight, fall-back
- *   and spring-forward rows go green with it. Likeliest mistakes: a
- *   hard-coded "-05:00" (right in October, wrong in December), `.toString()`
- *   with no options (appends "[America/Chicago]"), or building a
- *   PlainDateTime and calling it done (no offset at all).
- *   A bad zone id makes `toZonedDateTime` throw RangeError — the caller
- *   (`eventDateTime`) handles that, not this function.
+ * A wall-clock time becomes an INSTANT only when a zone is attached, and the
+ * offset depends on the date (CDT -05:00 until the first Sunday of November,
+ * then CST -06:00), so it can't be a constant and has to come from the
+ * metro's IANA zone. This is the second and last place that zone matters (the
+ * first is "today", lib/dates.ts `metroToday`). `toString({ timeZoneName:
+ * "never" })` prints the offset WITHOUT the "[America/Chicago]" suffix that
+ * schema.org doesn't expect. A wall time that doesn't exist (the spring-forward
+ * gap) or exists twice (fall back) is resolved by Temporal's default rather
+ * than thrown on. `day` is already shifted past midnight by `instantDay`; an
+ * unknown zone id throws RangeError, which the caller (`eventDateTime`)
+ * handles, not this function.
  */
 function withOffset(day: Temporal.PlainDate, t: Temporal.PlainTime, timeZone: string): string {
   return day.toZonedDateTime({ timeZone, plainTime: t }).toString({ timeZoneName: "never" });
@@ -121,8 +109,8 @@ export function eventDateTime(
     try {
       return withOffset(day, t, timeZone);
     } catch (err) {
-      // Only an unknown zone is ours to absorb; anything else (including an
-      // open gap's TODO error) is a real bug and passes through.
+      // Only an unknown zone is ours to absorb; anything else is a real bug
+      // and passes through.
       if (!(err instanceof RangeError)) throw err;
       console.error(`[json-ld] unusable metro timezone ${JSON.stringify(timeZone)}:`, err);
     }

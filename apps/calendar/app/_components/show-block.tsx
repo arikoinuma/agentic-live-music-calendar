@@ -53,8 +53,9 @@ export function ShowBlock({ show, withVenue }: { show: ShowSummary; withVenue: b
               calendar's per-date scroller) the hidden text sits far to the
               right and makes the whole PAGE scroll sideways — measured:
               scrollWidth 889 at 375px on `/`. Making the link the containing
-              block keeps the suffix inside the row. (Same family as B3's
-              Gap E; recorded in docs/dev/notes.md.) */}
+              block keeps the suffix inside the row. (Same family as the
+              calendar row's scroller in calendar-grid.tsx; recorded in
+              docs/dev/notes.md.) */}
           <Link className="relative inline-block py-1 underline" href={`/show/${show.id}`}>
             {start}
             {end && ` – ${end}`}

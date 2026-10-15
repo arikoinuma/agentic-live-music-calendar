@@ -29,12 +29,11 @@ const venue = venueDetail as VenueDetail;
 const ctx = { venue, timeZone: CHICAGO };
 // The tests below that are about something OTHER than the UTC offset (what
 // is offered, what the event is named, which image is allowed) run with no
-// zone, so they don't depend on Gap A (the line that attaches the zone) and
-// stay green while it is open — each still proves only its own rule. Tests
-// that assert an offset use `ctx`.
+// zone, so they don't depend on the offset being attached and each proves
+// only its own rule. Tests that assert an offset use `ctx`.
 const noZone = { venue, timeZone: null };
 
-// --- eventDateTime (Gap A) ---------------------------------------------------------------
+// --- eventDateTime -----------------------------------------------------------------------
 
 describe("eventDateTime", () => {
   it.each([
