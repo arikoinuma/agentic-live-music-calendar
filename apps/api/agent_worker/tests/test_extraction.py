@@ -1,13 +1,13 @@
 """Tests for the one extraction entry point (`agent_worker/extraction.py`) and its wiring.
 
-A2.1 adds a routing decision (JSON-LD first, the model as fallback — D4), a second model
+A2.1 adds a routing decision (JSON-LD first, the model as fallback — A2.1-D4), a second model
 call (the act splitter) and the experiment switches (`ExtractionConfig`). A2's lesson was that
 the pipeline and the eval drift apart when each builds its own request, so both now call
 `extract_page`, and these tests prove (a) the route is chosen correctly, (b) every switch
 reaches what is actually *sent*, and (c) the pipeline and the harness send the same thing.
 
 How to read it: a fake client stands in for `instructor` (no model is called) -> routing
--> the JSON-LD route's output -> the switches, checked against the sent
+(A2.1-Gap-C) -> the JSON-LD route's output -> the switches, checked against the sent
 request -> the year rule -> pipeline/harness wiring -> fetch_node. HTML snippets are written
 here in the fixtures' shapes; the fixtures themselves are never read.
 """
@@ -105,7 +105,7 @@ def model_show(day: int, *acts: str, year: int = 2026) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Routing
+# Routing (A2.1-Gap-C)
 # ---------------------------------------------------------------------------
 
 
@@ -158,7 +158,7 @@ def test_the_json_ld_route_builds_shows_from_events_and_the_splitter() -> None:
     # Proves: dates and times come from JSON-LD (converted into the metro's zone), acts from
     # the splitter, the venue from the caller; a title the splitter gave no acts (a non-music
     # entry) is kept with `acts: []` for A3 to drop, and noted; a cancelled event keeps its
-    # status (D12). `confidence` 1.0 is a recorded placeholder (plan review #15).
+    # status (A2.1-D12). `confidence` 1.0 is a recorded placeholder (plan review #15).
     html = jsonld_page(
         ws_event("Lent w. Gills", "2026-08-20T21:00:00-05:00"),
         ws_event("Open Jam", "2026-08-21T23:00:00Z"),
@@ -242,7 +242,7 @@ def test_temperature_and_seed_are_top_level_arguments() -> None:
 
 
 def test_the_pipeline_runs_at_temperature_zero() -> None:
-    # Proves: D8 as adopted by Ari (October 10, 2026, after a21-temp0-quick): the pipeline sends
+    # Proves: A2.1-D8 as adopted by Ari (October 10, 2026, after a21-temp0-quick): the pipeline sends
     # temperature 0. It scored about the same as the model's default of 1 and made 5 of 6 pages
     # byte-identical run to run — a calendar re-extracted daily must not flicker between answers.
     plain = fake_client()
@@ -251,12 +251,12 @@ def test_the_pipeline_runs_at_temperature_zero() -> None:
 
 
 # ---------------------------------------------------------------------------
-# The year rule (D13)
+# The year rule (A2.1-D13)
 # ---------------------------------------------------------------------------
 
 
 def test_the_year_rule_rewrites_model_route_years_only_when_on() -> None:
-    # Proves: the D13 rung changes exactly one thing. Mortimer's states no year and the model
+    # Proves: the A2.1-D13 rung changes exactly one thing. Mortimer's states no year and the model
     # guessed 2024; with the rule on, the fetch date decides.
     on = run("<p>x</p>", fake_client(page_shows=[model_show(31, "Band", year=2024)]), year_rule=True, **SHOWS_ROUTE)
     off = run("<p>x</p>", fake_client(page_shows=[model_show(31, "Band", year=2024)]), year_rule=False, **SHOWS_ROUTE)
@@ -348,7 +348,7 @@ def test_events_without_a_name_are_not_usable() -> None:
 
 def test_schema_variants_keep_the_class_descriptions() -> None:
     # Proves: code review #2. A variant schema differs from the base ONLY by its change — the
-    # `status` property for D12 — so a rung measures one thing. `create_model` drops class
+    # `status` property for A2.1-D12 — so a rung measures one thing. `create_model` drops class
     # docstrings unless told otherwise, which would silently remove two descriptions the model
     # is sent.
     from agent_worker.schemas import page_model
@@ -380,7 +380,7 @@ def test_extract_node_and_the_harness_send_identical_image_requests(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     # Proves: code review #12 — the image route has the same pipeline/harness parity as the
-    # page route, and the year rule (D13) rewrites a poster's guessed year there too.
+    # page route, and the year rule (A2.1-D13) rewrites a poster's guessed year there too.
     poster = tmp_path / "poster.png"
     poster.write_bytes(b"not really a png")
     b64 = run_eval.load_image_fixture(poster)
@@ -406,7 +406,7 @@ def test_extract_node_and_the_harness_send_identical_image_requests(
 
 
 def test_the_json_ld_route_keeps_only_end_times_the_page_states() -> None:
-    # Proves: D10 end to end — the JSON-LD route checks endDate against the page's own visible
+    # Proves: A2.1-D10 end to end — the JSON-LD route checks endDate against the page's own visible
     # text, so a platform default end time never reaches the extraction.
     stated = ws_event("Nona", "2026-08-17T18:00:00-05:00", endDate="2026-08-17T20:00:00-05:00")
     unstated = ws_event("Lent", "2026-08-18T18:00:00-05:00", endDate="2026-08-18T22:00:00-05:00")
@@ -440,7 +440,7 @@ def test_the_pipeline_adopts_conventions_line_breaks_and_title_split() -> None:
 
 
 # ---------------------------------------------------------------------------
-# The cancelled/postponed status question (D12, as decided by Ari on October 11)
+# The cancelled/postponed status question (A2.1-D12, as decided by Ari on October 11)
 # ---------------------------------------------------------------------------
 
 CANCELLED_PAGE = (
@@ -464,7 +464,7 @@ def test_no_status_question_when_the_page_never_says_cancelled() -> None:
 
 
 def test_the_status_question_marks_matched_shows_and_adds_skipped_ones() -> None:
-    # Proves: D12 by a narrow second question, not a schema field (the field hurt act splitting,
+    # Proves: A2.1-D12 by a narrow second question, not a schema field (the field hurt act splitting,
     # a21-cancelled). A cancelled listing the main extraction returned gets its status; one it
     # skipped is added with its status, so reconcile can still find the stored show. The year
     # rule applies to the added show's date as to every other.
@@ -500,7 +500,7 @@ def test_the_pipeline_asks_the_status_question() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Title split on the model route (S6, October 11, 2026)
+# Title split on the model route (A2-S6, October 11, 2026)
 # ---------------------------------------------------------------------------
 
 
@@ -551,7 +551,7 @@ def test_title_split_sends_layout_but_not_the_splitting_conventions_to_the_page_
 
 def test_every_listing_field_carries_over_to_its_show() -> None:
     # Proves: code review round 2, #11 — on the title-split route a listing's fields (time, end
-    # time, prices, free admission after F1, image, ambiguity, confidence) reach the show
+    # time, prices, free admission after A2-F1, image, ambiguity, confidence) reach the show
     # unchanged; and ListingExtraction has exactly ShowExtraction's fields, with `title` in place
     # of `acts`, so a field added to one and not the other fails here instead of silently dropping.
     assert set(schemas.ListingExtraction.model_fields) == (set(schemas.ShowExtraction.model_fields) - {"acts"}) | {"title"}

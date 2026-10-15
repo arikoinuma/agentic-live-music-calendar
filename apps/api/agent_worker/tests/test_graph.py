@@ -93,9 +93,9 @@ def test_every_node_returns_the_state_it_was_given(
 ) -> None:
     # Proves: a node that forgets `return state` returns None, and LangGraph then drops the node's
     # changes: the attempt count never advances and a retrying graph loops until its recursion limit
-    # (10,007 steps, about a minute). It happened once, when a node's body was replaced and the line
-    # below it went with it; only the whole-graph tests noticed. Calling each node directly makes the
-    # failure immediate and says what is wrong.
+    # (10,007 steps, about a minute). It happened once, when the A3-Gap-A code was replaced and the line below
+    # it went with it; only the whole-graph tests noticed, and they were red for other reasons at the
+    # time. Calling each node directly makes the failure immediate and says what is wrong.
     path = tmp_path / "page.html"
     path.write_text(GOOD_PAGE)
     monkeypatch.setattr(nodes, "instructor_client", scripted_client({PAGE: [listings_answer(GOOD_LISTING)], SPLITTER: [NONA]}))
@@ -119,7 +119,7 @@ def test_every_node_returns_the_state_it_was_given(
 def test_a_clean_json_ld_page_passes_on_the_first_attempt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Proves: the happy path on the adopted JSON-LD route — one attempt, a PASSED verdict, reconcile
     # reached, one history row. The confidence is None, not 1.0: the route stamps a placeholder that is
-    # not evidence (D9), and a None here must not crash the router (G6). Only the splitter calls a model.
+    # not evidence (A3-D9), and a None here must not crash the router (G6). Only the splitter calls a model.
     page = jsonld_page(event("Nona", "2026-10-20T21:00:00-05:00"))
     state, client = run_graph(tmp_path, monkeypatch, page, {SPLITTER: [NONA]})
     assert state.attempt_count == 1 and len(state.attempt_history) == 1
@@ -132,7 +132,7 @@ def test_a_clean_json_ld_page_passes_on_the_first_attempt(tmp_path: Path, monkey
 def test_a_model_call_that_raises_once_is_a_recorded_failed_attempt_and_the_retry_recovers(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Proves (G2): the failure Phase 5 documented (a model call that errors) no longer kills the
+    # Proves (A3-Gap-A, G2): the failure Phase 5 documented (a model call that errors) no longer kills the
     # graph: attempt 1 is recorded as `extract_failed`, the existing retry edge fires, attempt 2
     # succeeds. The attempt was counted (attempt_count == 2, not 1) and attempt 1's error didn't
     # outlive it (the per-attempt reset). RED today: the exception escapes `invoke`.
@@ -148,7 +148,7 @@ def test_a_model_call_that_raises_once_is_a_recorded_failed_attempt_and_the_retr
 
 
 def test_a_model_call_that_always_raises_escalates_after_the_cap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # Proves (G2): a real `openai` connection error on every attempt is retried to the cap (3
+    # Proves (A3-Gap-A, G2): a real `openai` connection error on every attempt is retried to the cap (3
     # attempts, arch-initial.md §7) and then escalated, never retried forever and never crashing; the
     # escalation reason says what failed.
     boom = openai.APIConnectionError(request=httpx.Request("POST", "http://localhost:11434/v1"))
@@ -184,7 +184,7 @@ def test_an_unreadable_page_retries_and_recovers(tmp_path: Path, monkeypatch: py
 
 
 def test_a_check_error_retries_even_at_high_confidence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # Proves (end to end): free admission together with a price is a deterministic error; the
+    # Proves (A3-Gap-D, end to end): free admission together with a price is a deterministic error; the
     # model's 0.99 confidence does not outvote it. Attempt 1 fails with CHECK_ERRORS (not
     # low_confidence) and the page is retried.
     state, _ = run_graph(
@@ -197,7 +197,7 @@ def test_a_check_error_retries_even_at_high_confidence(tmp_path: Path, monkeypat
 
 
 def test_low_confidence_on_the_model_route_retries(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # Proves: low confidence fails a model-route record (below 0.8, plan D9) when nothing deterministic
+    # Proves: low confidence fails a model-route record (below 0.8, plan A3-D9) when nothing deterministic
     # has, and the retry recovers.
     unsure = listing("2026-10-20", "Nona", time="20:00", confidence=0.5)
     state, _ = run_graph(
@@ -208,14 +208,14 @@ def test_low_confidence_on_the_model_route_retries(tmp_path: Path, monkeypatch: 
 
 
 # ---------------------------------------------------------------------------
-# A retry changes the request
+# A retry changes the request (A3-Gap-E)
 # ---------------------------------------------------------------------------
 
 
 def test_a_retry_sends_a_different_request_and_the_last_one_uses_the_larger_model(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Proves (G5): at temperature 0 an identical retry returns an identical answer (A2.1's
+    # Proves (A3-Gap-E, G5): at temperature 0 an identical retry returns an identical answer (A2.1's
     # confirmation run: five byte-identical runs), so each retry must change what is sent. Attempt 2's
     # message is not attempt 1's and names the problem; attempt 3 runs the configured larger model.
     # THIS is the test that fails if someone reverts to identical re-calls. Every attempt here fails the
@@ -255,7 +255,7 @@ UNDER_REPORTED = jsonld_page(
 def test_a_json_ld_page_that_under_reports_falls_back_to_the_model_route(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Proves (E16, plan §2): the text names five upcoming dates the one JSON-LD event doesn't cover, so
+    # Proves (A2.1-E16, plan §2): the text names five upcoming dates the one JSON-LD event doesn't cover, so
     # attempt 1 fails `jsonld_under_reported`; attempt 2 reads the page text with the model route (a page
     # call that attempt 1 never made) and passes. A JSON-LD retry would have been byte-identical.
     state, client = run_graph(
@@ -285,7 +285,7 @@ def test_the_route_fallback_is_sticky_and_an_escalation_names_both_routes(
 def test_a_malformed_json_ld_date_is_recorded_and_the_retry_uses_the_model_route(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Proves (round 2 #3): a deterministic ValueError from `fromisoformat` is a failed attempt that
+    # Proves (A3-Gap-A, round 2 #3): a deterministic ValueError from `fromisoformat` is a failed attempt that
     # records the route it used (`jsonld`, even though `extraction_source` is None for a failed attempt),
     # and — because a JSON-LD retry would raise identically — attempt 2 runs the model route.
     page = jsonld_page(event("Nona", "not-a-date"), body="Nona Oct 20 8 pm")
@@ -299,7 +299,7 @@ def test_a_malformed_json_ld_date_is_recorded_and_the_retry_uses_the_model_route
 
 
 def test_a_far_future_json_ld_event_is_excluded_and_not_retried(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # Proves (D13): a stale or far-future event is excluded with a warning in ONE attempt; the page passes
+    # Proves (A3-D13): a stale or far-future event is excluded with a warning in ONE attempt; the page passes
     # and nothing is retried (the model route's year rule would have re-dated it into a wrong date).
     page = jsonld_page(event("Nona", "2026-10-20T21:00:00-05:00"), event("Far Away", "2028-03-01T20:00:00-06:00"))
     state, _ = run_graph(
@@ -313,7 +313,7 @@ def test_a_far_future_json_ld_event_is_excluded_and_not_retried(tmp_path: Path, 
 def test_a_json_ld_page_of_only_stale_events_is_excluded_not_sent_to_the_model_route(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Proves (code review round 1, #1; D13): every event is more than 31 days back, so each is excluded
+    # Proves (code review round 1, #1; A3-D13): every event is more than 31 days back, so each is excluded
     # with a warning. The page's text names those same dates, which `upcoming_dates` places in NEXT year;
     # the empty-page guard must not read them as dates the extraction ignored. It did, sent the page to
     # the model route, and the year rule committed the shows as 2027-08-01..03 with a clean pass. The
@@ -365,7 +365,7 @@ def test_a_page_whose_every_show_is_excluded_and_undated_passes_without_crashing
 def test_a_page_that_cannot_be_read_escalates_without_calling_the_model(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Proves (D6): a fetch failure is recorded and routed to escalate (arch-initial.md §7 names it as the
+    # Proves (A3-D6): a fetch failure is recorded and routed to escalate (arch-initial.md §7 names it as the
     # other failure mode), instead of raising out of the graph. The empty script asserts no model call.
     state, client = run_graph(tmp_path, monkeypatch, None, {}, url=str(tmp_path / "missing.html"))
     assert reached_escalate(state) and state.attempt_count == 0

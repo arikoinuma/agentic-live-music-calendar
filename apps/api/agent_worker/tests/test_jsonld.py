@@ -1,12 +1,12 @@
 """Tests for the schema.org JSON-LD reader (`agent_worker/sources/jsonld.py`).
 
-The JSON-LD route (D4 of docs/dev/implementations/a2.1-extraction-reliability.md) reads a
+The JSON-LD route (A2.1-D4 of docs/dev/implementations/a2.1-extraction-reliability.md) reads a
 venue's own structured event data instead of asking a model to read the page. Field names are
 schema.org's published vocabulary, so they are mapped in code; what varies between sites is
 the *shape* (an object or a list, `image` as a string or an object, `Z` or an offset), and
 that is what these tests pin.
 
-How to read it: sections run finding events -> wall-clock conversion ->
+How to read it: sections run finding events -> wall-clock conversion (A2.1-Gap-A) ->
 mapping one event to a show. The HTML snippets are written here in the shapes the saved
 fixtures actually use (White Squirrel: a list block with `-05:00` offsets and HTML entities in
 names; DICE-backed pages: `Z` times and `offers`). Fixtures themselves are never read (they
@@ -37,7 +37,7 @@ def page(*blocks: Any, raw: str = "") -> str:
 def event(name: str = "Lent w. Gills, Boomdagger", **extra: Any) -> dict[str, Any]:
     """A minimal schema.org Event; keyword args override or add. The default start is
     date-only so the mapping tests (names, images, prices, status) don't depend on the
-    wall-clock conversion, which is tested on its own."""
+    wall-clock conversion, which is A2.1-Gap-A and is tested on its own."""
     base = {"@type": "Event", "name": name, "startDate": "2026-08-20"}
     base.update(extra)
     return base
@@ -79,7 +79,7 @@ def test_a_page_without_json_ld_has_no_events() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Wall clock: convert, don't drop
+# Wall clock: convert, don't drop (A2.1-Gap-A)
 # ---------------------------------------------------------------------------
 
 
@@ -110,7 +110,7 @@ def test_local_wall_clock_converts_offsets_into_the_metro_zone(
 
 def test_a_date_only_start_has_no_time() -> None:
     # Proves: "2026-10-09" is a date with no stated time, not a show at midnight
-    # (`datetime.fromisoformat` would read it as 00:00, which D1 would score as invented).
+    # (`datetime.fromisoformat` would read it as 00:00, which A2.1-D1 would score as invented).
     assert jsonld.local_wall_clock("2026-10-09", CHICAGO) == (datetime.date(2026, 10, 9), None)
 
 
@@ -140,7 +140,7 @@ def test_a_white_squirrel_event_maps_to_a_show() -> None:
 
 
 def test_an_end_more_than_six_hours_after_the_start_is_not_taken() -> None:
-    # Proves: D10. DICE-backed pages emit endDates 3-15 hours after the start that no page
+    # Proves: A2.1-D10. DICE-backed pages emit endDates 3-15 hours after the start that no page
     # states; 15 hours is invented, so end_time stays null ("leave blank if unclear").
     show = jsonld.to_structured_show(
         event(startDate="2026-09-05T01:00:00Z", endDate="2026-09-05T16:00:00Z"), CHICAGO
@@ -185,7 +185,7 @@ def test_image_shapes(image: Any, expected: str | None) -> None:
     ],
 )
 def test_offer_prices(offers: Any, advance: float | None, free: bool | None) -> None:
-    # Proves: an offer is an online ticket price, so it goes in admission_advance (D7); a
+    # Proves: an offer is an online ticket price, so it goes in admission_advance (A2.1-D7); a
     # zero price is explicitly free; no offer leaves every admission field null — absence
     # is "not stated", never false (requirements-initial.md, Show: Free Admission).
     extra = {} if offers is None else {"offers": offers}
@@ -205,7 +205,7 @@ def test_offer_prices(offers: Any, advance: float | None, free: bool | None) -> 
     ],
 )
 def test_event_status_maps_to_show_status(status: str | None, expected: str) -> None:
-    # Proves: D12 on the deterministic route. A cancelled show is kept, with its status, so
+    # Proves: A2.1-D12 on the deterministic route. A cancelled show is kept, with its status, so
     # reconcile can match and update the stored record.
     extra = {} if status is None else {"eventStatus": status}
     assert jsonld.to_structured_show(event(**extra), CHICAGO).status == expected
@@ -234,7 +234,7 @@ def test_a_space_separated_date_time_is_a_time_not_a_date() -> None:
 def test_an_end_time_counts_as_stated_only_if_the_page_text_says_it(
     end: datetime.time, page_text: str, stated: bool
 ) -> None:
-    # Proves: D10 as revised under D1 (Ari, October 10). A structured end time no page states
+    # Proves: A2.1-D10 as revised under A2.1-D1 (Ari, October 10). A structured end time no page states
     # is a wrong value, never acceptable; so the reader keeps an endDate only when the visible
     # text states that clock time, in any of the common spellings. White Squirrel's real end
     # times pass; DICE's platform defaults (3-15 hours after the start) don't.
@@ -303,6 +303,6 @@ def test_an_end_time_must_be_stated_near_its_own_title() -> None:
 )
 def test_a_status_written_in_the_title_counts_on_the_json_ld_route(name: str, status: str) -> None:
     # Proves: code review round 2, #8 — a site that writes "CANCELLED" in the event's name but
-    # leaves eventStatus at Scheduled (or absent) still gets the right status (D12: a wrong
+    # leaves eventStatus at Scheduled (or absent) still gets the right status (A2.1-D12: a wrong
     # status is never acceptable).
     assert jsonld.to_structured_show(event(name), CHICAGO).status == status

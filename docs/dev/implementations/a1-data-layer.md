@@ -9,10 +9,10 @@
 ## Context
 
 `alpha-build-plan.md` §5 A1 is the foundation for all of Track A: there are no SQLAlchemy
-models (G11), no seed data (G13), and Alembic's `target_metadata` is `None`, so autogenerate
+models (v0.1-G11), no seed data (v0.1-G13), and Alembic's `target_metadata` is `None`, so autogenerate
 can't work. Today the only schema is a hand-written migration (`db2aedec0bb9`) creating bare
 `metro` and `venue`. A1 delivers the shared `app/db/` package, models for the core calendar plus
-audit tables, a reviewed migration, a seed script, and removal of the dead `FIXTURES_DIR` (G1).
+audit tables, a reviewed migration, a seed script, and removal of the dead `FIXTURES_DIR` (v0.1-G1).
 
 Decisions made with the user:
 
@@ -270,7 +270,7 @@ raises a `PytestDeprecationWarning`. Existing `TestClient` route tests are untou
 - Seed contains only metro + venues (build plan A1) — no fake shows/artists; real rows come from the
   agent.
 
-### 4. Cleanup (G1)
+### 4. Cleanup (v0.1-G1)
 
 - `agent_worker/nodes.py`: delete the `FIXTURES_DIR = ...` TODO block. Verified: nothing reads
   `nodes.FIXTURES_DIR`; only `eval/run_eval.py` defines (and uses) its own — `local_test.py` does
@@ -280,7 +280,7 @@ raises a `PytestDeprecationWarning`. Existing `TestClient` route tests are untou
 ### 5. Wiring
 
 - `Makefile`: add a `seed` target (+ `.PHONY`), and run `seed` after `migrate` in `setup` and
-  `db-reset` so a fresh checkout can run end to end (G13's point). The `test` target becomes
+  `db-reset` so a fresh checkout can run end to end (v0.1-G13's point). The `test` target becomes
   `REQUIRE_DB=1 uv run pytest` (see skip-vs-fail). No test-DB target: the fixtures create
   `calendar_test` themselves, so nothing depends on `docker compose exec`.
 - `.github/workflows/ci.yml` python job: add `services: postgres:18` with a health check and

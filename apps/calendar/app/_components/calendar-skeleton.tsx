@@ -1,5 +1,5 @@
 /**
- * What `/` shows while its data is on the way (plan D4: a <Suspense>
+ * What `/` shows while its data is on the way (plan B3-D4: a <Suspense>
  * boundary inside the home page, not a root `loading.tsx`, which would turn
  * every page's `notFound()` into an HTTP 200). Grey bars in the grid's
  * rough shape; no data, no interactivity.

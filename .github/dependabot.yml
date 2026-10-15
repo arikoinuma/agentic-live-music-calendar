@@ -1,0 +1,30 @@
+# Dependabot: opens a PR when a dependency has a newer version, and a separate
+# PR when a security advisory affects one we use. Free on public repos.
+#
+# Why these ecosystems: the repo has three dependency surfaces that CI installs
+# from lockfiles (apps/api/uv.lock, pnpm-lock.yaml, and the actions pinned in
+# .github/workflows). Each gets its own entry so a noisy group can't hide a
+# security bump in another.
+#
+# Schedule is weekly, not daily: this is a learning project, and a daily feed
+# of version bumps would be more to review than to learn from.
+
+version: 2
+updates:
+  - package-ecosystem: "uv"
+    directory: "/apps/api"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5

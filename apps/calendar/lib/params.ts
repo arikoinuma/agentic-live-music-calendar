@@ -124,17 +124,18 @@ export function parseMonthParam(raw: string | undefined): string | null {
 /**
  * Parses ONE repeatable id key (`venue`, `artist`) into a canonical list.
  *
- * Next hands search params over as `string | string[] | undefined` — one
- * `venue=1` is a string, a repeated key is an array — and the API contract
+ * Next hands search params over as `string | string[] | undefined`: one
+ * `venue=1` is a string, and a repeated key is an array. The API contract
  * also uses repeated keys (api-contract.md §2). The URL is the state
- * (arch-initial.md §4), so parsing is TOTAL (bad entries are dropped one by
- * one, never a throw) and CANONICAL (de-duplicated and sorted numerically, as
- * a bare `.sort()` is lexicographic and would give [10, 9]) so that one filter
- * set has exactly one URL.
+ * (arch-initial.md §4), so parsing must be TOTAL (bad entries are dropped
+ * one by one, never a throw) and CANONICAL (de-duplicated, numerically
+ * sorted), so one filter set has exactly one URL.
  */
 function parseIdList(value: string | string[] | undefined): number[] {
   const asList = (v: string | string[] | undefined) =>
      v === undefined ? [] : Array.isArray(v) ? v : [v];
+  // The numeric comparator matters: the default sort is lexicographic and
+  // would put 10 before 9.
   return [...new Set(asList(value).map(parseIdParam).filter((n): n is number => n !== null))].sort((a, b) => a - b);
 }
 
@@ -160,13 +161,12 @@ export function parseCalendarFilters(searchParams: SearchParams): CalendarFilter
  * "2026-10" -> the first and last day of that month, as inclusive ISO
  * dates. The input must already be valid (parseMonthParam).
  *
- * `month=2026-10` becomes the API's inclusive `start`/`end`. The client does
- * calendar ARITHMETIC but consults no clock (decision D2; api-contract.md §3
- * "the server owns now"), so a month means the whole month, past days
- * included. Temporal, not `Date`: month lengths and leap Februaries are
- * exactly what `Date` arithmetic gets subtly wrong. `end` is the last day of
- * the month rather than the first of the next, because the API's `end` is
- * inclusive.
+ * The client does calendar ARITHMETIC but consults no clock (decision B2-D2;
+ * api-contract.md §3, "the server owns now"), so a month means the whole
+ * month, past days included. Temporal rather than `Date`, because month
+ * lengths and leap Februaries are exactly what `Date` arithmetic gets
+ * subtly wrong. `end` is the month's last day, not the first of the next
+ * month, because the API's `end` is inclusive.
  */
 function monthRange(month: string): { start: string; end: string } {
   const ym = Temporal.PlainYearMonth.from(month);

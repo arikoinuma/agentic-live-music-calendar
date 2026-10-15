@@ -31,7 +31,7 @@ const squirrel = { id: 1, name: "The White Squirrel Bar" };
 const midway = { id: 2, name: "The Midway Saloon" };
 const zhora = { id: 3, name: "Zhora Darling" };
 
-// --- the rows ---------------------------------------------------------------
+// --- the rows (B3-Gap-C) -------------------------------------------------------
 
 describe("groupCalendar rows", () => {
   const group = (start: string, end: string, shows: ShowSummary[] = [], today: string | null = null) =>
@@ -39,7 +39,7 @@ describe("groupCalendar rows", () => {
 
   it("has one row for every date in the served range, inclusive", () => {
     // Proves: rows come from the RANGE the server served, not from the
-    // shows — that is how an empty day gets a row (plan D2), and the
+    // shows — that is how an empty day gets a row (plan B3-D2), and the
     // inclusive end is the API's contract (api-contract.md §3). 28 days.
     const rows = group(served.start, served.end, served.shows);
     expect(rows).toHaveLength(28);
@@ -111,7 +111,7 @@ describe("groupCalendar venue columns", () => {
     groupCalendar({ start: day, end: day, shows, today: null })[0]?.venues ?? [];
 
   it("orders a day's venues alphabetically by name", () => {
-    // Proves: plan D1 — columns are alphabetical, so a reader can find a
+    // Proves: plan B3-D1 — columns are alphabetical, so a reader can find a
     // venue without hunting. "The Midway…" < "The White…" < "Zhora…".
     const columns = only([
       show(1, day, zhora, "20:00:00"),
@@ -126,7 +126,7 @@ describe("groupCalendar venue columns", () => {
   });
 
   it("puts two shows at one venue in one column, in night order", () => {
-    // Proves: a column holds every show at that venue that date (plan D7,
+    // Proves: a column holds every show at that venue that date (plan B3-D7,
     // no cap), ordered by the night: 22:00, then 01:00 (after midnight,
     // later that night), then untimed. The input is deliberately shuffled.
     const columns = only([
@@ -139,7 +139,7 @@ describe("groupCalendar venue columns", () => {
   });
 
   it("keeps three or more shows at one venue", () => {
-    // Proves: no cap at two (Ari, D7: the many-shows case is mostly an
+    // Proves: no cap at two (Ari, B3-D7: the many-shows case is mostly an
     // all-day festival, and a cap would hide real shows).
     const columns = only([1, 2, 3, 4].map((id) => show(id, day, squirrel, `1${id}:00:00`)));
     expect(columns[0]?.shows).toHaveLength(4);
@@ -147,15 +147,15 @@ describe("groupCalendar venue columns", () => {
 });
 
 describe("groupCalendar on the fixture", () => {
-  // Computed inside each test (not at collection time), so a failure
-  // shows up in that test instead of failing the whole file at import.
+  // Computed inside each test (not at collection time), so an open gap
+  // fails these tests one by one instead of failing the whole file.
   const oct7 = () =>
     groupCalendar({ start: served.start, end: served.end, shows: served.shows, today: null }).find(
       (r) => r.date === "2026-10-07",
     );
 
   it("gives 2026-10-07 all four venues", () => {
-    // Proves: the layout's hardest row exists in the data (plan D5). Alphabetical
+    // Proves: the layout's hardest row exists in the data (plan B3-D5). Alphabetical
     // by name: Midway (2), Terminal (4), White Squirrel (1), Zhora (3).
     expect(oct7()?.venues.map((c) => c.venue.id)).toEqual([2, 4, 1, 3]);
   });
@@ -184,7 +184,7 @@ describe("monthOptions", () => {
   });
 
   it("adds a current month the server didn't offer, in order", () => {
-    // Proves: a hand-edited past month (allowed, plan B2 D2) still shows
+    // Proves: a hand-edited past month (allowed, plan B2-D2) still shows
     // in the select instead of the select claiming another month.
     expect(monthOptions(offered, "2026-02")).toEqual([
       { value: "2026-02", label: "February 2026" },

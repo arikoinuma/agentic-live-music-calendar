@@ -1,12 +1,12 @@
 """Tests for the scorer behind Ari's accuracy standard (`agent_worker/eval/scoring.py`).
 
-The standard (D1 of docs/dev/implementations/a2.1-extraction-reliability.md; `requirements-initial.md`,
+The standard (A2.1-D1 of docs/dev/implementations/a2.1-extraction-reliability.md; `requirements-initial.md`,
 "Agent Extraction: Accuracy Standards") is tiered: date and acts exact, no invented shows,
 other fields may be *missing* now and then but never *wrong*, and a non-music entry may leak
 about once a month per venue. These tests pin how each tier is counted, because a scorer that
 counts wrongly would pass or fail the gate for the wrong reason.
 
-How to read it: helpers build labels and returned shows by hand -> matching
+How to read it: helpers build labels and returned shows by hand -> matching (A2.1-Gap-B)
 -> acts -> fields -> extras (leak vs fabricated) -> the gate. Every expected value is worked
 out by hand from the case and the standard, never read from the scorer.
 """
@@ -61,7 +61,7 @@ def score(lbl: PageLabel, *shows: dict[str, Any], page_html: str = "") -> scorin
 
 
 # ---------------------------------------------------------------------------
-# Matching: date is identity, time is a field
+# Matching (A2.1-Gap-B): date is identity, time is a field
 # ---------------------------------------------------------------------------
 
 
@@ -72,9 +72,9 @@ def test_a_perfect_extraction_passes_every_tier() -> None:
 
 
 def test_a_missed_time_is_a_missing_field_not_a_missed_show() -> None:
-    # Proves: D1 made time a field with its own tolerance. A found show whose stated time
+    # Proves: A2.1-D1 made time a field with its own tolerance. A found show whose stated time
     # came back null is *missing* a time (tolerated up to 1 in 10), not a missed show — the
-    # reason `match_shows` matches on date rather than (date, time).
+    # reason A2.1-Gap-B matches on date rather than (date, time).
     s = score(page_label(label(9, "Lent", time=T(21, 0))), returned(9, "Lent"))
     assert s.missed == 0 and s.fabricated == 0
     assert (s.fields["time"].missing, s.fields["time"].wrong) == (1, 0)
@@ -88,7 +88,7 @@ def test_a_different_time_is_a_wrong_field() -> None:
 
 
 def test_a_time_the_page_never_states_is_wrong() -> None:
-    # Proves: an invented value is a wrong value (D1). Terminal Bar, 7th St Entry and
+    # Proves: an invented value is a wrong value (A2.1-D1). Terminal Bar, 7th St Entry and
     # Mortimer's state no times in their text, so any returned time there is invented.
     s = score(page_label(label(9, "Lent")), returned(9, "Lent", time=T(21, 30)))
     assert s.fields["time"].wrong == 1
@@ -98,7 +98,7 @@ def test_a_time_the_page_never_states_is_wrong() -> None:
 
 def test_two_sets_on_one_night_pair_by_acts_not_by_order() -> None:
     # Proves: White Squirrel lists a 6 pm and a 9 pm show each night. Returned in the other
-    # order, each still pairs with its own label (`match_shows` prefers correct acts), so both times
+    # order, each still pairs with its own label (A2.1-Gap-B prefers correct acts), so both times
     # score correct. Taking the first same-date candidate would score two wrong times.
     lbl = page_label(label(9, "Early Band", time=T(18, 0)), label(9, "Late Band", time=T(21, 0)))
     s = score(lbl, returned(9, "Late Band", time=T(21, 0)), returned(9, "Early Band", time=T(18, 0)))
@@ -119,14 +119,14 @@ def test_two_untimed_shows_on_one_date_and_a_same_date_leak() -> None:
 
 
 def test_a_duplicate_is_fabricated_not_counted_twice() -> None:
-    # Proves: each returned show is used once (a hit that isn't removed would be paired
-    # twice). The second copy is a show that isn't on the page.
+    # Proves: each returned show is used once (A2.1-Gap-B's likeliest mistake is not removing a
+    # hit). The second copy is a show that isn't on the page.
     s = score(page_label(label(9, "Lent")), returned(9, "Lent"), returned(9, "Lent"))
     assert (s.missed, s.fabricated) == (0, 1)
 
 
 def test_a_wrong_date_is_a_missed_show_and_a_fabricated_one() -> None:
-    # Proves: date is identity (D1). Dates shifted by one listing — seen on Terminal Bar in
+    # Proves: date is identity (A2.1-D1). Dates shifted by one listing — seen on Terminal Bar in
     # A2's runs — fail the 100% tier twice over.
     s = score(page_label(label(9, "Lent")), returned(10, "Lent"))
     assert (s.missed, s.fabricated) == (1, 1)
@@ -146,21 +146,21 @@ def test_spelling_variants_of_an_act_are_correct() -> None:
 
 
 def test_an_unsplit_title_is_acts_wrong_and_diagnosed() -> None:
-    # Proves: F9 — "Lent w. Gills" returned as one act is wrong, and the scorer says why.
+    # Proves: A2-F9 — "Lent w. Gills" returned as one act is wrong, and the scorer says why.
     s = score(page_label(label(9, "Lent", "Gills")), returned(9, "Lent w. Gills"))
     assert (s.missed, s.acts_wrong) == (0, 1)
     assert s.unsplit == 1
 
 
 def test_act_order_is_not_gated() -> None:
-    # Proves: D1 — order is reported, not scored (A5 derives order from list position).
+    # Proves: A2.1-D1 — order is reported, not scored (A5 derives order from list position).
     s = score(page_label(label(9, "Lent", "Gills")), returned(9, "Gills", "Lent"))
     assert s.acts_wrong == 0
     assert s.order_differs == 1
 
 
 def test_an_alternative_reading_is_accepted() -> None:
-    # Proves: a genuinely ambiguous title (D5: "Slashfire w. Dread Spell & Couch Potato
+    # Proves: a genuinely ambiguous title (A2.1-D5: "Slashfire w. Dread Spell & Couch Potato
     # Massacre") is correct under any reading the label lists, and wrong under any other.
     slashfire = label(
         9, "Slashfire", "Dread Spell", "Couch Potato Massacre",
@@ -195,7 +195,7 @@ def test_legacy_string_acts_and_a_missing_status_still_score() -> None:
 
 def test_price_in_the_wrong_field_is_missing_plus_wrong() -> None:
     # Proves: a day price returned as an advance price is the day price *missing* and an
-    # advance price the page never states *wrong* (D7 decides which field is right).
+    # advance price the page never states *wrong* (A2.1-D7 decides which field is right).
     s = score(page_label(label(9, "Lent", admission_day=10.0)), returned(9, "Lent", admission_advance=10.0))
     assert s.fields["admission_day"].missing == 1
     assert s.fields["admission_advance"].wrong == 1
@@ -203,13 +203,13 @@ def test_price_in_the_wrong_field_is_missing_plus_wrong() -> None:
 
 def test_free_admission_the_page_never_states_is_wrong() -> None:
     # Proves: `free_admission: true` with nothing on the page is an invented value. (`false`
-    # is coerced to null by the schema, F1, so it never reaches the scorer as a value.)
+    # is coerced to null by the schema, A2-F1, so it never reaches the scorer as a value.)
     s = score(page_label(label(9, "Lent")), returned(9, "Lent", free_admission=True))
     assert s.fields["free_admission"].wrong == 1
 
 
 def test_a_cancelled_show_returned_as_scheduled_is_wrong() -> None:
-    # Proves: D12 — status is a field, and a cancelled show shown as on is never acceptable.
+    # Proves: A2.1-D12 — status is a field, and a cancelled show shown as on is never acceptable.
     lbl = page_label(label(10, "Robert Ellis", "Philip Bowen", status="cancelled"))
     s = score(lbl, returned(10, "Robert Ellis", "Philip Bowen"))
     assert s.missed == 0

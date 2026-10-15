@@ -1,6 +1,6 @@
 """Tests for merging the status question's answer into an extraction (`status_check.apply`).
 
-D12 (decided by Ari, October 11, 2026): cancelled and postponed listings are found by a separate
+A2.1-D12 (decided by Ari, October 11, 2026): cancelled and postponed listings are found by a separate
 narrow question, and code merges the answer — a matching show gets its status, a skipped listing
 is added. The merge is in the adopted pipeline, and code review round 2 (#1) showed three ways a
 loose merge corrupts a calendar: marking the wrong show cancelled, adding a duplicate, and adding

@@ -4,18 +4,18 @@ On the JSON-LD route (sources/jsonld.py), dates, times and prices come from the 
 structured data. What JSON-LD doesn't say is which performing acts a title like "Lent w.
 Gills, Boomdagger" names, or whether "Open Jam" is a music show at all. That one judgement
 goes to the model here, as a deliberately narrow task: one call per page, all titles at once,
-answer "which acts, or none" per title (D4, D5 of
+answer "which acts, or none" per title (A2.1-D4, A2.1-D5 of
 docs/dev/implementations/a2.1-extraction-reliability.md).
 
 How to read it: the response models (`ActSplitItem`, `ActSplitAnswer`) are what the model
-fills in; `_act_split_instruction` is the instruction; `split_titles` numbers
+fills in; `_act_split_instruction` is the instruction (A2.1-Gap-D); `split_titles` numbers
 the titles, makes the call, and aligns the answer back to the titles **by id**, so a dropped or
 reordered item can never put one show's acts on another.
 
 Known limit: this splitter makes the remaining act errors that keep A2.1 short of the accuracy
 standard (56 of 60 on the gated venues: ambiguous names cut, dropped or misread). The fix is a larger
 model for this one call, which only fits on hosted inference. It is milestone H1 of
-docs/dev/alpha-deployment-plan.md (A2.1's E1–E3).
+docs/dev/alpha-deployment-plan.md (A2.1-E1–A2.1-E3).
 """
 
 from dataclasses import dataclass, field
@@ -58,12 +58,12 @@ def _act_split_instruction() -> str:
     # Narrow the task. arch-initial.md §7's escalation order starts with "narrow the task": a model
     # asked only "which acts does this title name, and is it a music show at all?" has one judgement
     # to make per title, not a whole page's worth (dates, times, prices are already exact from
-    # JSON-LD). The conventions it must follow are D5's, in ONE shared text
-    # (`prompts._act_conventions()`) that the full-page model route also gets, so the two routes
-    # can't disagree (plan review round 2, #2); the exclusion rule is the same one the model route
-    # uses, because JSON-LD lists every event on the calendar, karaoke included. Every id is asked
-    # back — with an empty list for a non-music title — so a dropped title is visible rather than
-    # silent.
+    # JSON-LD). The conventions it must follow are A2.1-D5's, in ONE shared text (`prompts._act_conventions()`)
+    # that the full-page model route also gets, so the two routes can't disagree (plan review round 2,
+    # #2). Keep the rules there rather than writing them here, or the splitter and the model route
+    # drift apart. The exclusion rule is the same one the model route uses, because JSON-LD lists
+    # every event on the calendar, karaoke included. Ask for every id back, with an empty list for a
+    # non-music title, so a dropped title is visible rather than silent.
     return (
         "You are given numbered event titles from a live-music venue's calendar. For "
         "each id, list the performing acts the title names, in the order they appear, "

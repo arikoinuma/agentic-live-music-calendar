@@ -44,12 +44,12 @@ const UNTIMED_KEY = 2 * MINUTES_PER_DAY;
  * The date it is RIGHT NOW in the metro's timezone.
  *
  * "Today" is a question about a place. This code runs on the Next server,
- * whose zone is UTC on Vercel, so any zone-less "now" is TOMORROW from early
- * evening Central time on (7 PM in summer, 6 PM in winter). The date is asked
- * for in the metro's IANA zone (`MetroSummary.timezone`, requirements-initial.md
- * "Metro"). A show's own date needs no zone (it is a wall-clock PlainDate);
- * this is the one place the metro's zone is needed. `now` is a parameter so
- * tests can fix the clock.
+ * whose zone is UTC on Vercel, so a zone-less "now" is TOMORROW from early
+ * evening Central time on (7 PM in summer, 6 PM in winter). The metro's
+ * IANA zone (`MetroSummary.timezone`, requirements-initial.md, "Metro") is
+ * what makes it today. A show's own date needs no zone (it is a wall-clock
+ * PlainDate); this is the one place the metro's zone is needed. `now` is a
+ * parameter so tests can fix the clock.
  */
 export function metroToday(
   timeZone: string,
@@ -85,11 +85,11 @@ export function metroTodayOrNull(
  * True for a clock time that belongs to the early hours AFTER the night
  * it is listed under: 00:00 up to, not including, 05:00.
  *
- * The cut-off is Ari's after-midnight rule (requirements-initial.md, "Show")
- * as ONE comparison, and it goes through `compare` because Temporal objects
- * throw on `<`: their `valueOf()` is deliberately unusable, so `a < b` can't
- * silently compare strings or NaN. Both `formatShowTime` (the "Sat" suffix)
- * and `nightSortKey` (sorts after the evening's shows) call this, so the rule
+ * The after-midnight rule (requirements-initial.md, "Show") is one
+ * comparison, and Temporal refuses `<`: its objects throw on `valueOf()`
+ * precisely so `a < b` can't silently compare strings or NaN. Ordering goes
+ * through `compare`. Both `formatShowTime` (the "Sat" suffix) and
+ * `nightSortKey` (sorts after the evening's shows) call this, so the rule
  * lives in exactly one line.
  */
 export function isAfterMidnight(time: Temporal.PlainTime): boolean {

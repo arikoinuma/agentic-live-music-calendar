@@ -152,7 +152,7 @@ def test_the_legacy_configuration_is_the_pre_a2_one(
 
 
 def test_aggregate_records_whether_a_fixtures_runs_were_identical() -> None:
-    # Proves: code review #3 / plan D1 — at temperature 0 five runs may be one sample in
+    # Proves: code review #3 / plan A2.1-D1 — at temperature 0 five runs may be one sample in
     # disguise, and the comparison must say so. Identical extractions -> True; any difference
     # -> False.
     def ok_run(run: int, shows: list[dict[str, Any]]) -> dict[str, Any]:

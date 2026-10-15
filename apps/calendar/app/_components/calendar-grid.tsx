@@ -12,7 +12,7 @@ import { ShowBlock } from "./show-block";
  * the browser's own), so it ships no JavaScript, and the Temporal
  * formatting stays on the server.
  *
- * Plan D1/D2: a row lists only the venues with a show that date, and every
+ * Plan B3-D1 and B3-D2: a row lists only the venues with a show that date, and every
  * date in the served range gets a row — a date with nothing on it is a thin
  * "Nothing listed" line, not a gap.
  */
@@ -57,7 +57,7 @@ export function CalendarGrid({ rows }: { rows: CalendarRow[] }) {
               // a plain <div> and THAT <div>'s minimum becomes the full width
               // of every venue column, the `1fr` track grows to fit it, and
               // the whole PAGE scrolls sideways instead of this row. (If a
-              // wrapper is ever needed: `min-w-0` on it.)
+              // wrapper is ever needed: `min-w-0` on it.) B3-K5.
               //
               // Deliberately NO `tabIndex`, `role="region"` or `aria-label`
               // here (code review #4; Ari tried it and it was noise). A
@@ -68,11 +68,12 @@ export function CalendarGrid({ rows }: { rows: CalendarRow[] }) {
               // before that date's first link, and `role="region"` added 20
               // near-identical landmarks to a screen reader's list.
               //
-              // The scroller's classes: `overflow-x-auto` makes it a scroll
-              // container (which is what lets the `1fr` track stay the page's
-              // width); `overscroll-x-contain` stops a swipe that reaches the
-              // row's end from chaining into the browser's Back gesture; and
-              // scroll-snap keeps columns aligned after a flick.
+              // The classes make the row scroll on its own. `overflow-x-auto`
+              // makes it a scroll container (and so lets the `1fr` track stay
+              // the page's width); `overscroll-x-contain` stops a swipe that
+              // reaches the row's end from chaining into the browser's Back
+              // gesture; scroll-snap keeps columns aligned after a flick.
+              // Without them the page itself overflows sideways.
               <div
                 className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2"
               >
@@ -86,7 +87,7 @@ export function CalendarGrid({ rows }: { rows: CalendarRow[] }) {
                         {column.venue.name}
                       </Link>
                     </h3>
-                    {/* Every show, no cap at two (plan D7): "1-2 shows" in
+                    {/* Every show, no cap at two (plan B3-D7): "1-2 shows" in
                         the requirements describes the usual case, and a
                         cap would hide real shows. The column grows taller. */}
                     <div className="space-y-2">

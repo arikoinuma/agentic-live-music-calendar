@@ -128,7 +128,7 @@ describe("parseMonthParam", () => {
   });
 });
 
-// --- parseCalendarFilters ---------------------------------------------------
+// --- parseCalendarFilters (B2-Gap-A) -------------------------------------------
 
 describe("parseCalendarFilters", () => {
   it("returns no filters for an empty query", () => {
@@ -184,7 +184,7 @@ describe("parseCalendarFilters", () => {
   });
 });
 
-// --- toShowsQuery -----------------------------------------------------------
+// --- toShowsQuery (B2-Gap-B) ---------------------------------------------------
 
 describe("toShowsQuery", () => {
   it("sends no start/end without a month, so the server picks its default window", () => {
@@ -205,7 +205,7 @@ describe("toShowsQuery", () => {
     ["2026-12", "2026-12-01", "2026-12-31"], // year boundary: not 2027-01-01
   ])("month %s covers %s through %s inclusive", (month, start, end) => {
     // Proves: `month` means the whole calendar month literally (decision
-    // D2). The API's `end` is inclusive, so end is the LAST day of the
+    // B2-D2). The API's `end` is inclusive, so end is the LAST day of the
     // month — the likeliest bug is the first of the next month.
     const query = toShowsQuery({ ...NO_FILTERS, month });
     expect(query.start).toBe(start);

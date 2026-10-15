@@ -1,7 +1,7 @@
 """Score extractions against hand-written labels, by Ari's accuracy standard.
 
 The standard (decided by Ari, October 10, 2026; requirements-initial.md, "Agent Extraction:
-Accuracy Standards"; D1 of docs/dev/implementations/a2.1-extraction-reliability.md) is
+Accuracy Standards"; A2.1-D1 of docs/dev/implementations/a2.1-extraction-reliability.md) is
 tiered, and this module counts exactly its tiers:
 
 - **date and acts: 100%** — `missed` (a labelled show not found on its date) and `acts_wrong`
@@ -13,7 +13,7 @@ tiered, and this module counts exactly its tiers:
   non-show entry) at most 1 per page.
 
 How to read it: `ReturnedShow` normalises one returned show (including A2's legacy
-string-acts form); `match_shows` pairs labelled and returned shows;
+string-acts form); `match_shows` pairs labelled and returned shows (A2.1-Gap-B);
 `score_page` counts one page; `gate` applies the standard to every run of a label. A returned
 show with `acts: []` is dropped before anything is counted — both routes keep rejected
 non-music entries that way for A3's completeness check to drop (plan review #4).
@@ -83,7 +83,7 @@ class ReturnedShow:
             end_time=_parse_time(show.get("end_time")),
             admission_advance=show.get("admission_advance"),
             admission_day=show.get("admission_day"),
-            # F1: `false` means "not stated" (the schema coerces it; old stored results don't).
+            # A2-F1: `false` means "not stated" (the schema coerces it; old stored results don't).
             free_admission=show.get("free_admission") or None,
             image_url=show.get("image_url"),
             status=show.get("status") or "scheduled",
@@ -93,14 +93,14 @@ class ReturnedShow:
 def acts_correct(label: LabelledShow, acts: tuple[str, ...]) -> bool:
     """True when the returned acts, as a set, equal the label's or one of its alternatives,
     after folding spelling (case, entities, typographic punctuation, spacing). Order is not
-    compared (D1)."""
+    compared (A2.1-D1)."""
     returned = {fold_text(a) for a in acts}
     readings = (label.acts, *label.alternatives)
     return any(returned == {fold_text(a) for a in reading} for reading in readings)
 
 
 # ---------------------------------------------------------------------------
-# Matching
+# Matching (A2.1-Gap-B)
 # ---------------------------------------------------------------------------
 
 
@@ -115,14 +115,14 @@ class Matching:
 
 def match_shows(labelled: list[LabelledShow], returned: list[ReturnedShow]) -> Matching:
     """Pair each labelled show with at most one returned show on the same date."""
-    # What counts as correct is a design decision. Ari's standard (D1) makes a show's IDENTITY its
-    # date and acts, and makes time a field with its own tolerance — so match on date, then judge
-    # acts and fields. Matching on (date, time), the key reconcile uses, would turn a found show with
-    # a missed time into a missed show AND a fabricated one: the opposite of the tiers. When several
+    # What counts as correct is a design decision. Ari's standard (A2.1-D1) makes a show's IDENTITY its
+    # date and acts, and makes time a field with its own tolerance, so match on date, then judge acts
+    # and fields. Matching on (date, time), the key reconcile uses, would turn a found show with a
+    # missed time into a missed show AND a fabricated one: the opposite of the tiers. When several
     # returned shows share a date (White Squirrel's 6 pm and 9 pm sets; 7th St Entry's two untimed
-    # Oct 31 shows), the right ones are paired first: acts that are correct, then a time that agrees,
-    # then whatever is left — in three passes over all labels, so a weak pairing for one label can't
-    # take a strong one from another. Each returned show is used once.
+    # Oct 31 shows), pair the right ones first: acts that are correct, then a time that agrees, then
+    # whatever is left. That runs in three passes over all labels, so a weak pairing for one label
+    # can't take a strong one from another. Each returned show is used once.
     remaining = list(returned)
     pairs: dict[LabelledShow, ReturnedShow] = {}
     for prefer in (lambda lbl, r: acts_correct(lbl, r.acts), lambda lbl, r: r.time == lbl.time, lambda lbl, r: True):
@@ -234,7 +234,7 @@ def _is_leak(show: ReturnedShow, non_shows: tuple[NonShow, ...]) -> bool:
 
 
 def _unsplit(label: LabelledShow, acts: tuple[str, ...]) -> bool:
-    """Diagnostic for F9: one returned act that contains two or more of the labelled acts."""
+    """Diagnostic for A2-F9: one returned act that contains two or more of the labelled acts."""
     wanted = [fold_text(a) for a in label.acts]
     return any(sum(w in fold_text(a) for w in wanted) >= 2 for a in acts)
 
@@ -300,7 +300,7 @@ def gate(
     runs: dict[int, list[PageScore | PageFailure]], route: str | None = None,
     missing_tolerance: float = MISSING_TOLERANCE, leaks_per_page: int = LEAKS_PER_PAGE,
 ) -> GateResult:
-    """Apply the standard to every run (D1: every run must pass; an average doesn't count).
+    """Apply the standard to every run (A2.1-D1: every run must pass; an average doesn't count).
 
     Counted per page: missed, acts wrong, fabricated, leaks, and wrong field values. Pooled
     per run across its pages: the missing rate per field, because a 12-show page can't

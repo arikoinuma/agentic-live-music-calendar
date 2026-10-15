@@ -91,15 +91,14 @@ class ShowExtraction(BaseModel):
     # The one field the requirements mark required.
     date: datetime.date = Field(description="The date of the show")
 
-    # time — (G8).
-    # A show's start time is optional: the requirements make Date the only required field, and a
+    # time — (G8). Optional, because the requirements make Date the only required field, and a
     # required `time` leaves the model no honest answer for a page that states none (it invents one:
     # the Terminal Bar page has no times at all). In Pydantic v2 `datetime.time | None` WITHOUT
-    # `= None` is still *required*, so the fix is a default as well as the type. And the
-    # `description` is not documentation: `instructor` sends it to the model, so it must say the
-    # format (24-hour HH:MM), which time counts (when the music starts, not doors — "Doors 7 / Show
-    # 8" is common and an undecided choice flips between runs, which reconcile reads as a time
-    # change), and how to say "not stated" (the fixed phrase "otherwise null").
+    # `= None` is still *required*, so the default is needed as well as the type. The `description`
+    # is not documentation: `instructor` sends it to the model, so it must give the format (24-hour
+    # HH:MM), which time counts (when the music starts, not doors; "Doors 7 / Show 8" is common, and
+    # an undecided choice flips between runs, which reconcile reads as a time change), and how to say
+    # "not stated" (the fixed phrase "otherwise null").
     # Cite: a2-extraction-schema.md (Design › Schema, plan-review findings 10 and 11),
     # requirements-initial.md "Agent Extraction: Fields".
     time: ModelTime = Field(
@@ -120,11 +119,10 @@ class ShowExtraction(BaseModel):
         ),
     )
 
-    # acts — (G7).
-    # Changing `list[str]` to `list[ActExtraction]` is a SHAPE change, not a type tweak: the JSON
-    # schema `instructor` sends the model becomes nested (gaining a `$defs` section), the model's
-    # output nests, and every reader of `.acts` must change from a string to an object. Nothing read
-    # `.acts` when this changed (verified by grep), which is why it was cheap then and would not be
+    # acts — (G7). Changing `list[str]` to `list[ActExtraction]` is a SHAPE change, not a type tweak.
+    # The JSON schema `instructor` sends the model becomes nested (gaining a `$defs` section), the
+    # model's output nests, and every reader of `.acts` must change from a string to an object.
+    # Nothing reads `.acts` yet (verified by grep), which is why this is cheap now and would not be
     # after A5 writes `show_artist` rows. The point of the nesting: each act can carry its own start
     # time and order.
     # Cite: a2-extraction-schema.md (Design › Schema, "Consequences"), build plan G7.
@@ -163,7 +161,7 @@ class ShowExtraction(BaseModel):
     )
     # null, NOT false, when the page doesn't say: "free" is a positive claim, and the data
     # model's CHECK treats absence as not-stated (absence of a price never implies free).
-    # `false` is folded into None by `false_to_none` (A2.1, F1): the model wrote `false` for
+    # `false` is folded into None by `false_to_none` (A2-F1): the model wrote `false` for
     # "not stated" on 56 shows in A2's eval. The schema the model sees is unchanged.
     free_admission: Annotated[bool | None, BeforeValidator(false_to_none)] = Field(
         default=None,
@@ -235,13 +233,13 @@ class VenuePageExtraction(BaseModel):
 
 ShowStatus = Literal["scheduled", "cancelled", "postponed"]
 
-# D12 (decided by Ari, October 10): a cancelled or postponed listing is still extracted, with
+# A2.1-D12 (decided by Ari, October 10): a cancelled or postponed listing is still extracted, with
 # its status, because reconcile must match it to a show stored before it was cancelled.
 STATUS_DESCRIPTION = (
     "Whether the listing says the show is cancelled or postponed; otherwise scheduled"
 )
 
-# F9 (A2's act-splitting regression): the pre-A2 description said "The name(s) of the act(s)";
+# A2-F9 (A2's act-splitting regression): the pre-A2 description said "The name(s) of the act(s)";
 # A2's lost the plural and the model stopped splitting. This says it outright. Rung
 # `a21-acts-desc`.
 SPLIT_ACTS_DESCRIPTION = (
@@ -282,14 +280,14 @@ def page_model(*, status: bool, split_acts: bool) -> type[VenuePageExtraction]:
 
 
 # ---------------------------------------------------------------------------
-# The title-split route's schema (A2.1, S6, October 11, 2026)
+# The title-split route's schema (A2-S6, October 11, 2026)
 # ---------------------------------------------------------------------------
 # On the JSON-LD route the model is asked only to split one title at a time, and it got White
 # Squirrel's acts right 23 of 23. The title-split route brings that to pages without JSON-LD: the
 # full-page model returns each listing with its performer text copied verbatim (`title`) and NO act
 # list, and the act splitter (act_split.py) turns every title into acts. Every other field means
 # what it means on ShowExtraction, so their descriptions are reused, not restated. The verbatim
-# title is also the listing's display text that D5's artist-display idea would store.
+# title is also the listing's display text that A2.1-D5's artist-display idea would store.
 
 _SHOW = ShowExtraction.model_fields
 

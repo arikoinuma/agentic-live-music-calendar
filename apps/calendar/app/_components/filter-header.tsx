@@ -75,14 +75,14 @@ export function FilterHeader({
   const [current, setOptimistic] = useOptimistic(filters);
 
   function navigate(next: CalendarFilters) {
-    // The Client Component never holds the calendar's results: a selection
-    // changes the URL, and the server page re-renders from `searchParams` and
+    // The Client Component never holds the calendar's results. A selection
+    // changes the URL; the server page re-renders from `searchParams` and
     // streams new props down. `router.push` runs inside a transition, so
-    // `isPending` says a navigation is in flight; `useOptimistic` shows the new
-    // selection at once and reverts to the server's value if the navigation
-    // fails or lands elsewhere. `scroll: false` keeps the reader's place instead
-    // of jumping to the top, and `push` (not `replace`) means Back undoes a
-    // filter change (plan D8).
+    // `isPending` says a navigation is in flight, and `useOptimistic` shows
+    // the new selection at once, reverting to the server's value if the
+    // navigation fails or lands elsewhere. `scroll: false` keeps the reader's
+    // place instead of jumping to the top. Plan B3-D8: push, not replace, so
+    // Back undoes a filter change.
     startTransition(() => {
       setOptimistic(next);
       router.push(buildCalendarHref(next), { scroll: false });

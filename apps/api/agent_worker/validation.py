@@ -23,7 +23,7 @@ Three ideas the checks share:
   "Artists — one or more"), so it is left out of what is committed and reported with a warning.
   It is never silently dropped, and "excluded" does not mean "confirmed not music": the act splitter
   returns `acts: []` for real shows too.
-* **Repairs drop, never rewrite** (D4). A value that fails verification is set to null and recorded.
+* **Repairs drop, never rewrite** (A3-D4). A value that fails verification is set to null and recorded.
   Ari's tiered standard tolerates a missing field about one time in ten and never a wrong one.
 """
 
@@ -106,7 +106,7 @@ class Finding:
 
 @dataclass(frozen=True)
 class Repair:
-    """A value dropped because it failed verification (D4: dropped, never moved or rewritten)."""
+    """A value dropped because it failed verification (A3-D4: dropped, never moved or rewritten)."""
 
     show_index: int
     field: str
@@ -181,18 +181,18 @@ class PlausibilityFlags:
 
 
 # ---------------------------------------------------------------------------
-# Page outcome
+# Page outcome (A3-Gap-B)
 # ---------------------------------------------------------------------------
 
 
 def classify_page(extraction: VenuePageExtraction) -> PageOutcome:
     """Which of the three things this page turned out to be, from `page_readable` and `shows`."""
-    # `page_readable` exists to tell two situations apart that both look like `shows: []` — a venue
-    # that genuinely lists nothing (a legitimate pass) and a page the model couldn't read (a failure
-    # worth a retry) — see the comment on it in schemas.py. So readability is asked first: an
-    # unreadable page that also returned a stray show is still unreadable (a model that says "I
-    # couldn't read this" shouldn't be trusted on what it then returned). arch-initial.md §7; build
-    # plan G3.
+    # `page_readable` tells apart two situations that both look like `shows: []`: a venue that
+    # genuinely lists nothing (a legitimate pass), and a page the model couldn't read (a failure
+    # worth a retry; see the comment on it in schemas.py). So readability is asked FIRST. An
+    # unreadable page that also returned a stray show is still unreadable: a model that says "I
+    # couldn't read this" shouldn't be trusted on what it then returned (arch-initial.md §7; build
+    # plan G3).
     if not extraction.page_readable:
         return PageOutcome.UNREADABLE
     return PageOutcome.HAS_SHOWS if extraction.shows else PageOutcome.CONFIRMED_EMPTY
@@ -251,15 +251,13 @@ def check_start_time(show: ShowExtraction, index: int) -> list[Finding]:
 def check_plausibility(show: ShowExtraction, fetched_on: datetime.date) -> PlausibilityFlags:
     """Plausibility, relative to when the page was fetched (not to the wall clock)."""
     # Plausibility is relative to *when the page was fetched* and to the venue's *night*, not to the
-    # data alone, so the window is measured against `fetched_on` (never `datetime.date.today()`,
-    # which would fail every test of a replayed capture): `fetched_on - 31 days` to
-    # `fetched_on + 366 days` (D2; the lookback is normalize.YEAR_LOOKBACK, shared with the year rule
-    # so the two can't drift). An `end_time` EARLIER than `time` is NOT a finding: "9:00 pm - 12:00
-    # am" ends the next morning (requirements-initial.md, Show), so a naive `end <= start` check
-    # flags a correct record. Only an end EQUAL to the start is wrong — a zero-length show (the
-    # JSON-LD route can produce one; it is repaired, not failed). To be honest about reach: with the
-    # year rule on, the window mostly guards the JSON-LD route and the Feb 29 that infer_year leaves
-    # unchanged.
+    # data alone. The date window is `fetched_on - 31 days` to `fetched_on + 366 days` (A3-D2; the
+    # lookback is normalize.YEAR_LOOKBACK, shared with the year rule so the two can't drift). An
+    # `end_time` EARLIER than `time` is NOT a finding: "9:00 pm - 12:00 am" ends the next morning
+    # (requirements-initial.md, Show), so a naive `end <= start` check would flag a correct record.
+    # Only an end EQUAL to the start is wrong: a zero-length show (the JSON-LD route can produce one;
+    # it is repaired, not failed). Be honest about reach: with the year rule on, the window mostly
+    # guards the JSON-LD route and the Feb 29 that infer_year leaves unchanged.
     earliest = fetched_on - YEAR_LOOKBACK
     latest = fetched_on + datetime.timedelta(days=366)
     return PlausibilityFlags(
@@ -269,7 +267,7 @@ def check_plausibility(show: ShowExtraction, fetched_on: datetime.date) -> Plaus
 
 
 def check_ambiguous(show: ShowExtraction, index: int) -> list[Finding]:
-    """`is_ambiguous` means "a human may want to look" and never routes (D3): the requirements
+    """`is_ambiguous` means "a human may want to look" and never routes (A3-D3): the requirements
     say an unclear lineup order is expected (assume list order), and A2's eval had it fall to 0."""
     if show.is_ambiguous:
         return [Finding(CheckCode.AMBIGUOUS, Severity.WARNING, f"show {index} was marked ambiguous", index)]
@@ -290,7 +288,7 @@ def check_possible_merge(show: ShowExtraction, index: int) -> list[Finding]:
 
 
 def check_act_in_title(show: ShowExtraction, index: int, title: str) -> list[Finding]:
-    """A2.1's E3: every act name should appear in the verbatim title it was split from. Catches
+    """A2.1-E3: every act name should appear in the verbatim title it was split from. Catches
     typos and invented names — the one deterministic guard on the 100% field. A warning, because
     the splitter legitimately drops parentheticals and "w." markers (those leave the name in the
     title; an invented name doesn't)."""
@@ -424,7 +422,7 @@ def check_under_reported(
 def check_empty_but_dated(
     page_text: str, fetched_on: datetime.date, shown: set[tuple[int, int]]
 ) -> list[Finding]:
-    """D10: a page that yields no kept show but whose text names upcoming dates is not a confirmed
+    """A3-D10: a page that yields no kept show but whose text names upcoming dates is not a confirmed
     empty calendar. An empty list is the most dangerous output (reconcile would soft-delete every
     stored show), so it needs more than the model's say-so. The price is a false alarm for a venue
     that is empty and also posts dated news; one human look.
@@ -433,7 +431,7 @@ def check_empty_but_dated(
     `check_under_reported` (code review round 1, #1): a JSON-LD page whose events were all left out
     for an out-of-window date has its dates in the text, but they are accounted for. Without the
     subtraction the guard fired on them, sent the page to the model route, and that route's year
-    rule re-dated the shows into a plausible, wrong year (D13 exists to stop exactly that)."""
+    rule re-dated the shows into a plausible, wrong year (A2.1-D13 exists to stop exactly that)."""
     dates = upcoming_dates(page_text, fetched_on) - shown
     if len(dates) >= MIN_UNMATCHED_DATES:
         return [Finding(
@@ -446,7 +444,7 @@ def check_empty_but_dated(
 def aggregate_confidence(
     shows: list[tuple[int, ShowExtraction]], source: Source, added: set[int]
 ) -> float | None:
-    """The model's confidence in the record: the minimum over the shows it judged (D9).
+    """The model's confidence in the record: the minimum over the shows it judged (A3-D9).
 
     `shows` is (position in the extraction, show) for the kept shows. None when no model judged
     the record: the JSON-LD route stamps `confidence=1.0` on every show as a placeholder, the
@@ -499,7 +497,7 @@ def validate_extraction(
         flags = check_plausibility(show, fetched_on)
         if flags.date_out_of_window:
             if source == "jsonld":
-                # D13: the date is the source's own, a retry can't change it, and the model route's
+                # A3-D13: the date is the source's own, a retry can't change it, and the model route's
                 # year rule would re-date it into a plausible but wrong date. Excluded, visibly.
                 findings.append(Finding(
                     CheckCode.DATE_OUT_OF_WINDOW, Severity.WARNING,
@@ -535,7 +533,7 @@ def validate_extraction(
 
     if source == "jsonld":
         findings += check_under_reported(extraction, page_text, fetched_on)
-    # D10: no kept show (an empty list, or every show excluded) on a page whose text names dates.
+    # A3-D10: no kept show (an empty list, or every show excluded) on a page whose text names dates.
     if not kept and outcome is not PageOutcome.UNREADABLE and source != "image":
         findings += check_empty_but_dated(page_text, fetched_on, {(s.date.month, s.date.day) for s in extraction.shows})
 

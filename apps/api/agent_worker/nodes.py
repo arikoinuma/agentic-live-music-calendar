@@ -2,7 +2,7 @@
 
 Each is a plain function of `VenueGraphState` (state.py); graph.py wires them. A3 made the first three
 real: fetch records a failure instead of raising, extract records a failed model call as an attempt
-instead of crashing the graph (G2), and validate reads the evidence from validation.py and the
+instead of crashing the graph (v0.1-G2), and validate reads the evidence from validation.py and the
 policy from policy.py to produce a verdict. Reconcile, commit and escalate's writes are still
 stubs (A5, A6), and nothing here writes an audit row yet (A4): the state carries what A4 will log
 (`extraction_source`, `extraction_notes`, `validation`, `attempt_history`, `escalation_reason`).
@@ -47,7 +47,7 @@ from agent_worker.validation import ValidationResult, Verdict, validate_extracti
 
 IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp")
 
-# What a failed model call is allowed to be (A3, G2). A named tuple, never a bare `Exception`: a
+# What a failed model call is allowed to be (A3, v0.1-G2). A named tuple, never a bare `Exception`: a
 # KeyError or AttributeError in OUR code is a bug and should crash, not be recorded as a "failed
 # attempt". Each member and why:
 #   InstructorError   instructor re-asked and the answer still wouldn't validate (its
@@ -77,7 +77,7 @@ class EmptyResponse(Exception):
 def metro_today(metro_timezone: str) -> datetime.date:
     """Today's date on the metro's clock, not the machine's: a worker running in UTC late on a
     Chicago evening is already on tomorrow's date, which would shift the year rule's window
-    (A2.1 plan, D13)."""
+    (A2.1-D13)."""
     return datetime.datetime.now(ZoneInfo(metro_timezone)).date()
 
 
@@ -121,7 +121,7 @@ def fetch_node(state: VenueGraphState) -> VenueGraphState:
     """Reads a venue's page: over HTTP when calendar_url is an actual URL, from a local file
     otherwise (local_test.py and the tests depend on that path).
 
-    A3 (D6): a failure to read the page — a network error that survived the retries, an error
+    A3-D6: a failure to read the page — a network error that survived the retries, an error
     status, an unreadable file, an empty page — is recorded in `state.fetch_error` and routed to
     escalate by `route_after_fetch`, instead of raising out of the graph. An empty text page is
     treated the same way (see `EmptyResponse`).
@@ -134,7 +134,7 @@ def fetch_node(state: VenueGraphState) -> VenueGraphState:
     """
     state.fetch_error = None
     # The raw HTML is kept in `page_html` (the JSON-LD route needs the <script> blocks that cleaning
-    # strips), and the date is recorded for the year rule (A2.1, D13). A caller that knows when the
+    # strips), and the date is recorded for the year rule (A2.1-D13). A caller that knows when the
     # page was captured (local_test's August fixture) passes it; otherwise it is today on the metro's clock.
     state.fetched_on = state.fetched_on or metro_today(state.metro_timezone)
     try:
@@ -203,14 +203,13 @@ def extract_node(state: VenueGraphState) -> VenueGraphState:
     state.extraction_notes = {}
     state.extract_error = None
 
-    # A failed model call is an OUTCOME, not a crash. The retry loop exists to handle exactly this
-    # failure (a thinking model exhausting its budget on a judgment call, env-setup.md Phase 5), and
-    # it could never fire while an exception skipped the increment below and killed the graph
-    # (alpha-build-plan.md G2; arch-initial.md §7). Two things carry it: the attempt is COUNTED before
-    # the call, so a failure can't skip it, and only a NAMED tuple of expected errors is caught
-    # (`EXTRACTION_ERRORS`, above, with the reason for each member), never `Exception`. A failed
-    # attempt leaves `extraction` None; validate_node then fails it with reason `extract_failed`, so
-    # the existing `retry` edge handles it — no new edge.
+    # A failed model call is an OUTCOME, not a crash. The retry loop exists for exactly this failure
+    # (a thinking model exhausting its budget on a judgment call, env-setup.md Phase 5). Two things
+    # make it work. The attempt is COUNTED before the call, so an exception can't skip the increment
+    # and kill the graph (alpha-build-plan.md v0.1-G2; arch-initial.md §7). And only a NAMED tuple of
+    # expected errors (`EXTRACTION_ERRORS`, above) is caught, never `Exception`. A failed attempt
+    # leaves `extraction` None, and validate_node fails it with reason `extract_failed`, so the
+    # existing `retry` edge handles it with no new edge.
     state.attempt_count += 1
     try:
         result = _run_extraction(state, plan)

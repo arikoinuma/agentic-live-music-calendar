@@ -19,7 +19,7 @@ import type { MetroSummary } from "./types";
 // Used when the metro can't be fetched. Exported so the build check can
 // grep the built HTML for it: a static page with this text baked in would
 // mean the metro fetch got cached at build time, which is exactly what
-// decision D1 (no persistent caching in B2) exists to prevent
+// decision B2-D1 (no persistent caching in B2) exists to prevent
 // (plan Verification 3, review #7).
 export const FALLBACK_DESCRIPTION =
   "Live music, gathered from venue calendars.";
@@ -35,11 +35,11 @@ export function siteDescription(metro: MetroSummary | null): string {
  * Runs `fetcher` (the API client's `getMetro`) and returns its result, or
  * `null` if the API is unavailable.
  *
- * Every page renders the root layout, so a failed metro call must not fail
- * the shell. But a blanket `catch` also swallows Next's internal control-flow
- * errors (the dynamic-usage signal `fetch` throws during prerender), which
- * turns a working build into a failing one, so `unstable_rethrow` comes first
- * and only then is the failure handled.
+ * A failed metro call must not fail the shell, because every page renders
+ * the root layout. A blanket `catch` would also swallow Next's internal
+ * control-flow errors (the dynamic-usage signal `fetch` throws during
+ * prerender), turning a working build into a failing one. `unstable_rethrow`
+ * runs first, so those pass through and everything else is handled here.
  */
 export async function getMetroOrNull(
   fetcher: () => Promise<MetroSummary> = getMetro,
