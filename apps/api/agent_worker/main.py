@@ -39,7 +39,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from agent_worker.audit import PostgresAuditWriter
 from agent_worker.context import WorkerContext
 from agent_worker.graph import (
-    compiled_graph,  # noqa: F401  (used by Gap A below; tests patch it here)
+    compiled_graph,
 )
 from agent_worker.staging import COLLECTION, MongoStager
 from agent_worker.state import VenueGraphState
@@ -94,34 +94,27 @@ async def run_venue(
     `calendar_url` and `fetched_on` override the venue's URL and the fetch date; `local_test.py` uses them to
     run a saved fixture through the real cycle. Exceptions propagate (after the run is closed).
     """
-    initial = VenueGraphState(  # noqa: F841  (used by Gap A below)
+    initial = VenueGraphState(
         venue_id=venue.id, calendar_url=calendar_url or venue.calendar_url,
         venue_name=venue.name, metro_timezone=venue.metro_timezone, fetched_on=fetched_on,
     )
 
-    # TODO(Ari) Gap A — Lesson: the run is the parent of every audit row (arch-initial.md §7,
+    #   The run is the parent of every audit row (arch-initial.md §7,
     #   `parent_run_id`). Its id travels IN THE STATE, not in a module global, so each node's row points at
     #   the run that produced it and two runs could never cross. It is closed in a `finally`, because a run
     #   that crashes must still end (plan D8): otherwise it looks "in progress" forever, and the
     #   `unfinished_runs` query can't tell a crash from a run that is still going. The structlog binding is
     #   what puts `run_id` and `venue_id` on every log line of the run (D7).
-    # Code:
-    #   run_id = await ctx.audit.start_run(venue.id, trigger)
-    #   structlog.contextvars.bind_contextvars(run_id=run_id, venue_id=venue.id)
-    #   try:
-    #       result = await compiled_graph.ainvoke(
-    #           initial.model_copy(update={"run_id": run_id}), context=ctx
-    #       )
-    #       return VenueGraphState(**result)
-    #   finally:
-    #       await ctx.audit.finish_run(run_id)
-    #       structlog.contextvars.unbind_contextvars("run_id", "venue_id")
-    #   Then delete the two `# noqa` markers (`compiled_graph` in the imports, and `initial =` just above):
-    #   they exist only while this gap is open, and ruff flags them (RUF100) once the names are used.
-    # Check: `uv run pytest agent_worker/tests/test_run_venue.py` — the crash test finds `finished_at` null
-    #   if `finish_run` isn't in a `finally`. Likeliest mistake: calling `finish_run` after `ainvoke` with no
-    #   `finally`, so an exception skips it.
-    raise NotImplementedError("TODO(Ari)")
+    run_id = await ctx.audit.start_run(venue.id, trigger)
+    structlog.contextvars.bind_contextvars(run_id=run_id, venue_id=venue.id)
+    try:
+        result = await compiled_graph.ainvoke(
+            initial.model_copy(update={"run_id": run_id}), context=ctx
+        )
+        return VenueGraphState(**result)
+    finally:
+        await ctx.audit.finish_run(run_id)
+        structlog.contextvars.unbind_contextvars("run_id", "venue_id")
 
 
 async def run_all(
