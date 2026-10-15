@@ -12,7 +12,7 @@
  *    import turns an accidental import from a Client Component into a
  *    BUILD error instead of a silent leak (nextjs-style-guide.md,
  *    "Preventing data leaks"). The browser never talks to FastAPI.
- *  - Every request is `cache: "no-store"` (decision D1 in
+ *  - Every request is `cache: "no-store"` (decision B2-D1 in
  *    docs/dev/implementations/b2-routes-and-data-loading.md). Persistent
  *    caching is deliberately deferred (arch-initial.md §11); this is the
  *    one place to change when it arrives.
@@ -199,7 +199,7 @@ export function createApiClient(opts: {
     const startedAt = performance.now();
     try {
       const response = await fetchImpl(url, {
-        // D1: never cached. Explicit at the call site, as in lib/health.ts.
+        // B2-D1: never cached. Explicit at the call site, as in lib/health.ts.
         cache: "no-store",
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });

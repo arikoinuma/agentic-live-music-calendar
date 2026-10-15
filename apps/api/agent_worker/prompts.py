@@ -51,7 +51,7 @@ def _non_music_rule() -> str:
     # performing artist, so a DJ night with a named DJ is a show; comedy is not music and is excluded
     # like karaoke and open mic; a party or "night" naming no artist is excluded. "Hosted by" alone
     # doesn't make a non-music night a show, but since October 11, 2026 a named host of a *music* show
-    # is one of its acts (Ari, A2.1 plan D5; code review round 2, #12).
+    # is one of its acts (Ari, A2.1-D5; code review round 2, #12).
     # It belongs in the prompt, not the schema: it is about what counts as a show at all (a
     # cross-cutting rule), not about one field's meaning.
     # Reworded October 11, 2026 (A2.1) to Ari's "when in doubt, include it": a missed show
@@ -99,7 +99,7 @@ def _one_show_rule(per_act_times: bool = True) -> str:
 
 
 def _cancelled_rule() -> str:
-    """D12 of the A2.1 plan (decided by Ari, October 10, 2026): cancelled and postponed
+    """A2.1-D12 of the A2.1 plan (decided by Ari, October 10, 2026): cancelled and postponed
     listings are still extracted, with their status.
 
     They aren't shows to display, but the show was most likely extracted on an earlier scan
@@ -114,9 +114,9 @@ def _cancelled_rule() -> str:
 
 
 def _act_conventions() -> str:
-    """D5's conventions for which performing acts a listing names — one text for both routes.
+    """A2.1-D5's conventions for which performing acts a listing names — one text for both routes.
 
-    The labels the eval scores against apply these conventions (A2.1 plan, D5, approved by
+    The labels the eval scores against apply these conventions (A2.1-D5, approved by
     Ari October 10). Both routes must be told them, or the labels and the model disagree by
     construction (plan review round 2, #2): the JSON-LD route's act splitter includes this
     text in its instruction (`act_split.py`), and the full-page model route includes it when
@@ -170,7 +170,7 @@ def _date_heading_rule() -> str:
 
 
 def _title_rule() -> str:
-    """The title-split route's one instruction about acts: copy, don't split (A2.1, S6)."""
+    """The title-split route's one instruction about acts: copy, don't split (A2-S6)."""
     return (
         "For each listing, copy its performer text into title exactly as the page writes it, "
         "including every line of it under its date. Do not split it into acts, shorten it or "

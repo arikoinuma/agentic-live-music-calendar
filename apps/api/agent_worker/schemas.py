@@ -161,7 +161,7 @@ class ShowExtraction(BaseModel):
     )
     # null, NOT false, when the page doesn't say: "free" is a positive claim, and the data
     # model's CHECK treats absence as not-stated (absence of a price never implies free).
-    # `false` is folded into None by `false_to_none` (A2.1, F1): the model wrote `false` for
+    # `false` is folded into None by `false_to_none` (A2-F1): the model wrote `false` for
     # "not stated" on 56 shows in A2's eval. The schema the model sees is unchanged.
     free_admission: Annotated[bool | None, BeforeValidator(false_to_none)] = Field(
         default=None,
@@ -233,13 +233,13 @@ class VenuePageExtraction(BaseModel):
 
 ShowStatus = Literal["scheduled", "cancelled", "postponed"]
 
-# D12 (decided by Ari, October 10): a cancelled or postponed listing is still extracted, with
+# A2.1-D12 (decided by Ari, October 10): a cancelled or postponed listing is still extracted, with
 # its status, because reconcile must match it to a show stored before it was cancelled.
 STATUS_DESCRIPTION = (
     "Whether the listing says the show is cancelled or postponed; otherwise scheduled"
 )
 
-# F9 (A2's act-splitting regression): the pre-A2 description said "The name(s) of the act(s)";
+# A2-F9 (A2's act-splitting regression): the pre-A2 description said "The name(s) of the act(s)";
 # A2's lost the plural and the model stopped splitting. This says it outright. Rung
 # `a21-acts-desc`.
 SPLIT_ACTS_DESCRIPTION = (
@@ -280,14 +280,14 @@ def page_model(*, status: bool, split_acts: bool) -> type[VenuePageExtraction]:
 
 
 # ---------------------------------------------------------------------------
-# The title-split route's schema (A2.1, S6, October 11, 2026)
+# The title-split route's schema (A2-S6, October 11, 2026)
 # ---------------------------------------------------------------------------
 # On the JSON-LD route the model is asked only to split one title at a time, and it got White
 # Squirrel's acts right 23 of 23. The title-split route brings that to pages without JSON-LD: the
 # full-page model returns each listing with its performer text copied verbatim (`title`) and NO act
 # list, and the act splitter (act_split.py) turns every title into acts. Every other field means
 # what it means on ShowExtraction, so their descriptions are reused, not restated. The verbatim
-# title is also the listing's display text that D5's artist-display idea would store.
+# title is also the listing's display text that A2.1-D5's artist-display idea would store.
 
 _SHOW = ShowExtraction.model_fields
 

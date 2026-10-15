@@ -10,7 +10,7 @@ How to read it:
 - `ExtractionConfig` holds the switches A2.1's experiment ladder flips one at a time. Each
   defaults to today's behaviour; `PIPELINE_CONFIG` / `PIPELINE_OPTIONS` are what the pipeline
   runs, and adopting a rung means changing a default there (plan, "Experiment protocol").
-- `extract_page` chooses a route (Gap C): the venue's own JSON-LD when the page has
+- `extract_page` chooses a route (A2.1-Gap-C): the venue's own JSON-LD when the page has
   usable events, otherwise the full-page model extraction A2 built.
 - `_from_model` and `_from_jsonld` are the two routes; `PageExtractionResult` records which
   one ran, the text sent, and anything worth noting, for the eval now and the audit trail
@@ -50,7 +50,7 @@ class ExtractionConfig:
     """The experiment ladder's switches. Every default is today's (A2's) behaviour, so the
     `a21-rebaseline` label is current code and each rung flips exactly one field."""
 
-    # "auto" = Gap C's routing (JSON-LD first); "model" = always the full-page model route.
+    # "auto" = A2.1-Gap-C's routing (JSON-LD first); "model" = always the full-page model route.
     route: Literal["auto", "model"] = "model"
     # Clean with get_text(separator="\n") instead of " ": keeps the act boundaries Terminal
     # Bar marks with <br> (plan review #1). Rung `a21-newlines`.
@@ -58,24 +58,24 @@ class ExtractionConfig:
     # False = A2's `schema-only` instruction (no exclusion / one-show rules); kept so A2's
     # middle label can still be reproduced.
     include_new_rules: bool = True
-    # D12: the schema variant with `status`, plus the cancelled sentence. Rung `a21-cancelled`.
+    # A2.1-D12: the schema variant with `status`, plus the cancelled sentence. Rung `a21-cancelled`.
     status_field: bool = False
-    # D13: each model-route date's year set from the fetch date, in code. Rung `a21-year`.
+    # A2.1-D13: each model-route date's year set from the fetch date, in code. Rung `a21-year`.
     year_rule: bool = False
-    # D5's conventions sent on the model route too (round 2 #2). Rung `a21-act-conventions`.
+    # A2.1-D5's conventions sent on the model route too (round 2 #2). Rung `a21-act-conventions`.
     act_conventions: bool = False
-    # F9: the `acts` description that says to split listings into separate acts. Rung
+    # A2-F9: the `acts` description that says to split listings into separate acts. Rung
     # `a21-acts-desc`.
     acts_split_description: bool = False
-    # D12 as decided by Ari (October 11): cancelled/postponed listings found by a separate narrow
+    # A2.1-D12 as decided by Ari (October 11): cancelled/postponed listings found by a separate narrow
     # question (status_check.py) instead of a schema field. Rung `a21-status-pass`.
     status_pass: bool = False
-    # S6 (October 11): the page model copies each listing's performer text verbatim and the act
+    # A2-S6 (October 11): the page model copies each listing's performer text verbatim and the act
     # splitter splits it, as on the JSON-LD route. Rung `a21-title-split`.
     title_split: bool = False
     # A3, G25: keep each <img> URL in the cleaned text as a "[image: URL]" line so the model can copy
     # a poster's address (it was null in practice before: cleaning kept visible text only). Off until
-    # one gated eval run shows the gate holds (A3 plan, D12) — adding text to every page the model reads
+    # one gated eval run shows the gate holds (A3-D12) — adding text to every page the model reads
     # is exactly the kind of change that moved act splitting before.
     keep_image_urls: bool = False
     # A3, G5: what a retry adds to its requests. Empty on the first attempt, which leaves the
@@ -88,7 +88,7 @@ class ExtractionConfig:
 
 # What the pipeline runs. The harness starts from this same pair and overrides one field per
 # flag (run_eval.configure), so a later label measures whatever the pipeline has adopted.
-# Temperature 0: adopted by Ari on October 10, 2026 (D8), after `a21-temp0-quick` scored about the
+# Temperature 0: adopted by Ari on October 10, 2026 (A2.1-D8), after `a21-temp0-quick` scored about the
 # same as the model's default of 1 and made 5 of 6 gated pages byte-identical run to run.
 PIPELINE_OPTIONS = RequestOptions(model=settings.model_name, temperature=0.0)
 # Adopted by Ari on October 11, 2026: the year rule (`a21-year`) and the JSON-LD route
@@ -190,7 +190,7 @@ def page_model_for(config: ExtractionConfig) -> type[BaseModel]:
 
 
 def _apply_year_rule(extraction: VenuePageExtraction, fetch_date: datetime.date) -> None:
-    """D13: every show's year from the fetch date, not the model (in place)."""
+    """A2.1-D13: every show's year from the fetch date, not the model (in place)."""
     for show in extraction.shows:
         show.date = infer_year(show.date, fetch_date)
 
@@ -221,7 +221,7 @@ def _from_model(
     if config.year_rule:
         _apply_year_rule(extraction, fetch_date)
     if config.status_pass:
-        # D12: ask separately, and only if the page says "cancelled"/"postponed" at all.
+        # A2.1-D12: ask separately, and only if the page says "cancelled"/"postponed" at all.
         asked = status_check.mentions_status(text)
         answer = (
             status_check.ask(text, client=client, options=options, seed=seed)
@@ -251,7 +251,7 @@ def _shows_from_listings(
     """The title-split route's second step: split every listing's verbatim title into acts with
     the act splitter (the JSON-LD route's narrow task), keeping every other field as the page
     model read it. A title the splitter gives no acts is kept with `acts: []` for A3, as on both
-    other routes. The titles go into `notes` (the verbatim display text, D5)."""
+    other routes. The titles go into `notes` (the verbatim display text, A2.1-D5)."""
     titles = [item.title for item in listings.listings]
     split = act_split.split_titles(titles, client=client, options=options, seed=seed, hint=hint)
     shows = [
@@ -282,7 +282,7 @@ def _from_jsonld(
     placeholder: it claims a certainty about acts the splitter doesn't have, and A3's decision
     on combining checks with confidence replaces it (plan review #15).
     """
-    # The page's own visible text, so an end time is kept only where the page states it (D10).
+    # The page's own visible text, so an end time is kept only where the page states it (A2.1-D10).
     page_text = clean_text(html, keep_line_breaks=False)
     names = [str(e.get("name", "")) for e in events]
     structured = [jsonld.to_structured_show(e, metro_timezone, page_text, names) for e in events]
@@ -330,11 +330,11 @@ def extract_page(
     `venue_name` and `metro_timezone` are facts from the venue's database row; the worker
     doesn't read the database yet (A4/A5), so the caller passes them — there is deliberately
     no default zone in this code (`metro.timezone` is the source of truth). `fetch_date` is
-    when the page was fetched (D13's year rule).
+    when the page was fetched (A2.1-D13's year rule).
     """
     if config.route == "auto":
         # Deterministic first, the model only where judgement is needed. The decision is recorded
-        # (`source` on the result) so an audit can see which path ran (A2.1 plan, D4 and Design §3).
+        # (`source` on the result) so an audit can see which path ran (A2.1-D4 and Design §3).
         # The test is subtle: every page carries SOME JSON-LD (WebSite, Restaurant…), so "the page
         # has JSON-LD" is the wrong test. An Event that can't produce a show doesn't count either: it
         # needs a start (the date) and a name (what the splitter reads). `usable_events` applies that.

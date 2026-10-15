@@ -131,7 +131,7 @@ _SHOW_ROWS: list[tuple] = [
     (24, "The Terminal Bar", "21:00", None, _lineup("Nooky Jones"), "18.00", None, None, None),
     (26, "The White Squirrel Bar", "20:00", "23:00", _lineup("The Cactus Blossoms", "Dead Man Winter"), "24.00", "28.00", None, None),
 
-    # Added for B3 (docs/dev/implementations/b3-the-calendar.md, D5), and
+    # Added for B3 (docs/dev/implementations/b3-the-calendar.md, B3-D5), and
     # appended so ids 1-21 don't change. The rows above never put two
     # shows at one venue on one date, never run past midnight and never
     # put more than two venues on a date, so the calendar's hardest cases

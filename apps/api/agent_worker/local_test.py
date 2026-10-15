@@ -14,7 +14,7 @@ result = compiled_graph.invoke(
         calendar_url="agent_worker/eval/fixtures/Archives_ Events - The White Squirrel Bar.html",
         venue_name="The White Squirrel Bar",
         metro_timezone="America/Chicago",
-        # The fixture was saved on August 17, 2026; the year rule (A2.1, D13) reads this date,
+        # The fixture was saved on August 17, 2026; the year rule (A2.1-D13) reads this date,
         # and today's would put its August shows a year ahead.
         fetched_on=datetime.date(2026, 8, 17),
     )
