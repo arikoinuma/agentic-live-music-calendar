@@ -10,7 +10,7 @@ How to read it:
 - `ExtractionConfig` holds the switches A2.1's experiment ladder flips one at a time. Each
   defaults to today's behaviour; `PIPELINE_CONFIG` / `PIPELINE_OPTIONS` are what the pipeline
   runs, and adopting a rung means changing a default there (plan, "Experiment protocol").
-- `extract_page` chooses a route: the venue's own JSON-LD when the page has
+- `extract_page` chooses a route (Gap C): the venue's own JSON-LD when the page has
   usable events, otherwise the full-page model extraction A2 built.
 - `_from_model` and `_from_jsonld` are the two routes; `PageExtractionResult` records which
   one ran, the text sent, and anything worth noting, for the eval now and the audit trail
@@ -50,8 +50,7 @@ class ExtractionConfig:
     """The experiment ladder's switches. Every default is today's (A2's) behaviour, so the
     `a21-rebaseline` label is current code and each rung flips exactly one field."""
 
-    # "auto" = JSON-LD first, when the page has usable events (`extract_page`); "model" = always the
-    # full-page model route.
+    # "auto" = Gap C's routing (JSON-LD first); "model" = always the full-page model route.
     route: Literal["auto", "model"] = "model"
     # Clean with get_text(separator="\n") instead of " ": keeps the act boundaries Terminal
     # Bar marks with <br> (plan review #1). Rung `a21-newlines`.

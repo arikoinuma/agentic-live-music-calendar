@@ -7,7 +7,7 @@ the pipeline and the eval drift apart when each builds its own request, so both 
 reaches what is actually *sent*, and (c) the pipeline and the harness send the same thing.
 
 How to read it: a fake client stands in for `instructor` (no model is called) -> routing
--> the JSON-LD route's output -> the switches, checked against the sent
+(Gap C) -> the JSON-LD route's output -> the switches, checked against the sent
 request -> the year rule -> pipeline/harness wiring -> fetch_node. HTML snippets are written
 here in the fixtures' shapes; the fixtures themselves are never read.
 """
@@ -105,7 +105,7 @@ def model_show(day: int, *acts: str, year: int = 2026) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Routing
+# Routing (Gap C)
 # ---------------------------------------------------------------------------
 
 

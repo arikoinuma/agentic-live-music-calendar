@@ -14,7 +14,7 @@ an offset — and each function below handles the shapes the fixtures actually u
 events lack `name` or `startDate` isn't usable here and falls back to the model route.
 
 How to read it: `find_events` pulls Event objects out of a page; `local_wall_clock` turns a
-schema.org date-time into the metro's local date and time; `to_structured_show`
+schema.org date-time into the metro's local date and time (Gap A); `to_structured_show`
 maps one event to a `StructuredShow`, the route's intermediate record.
 """
 

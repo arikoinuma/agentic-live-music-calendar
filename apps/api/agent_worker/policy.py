@@ -8,9 +8,9 @@ How to read it, top to bottom:
 1. `RetryPolicy` — the named, injectable settings (the confidence threshold and the attempt cap
    used to be literals inside the routing function). A8 varies them by passing a different policy.
 2. `AttemptRecord` / `AttemptPlan` — what one attempt did, and what the next one will change.
-3. `combine` — evidence + confidence -> one verdict, and `decide_route` — verdict
+3. `combine` (Gap D) — evidence + confidence -> one verdict, and `decide_route` — verdict
    + attempt count -> the graph's next step.
-4. `retry_hint` and `plan_for_attempt` — what makes a retry different from the
+4. `retry_hint` and `plan_for_attempt` (Gap E) — what makes a retry different from the
    call before it. At temperature 0 an unchanged retry returns the same answer (A2.1's confirmation
    run: five runs, byte-identical output), so without this the retry loop is a loop, not a retry.
 
@@ -64,7 +64,7 @@ class RetryPolicy:
 
     def __post_init__(self) -> None:
         # `ESCALATION_MODEL_NAME=` (uncommented, left empty) is read as "" and not None, which would
-        # make the record claim `larger_model_used=True` while the same model runs — the misreport D5
+        # make Gap E record `larger_model_used=True` while the same model runs — the misreport D5
         # exists to stop (code review round 1, #3). An empty name means "none configured".
         if not self.escalation_model:
             object.__setattr__(self, "escalation_model", None)
@@ -113,7 +113,7 @@ class AttemptRecord:
 
 
 # ---------------------------------------------------------------------------
-# One verdict, not one float
+# One verdict, not one float (Gap D)
 # ---------------------------------------------------------------------------
 
 
@@ -160,7 +160,7 @@ def decide_route(verdict: Verdict | None, attempt_count: int, policy: RetryPolic
 
 
 # ---------------------------------------------------------------------------
-# A retry that changes the request
+# A retry that changes the request (Gap E)
 # ---------------------------------------------------------------------------
 
 # One fixed sentence per check code: what to look at again. Used beside the finding's own message,

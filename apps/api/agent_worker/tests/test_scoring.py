@@ -6,7 +6,7 @@ other fields may be *missing* now and then but never *wrong*, and a non-music en
 about once a month per venue. These tests pin how each tier is counted, because a scorer that
 counts wrongly would pass or fail the gate for the wrong reason.
 
-How to read it: helpers build labels and returned shows by hand -> matching
+How to read it: helpers build labels and returned shows by hand -> matching (Gap B)
 -> acts -> fields -> extras (leak vs fabricated) -> the gate. Every expected value is worked
 out by hand from the case and the standard, never read from the scorer.
 """
@@ -61,7 +61,7 @@ def score(lbl: PageLabel, *shows: dict[str, Any], page_html: str = "") -> scorin
 
 
 # ---------------------------------------------------------------------------
-# Matching: date is identity, time is a field
+# Matching (Gap B): date is identity, time is a field
 # ---------------------------------------------------------------------------
 
 
@@ -73,8 +73,8 @@ def test_a_perfect_extraction_passes_every_tier() -> None:
 
 def test_a_missed_time_is_a_missing_field_not_a_missed_show() -> None:
     # Proves: D1 made time a field with its own tolerance. A found show whose stated time
-    # came back null is *missing* a time (tolerated up to 1 in 10), not a missed show. That is why
-    # matching pairs on date rather than (date, time).
+    # came back null is *missing* a time (tolerated up to 1 in 10), not a missed show — the
+    # reason Gap B matches on date rather than (date, time).
     s = score(page_label(label(9, "Lent", time=T(21, 0))), returned(9, "Lent"))
     assert s.missed == 0 and s.fabricated == 0
     assert (s.fields["time"].missing, s.fields["time"].wrong) == (1, 0)
@@ -98,7 +98,7 @@ def test_a_time_the_page_never_states_is_wrong() -> None:
 
 def test_two_sets_on_one_night_pair_by_acts_not_by_order() -> None:
     # Proves: White Squirrel lists a 6 pm and a 9 pm show each night. Returned in the other
-    # order, each still pairs with its own label (matching prefers correct acts), so both times
+    # order, each still pairs with its own label (Gap B prefers correct acts), so both times
     # score correct. Taking the first same-date candidate would score two wrong times.
     lbl = page_label(label(9, "Early Band", time=T(18, 0)), label(9, "Late Band", time=T(21, 0)))
     s = score(lbl, returned(9, "Late Band", time=T(21, 0)), returned(9, "Early Band", time=T(18, 0)))
@@ -119,8 +119,8 @@ def test_two_untimed_shows_on_one_date_and_a_same_date_leak() -> None:
 
 
 def test_a_duplicate_is_fabricated_not_counted_twice() -> None:
-    # Proves: each returned show is used once. Forgetting to remove a hit would count the same show
-    # twice. The second copy is a show that isn't on the page.
+    # Proves: each returned show is used once (Gap B's likeliest mistake is not removing a
+    # hit). The second copy is a show that isn't on the page.
     s = score(page_label(label(9, "Lent")), returned(9, "Lent"), returned(9, "Lent"))
     assert (s.missed, s.fabricated) == (0, 1)
 
