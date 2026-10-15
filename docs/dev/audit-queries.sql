@@ -1,11 +1,13 @@
 -- Saved queries over the audit trail (agent_run + audit_log).  Milestone A4, alpha-build-plan.md §2 point 3:
 -- "every step of that run is queryable afterward ... entirely from the database".
 --
--- HOW TO RUN ONE (psql):
---     make db-shell
+-- HOW TO RUN ONE (from the repo root; psql runs inside the container, so the file is piped in):
+--     cat docs/dev/audit-queries.sql | docker compose exec -T postgres psql -U postgres -d calendar_dev \
+--         -v run_id=3 -v show_id=12 -f -
+--   That runs all four queries. For one query, paste it into `make db-shell` after
 --     \set run_id 3
 --     \set show_id 12
---     <paste the query>        (or: \i docs/dev/audit-queries.sql  to run all four)
+--   (`\i` doesn't work here: it reads the file from inside the container, which doesn't have the repo.)
 -- The same file is executed by agent_worker/tests/test_audit_queries.py, which binds :run_id and
 -- :show_id as SQLAlchemy parameters; that is why the queries use CAST(... AS ...) rather than the `::`
 -- shorthand, which SQLAlchemy would read as a bind parameter.

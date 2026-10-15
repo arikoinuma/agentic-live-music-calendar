@@ -100,7 +100,7 @@ live).
 
 The R2 page snapshot in `fetch_node` and the MongoDB raw-staging write in `extract_node`. Both are stubbed today
 (`arch-initial.md` §7 and §11). A4 landed the audit trail locally (`implementations/a4-auditability.md`): the MongoDB staging write already exists
-and runs against a local `mongo:8` container (D3), so H3's Mongo half is only pointing `MONGODB_URI` at Atlas and
+and runs against a local `mongo:7.0` container (D3, pinned to 7.0 from 8 on October 15, 2026, see `notes.md`; the hosted cluster's version is H3's to choose), so H3's Mongo half is only pointing `MONGODB_URI` at Atlas and
 checking the connection options. The R2 half is still to build: `audit_log.snapshot_key` stays NULL until it
 lands, and without it the JSON-LD route's raw markup is kept nowhere (the staging document holds only what the
 model was sent).

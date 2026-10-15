@@ -107,8 +107,14 @@ the ones that change what gets built if you choose differently.
   definition of done is "no network access to any hosted service". Atlas is hosted. H3 (alpha deployment
   plan) is already "audit storage in production", so the hosted cluster is pointed at there by changing
   `MONGODB_URI`.
+  - **Departure (October 15, 2026): local Mongo is `mongo:7.0`, not `mongo:8`.** MongoDB 8.x refuses to start
+    on Linux kernel 6.19+ (SERVER-121912), and Docker Desktop's VM runs 7.0.12, so `mongo:8.0` exits at
+    startup. `make db-wait` reports that as a timeout. `mongo:7.0` (v7.0.45 tested) starts and answers ping.
+    `GLIBC_TUNABLES=glibc.pthread.rseq=1` also gets 8.0 past the guard, but it bypasses a check MongoDB added
+    for a real incompatibility, so it was not used. Reason and reversal conditions are in `docs/dev/notes.md`.
   - `make db-up` starts both containers.
-  - CI's Python job gets a `mongo:8` service so the one real-Mongo test runs there.
+  - CI's Python job gets a `mongo` service so the one real-Mongo test runs there. October 15, 2026: its image
+    is `mongo:7.0` in `.github/workflows/ci.yml`, matching local compose.
   - The cloud sandbox has no Docker and no Mongo, so that test skips there, the same way the eval-fixture
     tests do. `cloud-setup.sh` is left alone.
   - A worker run with no `MONGODB_URI` refuses to start (fail fast). An audit trail that silently skips its
@@ -527,13 +533,13 @@ The file's header shows how to run it: `make db-shell`, then `\set run_id 3`, th
 
 4. `make db-reset && make seed`, then `make worker VENUE=1`. Expect console log lines carrying
    `run_id=…`, and an exit after one venue.
-5. `make db-shell`, `\set run_id <id>` and `\set show_id 0`, then `run_history` (or `\i docs/dev/audit-queries.sql` for all four). Expect fetch, extract (one per
+5. From the repo root, `cat docs/dev/audit-queries.sql | docker compose exec -T postgres psql -U postgres -d calendar_dev -v run_id=<id> -v show_id=0 -f -` runs all four queries. (October 15, 2026: the earlier `\i` recipe fails, because psql runs inside the container and can't see the repo's files.) Expect fetch, extract (one per
    attempt), validate (one per attempt), reconcile and commit stubs, or escalate. Each extract row's
    `staging_id` is set.
 6. `docker compose exec mongo mongosh calendar --eval 'db.extraction_staging.findOne()'`. Expect the
    document with `sent_text`, `notes`, `raw_extraction` and the request configuration.
 7. `LOG_FORMAT=json make worker VENUE=1 2>&1 | head -3`. Expect one JSON object per line.
-8. `uv run python -m agent_worker.local_test`. Same trail, against the fixture.
+8. `cd apps/api && uv run python -m agent_worker.local_test`. Same trail, against the fixture. (Run from `apps/api`, not the repo root: the module lives there. October 15, 2026: the root-level command failed with `No module named 'agent_worker'`.)
 
 ## Not doing in A4
 
@@ -547,6 +553,9 @@ The file's header shows how to run it: `make db-shell`, then `\set run_id 3`, th
 - Logging in the FastAPI app (D7), and the MCP server's "retrieve the full audit trail for a run"
   (`arch-initial.md` §7), which can reuse `run_history` later.
 - Widening mypy to `agent_worker/` (A7). The new modules are written to pass it anyway.
+- **Resolved (October 15, 2026):** CI's `mongo` service in `.github/workflows/ci.yml` is now `mongo:7.0`,
+  matching local compose (D3 departure). The CI runners' kernel was not checked, so the match is a
+  consistency choice, not a verified fix.
 
 ## Approval
 

@@ -419,3 +419,16 @@ not the cause. Declare `runtime: Runtime[WorkerContext]` on the wrapper itself a
 `InvalidDocument`. Anything untyped that reaches a Mongo document (an extraction's `notes` dict) has to go
 through `pydantic_core.to_jsonable_python` first (`agent_worker/staging.document_for`). A `datetime.datetime`
 is fine; BSON stores it natively.
+
+## MongoDB 8.x will not start on Docker Desktop's current kernel
+
+`make db-wait` reported "timed out after 30s", but the real cause was the mongo container exiting at
+startup: `MongoDB cannot start: Linux kernel versions 6.19 and newer has a known incompatibility`
+(SERVER-121912). Docker Desktop's VM runs `7.0.12-linuxkit`, so every `mongo:8.0.x` tested exited with this
+guard. `docker compose ps -a` and `docker compose logs mongo` show it; the timeout message does not.
+
+`mongo:7.0` (v7.0.45 when tested) starts and answers ping. Pinned in `docker-compose.yml` instead of
+`mongo:8`, which departs from D3 in `a4-auditability.md`. Setting `GLIBC_TUNABLES=glibc.pthread.rseq=1`
+gets `mongo:8.0` past the guard and it then answers ping, but it bypasses a check MongoDB added for a real
+incompatibility, so it was not used. Revisit the pin when Docker Desktop's kernel or a MongoDB 8.x patch
+changes.

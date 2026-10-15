@@ -35,7 +35,8 @@ jobs:
       # A4: the one real-MongoDB test (agent_worker/tests/test_staging_mongo.py) runs here. It skips
       # where no server answers, but fails under CI, so a missing service can't pass silently.
       mongo:
-        image: mongo:8
+        # Pinned to 7.0 to match docker-compose.yml: MongoDB 8.x won't start on Linux kernel 6.19+ (see docs/dev/notes.md).
+        image: mongo:7.0
         ports:
           - 27017:27017
         options: >-

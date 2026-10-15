@@ -14,8 +14,11 @@ services:
 
   # MongoDB: the worker's raw extraction staging (arch-initial.md §6; A4, D3). Local only; Atlas is H3's.
   # No auth, and published on localhost only: this is a dev database that holds scraped page text.
+  # Pinned to 7.0, not 8: MongoDB 8.x refuses to start on Linux kernel 6.19+, and Docker Desktop's VM
+  # runs 7.0.12. The 8.0 startup guard can be bypassed with GLIBC_TUNABLES, but that hides a real
+  # incompatibility, so the pin is the cleaner local fix. See docs/dev/notes.md.
   mongo:
-    image: mongo:8
+    image: mongo:7.0
     ports:
       - "127.0.0.1:27017:27017"
     volumes:

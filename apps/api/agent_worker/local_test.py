@@ -74,8 +74,12 @@ async def main() -> None:
         print(f"escalated: {state.escalation_reason}")
 
     # A4: the run is in the database now. These are the questions to ask it (docs/dev/audit-queries.sql).
-    print(f"\nrun {state.run_id} is in the audit trail:  make db-shell, then")
-    print(f"  \\set run_id {state.run_id}\n  \\set show_id 0\n  \\i docs/dev/audit-queries.sql   (runs all four queries)")
+    # Piped in from the host: psql runs inside the container, where the repo's files aren't visible, so `\i` can't find the file.
+    print(f"\nrun {state.run_id} is in the audit trail. From the repo root (runs all four queries):")
+    print(
+        f"  cat docs/dev/audit-queries.sql | docker compose exec -T postgres psql -U postgres -d calendar_dev"
+        f" -v run_id={state.run_id} -v show_id=0 -f -"
+    )
 
 
 if __name__ == "__main__":
