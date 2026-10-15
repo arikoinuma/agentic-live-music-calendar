@@ -11,8 +11,6 @@ White Squirrel's own listing ("9:00 pm - 12:00 am", requirements-initial.md Show
 is plan §1. Nothing reads its expectation from the code under test. The pages are small synthetic
 HTML in the shapes of the fixtures (which are gitignored, so CI has none); the real-page layer is
 `test_validation_on_real_pages.py`.
-
-Tests marked (Gap B) / (Gap C) stay red until Ari fills the `TODO(Ari)` blocks in validation.py.
 """
 
 import datetime

@@ -1,8 +1,9 @@
 [project]
 name = "api"
 version = "0.1.0"
-description = "Agentic Liver Music Calendar API application"
+description = "Agentic Live Music Calendar API application"
 readme = "README.md"
+license = "PolyForm-Noncommercial-1.0.0"
 authors = [
     { name = "Ari Koinuma", email = "764489+arikoinuma@users.noreply.github.com" }
 ]

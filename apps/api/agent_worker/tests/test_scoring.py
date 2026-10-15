@@ -6,7 +6,7 @@ other fields may be *missing* now and then but never *wrong*, and a non-music en
 about once a month per venue. These tests pin how each tier is counted, because a scorer that
 counts wrongly would pass or fail the gate for the wrong reason.
 
-How to read it: helpers build labels and returned shows by hand -> matching (TODO(Ari) Gap B)
+How to read it: helpers build labels and returned shows by hand -> matching (Gap B)
 -> acts -> fields -> extras (leak vs fabricated) -> the gate. Every expected value is worked
 out by hand from the case and the standard, never read from the scorer.
 """
@@ -61,7 +61,7 @@ def score(lbl: PageLabel, *shows: dict[str, Any], page_html: str = "") -> scorin
 
 
 # ---------------------------------------------------------------------------
-# Matching (TODO(Ari) Gap B): date is identity, time is a field
+# Matching (Gap B): date is identity, time is a field
 # ---------------------------------------------------------------------------
 
 

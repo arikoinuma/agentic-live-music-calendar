@@ -68,28 +68,12 @@ export function CalendarGrid({ rows }: { rows: CalendarRow[] }) {
               // before that date's first link, and `role="region"` added 20
               // near-identical landmarks to a screen reader's list.
               //
-              // (Ari) — Gap E. Lesson: see the paragraph above; what you type
-              //   is the scroll container's classes. `overflow-x-auto` makes
-              //   it a scroll container (and so lets the `1fr` track stay the
-              //   page's width); `overscroll-x-contain` stops a swipe that
-              //   reaches the row's end from chaining into the browser's Back
-              //   gesture; scroll-snap keeps columns aligned after a flick.
-              // Code (replace the className below):
-              //   className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2"
-              // Check: in the browser at 1280px and at phone width,
-              //   `document.documentElement.scrollWidth ===
-              //   document.documentElement.clientWidth` in the console is
-              //   `true` WHILE the 2026-10-07 row (four venues: 9rem + 4 ×
-              //   16rem is wider than `max-w-6xl`'s content box) scrolls
-              //   sideways on its own. Then the experiment that makes the
-              //   lesson observable — run it at 768px to 1024px (devtools
-              //   responsive mode), where it is clearest: wrap the scroller
-              //   in a bare <div> and the check turns `false` (the page
-              //   grows from 768 to about 1232 wide; at 1280px it is only
-              //   16px, easy to miss); add `min-w-0` to the wrapper and it
-              //   turns `true` again; remove the wrapper. Until the classes
-              //   are typed the row doesn't scroll and the page overflows
-              //   sideways — that IS the failure.
+              // The classes make the row scroll on its own. `overflow-x-auto`
+              // makes it a scroll container (and so lets the `1fr` track stay
+              // the page's width); `overscroll-x-contain` stops a swipe that
+              // reaches the row's end from chaining into the browser's Back
+              // gesture; scroll-snap keeps columns aligned after a flick.
+              // Without them the page itself overflows sideways.
               <div
                 className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2"
               >

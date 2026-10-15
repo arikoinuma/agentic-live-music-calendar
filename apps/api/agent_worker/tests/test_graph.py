@@ -14,10 +14,6 @@ reconcile_node, `escalation_reason` only by escalate_node.
 
 Expected values come from the plan, not from the code under test: the cap of 3 attempts is
 arch-initial.md §7; which route each attempt uses is plan §2-§3; the dates are literals.
-
-Many of these stay red until Ari fills Gaps A-E (the whole graph runs through validation, the
-verdict and the plan); the graph is verified with the gaps filled on a scratch copy and the result
-recorded in the plan's Implementation log.
 """
 
 from pathlib import Path
@@ -105,7 +101,7 @@ def test_every_node_returns_the_state_it_was_given(
 ) -> None:
     # Proves: a node that forgets `return state` returns None, and LangGraph then drops the node's
     # changes: the attempt count never advances and a retrying graph loops until its recursion limit
-    # (10,007 steps, about a minute). It happened once, when Gap A's block was replaced and the line below
+    # (10,007 steps, about a minute). It happened once, when the Gap A code was replaced and the line below
     # it went with it; only the whole-graph tests noticed, and they were red for other reasons at the
     # time. Calling each node directly makes the failure immediate and says what is wrong.
     path = tmp_path / "page.html"

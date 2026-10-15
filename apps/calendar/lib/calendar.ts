@@ -57,25 +57,11 @@ export function groupCalendar(input: {
     venues: [],
   });
 
-  // (Ari) — Gap C. Lesson: the calendar's rows come from the RANGE the
-  //   server served, NOT from the shows — that is how an empty day gets a
-  //   row (plan D2), and why the page renders `start`/`end` from the
-  //   response (api-contract.md §3). Walk it with Temporal: `add({ days:
-  //   1 })` handles month ends and leap days, `compare` handles the
-  //   INCLUSIVE end (Temporal objects throw on `<=`).
-  // Code (replace the `todo` line, and delete `import { todo } from "./todo"` —
-  //   nothing else in this file calls it):
-  //   const rows: CalendarRow[] = [];
-  //   for (let d = Temporal.PlainDate.from(start);
-  //        Temporal.PlainDate.compare(d, end) <= 0;
-  //        d = d.add({ days: 1 })) {
-  //     rows.push(emptyRow(d));
-  //   }
-  // Check: `pnpm --filter calendar test calendar` — the 28-row fixture
-  //   case, the one-day range and the leap-year range. Likeliest
-  //   mistakes: `< 0` (drops the last day; the API's `end` is inclusive),
-  //   `d <= end` (throws), or building rows from `shows.map(s => s.date)`
-  //   (passes the venue tests, fails the empty-day one).
+  // Rows come from the RANGE the server served, not from the shows. That is
+  // how an empty day still gets a row (plan D2), and why the page renders
+  // `start`/`end` from the response (api-contract.md §3). Temporal walks the
+  // range: `add({ days: 1 })` handles month ends and leap days, and `compare`
+  // handles the INCLUSIVE end (Temporal objects throw on `<=`).
   const rows: CalendarRow[] = [];
   for (let d = Temporal.PlainDate.from(start);
         Temporal.PlainDate.compare(d, end) <= 0;

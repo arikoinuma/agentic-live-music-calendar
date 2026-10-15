@@ -10,7 +10,7 @@ How to read it:
 - `ExtractionConfig` holds the switches A2.1's experiment ladder flips one at a time. Each
   defaults to today's behaviour; `PIPELINE_CONFIG` / `PIPELINE_OPTIONS` are what the pipeline
   runs, and adopting a rung means changing a default there (plan, "Experiment protocol").
-- `extract_page` chooses a route (TODO(Ari) Gap C): the venue's own JSON-LD when the page has
+- `extract_page` chooses a route (Gap C): the venue's own JSON-LD when the page has
   usable events, otherwise the full-page model extraction A2 built.
 - `_from_model` and `_from_jsonld` are the two routes; `PageExtractionResult` records which
   one ran, the text sent, and anything worth noting, for the eval now and the audit trail
@@ -333,23 +333,15 @@ def extract_page(
     when the page was fetched (D13's year rule).
     """
     if config.route == "auto":
-        # (Ari) — Lesson: deterministic first, the model only where judgement is needed —
-        #   and the decision is recorded (`source` on the result) so an audit can see which
-        #   path ran (A2.1 plan, D4 and Design §3). The condition is the lesson: every page
-        #   carries SOME JSON-LD (WebSite, Restaurant…), so "the page has JSON-LD" is the
-        #   wrong test; an Event that can't produce a show doesn't count either — it needs a
-        #   start (the date) and a name (what the splitter reads). AGENTS.md names routing
-        #   branch conditions as the model of a good gap.
-        # Code (replace the `raise` below; the model-route `return` after this block stays):
+        # Deterministic first, the model only where judgement is needed. The decision is recorded
+        # (`source` on the result) so an audit can see which path ran (A2.1 plan, D4 and Design §3).
+        # The test is subtle: every page carries SOME JSON-LD (WebSite, Restaurant…), so "the page
+        # has JSON-LD" is the wrong test. An Event that can't produce a show doesn't count either: it
+        # needs a start (the date) and a name (what the splitter reads). `usable_events` applies that.
         events = usable_events(html)
         if events:
             return _from_jsonld(events, html=html, venue_name=venue_name, metro_timezone=metro_timezone,
                                 client=client, options=options, seed=seed, hint=config.splitter_hint)
-        # Check: `uv run pytest agent_worker/tests/test_extraction.py -k route` — the routing
-        #   cases go green. Likeliest mistake: `if jsonld.find_events(html):` without the
-        #   startDate/name filter is fine for White Squirrel but sends an undated or unnamed
-        #   Event down a route that crashes or returns an empty title; testing for "any
-        #   ld+json block" sends Terminal Bar down a route that returns nothing.
 
     return _from_model(
         html, venue_name=venue_name, fetch_date=fetch_date, client=client, options=options,

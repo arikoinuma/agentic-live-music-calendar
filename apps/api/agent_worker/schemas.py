@@ -91,18 +91,16 @@ class ShowExtraction(BaseModel):
     # The one field the requirements mark required.
     date: datetime.date = Field(description="The date of the show")
 
-    # time — (G8).
-    # (Ari) — Lesson: a show's start time is optional — the requirements make Date the
-    #   only required field, and a required `time` leaves the model no honest answer for a
-    #   page that states none (it invents one: the Terminal Bar page has no times at all).
-    #   In Pydantic v2 `datetime.time | None` WITHOUT `= None` is still *required*, so the
-    #   fix is a default as well as the type. And the `description` is not documentation:
-    #   `instructor` sends it to the model, so it must say the format (24-hour HH:MM), which
-    #   time counts (when the music starts, not doors — "Doors 7 / Show 8" is common and an
-    #   undecided choice flips between runs, which reconcile reads as a time change), and how
-    #   to say "not stated" (the fixed phrase "otherwise null").
-    #   Cite: a2-extraction-schema.md (Design › Schema, plan-review findings 10 and 11),
-    #   requirements-initial.md "Agent Extraction: Fields".
+    # time — (G8). Optional, because the requirements make Date the only required field, and a
+    # required `time` leaves the model no honest answer for a page that states none (it invents one:
+    # the Terminal Bar page has no times at all). In Pydantic v2 `datetime.time | None` WITHOUT
+    # `= None` is still *required*, so the default is needed as well as the type. The `description`
+    # is not documentation: `instructor` sends it to the model, so it must give the format (24-hour
+    # HH:MM), which time counts (when the music starts, not doors; "Doors 7 / Show 8" is common, and
+    # an undecided choice flips between runs, which reconcile reads as a time change), and how to say
+    # "not stated" (the fixed phrase "otherwise null").
+    # Cite: a2-extraction-schema.md (Design › Schema, plan-review findings 10 and 11),
+    # requirements-initial.md "Agent Extraction: Fields".
     time: ModelTime = Field(
         default=None,
         description=(
@@ -121,14 +119,13 @@ class ShowExtraction(BaseModel):
         ),
     )
 
-    # acts — (G7).
-    # (Ari) — Lesson: changing `list[str]` to `list[ActExtraction]` is a SHAPE change,
-    #   not a type tweak. The JSON schema `instructor` sends the model becomes nested
-    #   (gaining a `$defs` section), the model's output nests, and every reader of `.acts`
-    #   must change from a string to an object. Nothing reads `.acts` yet (verified by
-    #   grep), which is why it is cheap now and would not be after A5 writes `show_artist`
-    #   rows. The point of the nesting: each act can carry its own start time and order.
-    #   Cite: a2-extraction-schema.md (Design › Schema, "Consequences"), build plan G7.
+    # acts — (G7). Changing `list[str]` to `list[ActExtraction]` is a SHAPE change, not a type tweak.
+    # The JSON schema `instructor` sends the model becomes nested (gaining a `$defs` section), the
+    # model's output nests, and every reader of `.acts` must change from a string to an object.
+    # Nothing reads `.acts` yet (verified by grep), which is why this is cheap now and would not be
+    # after A5 writes `show_artist` rows. The point of the nesting: each act can carry its own start
+    # time and order.
+    # Cite: a2-extraction-schema.md (Design › Schema, "Consequences"), build plan G7.
     acts: list[ActExtraction] = Field(
         description="The act(s) performing, in the order the page lists them"
     )
