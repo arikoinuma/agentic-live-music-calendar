@@ -16,7 +16,6 @@
  */
 
 import { nightSortKey } from "./dates";
-import { todo } from "./todo";
 import type { ShowSummary } from "./types";
 
 export type DaySort = "venue" | "time" | "artist";
@@ -43,7 +42,7 @@ const byVenueName = (a: ShowSummary, b: ShowSummary): number =>
 // --- venue modes (Gap D) ------------------------------------------------------------
 
 /*
- * TODO(Ari) — Gap D. Lesson: "by venue" and "by time" are the SAME two keys
+ * (Ari) — Gap D. Lesson: "by venue" and "by time" are the SAME two keys
  *   in opposite priority. A comparator chain is `primary || secondary`:
  *   a tie returns 0, 0 is falsy, so `||` falls through to the next key.
  *   The time key is `nightSortKey`, not the clock — the 1:00 AM show is the
@@ -51,10 +50,6 @@ const byVenueName = (a: ShowSummary, b: ShowSummary): number =>
  *   `byVenueName` is written above.
  * Code (replace both `todo` lines; delete `import { todo } from "./todo"`
  *   once no gap in this file still calls it — Gap C does too):
- *   export const venueOrder = (a: ShowSummary, b: ShowSummary): number =>
- *     byVenueName(a, b) || nightSortKey(a.start_time) - nightSortKey(b.start_time);
- *   export const timeOrder = (a: ShowSummary, b: ShowSummary): number =>
- *     nightSortKey(a.start_time) - nightSortKey(b.start_time) || byVenueName(a, b);
  * Check: `pnpm --filter calendar test show-order` — venue order
  *   [25, 8, 22, 23, 24] and time order [22, 24, 8, 23, 25] on the fixture
  *   day. Likeliest mistakes: comparing `a.start_time < b.start_time` as
@@ -62,8 +57,8 @@ const byVenueName = (a: ShowSummary, b: ShowSummary): number =>
  *   returns the second key).
  */
 // (`byVenueName` is passed in only so it counts as used while the gap is open.)
-export const venueOrder = (a: ShowSummary, b: ShowSummary): number => todo(byVenueName, a, b);
-export const timeOrder = (a: ShowSummary, b: ShowSummary): number => todo(byVenueName, a, b);
+export const venueOrder = (a: ShowSummary, b: ShowSummary): number => byVenueName(a, b) || nightSortKey(a.start_time) - nightSortKey(b.start_time);
+export const timeOrder = (a: ShowSummary, b: ShowSummary): number => nightSortKey(a.start_time) - nightSortKey(b.start_time) || byVenueName(a, b);
 
 // --- artist mode (Gap C) ------------------------------------------------------------
 
@@ -71,34 +66,34 @@ export const timeOrder = (a: ShowSummary, b: ShowSummary): number => todo(byVenu
  * One row per ACT, alphabetical by artist, an artist's own rows in night
  * order.
  *
- * TODO(Ari) — Gap C. Lesson: artist mode isn't a different SORT of the
+ * (Ari) — Gap C. Lesson: artist mode isn't a different SORT of the
  *   same list — it's a different SHAPE. A three-act bill becomes three
  *   rows, and an artist on two bills the same night gets two. That is why
  *   the API returns flat shows and leaves grouping to the frontend
  *   (routers/shows.py). `flatMap` makes the shape; then the sort. Each
  *   row's time is the act's own when the listing gave one, else the show's.
  * Code (replace the `todo` line below):
- *   const rows = shows.flatMap((show) =>
- *     show.lineup.map((entry) => ({
- *       artist: entry.artist,
- *       venue: show.venue,
- *       showId: show.id,
- *       date: show.date,
- *       time: entry.start_time ?? show.start_time ?? null,
- *     })),
- *   );
- *   return rows.sort(
- *     (a, b) =>
- *       a.artist.name.localeCompare(b.artist.name, "en-US") ||
- *       nightSortKey(a.time) - nightSortKey(b.time),
- *   );
+ *   
  * Check: `pnpm --filter calendar test show-order` — the 8-row fixture case
  *   and the same-artist-twice case. Likeliest mistakes: `map` instead of
  *   `flatMap` (an array of arrays; the type error says so), or the show's
  *   time for every act (Pert Near Sandstone at 22:00 instead of 23:15).
  */
 export function artistRows(shows: ShowSummary[]): ArtistRow[] {
-  return todo(shows);
+  const rows = shows.flatMap((show) =>
+    show.lineup.map((entry) => ({
+      artist: entry.artist,
+      venue: show.venue,
+      showId: show.id,
+      date: show.date,
+      time: entry.start_time ?? show.start_time ?? null,
+    })),
+  );
+  return rows.sort(
+    (a, b) =>
+      a.artist.name.localeCompare(b.artist.name, "en-US") ||
+      nightSortKey(a.time) - nightSortKey(b.time),
+  );
 }
 
 // --- the URL ----------------------------------------------------------------------------

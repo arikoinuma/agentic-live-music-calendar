@@ -15,13 +15,13 @@
  */
 
 import { parseFromParam } from "./params";
-import { todo } from "./todo";
+import { Temporal } from "@js-temporal/polyfill";
 
 /**
  * The first day of the previous window and of the next one, given the
  * range just served (both ISO dates, `end` inclusive).
  *
- * TODO(Ari) — Gap B. Lesson: the paging links come from the range the
+ * (Ari) — Gap B. Lesson: the paging links come from the range the
  *   SERVER echoed, never from a clock or a hard-coded 28 (api-contract.md
  *   §3). The window's length is `start.until(end).days + 1` — INCLUSIVE,
  *   hence the `+ 1`. The next window starts the day after `end`; the
@@ -30,10 +30,7 @@ import { todo } from "./todo";
  * Code (add `import { Temporal } from "@js-temporal/polyfill"` — Node 24 has
  *   no global Temporal — replace the `todo` line below, and delete
  *   `import { todo } from "./todo"`):
- *   const s = Temporal.PlainDate.from(start);
- *   const e = Temporal.PlainDate.from(end);
- *   const length = s.until(e).days + 1;
- *   return { earlier: s.subtract({ days: length }).toString(), later: e.add({ days: 1 }).toString() };
+ *   
  * Check: `pnpm --filter calendar test calendar-window` — the default-window
  *   and one-day cases. Likeliest mistakes: forgetting the `+ 1` (earlier
  *   overlaps the current window by a day: 2026-09-01 instead of
@@ -42,7 +39,10 @@ import { todo } from "./todo";
  *   nothing).
  */
 export function windowLinks(start: string, end: string): { earlier: string; later: string } {
-  return todo(start, end);
+  const s = Temporal.PlainDate.from(start);
+  const e = Temporal.PlainDate.from(end);
+  const length = s.until(e).days + 1;
+  return { earlier: s.subtract({ days: length }).toString(), later: e.add({ days: 1 }).toString() };
 }
 
 /** `path` with the window's first day, or the bare `path` for `null` (the server's default window). */

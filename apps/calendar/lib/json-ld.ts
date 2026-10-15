@@ -33,7 +33,6 @@ import { Temporal } from "@js-temporal/polyfill";
 import { isAfterMidnight, nightSortKey } from "./dates";
 import { httpUrlOrNull } from "./detail-format";
 import { orderedLineup } from "./show-format";
-import { todo } from "./todo";
 import type { ShowSummary, VenueDetail } from "./types";
 
 type JsonLdOffer = {
@@ -88,7 +87,7 @@ function instantDay(date: string, t: Temporal.PlainTime): Temporal.PlainDate {
  * Code (replace the `todo` line below, and delete `import { todo } from "./todo"`
  *   once no gap in the codebase still calls it — Gaps C and D in
  *   lib/show-order.ts and Gap B in lib/calendar-window.ts do too):
- *   return day.toZonedDateTime({ timeZone, plainTime: t }).toString({ timeZoneName: "never" });
+ *   
  * Check: `pnpm --filter calendar test json-ld` — the 2026-10-07 20:00 row
  *   (-05:00) and the 2026-12-05 row (-06:00); the after-midnight, fall-back
  *   and spring-forward rows go green with it. Likeliest mistakes: a
@@ -99,7 +98,7 @@ function instantDay(date: string, t: Temporal.PlainTime): Temporal.PlainDate {
  *   (`eventDateTime`) handles that, not this function.
  */
 function withOffset(day: Temporal.PlainDate, t: Temporal.PlainTime, timeZone: string): string {
-  return todo(day, t, timeZone);
+  return day.toZonedDateTime({ timeZone, plainTime: t }).toString({ timeZoneName: "never" });
 }
 
 /**
