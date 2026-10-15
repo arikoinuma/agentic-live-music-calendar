@@ -1,0 +1,48 @@
+# CodeQL: static security analysis for Python and JavaScript/TypeScript.
+#
+# Why it runs here: a public repo gets CodeQL free, and the agent worker
+# handles untrusted input (scraped venue pages) and writes to a database.
+# Static analysis is cheap insurance against the injection-shaped mistakes
+# that are easy to make in that path.
+#
+# Triggers: every PR and push to main, plus a weekly scan so a new query
+# pack can flag old code without a code change.
+
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      # Needed to upload results to the Security tab. Scoped to this job so
+      # the rest of the workflow stays read-only.
+      security-events: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, javascript-typescript]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          # No build step for either language: CodeQL extracts Python and
+          # TypeScript from source. Add a build here only if a compiled
+          # language is ever added.
+
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
