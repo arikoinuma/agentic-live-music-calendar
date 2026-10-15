@@ -1,7 +1,7 @@
 """Tests that the hand-written labels (`agent_worker/eval/labels.py`) are well-formed.
 
-The labels are the ground truth Ari's accuracy standard is scored against (A2.1 plan, D1,
-D5, D11). A malformed label would make the scorer pass or fail runs for reasons that have
+The labels are the ground truth Ari's accuracy standard is scored against (A2.1-D1,
+A2.1-D5, A2.1-D11). A malformed label would make the scorer pass or fail runs for reasons that have
 nothing to do with the model, so these checks run before anything is scored. They test the
 labels' *shape*, not their truth — whether a label is right is what `source_line` lets a
 human check, and what Ari confirms for the flagged rows.
@@ -11,14 +11,14 @@ How to read it: one test per property, each over every page label.
 
 from agent_worker.eval import labels
 
-# D2 as revised by Ari on October 11, 2026: Terminal Bar moved to informational (an outlier layout —
+# A2.1-D2 as revised by Ari on October 11, 2026: Terminal Bar moved to informational (an outlier layout —
 # a date line then one line per act — that no rung fixed without breaking other pages).
 GATED_VENUES = {"white_squirrel", "seventh_st_entry", "mortimers"}
 
 
 def test_every_page_label_has_shows() -> None:
     # Proves: no page is scored against an empty label (which would turn every returned
-    # show into a fabrication). The page left for Ari to label (D11) is red here until he
+    # show into a fabrication). The page left for Ari to label (A2.1-D11) is red here until he
     # fills it.
     empty = [name for name, page in labels.PAGE_LABELS.items() if not page.shows]
     assert empty == []
@@ -46,7 +46,7 @@ def test_no_page_lists_the_same_show_twice() -> None:
 
 
 def test_gated_pages_are_the_reachable_venues() -> None:
-    # Proves: D2 — only venues production can fetch are gated (White Squirrel, 7th St Entry,
+    # Proves: A2.1-D2 — only venues production can fetch are gated (White Squirrel, 7th St Entry,
     # Mortimer's); Zhora, the posters and, since October 11, Terminal Bar are informational.
     gated = {page.venue for page in labels.PAGE_LABELS.values() if page.gated}
     assert gated == GATED_VENUES

@@ -19,7 +19,7 @@ import type { MetroSummary } from "./types";
 // Used when the metro can't be fetched. Exported so the build check can
 // grep the built HTML for it: a static page with this text baked in would
 // mean the metro fetch got cached at build time, which is exactly what
-// decision D1 (no persistent caching in B2) exists to prevent
+// decision B2-D1 (no persistent caching in B2) exists to prevent
 // (plan Verification 3, review #7).
 export const FALLBACK_DESCRIPTION =
   "Live music, gathered from venue calendars.";

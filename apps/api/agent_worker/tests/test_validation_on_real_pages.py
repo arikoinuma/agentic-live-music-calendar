@@ -137,7 +137,7 @@ def test_the_json_ld_under_report_guard_does_not_fire_on_the_real_white_squirrel
 
 @needs_data
 def test_act_not_in_title_catches_a_real_wrong_act_in_the_current_pipelines_run() -> None:
-    # Proves (code review round 1, #9): A2.1's E3 guard has real evidence. In `a3-confirm` (the gated run
+    # Proves (code review round 1, #9): A2.1-E3 guard has real evidence. In `a3-confirm` (the gated run
     # after A3, 56 of 60) 7th St Entry's 30 titles line up with its 30 shows, and the model route's act
     # splitter wrote "Devilsoundguy" for a title that says "Evilsoundguy": the one act name it got wrong
     # that is a typo and not a convention call. The warning names it; no error is raised.

@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     # The larger model the third retry attempt escalates to (arch-initial.md §7: "larger model
     # second"; agent_worker/policy.py). Optional and unset by default: the development laptop can't
-    # run a larger model (A2.1 E1), so tier 3 then reruns the same model with the full retry hint
+    # run a larger model (A2.1-E1), so tier 3 then reruns the same model with the full retry hint
     # and the attempt record says no escalation happened. Until H1 makes model endpoints
     # configurable, it must be a model name Ollama serves.
     escalation_model_name: str | None = None

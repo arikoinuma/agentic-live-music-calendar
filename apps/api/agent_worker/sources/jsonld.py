@@ -3,7 +3,7 @@
 Many venue sites embed their listings as schema.org `Event` objects inside
 `<script type="application/ld+json">` blocks — White Squirrel's calendar plugin does, in the
 page the pipeline actually fetches (verified October 10, 2026). Where they exist, dates,
-times, end times, prices and images can be read exactly, with no model involved (D4 of
+times, end times, prices and images can be read exactly, with no model involved (A2.1-D4 of
 docs/dev/implementations/a2.1-extraction-reliability.md). The model is still needed for one
 thing JSON-LD doesn't say — which performing acts a title names — and that is `act_split.py`.
 
@@ -14,7 +14,7 @@ an offset — and each function below handles the shapes the fixtures actually u
 events lack `name` or `startDate` isn't usable here and falls back to the model route.
 
 How to read it: `find_events` pulls Event objects out of a page; `local_wall_clock` turns a
-schema.org date-time into the metro's local date and time (Gap A); `to_structured_show`
+schema.org date-time into the metro's local date and time (A2.1-Gap-A); `to_structured_show`
 maps one event to a `StructuredShow`, the route's intermediate record.
 """
 
@@ -36,7 +36,7 @@ from agent_worker.normalize import fold_text
 NIGHT_CUTOFF = datetime.time(5, 0)
 
 # An end more than this long after the start isn't a stated end time: DICE-backed pages emit
-# endDates 3-15 hours after the start that no page states (A2.1 plan, D10).
+# endDates 3-15 hours after the start that no page states (A2.1-D10).
 _MAX_SHOW_LENGTH = datetime.timedelta(hours=6)
 
 
@@ -137,7 +137,7 @@ _STATUS_IN_TITLE = re.compile(r"\b(cancell?ed|postponed)\b", re.IGNORECASE)
 
 
 def _status(event: dict[str, Any]) -> str:
-    """schema.org eventStatus (a full URL or the bare name) -> D12's show status. A status
+    """schema.org eventStatus (a full URL or the bare name) -> A2.1-D12's show status. A status
     written in the event's own name ("CANCELLED: …") counts too, for sites that leave eventStatus
     at Scheduled or omit it (code review round 2, #8)."""
     raw = event.get("eventStatus")
@@ -173,7 +173,7 @@ def _offer_price(event: dict[str, Any]) -> float | None:
 
 
 def _end_time(event: dict[str, Any], metro_timezone: str, start: str) -> datetime.time | None:
-    """The end's clock time, only when it is a plausible stated end (D10): within six hours
+    """The end's clock time, only when it is a plausible stated end (A2.1-D10): within six hours
     after the start. Its date is ignored — "9:00 pm - 12:00 am" ends the next day, and A3's
     consistency check allows an end earlier than the start."""
     end = event.get("endDate")
@@ -194,7 +194,7 @@ def end_time_is_stated(
     """True when the page's visible text states this clock time, in any common spelling:
     "8:00 pm", "8pm", "8 p.m.", "20:00", "12:00 am" / "midnight" for 00:00.
 
-    D10 as revised under D1 (Ari, October 10, 2026): an end time no page states is a wrong
+    A2.1-D10 as revised under A2.1-D1 (Ari, October 10, 2026): an end time no page states is a wrong
     value, never acceptable — and platforms such as DICE emit an endDate 3-15 hours after the
     start that the venue never wrote. A JSON-LD end time is kept only when the page says it —
     and, given the event's `title`, only in the text that follows that title (code review round
@@ -237,11 +237,11 @@ def to_structured_show(
 ) -> StructuredShow:
     """Map one schema.org Event to a StructuredShow.
 
-    `page_text` (the page's visible text) turns on D10's check: an end time the page doesn't
+    `page_text` (the page's visible text) turns on A2.1-D10's check: an end time the page doesn't
     state near this event's title, before `other_titles` (the page's other event names) take over,
     is dropped. Without it — as in the unit tests of the mapping alone — no check runs.
 
-    Prices: an Offer is an online ticket price, so it goes in admission_advance (D7, decided by
+    Prices: an Offer is an online ticket price, so it goes in admission_advance (A2.1-D7, decided by
     Ari: a price shown as a "buy" ticket price is the advance price); a price of 0 is an explicit
     "free". No offer leaves all three admission fields null — absence is "not stated", never
     false (requirements-initial.md, Show: Free Admission).
@@ -258,7 +258,7 @@ def to_structured_show(
     if show_time is not None and show_time < NIGHT_CUTOFF:
         show_date -= datetime.timedelta(days=1)
     end_time = _end_time(event, metro_timezone, start)
-    # D10: keep a structured end time only if the page itself states it (see end_time_is_stated).
+    # A2.1-D10: keep a structured end time only if the page itself states it (see end_time_is_stated).
     title = html_lib.unescape(str(event.get("name", ""))).strip()
     if end_time is not None and page_text is not None and not end_time_is_stated(
         end_time, page_text, title, other_titles

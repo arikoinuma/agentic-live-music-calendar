@@ -81,7 +81,7 @@ export function FilterHeader({
     // `isPending` says a navigation is in flight, and `useOptimistic` shows
     // the new selection at once, reverting to the server's value if the
     // navigation fails or lands elsewhere. `scroll: false` keeps the reader's
-    // place instead of jumping to the top. Plan D8: push, not replace, so
+    // place instead of jumping to the top. Plan B3-D8: push, not replace, so
     // Back undoes a filter change.
     startTransition(() => {
       setOptimistic(next);

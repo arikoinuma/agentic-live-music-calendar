@@ -26,7 +26,7 @@ from app.enums import RunTrigger
 from app.log_config import configure_logging
 
 FIXTURE = "agent_worker/eval/fixtures/Archives_ Events - The White Squirrel Bar.html"
-# The fixture was saved on August 17, 2026; the year rule (A2.1, D13) reads this date, and today's would put
+# The fixture was saved on August 17, 2026; the year rule (A2.1-D13) reads this date, and today's would put
 # its August shows a year ahead.
 FETCHED_ON = datetime.date(2026, 8, 17)
 

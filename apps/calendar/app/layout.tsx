@@ -62,7 +62,7 @@ export async function generateMetadata(): Promise<Metadata> {
 // Be precise about what <Suspense> buys here. It does NOT keep this shell
 // statically prerenderable: without `cacheComponents`, a `no-store` fetch
 // anywhere in the root layout makes EVERY route dynamic, including `/` and
-// `/_not-found`. That is the accepted cost of decision D1 (no persistent
+// `/_not-found`. That is the accepted cost of decision B2-D1 (no persistent
 // caching in B2; arch-initial.md §11): each request pays one extra, cheap
 // /metro call, and in exchange `next build` doesn't need the API to be
 // reachable. The benefit of the boundary is streaming, not prerendering.

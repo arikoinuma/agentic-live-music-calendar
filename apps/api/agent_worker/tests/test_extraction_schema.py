@@ -138,11 +138,11 @@ def test_a_minimal_show_validates_with_everything_optional_none() -> None:
 
 
 def test_free_admission_false_becomes_not_stated() -> None:
-    # Proves: F1 of the A2 eval — the model wrote `free_admission: false` on 56 shows whose
+    # Proves: A2-F1 of the A2 eval — the model wrote `free_admission: false` on 56 shows whose
     # pages state no admission at all. `false` carries no meaning downstream (absence of a
     # price never means "not free"), so the schema turns it into None; `true` is kept. The
     # JSON schema the model sees is unchanged (`boolean | null`), as with the time
-    # normalizer. A2.1 plan, D6.
+    # normalizer. A2.1-D6.
     assert validate_field(ShowExtraction, "free_admission", False) is None
     assert validate_field(ShowExtraction, "free_admission", True) is True
     prop = ShowExtraction.model_json_schema()["properties"]["free_admission"]

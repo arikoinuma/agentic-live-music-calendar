@@ -76,7 +76,7 @@ graph.add_edge(NodeNames.ESCALATE, END)
 
 def route_after_fetch(state: VenueGraphState) -> NodeOutcomes:
     """A page that couldn't be fetched (or came back empty) is escalated: there is nothing to
-    extract from, and a model handed a blank page can answer "confirmed empty" (D6)."""
+    extract from, and a model handed a blank page can answer "confirmed empty" (A3-D6)."""
     return NodeOutcomes.ESCALATE if state.fetch_error else NodeOutcomes.PASS
 
 

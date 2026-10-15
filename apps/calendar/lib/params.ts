@@ -155,7 +155,7 @@ export function parseCalendarFilters(searchParams: SearchParams): CalendarFilter
  * "2026-10" -> the first and last day of that month, as inclusive ISO
  * dates. The input must already be valid (parseMonthParam).
  *
- * The client does calendar ARITHMETIC but consults no clock (decision D2;
+ * The client does calendar ARITHMETIC but consults no clock (decision B2-D2;
  * api-contract.md §3, "the server owns now"), so a month means the whole
  * month, past days included. Temporal rather than `Date`, because month
  * lengths and leap Februaries are exactly what `Date` arithmetic gets

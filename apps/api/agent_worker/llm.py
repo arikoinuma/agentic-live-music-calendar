@@ -33,12 +33,12 @@ class RequestOptions:
 
     model: str
     # None = the model's own default (temperature 1 for gemma4-e4b-32k), which is what every
-    # A2 label ran at. A2.1's `a21-temp0` rung measures 0 (plan, S11 / D8).
+    # A2 label ran at. A2.1's `a21-temp0` rung measures 0 (plan, A2-S11 / A2.1-D8).
     temperature: float | None = None
     # A page with many shows needs a genuinely large structured answer; Phase 5's value.
     max_tokens: int = 16000
     # instructor's re-asks after a response that fails the schema: 1 means up to 2 attempts per call.
-    # A3 (D7) lowered it from instructor's default of 3 (4 attempts). The graph's own 3-attempt cap
+    # A3-D7 lowered it from instructor's default of 3 (4 attempts). The graph's own 3-attempt cap
     # multiplies it, and a venue makes up to three model calls per attempt (page, splitter, status),
     # so 3 meant up to 3 x (4 + 4 + 4) = 36 calls for one venue. Measured: the 45 `a21-confirm` runs
     # used 0 re-asks (mean 1.0 attempts, 0 parse failures), so the extra budget had never earned its

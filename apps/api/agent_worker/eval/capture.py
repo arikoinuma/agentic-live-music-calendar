@@ -34,7 +34,7 @@ _THIN_PAGE = 500
 
 
 def default_venues() -> list[str]:
-    """The venues a bare `capture` run fetches: all but the blocked ones (D3: Midway answered
+    """The venues a bare `capture` run fetches: all but the blocked ones (A2.1-D3: Midway answered
     with a bot challenge and isn't asked again; Zhora's listings need a browser). A blocked
     venue can still be captured by naming it."""
     return sorted(key for key, facts in VENUE_FACTS.items() if not facts.blocked)
