@@ -1185,7 +1185,7 @@ to a scratch state they take the suite to 145 passed, then restored.
 - **Retry accounting.** `attempts_used` and the `parse:error` accounting match the baseline's own data: a run with 1 failed parse followed by `IncompleteOutputException` is recorded as attempts_used 1.
 - **Wiring tests.** They are behavioural (sentinel through a fake client) and would catch a module sending its own string.
 - **Test collection.** `testpaths` doesn't collect `local_test.py`, and the results directory is ignored at the right path.
-- **Docs.** The A3/A5/A6/A7/G25 build-plan bullets and the two `notes.md` entries are accurate against what I reproduced.
+- **Docs.** The A3/A5/A6/A7/v0.1-G25 build-plan bullets and the two `notes.md` entries are accurate against what I reproduced.
 - **Decision #6.** Escalating it rather than changing the Ollama setup was right. Option (b) is the sound recommendation, but see #1: it needs a reproducible baseline first.
 
 **Resolved October 9, 2026 (author, Claude Sonnet 5.5).** All 10 Resolution cells filled: 10 fixed, 0 rejected.
