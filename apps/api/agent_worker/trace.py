@@ -31,7 +31,7 @@ from collections.abc import Awaitable, Callable
 
 from langgraph.runtime import Runtime
 
-from agent_worker import staging  # noqa: F401  (used by Gap C below)
+from agent_worker import staging
 from agent_worker.audit import entry_for
 from agent_worker.context import WorkerContext
 from agent_worker.state import VenueGraphState
@@ -57,23 +57,14 @@ def audited(step: StepType, node: Node) -> Callable[..., Awaitable[VenueGraphSta
         # (2) Raw staging, extract only.
         staging_id = None
         if step is StepType.EXTRACT:
-            # TODO(Ari) Gap C — Lesson: raw staging is the record of what the model was asked and what it
+            #   Raw staging is the record of what the model was asked and what it
             #   said, BEFORE anyone judged it (arch-initial.md §6, bronze before silver), so it is written
             #   on EVERY attempt, unconditionally, failed ones included. A failed call's document (its
             #   error, route and request configuration) is exactly what a person debugging an escalation
             #   needs, and its id goes into this step's audit row, which is what joins the two stores
             #   (plan D4). `state` is the one the node just returned (line above), because the document
             #   describes what that attempt produced.
-            # Code:
-            #   staging_id = await runtime.context.stager.stage(staging.document_for(state))
-            #   Then delete the `# noqa` on the `staging` import at the top of this file: it exists only while
-            #   this gap is open, and ruff flags it (RUF100) once the name is used.
-            # Check: `uv run pytest agent_worker/tests/test_graph_audit.py -k "retry_adds_rows"` — it checks
-            #   each document's attempt and error, not just the count. Likeliest mistakes: guarding with
-            #   `if state.extraction is not None` (the failed attempt's document goes missing, and the test
-            #   counts one document instead of two), or staging before the node runs (the documents then
-            #   carry the previous attempt's fields).
-            raise NotImplementedError("TODO(Ari)")
+            staging_id = await runtime.context.stager.stage(staging.document_for(state))
 
         # (3) The audit row. If the stager above raised, we never get here: a run whose raw record can't be
         # kept stops, it doesn't continue unaudited.
