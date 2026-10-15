@@ -1,6 +1,6 @@
 # A4 — auditability
 
-**Status:** Awaiting sign-off
+**Status:** Done (Ari sign off) - Oct 15, 2026
 **Date:** October 14, 2026
 **Author model:** Claude Opus 5.5 (plan, plan-review resolution, October 14, 2026); Claude Sonnet 5.5 (implementation, from October 14, 2026)
 **Reviewer model:** Claude Sonnet 5.5 (plan review round 1); Claude Opus 5.5 (code review round 1, October 14, 2026)
@@ -570,6 +570,13 @@ The file's header shows how to run it: `make db-shell`, then `\set run_id 3`, th
 and the lesson is already in the plan and in the tests, so it is written complete rather than left as a gap
 (`AGENTS.md` allows re-marking a gap that does not earn its place). K1 and K3 stay open for Ari. Approval
 was recorded by invoking `/build-milestone`. No draft PR yet, at Ari's request.
+
+**Ari, October 15, 2026: signed off. A4 is Done.** K1 (`main.run_venue`) and K3 (`trace.audited`) were filled by
+Ari (commit `ec314a2`, "close the intentional gaps"); Ari ran the local verification (Docker Desktop, Ollama) and
+committed its findings (`8ba2864`): local MongoDB pinned to 7.0 (see `docs/dev/notes.md`), the `psql` recipe fixed
+to pipe the file in from the host, and `local_test` run from `apps/api`. Plan review round 1 (8 findings) and code
+review round 1 (12 findings) are both fully resolved. Not verified in the cloud sandbox and covered instead by
+Ari's local run: `MongoStager` against a real server, `make worker`, and live extraction.
 
 ## Plan review
 
