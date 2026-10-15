@@ -210,7 +210,7 @@ def test_image_urls_stay_in_the_cleaned_text_where_the_image_sat_when_asked() ->
 
 def test_the_default_cleaning_is_unchanged() -> None:
     # Proves: with the switch off (the default) the cleaned text is what it was — the property the 56/60
-    # score depends on (D12).
+    # score depends on (A3-D12).
     html = '<p>Nona</p><img src="https://v.example/nona.png"><p>8 pm</p>'
     assert extraction.clean_text(html, keep_line_breaks=True) == "Nona\n8 pm"
     assert extraction.clean_text(html, keep_line_breaks=False) == "Nona 8 pm"
@@ -289,7 +289,7 @@ def fetch(monkeypatch: pytest.MonkeyPatch, get: FakeGet) -> VenueGraphState:
 
 
 def test_three_server_errors_are_three_calls_then_a_recorded_fetch_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Proves (D6): a 5xx is transient — retried with backoff, three attempts in all (arch-initial.md §7) —
+    # Proves (A3-D6): a 5xx is transient — retried with backoff, three attempts in all (arch-initial.md §7) —
     # and the failure that survives is recorded in `fetch_error`, not raised out of the graph.
     get = FakeGet((503, "unavailable"))
     state = fetch(monkeypatch, get)

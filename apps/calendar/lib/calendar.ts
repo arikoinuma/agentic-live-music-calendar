@@ -2,7 +2,7 @@
  * The calendar's shape: the API's flat list of shows -> date rows, each
  * holding one column per venue that has a show that day.
  *
- * Plan D1 (docs/dev/implementations/b3-the-calendar.md): a row lists only
+ * Plan B3-D1 (docs/dev/implementations/b3-the-calendar.md): a row lists only
  * the venues with a show that date, alphabetically — not every venue on
  * every date. A real metro has tens of venues and most are dark on most
  * nights, so an aligned grid would be mostly empty cells; this is the
@@ -22,7 +22,7 @@ import type { CalendarMonth, ShowSummary, VenueSummary } from "./types";
 export type VenueColumn = { venue: VenueSummary; shows: ShowSummary[] };
 
 // One date's row. `venues` is empty for a date with no shows — the row
-// still exists (plan D2), and the page renders it as a thin "Nothing
+// still exists (plan B3-D2), and the page renders it as a thin "Nothing
 // listed" line.
 export type CalendarRow = {
   date: string;
@@ -58,7 +58,7 @@ export function groupCalendar(input: {
   });
 
   // Rows come from the RANGE the server served, not from the shows. That is
-  // how an empty day still gets a row (plan D2), and why the page renders
+  // how an empty day still gets a row (plan B3-D2), and why the page renders
   // `start`/`end` from the response (api-contract.md §3). Temporal walks the
   // range: `add({ days: 1 })` handles month ends and leap days, and `compare`
   // handles the INCLUSIVE end (Temporal objects throw on `<=`).
@@ -83,7 +83,7 @@ export function groupCalendar(input: {
     column.shows.push(show);
   }
 
-  // Columns alphabetical by venue name (plan D1); within a column, shows
+  // Columns alphabetical by venue name (plan B3-D1); within a column, shows
   // in the order they happen that night.
   for (const row of rows) {
     row.venues.sort((a, b) => a.venue.name.localeCompare(b.venue.name, "en-US"));
@@ -100,7 +100,7 @@ export function groupCalendar(input: {
  * `months` is what `GET /calendar/months` returned — future-facing months
  * that have shows; the server decides both (api-contract.md §2). If the
  * URL's current month isn't among them (a hand-edited past month is
- * allowed, B2 decision D2), it is added so the select can show what the
+ * allowed, B2-D2), it is added so the select can show what the
  * calendar is actually showing instead of claiming another month.
  */
 export function monthOptions(

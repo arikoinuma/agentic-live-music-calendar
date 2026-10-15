@@ -56,7 +56,7 @@ VENUES: list[tuple[str, str, FetchStrategy]] = [
     # if the shows aren't in the raw HTML.
     # Confirmed October 10, 2026 (A2.1): a plain GET gets HTTP 403 with a
     # Cloudflare "Enable JavaScript and cookies" challenge — a bot check this
-    # project won't try to get past (A2.1 plan, D3). BROWSER wouldn't be the
+    # project won't try to get past (A2.1-D3). BROWSER wouldn't be the
     # honest fix either, so the strategy is left as it is; until a sanctioned
     # route exists (asking the venue, a public feed) this venue extracts nothing.
     ("The Midway Saloon", "https://www.themidwaysaloon.com/events", FetchStrategy.HTTP),

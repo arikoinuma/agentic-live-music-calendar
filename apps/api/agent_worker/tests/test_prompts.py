@@ -129,7 +129,7 @@ def test_instruction_no_longer_asks_for_ticket_info() -> None:
 
 
 def test_the_cancelled_rule_keeps_cancelled_listings_with_their_status() -> None:
-    # Proves: D12 of the A2.1 plan — a cancelled or postponed listing is still extracted
+    # Proves: A2.1-D12 of the A2.1 plan — a cancelled or postponed listing is still extracted
     # (reconcile must match it to the stored show), and the sentence is only sent when the
     # rung asks for it.
     rule = prompts._cancelled_rule().lower()
@@ -139,7 +139,7 @@ def test_the_cancelled_rule_keeps_cancelled_listings_with_their_status() -> None
 
 
 def test_the_act_conventions_are_one_text_for_both_routes() -> None:
-    # Proves: D5's conventions (tour names, parentheticals, named DJs, splitting markers) are
+    # Proves: A2.1-D5's conventions (tour names, parentheticals, named DJs, splitting markers) are
     # one text, sent to the model route when the rung asks for it — the same text the
     # JSON-LD splitter gets (round 2 #2; test_act_split.py checks the other side).
     text = prompts._act_conventions().lower()
@@ -315,7 +315,7 @@ def test_both_callers_send_the_real_instruction(
 
 
 def test_retries_are_stated_not_implicit(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    # Proves: both call sites pass `max_retries=1` explicitly. A3 (D7) lowered it from instructor's
+    # Proves: both call sites pass `max_retries=1` explicitly. A3-D7 lowered it from instructor's
     # default of 3: the graph's own 3-attempt cap multiplies it (3 x (4 + 4 + 4) = 36 model calls per
     # venue before), and the 45 a21-confirm runs used none. The literal is the decision; it should be
     # visible where it's spent, and a change to it should be a decision, not a drift.

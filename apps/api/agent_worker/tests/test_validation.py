@@ -6,7 +6,7 @@ clock — the date is always passed in. They also stand in for the "unit tests f
 checks" the build plan filed under A7, pulled forward because tests come first.
 
 How to read it: sections follow the order in validation.py. Every expectation is a literal whose source
-is named in the test: the 31/366-day window is plan decision D2, the dates in the "Nona" case are
+is named in the test: the 31/366-day window is plan decision A3-D2, the dates in the "Nona" case are
 White Squirrel's own listing ("9:00 pm - 12:00 am", requirements-initial.md Show), the verdict table
 is plan §1. Nothing reads its expectation from the code under test. The pages are small synthetic
 HTML in the shapes of the fixtures (which are gitignored, so CI has none); the real-page layer is
@@ -65,28 +65,28 @@ def codes(result: validation.ValidationResult, severity: Severity | None = None)
 
 
 # ---------------------------------------------------------------------------
-# Page outcome (Gap B)
+# Page outcome (A3-Gap-B)
 # ---------------------------------------------------------------------------
 
 
 def test_page_outcome_has_shows() -> None:
-    # Proves (Gap B): a readable page with shows is the normal case.
+    # Proves (A3-Gap-B): a readable page with shows is the normal case.
     assert validation.classify_page(page(show())) is PageOutcome.HAS_SHOWS
 
 
 def test_page_outcome_confirmed_empty() -> None:
-    # Proves (Gap B): `page_readable` true with no shows is a *confirmed empty* calendar — a
+    # Proves (A3-Gap-B): `page_readable` true with no shows is a *confirmed empty* calendar — a
     # legitimate pass, the field's whole reason for existing (G3).
     assert validation.classify_page(page()) is PageOutcome.CONFIRMED_EMPTY
 
 
 def test_page_outcome_unreadable() -> None:
-    # Proves (Gap B): an unreadable page with no shows is a failure, not an empty calendar.
+    # Proves (A3-Gap-B): an unreadable page with no shows is a failure, not an empty calendar.
     assert validation.classify_page(page(readable=False)) is PageOutcome.UNREADABLE
 
 
 def test_page_outcome_unreadable_wins_over_returned_shows() -> None:
-    # Proves (Gap B): readability is asked first. A model that says "I couldn't read this" and then
+    # Proves (A3-Gap-B): readability is asked first. A model that says "I couldn't read this" and then
     # returns a show anyway is not trusted on the show; testing `shows` first would read it as normal.
     assert validation.classify_page(page(show(), readable=False)) is PageOutcome.UNREADABLE
 
@@ -131,7 +131,7 @@ def test_a_listing_the_splitter_left_out_is_an_error_not_an_exclusion() -> None:
 
 
 def test_an_act_not_in_its_title_is_a_warning_not_an_error() -> None:
-    # Proves (A2.1 E3): an invented act name is flagged, and flagged only as a warning (the
+    # Proves (A2.1-E3): an invented act name is flagged, and flagged only as a warning (the
     # splitter legitimately drops parentheticals and "w." markers, so the guard can't be an error).
     extraction = page(show(datetime.date(2026, 10, 20), "Devilsoundguy"))
     result, _ = validate(extraction, notes={"titles": ["Dave Wilson w. Gills"]})
@@ -180,12 +180,12 @@ def test_when_every_show_is_excluded_an_undated_page_passes_with_no_confidence()
 
 
 # ---------------------------------------------------------------------------
-# Plausibility (Gap C)
+# Plausibility (A3-Gap-C)
 # ---------------------------------------------------------------------------
 
 
 def test_the_date_window_boundaries_on_the_model_route() -> None:
-    # Proves (Gap C): the window is 31 days back to 366 days ahead of the FETCH date (plan D2, from
+    # Proves (A3-Gap-C): the window is 31 days back to 366 days ahead of the FETCH date (plan A3-D2, from
     # the year rule's lookback and the build plan's "a month past, a year out"). 2026-09-11 is 31
     # days before 2026-10-12 and passes; 09-10 is 32 and fails. 2027-10-13 is 366 ahead and passes;
     # 10-14 is 367 and fails. On the model route an out-of-window date is an error (a retry can re-read).
@@ -198,7 +198,7 @@ def test_the_date_window_boundaries_on_the_model_route() -> None:
 
 
 def test_an_out_of_window_json_ld_event_is_excluded_with_a_warning_not_failed() -> None:
-    # Proves (D13): on the JSON-LD route the date is the source's own and no retry changes it; the
+    # Proves (A3-D13): on the JSON-LD route the date is the source's own and no retry changes it; the
     # model route's year rule would re-date it into a plausible, wrong date. So the show is left out,
     # visibly, and the page still passes.
     extraction = page(show(datetime.date(2026, 10, 20)), show(datetime.date(2027, 11, 30), "Festival Act"))
@@ -219,7 +219,7 @@ def test_a_feb_29_that_the_year_rule_leaves_alone_is_caught_by_the_window() -> N
 
 
 def test_an_end_time_earlier_than_the_start_is_the_next_morning_and_raises_nothing() -> None:
-    # Proves (Gap C): White Squirrel lists "Nona ... 9:00 pm - 12:00 am", which extracts correctly as
+    # Proves (A3-Gap-C): White Squirrel lists "Nona ... 9:00 pm - 12:00 am", which extracts correctly as
     # start 21:00, end 00:00 (requirements, Show: "an end time earlier than its start is the next
     # morning"). A naive `end <= start` check would flag or repair a correct record.
     result, kept = validate(page(show(time="21:00", end="00:00")), source="jsonld")
@@ -240,7 +240,7 @@ def test_an_end_time_equal_to_the_start_is_dropped_as_a_repair_never_a_failure(s
 
 
 def test_an_end_time_with_no_start_is_dropped_as_a_repair() -> None:
-    # Proves (D4): A2's eval showed the poster route putting a start in `end_time` with `time` null
+    # Proves (A3-D4): A2's eval showed the poster route putting a start in `end_time` with `time` null
     # (terminal_bar_show_2, 21:00 on every seed). The code can't know which it is, so it drops the end:
     # missing is tolerated (about 1 in 10), a wrong value never. Not moved into `time` — a guess.
     result, kept = validate(page(show(end="21:00")), source="image")
@@ -289,7 +289,7 @@ def test_free_alone_and_a_price_alone_are_consistent() -> None:
 
 
 def test_an_image_url_on_the_page_is_kept_and_one_that_is_not_is_dropped_and_recorded() -> None:
-    # Proves (F6, D4): a poster URL must appear verbatim in the page, or it is dropped — a Repair
+    # Proves (A2-F6, A3-D4): a poster URL must appear verbatim in the page, or it is dropped — a Repair
     # records it. A model can invent a plausible URL; only the page can vouch for one.
     html = '<img src="https://v.example/uploads/poster.png">'
     kept_url, _ = validate(page(show(image_url="https://v.example/uploads/poster.png")), html=html)
@@ -317,7 +317,7 @@ def test_the_image_url_check_runs_on_the_model_route_only(source: validation.Sou
 
 
 def test_a_model_route_end_time_the_page_does_not_state_is_dropped() -> None:
-    # Proves (A2.1 D10 for the model route): an end time must be one the page states. "8pm - 11pm" in
+    # Proves (A2.1-D10 for the model route): an end time must be one the page states. "8pm - 11pm" in
     # the text vouches for 23:00; "8pm" alone does not.
     stated, _ = validate(page(show(time="20:00", end="23:00")), text="The Band Oct 20 8pm - 11pm")
     unstated, kept = validate(page(show(time="20:00", end="23:00")), text="The Band Oct 20 8pm")
@@ -369,7 +369,7 @@ def test_only_the_past_31_days_are_ignored_so_an_older_archive_still_counts() ->
 
 
 def test_json_ld_that_lists_fewer_events_than_the_page_names_is_under_reported() -> None:
-    # Proves (E16): three or more upcoming dates in the text with no extracted show on them means the
+    # Proves (A2.1-E16): three or more upcoming dates in the text with no extracted show on them means the
     # structured data is partial. Six dates named, two with shows, four unmatched -> error.
     text = "Oct 20 Oct 21 Oct 22 Oct 23 Oct 24 Oct 25"
     extraction = page(show(datetime.date(2026, 10, 20)), show(datetime.date(2026, 10, 21)))
@@ -402,7 +402,7 @@ def test_an_archive_of_recent_past_dates_is_not_counted_as_under_reporting() -> 
 
 
 def test_an_empty_list_on_a_page_that_names_dates_is_an_error() -> None:
-    # Proves (D10): `page_readable: true, shows: []` is the most dangerous output (A5 would soft-delete
+    # Proves (A3-D10): `page_readable: true, shows: []` is the most dangerous output (A5 would soft-delete
     # every stored show), so it isn't a confirmed-empty pass when the visible text names dates.
     result, _ = validate(page(), text="Oct 20 Oct 21 Oct 22 Oct 23 Oct 24")
     assert CheckCode.EMPTY_BUT_DATED in codes(result, Severity.ERROR)
@@ -421,11 +421,11 @@ def test_dates_that_extracted_shows_already_sit_on_do_not_make_a_page_empty_but_
 
 
 def test_a_json_ld_page_whose_every_event_is_out_of_window_passes_with_each_exclusion_reported() -> None:
-    # Proves (code review round 1, #1; D13): all events stale -> all excluded with a warning each, no
+    # Proves (code review round 1, #1; A3-D13): all events stale -> all excluded with a warning each, no
     # `empty_but_dated` error, so no route fallback is triggered. Aug 1-3 2026 against a 2026-10-12 fetch
     # are more than 31 days back, so `upcoming_dates` places them in 2027 and they COUNT as dated text:
     # the guard has to subtract the shows' own dates, not rely on "past dates are ignored".
-    # (Gap C: the window.)
+    # (A3-Gap-C: the window.)
     stale = [show(datetime.date(2026, 8, d), f"Band {d}") for d in (1, 2, 3)]
     result, kept = validate(page(*stale), source="jsonld", text="Band 1 Aug 1 8 pm Band 2 Aug 2 8 pm Band 3 Aug 3 8 pm")
     assert kept == [] and result.excluded == [0, 1, 2]
@@ -454,7 +454,7 @@ def test_an_unreadable_page_is_not_also_reported_as_empty_but_dated() -> None:
 
 
 def test_confidence_is_the_minimum_over_the_kept_shows_a_model_judged() -> None:
-    # Proves (D9): the minimum, not the mean — one doubtful show is the thing to look at. An excluded
+    # Proves (A3-D9): the minimum, not the mean — one doubtful show is the thing to look at. An excluded
     # show's confidence is ignored (it isn't in the record being judged).
     extraction = page(
         show(datetime.date(2026, 10, 20), confidence=0.95), show(datetime.date(2026, 10, 21), confidence=0.7),
@@ -467,7 +467,7 @@ def test_confidence_is_the_minimum_over_the_kept_shows_a_model_judged() -> None:
 
 
 def test_json_ld_confidence_is_none_because_its_one_point_zero_is_a_placeholder() -> None:
-    # Proves (D9, A2.1 plan review #15): the JSON-LD route stamps `confidence=1.0` on every show,
+    # Proves (A3-D9, A2.1 plan review #15): the JSON-LD route stamps `confidence=1.0` on every show,
     # claiming a certainty about acts the splitter doesn't have. It must not read as evidence.
     result, _ = validate(page(show(confidence=1.0)), source="jsonld")
     assert result.confidence is None
@@ -489,7 +489,7 @@ def test_shows_the_status_merge_added_are_left_out_of_the_confidence() -> None:
 
 
 def test_ambiguous_and_possible_merge_are_warnings_only() -> None:
-    # Proves (D3): `is_ambiguous` means "a human may want to look" and never fails a page; acts with
+    # Proves (A3-D3): `is_ambiguous` means "a human may want to look" and never fails a page; acts with
     # different start times are flagged as a possible merge (A5 reads it) but are legitimately one
     # show when it has one ticket link.
     merged = ShowExtraction.model_validate({

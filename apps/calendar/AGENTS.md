@@ -93,8 +93,8 @@ HTTP against the API for anything else — the routes exist and serve the same d
   `next build` a `no-store` fetch throws a dynamic-usage error on purpose, and a bare
   `catch` turns it into a build failure (`docs/dev/notes.md`).
 - Every route is dynamic (`ƒ`) in B2: the root layout fetches the metro with `no-store`
-  (decision D1 in the B2 plan). `next build` therefore doesn't need the API running.
-- `/` streams (B3, decision D4): its API-dependent body sits inside a `<Suspense>` in the
+  (decision B2-D1). `next build` therefore doesn't need the API running.
+- `/` streams (B3-D4): its API-dependent body sits inside a `<Suspense>` in the
   page, not a root `loading.tsx`, because streaming makes `notFound()` answer 200 (a soft
   404) and the detail routes need real 404s. With the API down `/` is a 200 with the shell
   and a skeleton; the detail routes are still B2's bare 500.

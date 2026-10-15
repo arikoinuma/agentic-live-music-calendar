@@ -24,8 +24,8 @@ validate itself. Anything it won't accept raises `ValueError`, which Pydantic re
 a validation error, so `instructor` re-asks exactly as it did before.
 
 A2.1 added three small helpers at the end of the file, each a rule that code applies to
-what the model returns rather than trusting the model with it: `false_to_none` (F1),
-`infer_year` (D13: the year comes from the fetch date) and `fold_text` (one comparison form
+what the model returns rather than trusting the model with it: `false_to_none` (A2-F1),
+`infer_year` (A2.1-D13: the year comes from the fetch date) and `fold_text` (one comparison form
 for names). docs/dev/implementations/a2.1-extraction-reliability.md says why each exists.
 """
 
@@ -131,7 +131,7 @@ def _build(
 
 
 def false_to_none(value: Any) -> Any:
-    """`free_admission: false` -> None (F1 of the A2 eval; A2.1 plan, D6).
+    """`free_admission: false` -> None (A2-F1 of the A2 eval; A2.1-D6).
 
     The model wrote `false` on 56 shows whose pages state no admission at all, despite
     "otherwise null". Downstream, `false` would read as "confirmed not free", a claim the page
@@ -144,13 +144,13 @@ def false_to_none(value: Any) -> Any:
 
 # How far before the fetch date a listed date may fall and still be read as this year: a page
 # can keep a show up for a few weeks after it happens, but nothing further back than this is
-# an upcoming listing (A2.1 plan, D13). Public since A3: validation.py's date-plausibility window
+# an upcoming listing (A2.1-D13). Public since A3: validation.py's date-plausibility window
 # uses the same number, so the year rule and the check can't drift apart.
 YEAR_LOOKBACK = datetime.timedelta(days=31)
 
 
 def infer_year(listed: datetime.date, fetch_date: datetime.date) -> datetime.date:
-    """Set a listed date's year from the fetch date (A2.1 plan, D13 — decided by Ari: in code).
+    """Set a listed date's year from the fetch date (A2.1-D13 — decided by Ari: in code).
 
     The model is not trusted with a year: Mortimer's states none and the model guessed 2024.
     Rule: keep the month and day; the year is the one that puts the date no more than 31 days

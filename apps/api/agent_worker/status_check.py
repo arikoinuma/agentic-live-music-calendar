@@ -1,11 +1,11 @@
-"""Cancelled and postponed listings, found by a separate narrow question — D12 as decided by Ari.
+"""Cancelled and postponed listings, found by a separate narrow question — A2.1-D12 as decided by Ari.
 
-D12 (docs/dev/implementations/a2.1-extraction-reliability.md): a cancelled or postponed listing
+A2.1-D12 (docs/dev/implementations/a2.1-extraction-reliability.md): a cancelled or postponed listing
 is not a show to display, but it must be extracted with its status, because the show was most
 likely stored on an earlier scan and reconcile has to find it and update it. The first attempt
 put a `status` field into the main extraction schema (`a21-cancelled`): the status came back
 right on every cancelled listing, but the extra field made act splitting worse on pages with no
-cancelled shows at all — the same schema-shape sensitivity behind A2's F9. Ari chose (October 11,
+cancelled shows at all — the same schema-shape sensitivity behind A2-F9. Ari chose (October 11,
 2026) to ask separately instead, so the main schema stays exactly as it is.
 
 How to read it, in order:
@@ -116,7 +116,7 @@ def apply(
     status, **only if its acts appear in the page text**; otherwise it is recorded in the notes
     and not added (code review round 2, #1). An added listing's acts go through `split_titles`
     when given (the title-split route's act splitter, #4). Its date follows the year rule when
-    `fetch_date` is given (D13); it has no time (the question doesn't ask for one: missing is
+    `fetch_date` is given (A2.1-D13); it has no time (the question doesn't ask for one: missing is
     tolerated, a wrong value is not) and `confidence` 1.0 — a placeholder, like the JSON-LD
     route's, which A3's confidence aggregate ignores (`notes["added_indices"]`).
     """

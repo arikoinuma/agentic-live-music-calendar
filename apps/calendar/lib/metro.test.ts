@@ -5,7 +5,7 @@ import metro from "./fixtures/metro.json";
 
 afterEach(() => vi.restoreAllMocks());
 
-// --- getMetroOrNull (Gap C) -------------------------------------------------
+// --- getMetroOrNull (B2-Gap-C) -------------------------------------------------
 
 describe("getMetroOrNull", () => {
   it("returns the metro when the fetch succeeds", async () => {
@@ -53,7 +53,7 @@ describe("siteDescription", () => {
   it("falls back to the generic description when the metro is unavailable", () => {
     // Proves: the page <meta description> never contains "null". The
     // constant is exported so Verification 3 can grep the built HTML for
-    // it (a static page with the fallback baked in is the D1 failure).
+    // it (a static page with the fallback baked in is the B2-D1 failure).
     expect(siteDescription(null)).toBe(FALLBACK_DESCRIPTION);
   });
 });

@@ -59,7 +59,7 @@ class VenueGraphState(BaseModel):
     # JSON-LD lives in <script> blocks, which cleaning strips from page_content.
     page_html: str | None = None
 
-    # fetched_on — the date fetch_node ran; the year rule (A2.1 plan, D13) reads it.
+    # fetched_on — the date fetch_node ran; the year rule (A2.1-D13) reads it.
     fetched_on: datetime.date | None = None
 
     # page_content — str | None. What fetch_node produces: the cleaned
@@ -112,7 +112,7 @@ class VenueGraphState(BaseModel):
     # ---------------------------------------------------------------------
 
     # policy — the retry settings for this run (confidence threshold, attempt cap, escalation
-    # model). On the state rather than in a graph factory (A3 plan, D11): the compiled graph stays
+    # model). On the state rather than in a graph factory (A3-D11): the compiled graph stays
     # a singleton, and A8 or a test varies a run by passing a different policy. Read by the
     # routers and by extract_node / validate_node.
     policy: RetryPolicy = DEFAULT_POLICY
@@ -127,7 +127,7 @@ class VenueGraphState(BaseModel):
     # reset an attempt-2 success would still carry attempt 1's error. `route_attempted` is set
     # before the call, so a failed attempt still says which route it used (the sticky fallback
     # reads it). The notes are PageExtractionResult.notes (route, titles, status merge) — A4
-    # persists them (A2.1 E17).
+    # persists them (A2.1-E17).
     extraction_source: Route | None = None
     route_attempted: Route | None = None
     extraction_notes: dict[str, Any] = Field(default_factory=dict)

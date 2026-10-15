@@ -509,7 +509,7 @@ def aggregate(runs: list[dict[str, Any]]) -> dict[str, Any]:
             "leaks": [r["score"]["leaks"] for r in mine_ok],
             "page_readable": [r["page_readable"] for r in mine_ok],
             # Whether every successful run returned the same extraction. At temperature 0 the
-            # runs may be identical, which makes "worst of 5" one sample in disguise (A2.1 D1,
+            # runs may be identical, which makes "worst of 5" one sample in disguise (A2.1-D1,
             # code review #3); the comparison has to be able to say so.
             # Compared per page file (a venue key can hold several pages); claimed only when every
             # page has two or more successful runs — otherwise unknown, None (code review round 2, #5).

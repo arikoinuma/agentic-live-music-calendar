@@ -77,7 +77,7 @@ class EmptyResponse(Exception):
 def metro_today(metro_timezone: str) -> datetime.date:
     """Today's date on the metro's clock, not the machine's: a worker running in UTC late on a
     Chicago evening is already on tomorrow's date, which would shift the year rule's window
-    (A2.1 plan, D13)."""
+    (A2.1-D13)."""
     return datetime.datetime.now(ZoneInfo(metro_timezone)).date()
 
 
@@ -121,7 +121,7 @@ def fetch_node(state: VenueGraphState) -> VenueGraphState:
     """Reads a venue's page: over HTTP when calendar_url is an actual URL, from a local file
     otherwise (local_test.py and the tests depend on that path).
 
-    A3 (D6): a failure to read the page — a network error that survived the retries, an error
+    A3-D6: a failure to read the page — a network error that survived the retries, an error
     status, an unreadable file, an empty page — is recorded in `state.fetch_error` and routed to
     escalate by `route_after_fetch`, instead of raising out of the graph. An empty text page is
     treated the same way (see `EmptyResponse`).
@@ -134,7 +134,7 @@ def fetch_node(state: VenueGraphState) -> VenueGraphState:
     """
     state.fetch_error = None
     # The raw HTML is kept in `page_html` (the JSON-LD route needs the <script> blocks that cleaning
-    # strips), and the date is recorded for the year rule (A2.1, D13). A caller that knows when the
+    # strips), and the date is recorded for the year rule (A2.1-D13). A caller that knows when the
     # page was captured (local_test's August fixture) passes it; otherwise it is today on the metro's clock.
     state.fetched_on = state.fetched_on or metro_today(state.metro_timezone)
     try:

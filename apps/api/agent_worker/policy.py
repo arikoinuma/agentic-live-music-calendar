@@ -8,9 +8,9 @@ How to read it, top to bottom:
 1. `RetryPolicy` — the named, injectable settings (the confidence threshold and the attempt cap
    used to be literals inside the routing function). A8 varies them by passing a different policy.
 2. `AttemptRecord` / `AttemptPlan` — what one attempt did, and what the next one will change.
-3. `combine` (Gap D) — evidence + confidence -> one verdict, and `decide_route` — verdict
+3. `combine` (A3-Gap-D) — evidence + confidence -> one verdict, and `decide_route` — verdict
    + attempt count -> the graph's next step.
-4. `retry_hint` and `plan_for_attempt` (Gap E) — what makes a retry different from the
+4. `retry_hint` and `plan_for_attempt` (A3-Gap-E) — what makes a retry different from the
    call before it. At temperature 0 an unchanged retry returns the same answer (A2.1's confirmation
    run: five runs, byte-identical output), so without this the retry loop is a loop, not a retry.
 
@@ -51,20 +51,20 @@ Route = Literal["jsonld", "model", "image"]
 class RetryPolicy:
     """Frozen, like `ExtractionConfig`, so a run's policy can't change halfway through it."""
 
-    # Low confidence fails a record only when nothing deterministic has (D9). 0.8 was the literal in
+    # Low confidence fails a record only when nothing deterministic has (A3-D9). 0.8 was the literal in
     # the old router; A8 checks whether the number is right.
     confidence_threshold: float = 0.8
     # Total extract attempts, the first included ("Retries are capped (3 attempts)", arch §7).
     max_attempts: int = 3
     # The larger model tier 3 uses (arch §7: "larger model second"). Unset until H1 provides a hosted
-    # model: the development laptop can't run one (D5). Unset = tier 3 runs the same model with
+    # model: the development laptop can't run one (A3-D5). Unset = tier 3 runs the same model with
     # the full hint and the record says so. Must be an Ollama model name until H1 makes endpoints
     # per call, because `instructor_client` is bound to Ollama.
     escalation_model: str | None = None
 
     def __post_init__(self) -> None:
         # `ESCALATION_MODEL_NAME=` (uncommented, left empty) is read as "" and not None, which would
-        # make Gap E record `larger_model_used=True` while the same model runs — the misreport D5
+        # make A3-Gap-E record `larger_model_used=True` while the same model runs — the misreport A3-D5
         # exists to stop (code review round 1, #3). An empty name means "none configured".
         if not self.escalation_model:
             object.__setattr__(self, "escalation_model", None)
@@ -87,7 +87,7 @@ class AttemptPlan:
     config: ExtractionConfig
     options: RequestOptions
     # False when tier 3 was planned but no escalation model is configured — the audit record
-    # must not claim a larger model ran when it didn't (D5).
+    # must not claim a larger model ran when it didn't (A3-D5).
     larger_model_used: bool = False
 
 
@@ -113,7 +113,7 @@ class AttemptRecord:
 
 
 # ---------------------------------------------------------------------------
-# One verdict, not one float (Gap D)
+# One verdict, not one float (A3-Gap-D)
 # ---------------------------------------------------------------------------
 
 
@@ -160,7 +160,7 @@ def decide_route(verdict: Verdict | None, attempt_count: int, policy: RetryPolic
 
 
 # ---------------------------------------------------------------------------
-# A retry that changes the request (Gap E)
+# A retry that changes the request (A3-Gap-E)
 # ---------------------------------------------------------------------------
 
 # One fixed sentence per check code: what to look at again. Used beside the finding's own message,
@@ -234,7 +234,7 @@ def route_falls_back(record: AttemptRecord) -> bool:
     reaches the splitter's hint — is worth retrying on the same route. Anything else (an
     under-report, an unreadable or empty-but-dated page, a malformed date that raised) repeats
     byte for byte, so the next attempt reads the page text with the model route instead. An
-    out-of-window date isn't here on purpose: it is excluded, not failed (D13), because the model
+    out-of-window date isn't here on purpose: it is excluded, not failed (A3-D13), because the model
     route's year rule would re-date it into a plausible, wrong date.
     """
     if record.route != "jsonld" or record.verdict is not Verdict.FAILED:
@@ -264,7 +264,7 @@ def plan_for_attempt(
     # route fallback is decided from the WHOLE history, so it is sticky: if attempt 2 failed for
     # another reason, attempt 3 must not go back to the JSON-LD route that already failed. Without a
     # configured escalation model, tier 3 still runs (with the full hint) and says it didn't escalate
-    # the model (D5).
+    # the model (A3-D5).
     page_hint, splitter_hint = retry_hint(history, final=attempt >= 3)
     fell_back = any(route_falls_back(r) for r in history)
     config = replace(

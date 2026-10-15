@@ -17,7 +17,7 @@ import { parseCalendarFilters, toShowsQuery, type CalendarFilters } from "@/lib/
 // page.md) — don't "fix" that with `export const dynamic = ...`. (Every
 // other route is dynamic too, for a different reason: the root layout
 // fetches the metro with `no-store`. That's the accepted cost of B2's
-// decision D1, no persistent caching yet.)
+// decision B2-D1, no persistent caching yet.)
 export default async function Home({ searchParams }: PageProps<"/">) {
   // The URL is the filter state (arch-initial.md §4). `searchParams` is a
   // Promise in Next 16, like `params`. parseCalendarFilters never throws:
@@ -28,7 +28,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
     <section>
       <h1 className="text-2xl font-semibold tracking-tight">Live music</h1>
 
-      {/* WHY THE <Suspense> IS HERE and not a root `loading.tsx` (plan D4).
+      {/* WHY THE <Suspense> IS HERE and not a root `loading.tsx` (plan B3-D4).
           Everything that needs the API — the shows, the filter options, the
           month list — is below this boundary, so the header, footer and
           this heading stream first and a skeleton stands in meanwhile; and
@@ -63,7 +63,7 @@ async function CalendarBody({ filters }: { filters: CalendarFilters }) {
     getMetroOrNull(),
   ]);
 
-  // "Today" is the metro's date, not the server's (lib/dates.ts, Gap A).
+  // "Today" is the metro's date, not the server's (lib/dates.ts, B3-Gap-A).
   // With no metro, or a timezone we can't use, no row is marked — better
   // than guessing a zone.
   const today = (metro && metroTodayOrNull(metro.timezone)?.toString()) ?? null;

@@ -3,7 +3,7 @@
 Each `PageLabel` says, for one fixture, which shows the page really lists — date, acts, and
 the fields the page states — and which entries on it are NOT shows (karaoke, comedy, a
 recurring header), so the scorer can tell a tolerated leak from an invented show
-(docs/dev/implementations/a2.1-extraction-reliability.md, D1, D2, D5, D11; the standard itself
+(docs/dev/implementations/a2.1-extraction-reliability.md, A2.1-D1, A2.1-D2, A2.1-D5, A2.1-D11; the standard itself
 is in requirements-initial.md, "Agent Extraction: Accuracy Standards").
 
 How labels were written (so they can be checked):
@@ -11,7 +11,7 @@ How labels were written (so they can be checked):
   `source_line` it was read from, so a reviewer can check a row without opening the fixture.
 - **A field left as None means the page doesn't state it** — then any returned value there is
   wrong (an invented value). A start time is labelled only where the page's text states one.
-- **Acts follow D5's conventions** (`prompts._act_conventions()`); a row where a convention was
+- **Acts follow A2.1-D5's conventions** (`prompts._act_conventions()`); a row where a convention was
   a judgement call names it in `convention`, and a genuinely ambiguous title lists its other
   acceptable readings in `alternatives`. Ari confirms those rows before the first gated run.
 - **Labels describe the captured page**, not the venue's whole season.
@@ -30,7 +30,7 @@ T = datetime.time
 
 @dataclass(frozen=True)
 class NonShow:
-    """An entry the page lists that is not a show (D5/D12 and the exclusion rule). A returned
+    """An entry the page lists that is not a show (A2.1-D5 and A2.1-D12, and the exclusion rule). A returned
     show on its `date`, or on its `weekday` (0 = Monday) for a recurring header such as
     "OPEN MIC Every Monday", is scored as a tolerated leak, not a fabrication."""
 
@@ -52,9 +52,9 @@ class LabelledShow:
     admission_advance: float | None = None
     admission_day: float | None = None
     free_admission: bool | None = None
-    status: str = "scheduled"  # D12: cancelled / postponed listings are labelled with status
-    convention: str | None = None  # the D5 judgement call applied, if any
-    alternatives: tuple[tuple[str, ...], ...] = ()  # other acceptable act sets (D5)
+    status: str = "scheduled"  # A2.1-D12: cancelled / postponed listings are labelled with status
+    convention: str | None = None  # the A2.1-D5 judgement call applied, if any
+    alternatives: tuple[tuple[str, ...], ...] = ()  # other acceptable act sets (A2.1-D5)
 
 
 @dataclass(frozen=True)
@@ -62,8 +62,8 @@ class PageLabel:
     """Everything the scorer needs to know about one fixture."""
 
     venue: str  # a VENUE_FACTS key
-    gated: bool  # D2: True only for pages production can actually fetch
-    captured_on: datetime.date  # the fetch date the year rule (D13) uses for this fixture
+    gated: bool  # A2.1-D2: True only for pages production can actually fetch
+    captured_on: datetime.date  # the fetch date the year rule (A2.1-D13) uses for this fixture
     shows: tuple[LabelledShow, ...]
     non_shows: tuple[NonShow, ...] = ()
     note: str = ""
@@ -80,7 +80,7 @@ class VenueFacts:
     url: str
     metro_timezone: str = "America/Chicago"
     feed_url: str | None = None  # a public calendar feed, captured for later (no reader yet)
-    # Why a plain fetch can't get this venue's listings; capture skips it unless named (D3).
+    # Why a plain fetch can't get this venue's listings; capture skips it unless named (A2.1-D3).
     blocked: str | None = None
 
 
@@ -119,7 +119,7 @@ _TERMINAL_HEADERS = (
 PAGE_LABELS: dict[str, PageLabel] = {
     # -------------------------------------------------------------------------------------
     # White Squirrel — gated. Every listing states start and end ("6:00 pm - 8:00 pm"); no
-    # prices. Its JSON-LD (the route D4 adds) carries the same listings, but these rows were
+    # prices. Its JSON-LD (the route A2.1-D4 adds) carries the same listings, but these rows were
     # read from the visible text.
     # -------------------------------------------------------------------------------------
     "Archives_ Events - The White Squirrel Bar.html": PageLabel(
@@ -174,7 +174,7 @@ PAGE_LABELS: dict[str, PageLabel] = {
         non_shows=(NonShow("Open Jam", D(2026, 10, 11), None, "open jam: no performing artist named"),),
     ),
     # -------------------------------------------------------------------------------------
-    # Terminal Bar — informational since October 11, 2026 (Ari: an outlier; D2 revised). Its layout —
+    # Terminal Bar — informational since October 11, 2026 (Ari: an outlier; A2.1-D2 revised). Its layout —
     # a date line, then one line per act — defeated every rung that helped the other pages (the model
     # takes the first line as the act and turns later lines into extra shows). The text states dates
     # and acts, never a time (the times are in
@@ -216,7 +216,7 @@ PAGE_LABELS: dict[str, PageLabel] = {
     # -------------------------------------------------------------------------------------
     # 7th St Entry — gated. October listing: headliner | tour or tag | with | support. No
     # times in the listing (they are on each show's detail page — a deeper fetch, deferred);
-    # no prices. Cancelled / postponed listings are labelled with their status (D12).
+    # no prices. Cancelled / postponed listings are labelled with their status (A2.1-D12).
     # -------------------------------------------------------------------------------------
     "seventh_st_entry-2026-10-10.html": PageLabel(
         venue="seventh_st_entry", gated=True, captured_on=OCTOBER_CAPTURE, shows=(
@@ -267,11 +267,11 @@ PAGE_LABELS: dict[str, PageLabel] = {
         ),
     ),
     # -------------------------------------------------------------------------------------
-    # Mortimer's — gated. The labelling fill-in (D11): rows by Ari and Claude, October 10.
+    # Mortimer's — gated. The labelling fill-in (A2.1-D11): rows by Ari and Claude, October 10.
     # -------------------------------------------------------------------------------------
     # Ground truth is a set of decisions, and writing it is where you find out how many there are.
     # The scorer can only be as right as these rows: each one decides what "correct" means for one
-    # listing (D1, D5). Mortimer's has the most calls of any page: weekly comedy and karaoke between
+    # listing (A2.1-D1, A2.1-D5). Mortimer's has the most calls of any page: weekly comedy and karaoke between
     # real shows, a night's name in front of its performers, a B2B DJ set, a parenthetical hometown,
     # and an album-release show that ends in "+ Karaoke".
     #
@@ -280,7 +280,7 @@ PAGE_LABELS: dict[str, PageLabel] = {
     # data, not in its visible text — and the visible text is all the model route sends. A
     # time the pipeline can't see can only ever be "missing", and seven guaranteed misses
     # would sink the pooled 10% tier on every run for a reason no rung can fix. The page
-    # states no year either (the year rule, D13) and no prices. When a Wix reader exists
+    # states no year either (the year rule, A2.1-D13) and no prices. When a Wix reader exists
     # (deferred: build plan §8), the times become labellable.
     "mortimers-2026-10-10.html": PageLabel(
         venue="mortimers", gated=True, captured_on=OCTOBER_CAPTURE, shows=(
@@ -312,11 +312,11 @@ PAGE_LABELS: dict[str, PageLabel] = {
         ),
     ),
     # -------------------------------------------------------------------------------------
-    # Informational (not gated, D2).
+    # Informational (not gated, A2.1-D2).
     # -------------------------------------------------------------------------------------
     # Zhora Darling, the August browser capture: a dense multi-act stress test, but production
     # can't fetch these listings (the DICE widget draws them with JavaScript). Times stated;
-    # "Buy now $X" is an online ticket price, so admission_advance (D7); no year (rule).
+    # "Buy now $X" is an online ticket price, so admission_advance (A2.1-D7); no year (rule).
     "Events — Zhora Darling.html": PageLabel(
         venue="zhora", gated=False, captured_on=AUGUST_CAPTURE, shows=(
             S(D(2026, 8, 17), ("Torrentia", "Social Pariah", "Sweetland", "Divinum Insanus"), "Torrentia, Social Pariah, Sweetland, & Divinum Insanus / Mon 17 Aug ― 6:00pm / Buy now $15.24", T(18, 0), admission_advance=15.24),
@@ -354,7 +354,7 @@ PAGE_LABELS: dict[str, PageLabel] = {
         note="unreachable by the pipeline's plain fetch (Context); informational only",
     ),
     # The two Terminal Bar posters (the image path; deferred for live pages). Each states one
-    # unlabelled price, so admission_day (D7); no year (the rule supplies it).
+    # unlabelled price, so admission_day (A2.1-D7); no year (the rule supplies it).
     "terminal_bar_show_1.png": PageLabel(
         venue="terminal", gated=False, captured_on=AUGUST_CAPTURE, shows=(
             S(D(2026, 8, 7), ("THE ENVIES", "MÜLLET", "KURT RUSSELL'S MUSCLES"), "THE ENVIES / MÜLLET / KURT RUSSELL'S MUSCLES / TERMINAL BAR FRIDAY, AUGUST 7 8:30PM $10", T(20, 30), admission_day=10.0),
@@ -370,10 +370,10 @@ PAGE_LABELS: dict[str, PageLabel] = {
 
 
 def gated_fixtures() -> list[str]:
-    """Fixture file names in the gated set (D2)."""
+    """Fixture file names in the gated set (A2.1-D2)."""
     return [name for name, page in PAGE_LABELS.items() if page.gated]
 
 
 def informational_fixtures() -> list[str]:
-    """Fixture file names reported but not gated (D2)."""
+    """Fixture file names reported but not gated (A2.1-D2)."""
     return [name for name, page in PAGE_LABELS.items() if not page.gated]
