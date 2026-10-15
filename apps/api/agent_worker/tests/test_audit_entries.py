@@ -154,7 +154,7 @@ def test_validate_records_the_states_confidence_as_a_decimal() -> None:
 
 
 def test_a_json_ld_validate_row_has_confidence_none_not_zero() -> None:
-    # Proves (A3, D9): "no confidence" is no evidence, not zero. The JSON-LD route has no model judgement of
+    # Proves (A3-D9): "no confidence" is no evidence, not zero. The JSON-LD route has no model judgement of
     # the record, so the row's confidence is NULL; a 0.000 would read as "the model was certain it was
     # wrong" and corrupt A8's calibration check. The model name is still recorded: the act splitter ran.
     state = base_state(
@@ -166,7 +166,7 @@ def test_a_json_ld_validate_row_has_confidence_none_not_zero() -> None:
 
 
 # ---------------------------------------------------------------------------
-# audit_confidence (written complete: Gap B was re-marked [written] at approval)
+# audit_confidence (written complete: A4-K2 was re-marked [written] at approval)
 # ---------------------------------------------------------------------------
 
 
@@ -194,7 +194,7 @@ def test_audit_confidence_goes_through_str_and_fits_three_places(value: float, e
 
 
 def test_fetch_detail_records_url_date_error_and_size() -> None:
-    # Proves: D2: the fetch row can answer "what was fetched and did it work" from Postgres alone.
+    # Proves (A4-D2): the fetch row can answer "what was fetched and did it work" from Postgres alone.
     ok = entry_for(StepType.FETCH, base_state()).detail
     assert ok == {"url": "https://venue.example/events", "fetched_on": "2026-10-12", "error": None, "text_chars": 120}
     failed = entry_for(StepType.FETCH, base_state(fetch_error="HTTPStatusError: 404", page_content=None)).detail
@@ -202,7 +202,7 @@ def test_fetch_detail_records_url_date_error_and_size() -> None:
 
 
 def test_extract_detail_records_route_tier_error_and_the_staging_id() -> None:
-    # Proves: D4: `detail.staging_id` is what joins the extract row to its MongoDB document, and a failed
+    # Proves (A4-D4): `detail.staging_id` is what joins the extract row to its MongoDB document, and a failed
     # attempt's error is on the row. The expected keys are the plan's, spelled out.
     state = base_state(
         attempt_count=2, last_plan=PLAN, route_attempted="model", extract_error="ValueError: bad json",
@@ -236,7 +236,7 @@ def test_validate_detail_records_verdict_reasons_messages_and_counts() -> None:
 
 
 def test_the_stub_steps_say_they_are_stubs() -> None:
-    # Proves: D5: until A5/A6, reconcile and commit rows are explicit placeholders, so nobody reads one as
+    # Proves (A4-D5): until A5/A6, reconcile and commit rows are explicit placeholders, so nobody reads one as
     # a real decision. The decision string the stub set is carried.
     for step in (StepType.RECONCILE, StepType.COMMIT):
         detail = entry_for(step, base_state(attempt_count=1, reconcile_decision="insert")).detail
@@ -244,7 +244,7 @@ def test_the_stub_steps_say_they_are_stubs() -> None:
 
 
 def test_escalate_is_a_real_row_with_the_reason_and_the_escalated_outcome() -> None:
-    # Proves: D5: escalate writes `outcome='escalated'` and the plain-English reason, which is what the
+    # Proves (A4-D5): escalate writes `outcome='escalated'` and the plain-English reason, which is what the
     # "which runs escalated and why" query reads.
     state = base_state(attempt_count=3, escalation_reason="validation failed after 3 attempt(s)")
     entry = entry_for(StepType.ESCALATE, state)

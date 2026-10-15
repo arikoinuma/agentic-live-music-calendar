@@ -5,7 +5,7 @@ seed CLI, and — from A4 — by the worker. There is deliberately no `get_db`
 FastAPI dependency yet: nothing consumes one until the read routes move off
 `app/sample_data.py`, and this repo doesn't scaffold what has no consumer.
 
-Resolved in A4 (docs/dev/implementations/a4-auditability.md, D1): this engine
+Resolved in A4 (docs/dev/implementations/a4-auditability.md, A4-D1): this engine
 is pooled and async, and asyncpg connections are bound to the event loop that
 created them, so calling `asyncio.run()` once per node against it would fail
 on the second node. The worker therefore runs ONE event loop per process

@@ -31,7 +31,7 @@ from app.enums import StepType
 #     VenueGraphState(**result) — before treating it as a full state
 #     object again.
 #
-# A4 (docs/dev/implementations/a4-auditability.md, D1): every node is registered through `audited(...)`,
+# A4 (docs/dev/implementations/a4-auditability.md, A4-D1): every node is registered through `audited(...)`,
 # which makes it `async` from LangGraph's point of view (it awaits the audit write on the event loop that
 # owns the database and MongoDB clients) while the node body stays a plain sync function run in a
 # thread. So this graph is `ainvoke`-only: LangGraph raises `TypeError: No synchronous function provided`
@@ -43,7 +43,7 @@ graph = StateGraph(VenueGraphState, context_schema=WorkerContext)
 # One add_node per node function. The name each is registered under is what the conditional
 # edges' path maps and the add_edge calls below refer to.
 #
-# A4 (code review #2): the node name and the audit step are the same six strings (`NodeNames` here,
+# A4 (A4-R2-2): the node name and the audit step are the same six strings (`NodeNames` here,
 # `StepType` in app/enums.py), so the step is DERIVED from the name, `StepType(name.value)`, instead of
 # being paired by hand in six lines. A node added to this table without a matching `StepType` fails at
 # import with a ValueError; test_graph_wiring.py pins the table to both enums.

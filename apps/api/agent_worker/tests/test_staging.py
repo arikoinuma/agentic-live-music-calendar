@@ -1,9 +1,9 @@
 """Tests for `staging.document_for`: the raw record of one extract attempt, as plain data.
 
-Milestone A4 (docs/dev/implementations/a4-auditability.md, step 5; D4; plan review #1 and #6). The document
-is what lands in MongoDB before validation judges the attempt, and it is A2.1's E17 record: the route, the
+Milestone A4 (docs/dev/implementations/a4-auditability.md, step 5; A4-D4; A4-R1-1 and A4-R1-6). The document
+is what lands in MongoDB before validation judges the attempt, and it is the A2.1-E17 record: the route, the
 text sent, the route's notes, the raw model output and the request configuration. It must be BSON-encodable:
-BSON cannot encode a `datetime.date` (confirmed with `bson.encode`, plan review #1). So these tests encode the
+BSON cannot encode a `datetime.date` (confirmed with `bson.encode`, A4-R1-1). So these tests encode the
 document with `bson.encode`, the driver's own encoder: if that accepts it, the real write will.
 
 How to read it: states are built by hand to look like what `extract_node` leaves behind, a successful
@@ -39,7 +39,7 @@ def state_with(**changes: Any) -> VenueGraphState:
 
 def test_a_successful_attempts_document_has_the_e17_record() -> None:
     # Proves: the document holds what A2.1's eval records per page so a production run can be audited the
-    # same way (E17): who and when (run, venue, attempt), how (tier, route, model, request options,
+    # same way (A2.1-E17): who and when (run, venue, attempt), how (tier, route, model, request options,
     # configuration), what was sent, the route's notes, and the raw model output.
     extracted = VenuePageExtraction(page_readable=True, shows=[])
     doc = document_for(state_with(
@@ -57,7 +57,7 @@ def test_a_successful_attempts_document_has_the_e17_record() -> None:
 
 
 def test_a_failed_attempts_document_keeps_the_error_and_the_page_it_started_from() -> None:
-    # Proves (plan review #6): a failed call has no `sent_text` (`extract_page` raised before returning it)
+    # Proves (A4-R1-6): a failed call has no `sent_text` (`extract_page` raised before returning it)
     # and no raw extraction, but the document still exists, with the error and the cleaned page text the
     # route started from: the record a person debugging an escalation needs most.
     doc = document_for(state_with(extract_error="ValueError: bad json"))
@@ -74,10 +74,10 @@ def test_a_failed_poster_attempt_does_not_store_the_base64_image_as_page_text() 
 
 
 def test_notes_holding_dates_enums_and_tuples_become_plain_data() -> None:
-    # Proves (plan review #1): `notes` is an untyped dict, so a date, a StrEnum or a tuple can appear in it.
+    # Proves (A4-R1-1): `notes` is an untyped dict, so a date, a StrEnum or a tuple can appear in it.
     # BSON cannot encode `datetime.date` (confirmed with `bson.encode`), so `document_for` converts first
     # and the finished document encodes. Without the conversion `bson.encode` raises `InvalidDocument` here,
-    # and in production Gap C would propagate it and halt the run.
+    # and in production A4-K3 would propagate it and halt the run.
     state = state_with(
         extraction_notes={"seen": datetime.date(2026, 10, 12), "pair": ("a", "b"), "route": extraction.PIPELINE_CONFIG.route},
     )

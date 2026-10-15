@@ -9,7 +9,7 @@ HOW TO READ THIS
   * `load_venues` reads the venue list and each venue's metro timezone from the database, so the worker no
     longer needs a caller to supply them (build plan A4; a small piece of A5's "read the venue list from
     Postgres on every run", arch-initial.md §7).
-  * `run_venue` is one venue's cycle: **Gap A** lives in it.
+  * `run_venue` is one venue's cycle: **A4-K1** lives in it.
   * `run_all` loops the venues sequentially, as arch-initial.md §7 says (one process, every venue, no
     per-venue scheduling), and keeps going when one venue hits an infrastructure error.
   * `main` wires the stores (Postgres engine, MongoDB client), configures logging, and calls `run_all`.
@@ -18,9 +18,9 @@ THE EVENT LOOP
   Everything here runs on ONE event loop, created by `asyncio.run(main())`. The shared pooled engine
   (`app.db.session.engine`) and the one `AsyncMongoClient` are created on it and used by every node's audit
   write; asyncpg connections and the Mongo client are bound to the loop that created them, which is why the
-  graph is `ainvoke`-only (plan D1; graph.py).
+  graph is `ainvoke`-only (plan A4-D1; graph.py).
 
-docs/dev/implementations/a4-auditability.md, D1, D3, D6, D7, D8.
+docs/dev/implementations/a4-auditability.md, A4-D1, A4-D3, A4-D6, A4-D7, A4-D8.
 """
 
 import argparse
@@ -102,9 +102,9 @@ async def run_venue(
     #   The run is the parent of every audit row (arch-initial.md §7,
     #   `parent_run_id`). Its id travels IN THE STATE, not in a module global, so each node's row points at
     #   the run that produced it and two runs could never cross. It is closed in a `finally`, because a run
-    #   that crashes must still end (plan D8): otherwise it looks "in progress" forever, and the
+    #   that crashes must still end (plan A4-D8): otherwise it looks "in progress" forever, and the
     #   `unfinished_runs` query can't tell a crash from a run that is still going. The structlog binding is
-    #   what puts `run_id` and `venue_id` on every log line of the run (D7).
+    #   what puts `run_id` and `venue_id` on every log line of the run (A4-D7).
     run_id = await ctx.audit.start_run(venue.id, trigger)
     structlog.contextvars.bind_contextvars(run_id=run_id, venue_id=venue.id)
     try:
@@ -158,14 +158,14 @@ async def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     configure_logging()
-    # Fail fast (plan D3): an audit trail that silently skips its raw record isn't auditable.
+    # Fail fast (plan A4-D3): an audit trail that silently skips its raw record isn't auditable.
     if not settings.mongodb_uri:
         log.error("MONGODB_URI is not set; the worker stages every extraction in MongoDB (see .env.example)")
         return 2
 
     # A short server-selection timeout: the driver connects lazily, so without the ping below an unreachable
     # server would only show up at the first staging write, after the venue's fetch and model call, and
-    # after a 30 s wait (code review #3).
+    # after a 30 s wait (A4-R2-3).
     mongo: AsyncMongoClient = AsyncMongoClient(settings.mongodb_uri, serverSelectionTimeoutMS=5000)
     try:
         try:

@@ -5,7 +5,7 @@ HOW TO READ THIS
   `log = structlog.get_logger()` and logs `log.info("event name", key=value)`. A line is an event name plus
   key/value fields, not a formatted sentence, so it can be searched and joined to the database.
 
-WHY IT'S SHAPED THIS WAY (alpha-build-plan.md G12; docs/dev/implementations/a4-auditability.md, D7)
+WHY IT'S SHAPED THIS WAY (alpha-build-plan.md v0.1-G12; docs/dev/implementations/a4-auditability.md, A4-D7)
   * Context variables are merged into every line. The worker binds `run_id` and `venue_id` once per run, so
     every line in the run carries the `agent_run.id` that the run's `audit_log` rows carry. A log line and an
     audit row about the same moment can be matched on that id.

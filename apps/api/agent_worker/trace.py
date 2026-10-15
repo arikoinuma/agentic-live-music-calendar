@@ -5,11 +5,11 @@ HOW TO READ THIS
   new node, `async` from LangGraph's point of view, that does three things in order:
 
     1. runs the sync node in a worker thread (`asyncio.to_thread`), so the blocking model call and HTTP fetch
-       don't stall the event loop that the database and MongoDB clients live on (plan D1);
-    2. for an extract step, stages the attempt's raw record in MongoDB (**Gap C**, below);
+       don't stall the event loop that the database and MongoDB clients live on (plan A4-D1);
+    2. for an extract step, stages the attempt's raw record in MongoDB (**A4-K3**, below);
     3. appends this step's audit row through the context's writer.
 
-  Keeping this apart from the node bodies is the point of D1: "do the step" stays a pure state transform that
+  Keeping this apart from the node bodies is the point of A4-D1: "do the step" stays a pure state transform that
   existing tests call directly, and "record the step" lives here, one wrapper for all six nodes. The row's
   contents are decided by `audit.entry_for` (pure), not here.
 
@@ -23,7 +23,7 @@ THE TRAP
   `TypeError: inner() missing 1 required positional argument: 'runtime'` (verified against langgraph 1.2.11).
   It fails loudly, but the message names the inner node and not the cause.
 
-docs/dev/implementations/a4-auditability.md, D1; Gap C.
+docs/dev/implementations/a4-auditability.md, A4-D1; A4-K3.
 """
 
 import asyncio
@@ -62,7 +62,7 @@ def audited(step: StepType, node: Node) -> Callable[..., Awaitable[VenueGraphSta
             #   on EVERY attempt, unconditionally, failed ones included. A failed call's document (its
             #   error, route and request configuration) is exactly what a person debugging an escalation
             #   needs, and its id goes into this step's audit row, which is what joins the two stores
-            #   (plan D4). `state` is the one the node just returned (line above), because the document
+            #   (plan A4-D4). `state` is the one the node just returned (line above), because the document
             #   describes what that attempt produced.
             staging_id = await runtime.context.stager.stage(staging.document_for(state))
 

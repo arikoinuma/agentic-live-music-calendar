@@ -1,12 +1,12 @@
 """Tests for the worker's entry point: loading venues, and `run_venue`'s run lifecycle.
 
-Milestone A4 (docs/dev/implementations/a4-auditability.md, step 7, D6 and D8; Gap A). `run_venue` opens an
+Milestone A4 (docs/dev/implementations/a4-auditability.md, step 7, A4-D6 and A4-D8; A4-K1). `run_venue` opens an
 `agent_run`, runs the graph with the run's id in the state, and closes the run in a `finally`. These tests use
 the real Postgres writer (so the rows are real), the real graph, the scripted model, and a recording stager.
 
 How to read it: `ctx` builds a `WorkerContext` on the test connection; `setup` seeds the venues and returns
 the first as `VenueFacts`. Expected values are the seed's literals (`app/db/seed.py`: venue 1 is The White
-Squirrel Bar, in the America/Chicago metro) and the plan's rules. The tests marked (Gap A) stay red until Ari
+Squirrel Bar, in the America/Chicago metro) and the plan's rules. The tests marked (A4-K1) stay red until Ari
 fills the `TODO(Ari)` block in `main.run_venue`.
 """
 
@@ -83,7 +83,7 @@ async def count(factory: async_sessionmaker[AsyncSession], model: type) -> int:
 async def test_load_venues_returns_each_venue_with_its_metros_timezone(
     factory: async_sessionmaker[AsyncSession], venue: VenueFacts,
 ) -> None:
-    # Proves (D6, Departure 2): the worker takes its venue facts from the database row, not from the caller:
+    # Proves (A4-D6, Departure 2): the worker takes its venue facts from the database row, not from the caller:
     # id, name, calendar URL, and the timezone of the venue's metro (`metro.timezone` is the source of truth,
     # data-model-initial.md). The seed has four venues; the first is The White Squirrel Bar, in Chicago time.
     async with factory() as session:
@@ -136,7 +136,7 @@ async def test_run_all_continues_after_one_venue_hits_an_infrastructure_error(
 
 
 # ---------------------------------------------------------------------------
-# The run's lifecycle (Gap A)
+# The run's lifecycle (A4-K1)
 # ---------------------------------------------------------------------------
 
 
@@ -144,7 +144,7 @@ async def test_run_venue_opens_a_run_carries_its_id_and_closes_it(
     factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts,
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Proves (Gap A): the `agent_run` is the parent of every row. Its id travels in the state, so every
+    # Proves (A4-K1): the `agent_run` is the parent of every row. Its id travels in the state, so every
     # audit row of the run has that `run_id`; the run is stamped finished; and the venue facts in the state
     # came from the database row (name and timezone), with only the URL overridden for the test.
     page = tmp_path / "page.html"
@@ -164,7 +164,7 @@ async def test_run_venue_opens_a_run_carries_its_id_and_closes_it(
 async def test_a_run_that_crashes_is_still_closed_and_the_error_still_propagates(
     factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Proves (Gap A, D8): a graph that raises leaves the run with a `finished_at` (so it does not look
+    # Proves (A4-K1, A4-D8): a graph that raises leaves the run with a `finished_at` (so it does not look
     # "in progress" forever) and the exception reaches the caller, neither swallowed nor replaced. Without
     # the `finally`, `finished_at` stays NULL and a crash is indistinguishable from a run still going.
     async def boom(*_: Any, **__: Any) -> None:
@@ -181,7 +181,7 @@ async def test_a_run_that_crashes_is_still_closed_and_the_error_still_propagates
 async def test_run_venue_binds_the_run_id_for_log_lines_and_unbinds_it_after(
     ctx: WorkerContext, venue: VenueFacts, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Proves (Gap A, D7): while the graph runs, structlog's context carries `run_id` and `venue_id`, so every
+    # Proves (A4-K1, A4-D7): while the graph runs, structlog's context carries `run_id` and `venue_id`, so every
     # log line of the run joins to its audit rows; afterwards they are gone, so the next venue's lines are
     # not tagged with the previous run's id.
     import structlog
@@ -221,7 +221,7 @@ async def test_a_passing_run_leaves_the_five_steps_a_pass_visits(
 
 
 async def test_main_refuses_to_start_without_a_mongodb_uri(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Proves (D3): the worker fails fast, with a non-zero status, when MONGODB_URI is unset. An audit trail
+    # Proves (A4-D3): the worker fails fast, with a non-zero status, when MONGODB_URI is unset. An audit trail
     # that silently skipped its raw record would not be auditable. Nothing is connected to: `main` returns
     # before it builds a client or reads the database.
     monkeypatch.setattr(main.settings, "mongodb_uri", None)
@@ -229,7 +229,7 @@ async def test_main_refuses_to_start_without_a_mongodb_uri(monkeypatch: pytest.M
 
 
 async def test_main_refuses_to_start_when_mongodb_does_not_answer(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Proves (code review #3, D3): "fail fast" covers a MongoDB that is configured but not running, not only
+    # Proves (A4-R2-3, A4-D3): "fail fast" covers a MongoDB that is configured but not running, not only
     # one that is unset. The driver connects lazily, so without a ping at startup each venue would do its
     # fetch and a full model call, then wait ~30 s for server selection and fail. A stand-in client whose
     # ping raises `ServerSelectionTimeoutError` makes `main` return 2 before any venue is touched.

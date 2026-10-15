@@ -1,6 +1,6 @@
 """The one test against a real MongoDB: `MongoStager` writes a document and the id finds it again.
 
-Milestone A4 (docs/dev/implementations/a4-auditability.md, Test approach §3, D3). Everything else about
+Milestone A4 (docs/dev/implementations/a4-auditability.md, Test approach §3, A4-D3). Everything else about
 staging is tested with the recording fake; this proves the real driver accepts what `document_for`
 builds and that the id `stage` returns is the one the audit row will store. It runs against the
 `mongo` service in docker-compose.yml (or CI's), at `MONGODB_TEST_URI` (default `mongodb://localhost:27017`;

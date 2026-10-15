@@ -17,7 +17,7 @@ WHY IT'S SHAPED THIS WAY
   * **One short session per call, committed.** Each row is durable the moment it is written, so a crash later
     in the run cannot roll back the record of what led up to it. A long transaction spanning the run would
     lose exactly the rows that explain the crash.
-  * **`detail` carries the why.** The typed columns say who/what kind; `detail` (JSONB, plan D2) carries the
+  * **`detail` carries the why.** The typed columns say who/what kind; `detail` (JSONB, plan A4-D2) carries the
     evidence: validate's verdict and reasons, fetch's error, extract's route and staging id, escalate's
     reason. The keys are what `docs/dev/audit-queries.sql` reads; change one in both places.
 
@@ -67,7 +67,7 @@ def audit_confidence(value: float | None) -> decimal.Decimal | None:
 
     Two rules, both from earlier decisions:
 
-    * **None stays None.** A3 decided (D9) that "no confidence" is no evidence, not zero: the JSON-LD
+    * **None stays None.** A3 decided (A3-D9) that "no confidence" is no evidence, not zero: the JSON-LD
       route's 1.0 is a placeholder, and a page with nothing kept has nothing to be confident about. The
       audit trail is where A8 will measure calibration, so a 0.000 would read as "the model was certain it
       was wrong" and corrupt that check.
@@ -75,7 +75,7 @@ def audit_confidence(value: float | None) -> decimal.Decimal | None:
       (0.1000000000000000055511151231257827...), not the number the model said; `Decimal("0.1")` is. Then
       `quantize` fits it to three places, the column's scale (`app/db/models/audit.py`).
 
-    (Gap B in the plan; re-marked [written] by Ari at approval, so written complete here.)
+    (A4-K2 in the plan; re-marked [written] by Ari at approval, so written complete here.)
     """
     if value is None:
         return None
@@ -149,7 +149,7 @@ def entry_for(step: StepType, state: VenueGraphState, staging_id: str | None = N
     """The audit row for `step`, given the state after that node ran. Pure: no I/O.
 
     `staging_id` is the MongoDB document id for an extract step (trace.audited stages first, then calls
-    this); it is recorded in `detail` and is how the two stores join (plan D4).
+    this); it is recorded in `detail` and is how the two stores join (plan A4-D4).
     """
     plan = state.last_plan
     on_venue = step in _VENUE_LEVEL
@@ -201,7 +201,7 @@ class PostgresAuditWriter:
             session.add(run)
             # flush assigns the id; read it BEFORE commit. After a commit a session built with SQLAlchemy's
             # default `expire_on_commit=True` has expired the attribute, and reading it under asyncio raises
-            # `MissingGreenlet`, an error that doesn't point at the cause (code review #4).
+            # `MissingGreenlet`, an error that doesn't point at the cause (A4-R2-4).
             await session.flush()
             run_id = run.id
             await session.commit()
@@ -227,7 +227,7 @@ class PostgresAuditWriter:
         # `clock_timestamp()`, Postgres's real current time, not `now()` (the transaction's start, which
         # inside one transaction, as in the tests, equals `started_at`) and not the worker's own clock:
         # `started_at` and `created_at` come from the database, so a run's duration should be one clock's
-        # difference and not go negative under worker/database skew (code review #5).
+        # difference and not go negative under worker/database skew (A4-R2-5).
         async with self._session_factory() as session:
             await session.execute(
                 update(AgentRun).where(AgentRun.id == run_id).values(finished_at=func.clock_timestamp())

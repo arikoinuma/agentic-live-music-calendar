@@ -198,7 +198,7 @@ def extract_node(state: VenueGraphState) -> VenueGraphState:
 
     The MongoDB raw-staging write the architecture doc calls for ("Extract --> Staging[('MongoDB —
     raw staging doc')]") and this node's audit row are written by `trace.audited` after this function
-    returns (A4, D1), from what it leaves in the state; nothing here touches a store.
+    returns (A4-D1), from what it leaves in the state; nothing here touches a store.
     """
     plan = plan_for_attempt(
         state.attempt_count + 1, state.policy, state.attempt_history, PIPELINE_CONFIG, PIPELINE_OPTIONS,

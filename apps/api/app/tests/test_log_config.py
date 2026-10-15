@@ -1,6 +1,6 @@
 """Tests for `app/log_config.py`: structlog configured once, console locally and JSON otherwise.
 
-Milestone A4 (docs/dev/implementations/a4-auditability.md, step 3 and D7; closes gap G12). The point of the
+Milestone A4 (docs/dev/implementations/a4-auditability.md, step 3 and A4-D7; closes gap v0.1-G12). The point of the
 configuration is that a log line is joinable to the audit trail: every line in a run carries the `run_id`
 bound with `structlog.contextvars`, and a cron job (not a terminal) gets machine-readable JSON.
 

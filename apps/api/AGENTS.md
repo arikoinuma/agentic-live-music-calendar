@@ -87,7 +87,7 @@ Don't "fix" these. Each is a decision with a reason.
 **Run it:** `make worker` (or `VENUE=1 make worker`) = `python -m agent_worker.main`: needs `make db-up`
 (Postgres *and* MongoDB), `MONGODB_URI` in `.env` (the worker refuses to start without it), and Ollama.
 
-**The graph is `ainvoke`-only** (A4, `docs/dev/implementations/a4-auditability.md` D1). Each node is registered
+**The graph is `ainvoke`-only** (A4, `docs/dev/implementations/a4-auditability.md` A4-D1). Each node is registered
 through `trace.audited(step, node)`, which is `async`: it runs the sync node body in a thread, then writes the
 node's audit row (and, for extract, the MongoDB staging document) on the process's one event loop. Calling
 `compiled_graph.invoke(...)` raises `TypeError: No synchronous function provided`. The stores reach the wrapper

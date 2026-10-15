@@ -428,7 +428,7 @@ startup: `MongoDB cannot start: Linux kernel versions 6.19 and newer has a known
 guard. `docker compose ps -a` and `docker compose logs mongo` show it; the timeout message does not.
 
 `mongo:7.0` (v7.0.45 when tested) starts and answers ping. Pinned in `docker-compose.yml` instead of
-`mongo:8`, which departs from D3 in `a4-auditability.md`. Setting `GLIBC_TUNABLES=glibc.pthread.rseq=1`
+`mongo:8`, which departs from A4-D3 in `a4-auditability.md`. Setting `GLIBC_TUNABLES=glibc.pthread.rseq=1`
 gets `mongo:8.0` past the guard and it then answers ping, but it bypasses a check MongoDB added for a real
 incompatibility, so it was not used. Revisit the pin when Docker Desktop's kernel or a MongoDB 8.x patch
 changes.

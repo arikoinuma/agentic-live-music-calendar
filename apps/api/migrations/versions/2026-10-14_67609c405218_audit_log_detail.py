@@ -2,7 +2,7 @@
 
 Adds `audit_log.detail` (JSONB, nullable): the evidence behind a step (validate's verdict
 and reasons, fetch's error, extract's route and staging-document id, escalate's reason),
-for which the typed columns have no place. A4, decision D2:
+for which the typed columns have no place. A4, decision A4-D2:
 docs/dev/implementations/a4-auditability.md. Read after autogenerate: one add_column,
 no enum types, so nothing needed correcting by hand.
 

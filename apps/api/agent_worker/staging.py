@@ -6,7 +6,7 @@ HOW TO READ THIS
   "bronze before silver"): Postgres holds only what passed, MongoDB holds everything that was tried. For an
   escalated venue it is the record of what went wrong on each attempt.
 
-  It is also A2.1's E17: the route taken, the text actually sent, the route's notes, the raw model output and
+  It is also the record A2.1-E17 asked for: the route taken, the text actually sent, the route's notes, the raw model output and
   the request configuration, the same things the eval harness records per page, so a production run can be
   audited the way the eval runs were.
 
@@ -15,9 +15,9 @@ HOW TO READ THIS
     `AsyncMongoClient`, not Motor, which MongoDB deprecated; arch-initial.md §6). Tests use
     `fakes.RecordingStager`.
   * The id `stage` returns is stored on the extract audit row as `detail.staging_id`, which is how the two
-    stores join (plan D4).
+    stores join (plan A4-D4).
 
-docs/dev/implementations/a4-auditability.md, decisions D3 and D4; plan review #1 and #6.
+docs/dev/implementations/a4-auditability.md, decisions A4-D3 and A4-D4; A4-R1-1 and A4-R1-6.
 """
 
 import dataclasses
@@ -44,7 +44,7 @@ def document_for(state: VenueGraphState) -> dict[str, Any]:
 
     Everything except `staged_at` goes through `to_jsonable_python` first: `notes` is an untyped dict and
     BSON cannot encode a `datetime.date` (nor a dataclass), so a date in a route's notes would otherwise
-    raise `InvalidDocument` inside the staging write, which halts the run (plan review #1).
+    raise `InvalidDocument` inside the staging write, which halts the run (A4-R1-1).
     `staged_at` stays a timezone-aware `datetime`, which BSON stores natively.
     """
     plan = state.last_plan

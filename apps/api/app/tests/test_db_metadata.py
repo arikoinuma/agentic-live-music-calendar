@@ -73,7 +73,7 @@ EXPECTED_COLUMNS: dict[str, set[str]] = {
         "id", "run_id", "attempt_number", "step_type", "source", "entity_type",
         "entity_id", "outcome", "model_used", "confidence", "previous_value",
         "new_value", "snapshot_key", "created_at",
-        # A4 (docs/dev/implementations/a4-auditability.md, D2): the evidence behind a step.
+        # A4 (docs/dev/implementations/a4-auditability.md, A4-D2): the evidence behind a step.
         "detail",
     },
 }

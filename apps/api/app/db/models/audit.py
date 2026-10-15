@@ -107,7 +107,7 @@ class AuditLog(Base):
     # have no place for. Validate's verdict and failure reasons, fetch's error,
     # extract's route and tier and the id of its MongoDB staging document,
     # escalate's reason. A4 departure from data-model-initial.md section 3
-    # (docs/dev/implementations/a4-auditability.md, D2). Deliberately not
+    # (docs/dev/implementations/a4-auditability.md, A4-D2). Deliberately not
     # `new_value`: that column is what a future revert restores, and mixing
     # evidence into it would make revert guess which keys are the row.
     detail: Mapped[dict[str, Any] | None] = mapped_column(JSONB)

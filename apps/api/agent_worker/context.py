@@ -12,7 +12,7 @@ HOW TO READ THIS
   the graph tests hand in recording fakes and the real worker hands in `PostgresAuditWriter` and
   `MongoStager`. A5 and A6 add a database session here when reconcile and commit need one.
 
-docs/dev/implementations/a4-auditability.md, decision D1.
+docs/dev/implementations/a4-auditability.md, decision A4-D1.
 """
 
 from dataclasses import dataclass

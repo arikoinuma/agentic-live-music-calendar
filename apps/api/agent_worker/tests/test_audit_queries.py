@@ -169,7 +169,7 @@ async def test_unfinished_runs_finds_open_runs_and_closed_runs_that_never_ended_
 ) -> None:
     # Proves: neither scripted run is "unfinished" (the passing one reached commit, the other escalate,
     # and both closed). Then an open run (no finished_at) and a closed run with only a fetch row are added,
-    # and both are found, each with its furthest step: the crash signature D8 describes.
+    # and both are found, each with its furthest step: the crash signature A4-D8 describes.
     passed, _, venue = two_runs
     assert await run(db_conn, queries["unfinished_runs"]) == []
     open_id = (await db_conn.execute(text(

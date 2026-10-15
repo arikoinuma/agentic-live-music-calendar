@@ -160,7 +160,7 @@ class VenueGraphState(BaseModel):
     run_id: int | None = None
 
     # extraction_sent_text — what the model was actually given as the page on the attempt that just ran
-    # (PageExtractionResult.sent_text), kept so the raw-staging document can record it (A2.1 E17). Assigned
+    # (PageExtractionResult.sent_text), kept so the raw-staging document can record it (A2.1-E17). Assigned
     # on EVERY attempt, None where the call failed before returning it, for the same reason as the A3
     # per-attempt fields above.
     extraction_sent_text: str | None = None
