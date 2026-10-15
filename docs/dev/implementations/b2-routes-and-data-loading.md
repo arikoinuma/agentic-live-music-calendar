@@ -4,7 +4,7 @@
 **Date:** October 8, 2026
 **Author model:** Claude Sonnet 5.5
 **Reviewer model:** Claude Opus 5.5 (plan review round 1; code review round 1) — findings and resolutions under [Plan review](#plan-review); code review under [Code review](#code-review)
-**Spec:** `docs/dev/alpha-build-plan.md` §6 B2 (and gaps G23, G24), `docs/dev/api-contract.md`, `docs/arch/arch-initial.md` §4, `docs/arch/requirements-initial.md` "Main Views & URL Scheme", `docs/references/nextjs-style-guide.md`
+**Spec:** `docs/dev/alpha-build-plan.md` §6 B2 (and gaps v0.1-G23, v0.1-G24), `docs/dev/api-contract.md`, `docs/arch/arch-initial.md` §4, `docs/arch/requirements-initial.md` "Main Views & URL Scheme", `docs/references/nextjs-style-guide.md`
 
 ## Context
 
@@ -29,7 +29,7 @@ possible.
 | `/venues` | `GET /venues` | Alphabetical list, links to `/venue/[id]` |
 | `/artist/[id]` | `GET /artists/{id}` | Metadata only. Upcoming-shows list is B4 |
 | `/artists` | `GET /artists` | Alphabetical list, links to `/artist/[id]` |
-| layout | `GET /metro` | Replaces the hard-coded metro name (`TODO(G24)`) in the footer and `description` |
+| layout | `GET /metro` | Replaces the hard-coded metro name (`TODO(v0.1-G24)`) in the footer and `description` |
 
 Plus: header nav links to `/venues` and `/artists` (deferred from B1 because the routes 404'd),
 `not-found.tsx`, `error.tsx`, and the `server-only` guard that `apps/calendar/AGENTS.md` said
@@ -51,7 +51,7 @@ to add "in B2 along with the API client".
    shipped the routes: `app/routers/` serves `sample_data.py` over real HTTP, and
    `apps/calendar/AGENTS.md` says "prefer real HTTP … for anything else". The client calls the
    API; fixtures are used **only in tests**.
-2. **The G24 item I wrote ("cache the fetch with `force-cache` and a long `revalidate`") is wrong
+2. **The v0.1-G24 item I wrote ("cache the fetch with `force-cache` and a long `revalidate`") is wrong
    for this phase** — see Decision D1. Revise that wording.
 3. B2's route list names six routes. `/show/[id]` is in the contract (`GET /shows/{id}`) and in the
    requirements' view list but is **not** in B2's list; see D3.
@@ -257,14 +257,14 @@ red until Ari fills the gaps, so nothing is committed or pushed in that state an
 [written] steps are written complete.
 
 ### TODO(Ari) gaps
-Five blocks (review #2, D5). **Fill order (code review #4): C first** — while Gap C is open the root
+Five blocks (review #2, D5). **Fill order (code review #4): C first** — while K3 is open the root
 layout throws and every route 500s, so D's and E's curl checks can't pass until C *and* E are filled
 (D's own check is `pnpm check-types`). Each lesson was chosen for where the concept lives, not where the
 typing is; `AGENTS.md`'s own example of a good gap is the `searchParams` → API-query mapping, which
-is Gaps A and B. A–C sit in unit-tested code, so their Check is a test. D and E sit in pages, which
+is K1, K2. A–C sit in unit-tested code, so their Check is a test. D and E sit in pages, which
 Vitest can't render, so their Check is a command or an HTTP response (D5).
 
-- **Gap A — `parseCalendarFilters` in `lib/params.ts`** (step 7).
+- **K1 — `parseCalendarFilters` in `lib/params.ts`** (step 7).
   *Lesson:* Next hands search params over as `string | string[] | undefined` — one `venue=1` is a
   string, a repeated key is an array — and the API contract also uses repeated keys
   (`api-contract.md` §2). The URL is the state (`arch-initial.md` §4), so parsing must be total
@@ -274,13 +274,13 @@ Vitest can't render, so their Check is a command or an HTTP response (D5).
   `[...new Set(asList(v).map(parseIdParam).filter((n): n is number => n !== null))].sort((a, b) => a - b)`.
   *Check:* `params.test.ts` repeated-key, drop-invalid and numeric-sort cases. Likeliest mistake:
   `.sort()` without a comparator (`[10, 9]`).
-- **Gap B — `toShowsQuery` month range in `lib/params.ts`** (step 7).
+- **K2 — `toShowsQuery` month range in `lib/params.ts`** (step 7).
   *Lesson:* `month=2026-10` becomes the API's inclusive `start`/`end`; the client computes
   calendar arithmetic but consults no clock (D2, `api-contract.md` §3). Use Temporal, not `Date`.
   *Code:* `const ym = Temporal.PlainYearMonth.from(month); start = ym.toPlainDate({ day: 1 }).toString(); end = ym.toPlainDate({ day: ym.daysInMonth }).toString();`
   *Check:* leap-February, 28-, 30- and 31-day cases. Likeliest mistakes: end = first of the *next*
   month (exclusive — the API's `end` is inclusive), or a hard-coded 31.
-- **Gap C — `getMetroOrNull` in `lib/metro.ts`** (step 8, the G24 item).
+- **K3 — `getMetroOrNull` in `lib/metro.ts`** (step 8, the v0.1-G24 item).
   *Lesson:* every page renders the root layout, so a failed metro call must not fail the shell —
   but a blanket `catch` also swallows Next's internal control-flow errors (the dynamic-usage signal
   `fetch` throws during prerender), which turns a working build into a failing one. `unstable_rethrow`
@@ -289,7 +289,7 @@ Vitest can't render, so their Check is a command or an HTTP response (D5).
   *Check:* `metro.test.ts` — the digest-error case. Likeliest mistake: `catch { return null }`,
   which passes the other two cases.
 
-- **Gap D — `await props.params` in `app/venue/[id]/page.tsx`** (step 4).
+- **K4 — `await props.params` in `app/venue/[id]/page.tsx`** (step 4).
   *Lesson:* in Next 16 `params` and `searchParams` are Promises with no synchronous fallback
   (`nextjs-style-guide.md`, Routing conventions and the Anti-patterns table). The route's whole
   filesystem-routing story — folder `[id]` becomes a parameter — only becomes real when the value
@@ -299,7 +299,7 @@ Vitest can't render, so their Check is a command or an HTTP response (D5).
   *Check:* `pnpm check-types` (it runs `next typegen` first): using `props.params` without `await` is
   a type error. Then `curl localhost:3000/venue/7` shows `7`. Likeliest mistake: destructuring
   without `await`.
-- **Gap E — the fetch-and-404 flow in the same page** (step 6).
+- **K5 — the fetch-and-404 flow in the same page** (step 6).
   *Lesson:* the RSC idea. `await getVenue(id)` sits directly in the component and runs on the
   server before any HTML is sent — no `useEffect`, no loading state, no client data library. And a
   miss is signalled with `notFound()`, which *throws*, producing a real HTTP 404; returning
@@ -321,7 +321,7 @@ Vitest can't render, so their Check is a command or an HTTP response (D5).
 - Implement `parseIdParam`, `parseDateParam` and `apiUrl` to the tests in §2 and §3. Dense comments
   on the non-obvious decisions: int4 cap, strict date regex before Temporal, year ≥ 1.
 - `parseCalendarFilters`, `toShowsQuery` and `buildCalendarHref` are **not** written here: they
-  belong to the filters task and are scaffolded in step 7 with Gaps A and B.
+  belong to the filters task and are scaffolded in step 7 with K1, K2.
 - Refactor `lib/health.ts` to call `apiUrl`; the 11 existing tests stay green and unmodified.
 - Dependencies: none new (`@js-temporal/polyfill` is installed). Import
   `{ Temporal } from "@js-temporal/polyfill"` explicitly — Node 24 has no native Temporal.
@@ -347,7 +347,7 @@ Create the six routes as **static placeholders first** (heading + the param echo
 build plan: `app/day/[date]/page.tsx`, `app/venue/[id]/page.tsx`, `app/venues/page.tsx`,
 `app/artist/[id]/page.tsx`, `app/artists/page.tsx` (and `/` already exists). Seeing the URLs
 resolve before any render data makes the model concrete.
-- Dynamic params are a **Promise** — **Gap D** (`TODO(Ari)` in `app/venue/[id]/page.tsx`); the other
+- Dynamic params are a **Promise** — **K4** (`TODO(Ari)` in `app/venue/[id]/page.tsx`); the other
   dynamic pages are written complete with the same `await`. Typed with the generated
   `PageProps<"/venue/[id]">` (run `pnpm check-types` — it runs `next typegen` — after adding each
   dynamic segment).
@@ -364,7 +364,7 @@ resolve before any render data makes the model concrete.
 ### 6. Load data in Server Components (fill-in) — the RSC lesson
 Replace each placeholder with real loading, one at a time, keeping pages **plain**:
 - `/venues`, `/artists`: `await getVenues()` / `getArtists()`; render a `<ul>` of `<Link>`s.
-- `/venue/[id]`, `/artist/[id]`: `parseIdParam` → `notFound()` if null — **Gap E** is this flow in
+- `/venue/[id]`, `/artist/[id]`: `parseIdParam` → `notFound()` if null — **K5** is this flow in
   `/venue/[id]` (the `/artist/[id]` page is written complete to match); `await getVenue(id)` →
   `notFound()` if the client returns `null`; render the metadata fields that exist in the contract
   (and nothing for the absent ones — `api-contract.md` §6).
@@ -376,7 +376,7 @@ Replace each placeholder with real loading, one at a time, keeping pages **plain
 
 ### 7. Filters as URL search params (fill-in) — the downstream-consequences decision
 - `lib/params.ts` gains `parseCalendarFilters`, `toShowsQuery`, `buildCalendarHref`, scaffolded
-  with **Gap A** and **Gap B** as `TODO(Ari)` blocks (tests red until filled). `buildCalendarHref`
+  with **K1** and **K2** as `TODO(Ari)` blocks (tests red until filled). `buildCalendarHref`
   (fixed key order, `/` when empty) is mechanical and written complete.
 - `/` becomes `async function Home({ searchParams }: PageProps<"/">)`:
   `parseCalendarFilters(await searchParams)` → `toShowsQuery` → `getShows` (+ `getVenues` for
@@ -394,8 +394,8 @@ Replace each placeholder with real loading, one at a time, keeping pages **plain
 - Empty result → one plain "No shows match these filters" line plus a reset `<Link href="/">`
   (the real empty state is B3).
 
-### 8. Metro in the layout (fill-in) — closes G24
-- New `lib/metro.ts` with `getMetroOrNull(fetcher = getMetro)`, scaffolded with **Gap C**.
+### 8. Metro in the layout (fill-in) — closes v0.1-G24
+- New `lib/metro.ts` with `getMetroOrNull(fetcher = getMetro)`, scaffolded with **K3**.
 - `layout.tsx`: `generateMetadata()` builds the `description` from the metro name (keeping
   `title.template`) and falls back to an exported generic-description constant when the metro is
   `null`; the footer's metro name becomes a small **async child inside `<Suspense>`** with a
@@ -406,11 +406,11 @@ Replace each placeholder with real loading, one at a time, keeping pages **plain
   returns. Comment it that way.
 - **The shell must never fail because of the metro call** — handled by `getMetroOrNull`, not by an
   ad hoc `try/catch` in the layout.
-- Remove both `TODO(G24)` comments.
+- Remove both `TODO(v0.1-G24)` comments.
 
 ### 9. Docs and plan bookkeeping (written)
 - `alpha-build-plan.md`: tick the B2 boxes; fix the stale "reading from the JSON fixtures" line and
-  the G24 caching wording (departures 1–2).
+  the v0.1-G24 caching wording (departures 1–2).
 - **Correct the B1 comments that become false** (review #4): `layout.tsx` ("lets Next.js prerender
   it once and reuse it") and `app/page.tsx` ("Next.js prerenders it to static HTML at build")
   both assume a static root layout. After B2 every route is dynamic, and the comments should say
@@ -500,7 +500,7 @@ fixes that needed Ari's decision were settled on October 9, 2026: whole-month se
 
 | # | Sev | Status | Finding | Evidence | What goes wrong | Resolution |
 |---|---|---|---|---|---|---|
-| 1 | blocker | CONFIRMED | Rethrowing fetch errors as `ApiError` also catches Next's internal `DynamicServerError`, so `next build` fails | §4 "Network failure … throw `ApiError` (cause attached)"; step 3 `request<T>()`. Build: `Error occurred prerendering page "/venues"` … `[cause]: Dynamic server usage … no-store fetch` | During prerender a `no-store` fetch throws on purpose, before any network call, to mark the route dynamic. The `catch` converts that, so the build fails whether or not the API is up. Vitest can't see it (no patched `fetch`). Fix: `unstable_rethrow(err)` first in every `catch` around a fetch, including the layout's metro `try/catch`; with it the build passed with the API down | **Fixed.** `request()` and `getMetroOrNull` both start their `catch` with `unstable_rethrow(err)`; new pass-through tests in `api.test.ts` and `metro.test.ts` (an error with `digest: "DYNAMIC_SERVER_USAGE"` must come out unchanged). I confirmed in plain Node that `unstable_rethrow` rethrows such an error and ignores an ordinary one; the Vitest equivalent is checked in the stubs-first step. This is also Gap C. Verification 3 is the build-level check |
+| 1 | blocker | CONFIRMED | Rethrowing fetch errors as `ApiError` also catches Next's internal `DynamicServerError`, so `next build` fails | §4 "Network failure … throw `ApiError` (cause attached)"; step 3 `request<T>()`. Build: `Error occurred prerendering page "/venues"` … `[cause]: Dynamic server usage … no-store fetch` | During prerender a `no-store` fetch throws on purpose, before any network call, to mark the route dynamic. The `catch` converts that, so the build fails whether or not the API is up. Vitest can't see it (no patched `fetch`). Fix: `unstable_rethrow(err)` first in every `catch` around a fetch, including the layout's metro `try/catch`; with it the build passed with the API down | **Fixed.** `request()` and `getMetroOrNull` both start their `catch` with `unstable_rethrow(err)`; new pass-through tests in `api.test.ts` and `metro.test.ts` (an error with `digest: "DYNAMIC_SERVER_USAGE"` must come out unchanged). I confirmed in plain Node that `unstable_rethrow` rethrows such an error and ignores an ordinary one; the Vitest equivalent is checked in the stubs-first step. This is also K3. Verification 3 is the build-level check |
 | 2 | blocker | CONFIRMED | The plan doesn't name its `TODO(Ari)` gaps, and marks [written] the code `AGENTS.md` gives as the example of a good gap | `AGENTS.md` "[fill-in] tasks": plans "name each [fill-in] step's `TODO(Ari)` blocks and their lessons"; its example good gap is "the `searchParams` → API-query mapping". Step 2 marks `lib/params.ts` [written] | Nobody can check the gaps are the right ones. Step 7's lesson (`parseCalendarFilters` / `toShowsQuery`) gets written in full, leaving page wiring. Gaps placed in pages (steps 4, 6, 8) have no test to turn green, so the required "Check" can't be written. Move the gaps into `params.ts` and list each | **Fixed; D5 decided by Ari.** New [TODO(Ari) gaps](#todoari-gaps) section names five blocks with Lesson/Code/Check: A and B (`parseCalendarFilters`, `toShowsQuery` — the `AGENTS.md` example gap, moved out of step 2 into step 7) and C (`getMetroOrNull`), all in unit-tested code; and D and E (`await props.params`; the fetch-and-`notFound()` flow) in steps 4 and 6. I had proposed re-marking those two steps [written] because they have no unit-testable line; Ari rejected that (the testability requirement is overstated for them), so they stay [fill-in] with command/HTTP Checks. Working protocol rewritten to match `AGENTS.md` (handoff, don't fill unasked) |
 | 3 | should-fix | CONFIRMED | The timeout `signal` turns off fetch memoization: `getMetro()` costs 2 requests per page, not 1 | `next/dist/server/lib/dedupe-fetch.js:88` ("If we're passed a signal … opts out of caching"). Measured per page load: 2× `/metro` with the signal, 1× without | D1's claim and Verification 5 fail as designed. Fix: wrap the getters in React `cache()`, which keys on arguments, so the signal doesn't matter | **Fixed.** `getMetro` wrapped in React `cache()` (no arguments, so it keys correctly); other getters aren't (object args never hit; one call per page). D1 text and Verification 5 corrected — Next's `fetch` memoization is off whenever a `signal` is passed. Checked `dedupe-fetch.js:88` myself |
 | 4 | should-fix | CONFIRMED | "Keep the shell prerenderable" is not a real reason for the Suspense-wrapped footer without `cacheComponents` | Build with a `no-store` metro fetch in a Suspense child: every route `ƒ`, including `/` and `/_not-found`. Step 8; B1 `layout.tsx` "lets Next.js prerender it once"; `page.tsx` "prerenders it to static HTML" | One dynamic fetch in the root layout makes the whole site dynamic. Suspense's real benefit here is streaming the footer late. Teaching point in a learning repo: correct the B1 comments in step 9 | **Fixed.** D1 now states the accepted consequence (every route `ƒ`, including `/` and `/_not-found`). Step 8 gives Suspense's real benefit as streaming. Step 9 adds correcting the now-false B1 comments in `layout.tsx` and `page.tsx` |
@@ -509,7 +509,7 @@ fixes that needed Ari's decision were settled on October 9, 2026: whole-month se
 | 7 | should-fix | CONFIRMED | Verification 3 ("build succeeds with the API unreachable") passes even if the metro fetch loses `no-store` | Metro fetch at the default cache setting, API down: build succeeds, `/_not-found` is `○`, "FALLBACK" baked into `_not-found.html` | A regression ships a permanent fallback with a green build. Require `/_not-found` to be `ƒ` by name, and grep `.next/server/app/*.html` for the fallback text | **Fixed.** Verification 3 now requires `/_not-found` and every data route to be `ƒ` by name, and a `grep` of `.next/server/app/*.html` for the generic-description constant to find nothing. `getMetroOrNull` falls back to an exported constant so the grep has something to look for |
 | 8 | should-fix | CONFIRMED | `/day/0000-01-01` passes the regex and Temporal; the API returns 422, so the page shows the error boundary, not a 404 | `TestClient`: `start=0000-01-01` → 422 "year 0 is out of range". Plan: 422 → throws `ApiError` | A bad URL produces an error page. Require year ≥ 1 in `parseDateParam` and add the test case | **Fixed.** `parseDateParam` requires year ≥ 1; test case `"0000-01-01"` → `null`. Confirmed with `TestClient`: year 0 → 422, year 1 → 200 |
 | 9 | should-fix | PLAUSIBLE | `parseIdParam` accepts ids up to 2⁵³, but database ids are `int4` | `app/db/models/calendar.py:69` (`Mapped[int]` → `Integer`) | After A1b, `/venue/3000000000` → asyncpg out-of-range → 500, not 404. Cap at 2147483647 | **Fixed.** `parseIdParam` capped at 2147483647 (`int4`); tests at 2147483647 and 2147483648. Confirmed `Mapped[int]` on the primary keys |
-| 10 | should-fix | PLAUSIBLE | Mapping `month` to a range on the client puts a "now" policy in the client, against D2's aim of settling the scheme now | Requirements: months list "only future facing"; `api-contract.md` §3 "the server owns now"; `/shows` accepts any `start` | The current month shows past days; past months are accepted; the client can't clamp to today. Decide: server owns the clamp (pass `month` through, or clamp `start`), or document whole-month semantics. `MAX_RANGE` / default window aren't traps, since both `start` and `end` are always sent | **Fixed; approved by Ari (D2).** `month` means the whole calendar month literally, past days included, with no client clock; "future only" belongs to which months the B3 dropdown offers (the server's `GET /calendar/months`). The later past-dates toggle can add a clamp. `MAX_RANGE` and the default window never apply because both bounds are always sent. Recorded in D2 and Gap B. Alternative if Ari prefers: server-side clamp |
+| 10 | should-fix | PLAUSIBLE | Mapping `month` to a range on the client puts a "now" policy in the client, against D2's aim of settling the scheme now | Requirements: months list "only future facing"; `api-contract.md` §3 "the server owns now"; `/shows` accepts any `start` | The current month shows past days; past months are accepted; the client can't clamp to today. Decide: server owns the clamp (pass `month` through, or clamp `start`), or document whole-month semantics. `MAX_RANGE` / default window aren't traps, since both `start` and `end` are always sent | **Fixed; approved by Ari (D2).** `month` means the whole calendar month literally, past days included, with no client clock; "future only" belongs to which months the B3 dropdown offers (the server's `GET /calendar/months`). The later past-dates toggle can add a clamp. `MAX_RANGE` and the default window never apply because both bounds are always sent. Recorded in D2 and K2. Alternative if Ari prefers: server-side clamp |
 | 11 | nit | CONFIRMED | Adding `loading.tsx` later (D4) turns the 404s into soft 404s that return 200 | Next docs `not-found.md:13` ("200 … for streamed responses"). Measured now: `/venue/abc` and an unmatched URL return 404 with the Suspense footer | B3 adds `loading.tsx` and the HTTP matrix's 404 rows silently become 200. Note it under D4 | **Fixed.** Noted under D4 as a B3 follow-up: once `loading.tsx` exists the 404 rows in Verification 4 must be re-checked |
 | 12 | nit | CONFIRMED | The sample-data clock: `/` shows 2026-09-28 – 2026-10-25 while today is 2026-10-08 | The API's default window echoes `2026-09-28`/`2026-10-25` | Correct per the contract, but Verification 7 could mistake it for a bug; say so. No planned test depends on today's date | **Fixed.** Step 7 and Verification 7 state that `/` shows 2026-09-28 – 2026-10-25 until the real endpoint exists, and that this is not a bug. No test depends on today's date |
 | 13 | nit | CONFIRMED | The round-trip property only proves `parse(build(f)) == f` for already-clean filters | §2 | Messy URLs (unsorted, duplicate, invalid) → canonical href is untested, and the test needs a hand-written URLSearchParams → `searchParams` converter that may not match Next. Add `build(parse(url))` cases | **Fixed.** Added `build(parse(messy))` canonicalization cases (e.g. `venue=3&venue=1&venue=3&venue=x` → `/?venue=1&venue=3`). The test helper's match to Next's real `searchParams` shape is verified by the HTTP matrix (`/?venue=1&venue=2`), not assumed |
@@ -554,16 +554,16 @@ because it wasn't in the offline pnpm store.
 3. **`parseMonthParam` is exported and tested directly**, and `parseIdParam` also rejects leading zeros (`"012"`): both additions beyond the plan's list, for the same one-URL-per-state reason. `parseMonthParam` also requires year ≥ 1 (the API rejects year 0).
 4. **`siteDescription(metro)` added to `lib/metro.ts`** (with a test) so the fallback/`FALLBACK_DESCRIPTION` logic is unit tested rather than living inline in `layout.tsx`.
 5. **`PlainShowList` (`app/_components/`)** is a small shared throwaway used by `/` and `/day/[date]` rather than two copies; B3 deletes it.
-6. **Gap D/E scaffold uses a `todo<T>()` helper** at the bottom of `app/venue/[id]/page.tsx` so the rest of the page (the markup) stays complete and type-checks; the TODO blocks say to delete it when filled.
+6. **K4/E scaffold uses a `todo<T>()` helper** at the bottom of `app/venue/[id]/page.tsx` so the rest of the page (the markup) stays complete and type-checks; the TODO blocks say to delete it when filled.
 7. `error.tsx` shows `error.digest` ("Reference: …") when present — a safe opaque id, not `error.message`.
 8. Page `metadata` titles on detail pages are static ("Venue", "Artist", "Day"), not name-bearing; making them name-bearing needs a second fetch or sharing one, which is B4.
 
 **`TODO(Ari)` gaps (all five open — none filled by anyone).** Review the code as it stands; open gaps aren't findings.
-- Gap A — `parseIdList` in `lib/params.ts`
-- Gap B — `monthRange` in `lib/params.ts`
-- Gap C — `getMetroOrNull` in `lib/metro.ts`
-- Gap D — `await props.params` in `app/venue/[id]/page.tsx`
-- Gap E — fetch-and-`notFound()` flow in `app/venue/[id]/page.tsx`
+- K1 — `parseIdList` in `lib/params.ts`
+- K2 — `monthRange` in `lib/params.ts`
+- K3 — `getMetroOrNull` in `lib/metro.ts`
+- K4 — `await props.params` in `app/venue/[id]/page.tsx`
+- K5 — fetch-and-`notFound()` flow in `app/venue/[id]/page.tsx`
 
 **Verification.**
 - Tests first: Python `test_metro_returns_the_live_metro` and `test_openapi_exposes_the_metro_route` watched fail (404 / path missing) then pass. Frontend: stubs first, so the red state was assertion failures (83 failed / 11 passed), then implemented.
@@ -579,7 +579,7 @@ because it wasn't in the offline pnpm store.
 2. `lib/params.ts` `parseDateParam` / `parseIdParam` / `parseMonthParam` edge cases (the three-layer date check; regex vs Temporal).
 3. `app/layout.tsx`: `generateMetadata` + `<MetroName>` sharing one request via React `cache()` on `getMetro` (verified once per load), and that the comments about Suspense and D1 are now true.
 4. The V6 behaviour above: is a bare 500 document, with `error.tsx` only after hydration, acceptable until B3's `loading.tsx`?
-5. The scaffold: are Gaps A–E the right lines, and do the TODO blocks' `Code:` snippets fit the surrounding code?
+5. The scaffold: are K1–K5 the right lines, and do the TODO blocks' `Code:` snippets fit the surrounding code?
 
 ## Code review
 
@@ -609,14 +609,14 @@ conventions, and the bundled Next 16.3.0 docs and source in `node_modules/next`.
   Also checked in plain Node (CONFIRMED): `AbortSignal.timeout` covers the body read. A server that sends
   headers and then stalls makes `response.json()` reject with a `DOMException` named `TimeoutError`, which
   is the case `readJson` relies on (log "where to look" 1).
-- With Gap C reverted to its scaffold, `next build` fails (see #4).
+- With K3 reverted to its scaffold, `next build` fails (see #4).
 
 **Answers to "where to look hardest".**
 1. Every `catch` around a fetch or a body read starts with `unstable_rethrow`. The timeout covers the body read.
 2. The edge cases in `params.ts` hold, and the tests cover them.
 3. `cache()` sharing works on pages that render (one `/metro` per load), but not on 404 pages (#5). The Suspense and D1 comments are accurate.
 4. The bare 500 document is real; see #2.
-5. Gaps A–E sit where the concept lives, and their snippets fit. The one gap problem is the ordering between gaps (#4).
+5. K1–K5 sit where the concept lives, and their snippets fit. The one gap problem is the ordering between gaps (#4).
 
 **Counts:** 0 blocker, 3 should-fix, 4 nit. **Verdict: proceed after fixes.**
 
@@ -625,7 +625,7 @@ conventions, and the bundled Next 16.3.0 docs and source in `node_modules/next`.
 | 1 | should-fix | `error.tsx`'s "Try again" calls `reset()`, which in Next 16.3 re-renders the segment **without re-fetching**. Every error B2 can produce comes from a server fetch, so the button can never recover. The Next 16.3 prop for this is `retry`. The style guide's stale wording is probably the source | CONFIRMED (docs + source; button not clicked in a browser): `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/error.md` §`reset`: "In most cases, you should use `retry()` instead … re-render … without re-fetching". Version history: "`v16.3.0` `retry` prop became stable". `next/dist/client/components/error-boundary.js:39-48`: `reset` is `setState({error:null})`, while `retry` is `context.refresh()` then `reset()`. `app/error.tsx:21,39`. `nextjs-style-guide.md:491` says "(a Client Component receiving `error`/`reset`)" | After the API comes back, clicking "Try again" renders the cached failed payload again and shows the same error. The user has to reload the page. This repo's whole point is teaching current Next, and the style guide would keep handing out the stale prop. Fix: take `retry` and call `retry()`, and update the comment. Also correct `nextjs-style-guide.md:491` to `error`/`retry` and note `reset`'s narrower meaning (a style-guide change, so tell Ari) | **Fixed.** Re-checked `error.md` (`retry` stable in 16.3.0) and `error-boundary.js`. `app/error.tsx` now takes `retry` and calls `retry()`; the comment explains why `reset()` can't recover from a failed server fetch. `nextjs-style-guide.md:491` corrected to `error`/`retry` — **a style-guide edit, flagged to Ari**. Not click-tested in a browser. Also recorded in `notes.md` |
 | 2 | should-fix | Verification 6 isn't met as the plan wrote it. With the API down, `/`, `/venues` and `/venue/1` return HTTP 500 with Next's bare `<html id="__next_error__">` document: no header, nav, footer or `error.tsx` markup in the HTML. The log reports this. It needs a recorded decision, not just "Ari should look in the browser" | CONFIRMED (curl against `next start`, API stopped): `500 /`, `500 /venues`, `500 /venue/1`, `404 /venue/abc`, `200 /health`, `404 /nope`. The `/venues` body contains `__next_error__`, `<meta name="robots" content="noindex">` and the fallback description, and none of "Venues</a>", "Status</a>" or "Something went wrong". Plan V6 expected "data routes show the error boundary … `/` shell … still render". React's server renderer doesn't run error boundaries, and with no `<Suspense>` above the page the shell itself errors | Without JS, or until hydration, a visitor (or crawler) gets a blank page during an outage, and `/` is down as well (its `getVenues()` call exists only for the demo links). The obvious fix, `loading.tsx` or `<Suspense>` around `{children}`, turns `notFound()` into a soft 404 that returns 200 (review #11, D4). That trade-off is **Ari's call**. Recommendation: accept it for B2 and write it down where it lives: update V6's expected result, add a sentence to D4's B3 note that `loading.tsx` also fixes this, and add a `notes.md` entry, since it's exactly the kind of non-obvious behaviour that file is for | **Fixed (documented); decision is Ari's.** No code change: I applied the reviewer's recommendation to accept the bare 500 for B2. Verification 6 rewritten to the actual behaviour (bare `__next_error__` 500, `error.tsx` after hydration, no leaks, `/health` and 404s unaffected, recovery without restart); D4's B3 note now says `loading.tsx`/`<Suspense>` would also fix it, at the cost of soft 404s; new `notes.md` entry. **Ari should confirm accepting this (or choose `loading.tsx` now)** |
 | 3 | should-fix | About 16 tests have no `Proves:` comment, against the `AGENTS.md` rule "Every test opens with a comment beginning `Proves:`" | CONFIRMED (read): `api.test.ts:57, 86, 117, 129`; `metro.test.ts:11, 46`; `params.test.ts:109, 122, 166, 209, 224`; `api-url.test.ts:7, 29, 42, 48`. Others (e.g. `params.test.ts:130`, `api.test.ts:138`) follow the rule, and the Python tests do too | A reader can't tell what some tests pin. One example: `api.test.ts:86` is what proves "the server owns now" for the no-filter case, and it doesn't say so. Add a one-line `Proves:` to each test. Comment-only, so snapshot the files and compare syntax trees as `AGENTS.md` asks | **Fixed.** Added `Proves:` comments to the 16 listed tests (`api.test.ts` ×4, `api-url.test.ts` ×4, `metro.test.ts` ×2, `params.test.ts` ×5, plus rewording `Proves (with…` to `Proves:` on the round-trip test). Comment-only: snapshotted the four files, compiled before/after with comments removed (TypeScript `transpileModule`, `removeComments`), output identical for all four. `health.test.ts` (B1) was out of scope and left alone |
-| 4 | nit | The gaps depend on each other's order, and nothing says so. While Gap C is open, every route returns 500 (including `/health` and `/nope`, because the root layout's `generateMetadata` throws), and `next build` fails. So Gap D's Check ("`curl localhost:3000/venue/1` shows the venue") and Gap E's curl checks can't pass until C *and* E are filled | CONFIRMED: build with Gap C at its scaffold → `Error occurred prerendering page "/_not-found"` … `Error: TODO(Ari)` … `lib/metro.ts:62`. `app/venue/[id]/page.tsx:25-27` (Gap D's Check depends on E) | Ari fills D, runs its curl Check, gets a 500 for every URL, and looks for a bug in his own line. Fix: in the handoff and the Gap D/E Check text, say to fill C first, and that D's curl check needs E too. As a stand-alone check for D, `pnpm check-types` is enough | **Fixed.** The plan's gap section now says to fill **C first**, and that D's own check is `pnpm check-types` while its curl check needs C and E; the Gap D and E `Check:` text in `app/venue/[id]/page.tsx` says the same (comment-only edit; the scaffold's code is unchanged). Repeated in the handoff |
+| 4 | nit | The gaps depend on each other's order, and nothing says so. While K3 is open, every route returns 500 (including `/health` and `/nope`, because the root layout's `generateMetadata` throws), and `next build` fails. So K4's Check ("`curl localhost:3000/venue/1` shows the venue") and K5's curl checks can't pass until C *and* E are filled | CONFIRMED: build with K3 at its scaffold → `Error occurred prerendering page "/_not-found"` … `Error: TODO(Ari)` … `lib/metro.ts:62`. `app/venue/[id]/page.tsx:25-27` (K4's Check depends on E) | Ari fills D, runs its curl Check, gets a 500 for every URL, and looks for a bug in his own line. Fix: in the handoff and the K4/E Check text, say to fill C first, and that D's curl check needs E too. As a stand-alone check for D, `pnpm check-types` is enough | **Fixed.** The plan's gap section now says to fill **C first**, and that D's own check is `pnpm check-types` while its curl check needs C and E; the K4 and E `Check:` text in `app/venue/[id]/page.tsx` says the same (comment-only edit; the scaffold's code is unchanged). Repeated in the handoff |
 | 5 | nit | `getMetro`'s `cache()` de-duplication holds for pages that render and for unmatched URLs, but a page that calls `notFound()` makes **two** `/metro` requests. The code comments and Verification 5 claim one per page load | CONFIRMED (uvicorn access-log deltas): `/`, `/venues`, `/venue/1`, `/nope` → 1 each; `/venue/abc`, `/venue/9999`, `/day/garbage` → 2 each. PLAUSIBLE cause: Next renders the not-found tree in a second render, and React `cache()` is scoped to one render. `layout.tsx:33-34` ("one API request per render") and `lib/api.ts:207-209` | Harmless, since the call is cheap. But it's the measured number this plan is about, and the next person to count requests will think `cache()` broke. Add a sentence to the `api.ts` comment and V5 rather than changing code | **Fixed (comments, no code).** Added the two-requests-on-`notFound()` caveat to the `getMetro` comment in `lib/api.ts`, the `generateMetadata` comment in `layout.tsx`, and Verification 5. I did not re-measure; the cause is the reviewer's PLAUSIBLE reading (second render), the counts are theirs |
 | 6 | nit | The new `/metro` row in `api-contract.md` §2 gives its milestone as "B2". The route serves sample data until A1b, like every other row ("A-track, after A1b") | CONFIRMED (read): `api-contract.md:40`; `app/routers/metro.py` docstring ("TEMPORARY IMPLEMENTATION … A1b swaps the body"). The section's lead-in, "Not implemented yet", is stale for all rows | Someone reading the contract to plan A1b may skip `/metro` as already finished. Fix: "B2 (sample data); DB-backed in A1b". Optionally also correct the "Not implemented yet" lead-in | **Fixed.** `/metro` row now reads "B2 (serves sample data; DB-backed in A1b)"; the stale "Not implemented yet" lead-in is replaced with a sentence saying all routes exist over sample data and `A-track, after A1b` means the body becomes a query then |
 | 7 | nit | Two comment slips | CONFIRMED (read): `app/page.tsx` header says "Before B1's placeholder this page was static; it is not any more", but it was B1's placeholder itself that was static. `app/_components/plain-show-list.tsx:23-24`: a reflow merged two sentences onto one overlong line ("…on /day/[date]), so it isn't repeated per row. `start_time` is …") | Small, but this is a learning repo and both comments explain *why*. Reword the first to "B1's placeholder was static; this page is not". Reflow the second | **Fixed.** `app/page.tsx` comment reworded ("B1's placeholder was static; this page is not"); the merged sentences in `plain-show-list.tsx` split onto separate paragraphs |

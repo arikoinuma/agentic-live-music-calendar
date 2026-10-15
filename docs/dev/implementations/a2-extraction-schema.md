@@ -4,7 +4,7 @@
 **Date:** October 8, 2026
 **Author model:** Claude Sonnet 5.5 (plan, implementation rounds 1–4); Claude Opus 5.5 (Implementation log round 5, closing A2, October 10, 2026)
 **Reviewer model:** Claude Opus 5.5 (plan review round 1, October 8, 2026); Claude Opus 5.5 (code review round 1, October 9, 2026)
-**Spec:** `docs/dev/alpha-build-plan.md` §5 A2 (gaps G7, G8, G9), `docs/arch/requirements-initial.md`
+**Spec:** `docs/dev/alpha-build-plan.md` §5 A2 (gaps v0.1-G7, v0.1-G8, v0.1-G9), `docs/arch/requirements-initial.md`
 ("Agent Extraction: Fields", "One Show or Several?", "Agent Handling of Entries … that don't have
 performing artists"), `docs/arch/data-model-initial.md` §2 (`show`, `show_artist`),
 `docs/dev/env-setup.md` Phase 5 (the model decision and its failure mode)
@@ -17,9 +17,9 @@ written in Phase 5 from a one-line field list in `arch-initial.md` §7. It has d
 
 | Gap | What is wrong today | A2 change |
 |---|---|---|
-| G7 | One untyped `ticket_info` string; no poster image; `acts` is a bare `list[str]`, so no per-artist start time or order | `admission_advance` / `admission_day` / `free_admission`, `image_url`, and `acts` becomes a list of structured `ActExtraction` objects |
-| G8 | `time` is required, so the model's only way to say "the page doesn't state one" is to invent one | `time` optional, and its `description` says so (the description is sent to the model) |
-| G9 | The prompt never states the "ignore karaoke / open mic / party with no artist" rule | State it. This is the same shape as Phase 5's documented failure (a non-music entry mixed into a musical listing), so it is a reliability fix as well as a correctness fix |
+| v0.1-G7 | One untyped `ticket_info` string; no poster image; `acts` is a bare `list[str]`, so no per-artist start time or order | `admission_advance` / `admission_day` / `free_admission`, `image_url`, and `acts` becomes a list of structured `ActExtraction` objects |
+| v0.1-G8 | `time` is required, so the model's only way to say "the page doesn't state one" is to invent one | `time` optional, and its `description` says so (the description is sent to the model) |
+| v0.1-G9 | The prompt never states the "ignore karaoke / open mic / party with no artist" rule | State it. This is the same shape as Phase 5's documented failure (a non-music entry mixed into a musical listing), so it is a reliability fix as well as a correctness fix |
 | — | The prompt never states the one-show-vs-several rule | State it |
 
 Then measure: **a richer schema is more for the model to get right, so whether A2 made extraction
@@ -35,9 +35,9 @@ better or worse is an experiment, not an assumption** (build plan A2, last item)
   against, accepted here because the schema should be stable before A6 writes `show.image_url`.
   The guard is a prompt/description rule ("copy a URL only if it appears verbatim in the page
   text, else null") plus an eval check that any returned URL really is in the page. Preserving
-  image links in cleaning becomes a **new build-plan item (G25)**, not A2 scope.
+  image links in cleaning becomes a **new build-plan item (v0.1-G25)**, not A2 scope.
 - **`end_time`: add it, optional.** `requirements-initial.md` lists "End Time: leave blank if
-  unclear" and `show.end_time` exists, but G7's inventory and A2's items missed it. The eval
+  unclear" and `show.end_time` exists, but v0.1-G7's inventory and A2's items missed it. The eval
   measures whether it tempts the model to invent end times.
 
 ### What A2 deliberately does not do
@@ -46,8 +46,8 @@ better or worse is an experiment, not an assumption** (build plan A2, last item)
   only the cheap constraints the model can be retried on (`ge=0` on prices, `ge=1` on order).
 - No rename of `time` → `start_time` to match `show.start_time`. Not requested; **A5's reconcile
   maps `time` → `show.start_time`** and should say so.
-- No change to fetch or `html_clean` (G25 above), and no change to `extract_node`'s model call,
-  `max_tokens`, `num_ctx`, or its missing error handling (A3, G2).
+- No change to fetch or `html_clean` (v0.1-G25 above), and no change to `extract_node`'s model call,
+  `max_tokens`, `num_ctx`, or its missing error handling (A3, v0.1-G2).
 - No hand-labelled ground truth (A8). The A2 measurement is directional, not scored.
 
 ## Design
@@ -210,7 +210,7 @@ explicitly free, a poster image link".
 
 Tests live in a new **`agent_worker/tests/`** (with `__init__.py`, like `app/tests/`). They cannot
 go in `app/tests/`: `apps/api/AGENTS.md` says `app/` never imports from `agent_worker/`, and the
-round-1 reviewer of A1 flagged exactly that. That requires one small pull-forward from A7 (G14):
+round-1 reviewer of A1 flagged exactly that. That requires one small pull-forward from A7 (v0.1-G14):
 `pyproject.toml` `testpaths = ["app"]` becomes `["app", "agent_worker/tests"]`. It does not collect
 `agent_worker/local_test.py` (the reason `testpaths` was narrow), because that file isn't under
 `tests/`. A7 will widen mypy and add the rest; this is only so A2's tests run under `make check`.
@@ -224,7 +224,7 @@ clients, which makes no network call). The tests never read `agent_worker/eval/f
 
 | Test | Proves |
 |---|---|
-| `required` set in `ShowExtraction.model_json_schema()` is exactly `{venue, date, acts, is_ambiguous, confidence}` | what `instructor` tells the model is required — the strongest single guard for G8; catches "Optional but no default" (a Pydantic v2 trap: `X \| None` with no default is **still required** — verified this session) |
+| `required` set in `ShowExtraction.model_json_schema()` is exactly `{venue, date, acts, is_ambiguous, confidence}` | what `instructor` tells the model is required — the strongest single guard for v0.1-G8; catches "Optional but no default" (a Pydantic v2 trap: `X \| None` with no default is **still required** — verified this session) |
 | omitted `time`, `end_time`, prices, `free_admission`, `image_url`, and an act's `start_time` / `sequence_number` all validate to `None` | "not stated" is representable |
 | all-`None` admission is valid and `free_admission` is `None`, not `False` | absence of a price never reads as free |
 | negative price rejected; `"15.00"` and `15` both accepted (as `15.0`) | the `ge=0` constraint and tolerance for the two shapes a model emits |
@@ -266,9 +266,9 @@ Applying `AGENTS.md`'s rule: gaps go where the concept lives, not where the typi
 
 | # | Where | Lesson (one line) | Check |
 |---|---|---|---|
-| 1 | `schemas.py` — `ShowExtraction.time` (G8) | `datetime.time \| None` **without** `= None` is still required in Pydantic v2; and the `description` is an instruction to the model — 24-hour `HH:MM`, the time the music starts (not doors), "otherwise null" — not documentation. The type is `ModelTime` (the normalizer alias, written by me), so the line to type is `time: ModelTime = Field(default=None, description=…)` | `test_required_set…`, `test_omitted_optionals…`, the normalizer cases |
-| 2 | `schemas.py` — `ShowExtraction.acts` (G7) | Changing `list[str]` to `list[ActExtraction]` is a **shape** change: the JSON schema `instructor` sends becomes nested, and every reader of `.acts` must change (none exist yet, which is why it's cheap now) | `test_acts_must_be_objects` |
-| 3 | `prompts.py` — `_non_music_rule()` (G9) | The Phase 5 failure mode was a non-music entry mixed into a musical listing; stating the exclusion rule is both the correctness fix and the reliability fix. Decided scope: karaoke, open mic, comedy and parties with no identifiable artist are not shows; a *named* DJ is an artist; "Hosted by" is not a performer | `test_prompts.py`, then the eval |
+| 1 | `schemas.py` — `ShowExtraction.time` (v0.1-G8) | `datetime.time \| None` **without** `= None` is still required in Pydantic v2; and the `description` is an instruction to the model — 24-hour `HH:MM`, the time the music starts (not doors), "otherwise null" — not documentation. The type is `ModelTime` (the normalizer alias, written by me), so the line to type is `time: ModelTime = Field(default=None, description=…)` | `test_required_set…`, `test_omitted_optionals…`, the normalizer cases |
+| 2 | `schemas.py` — `ShowExtraction.acts` (v0.1-G7) | Changing `list[str]` to `list[ActExtraction]` is a **shape** change: the JSON schema `instructor` sends becomes nested, and every reader of `.acts` must change (none exist yet, which is why it's cheap now) | `test_acts_must_be_objects` |
+| 3 | `prompts.py` — `_non_music_rule()` (v0.1-G9) | The Phase 5 failure mode was a non-music entry mixed into a musical listing; stating the exclusion rule is both the correctness fix and the reliability fix. Decided scope: karaoke, open mic, comedy and parties with no identifiable artist are not shows; a *named* DJ is an artist; "Hosted by" is not a performer | `test_prompts.py`, then the eval |
 | 4 | `prompts.py` — `_one_show_rule()` | "Listings under one time / ticket link are a single multi-artist Show; separately timed or ticketed listings are distinct Shows; several start times with one ticket link is still one Show" — this is what decides insert-vs-update downstream (A5's composite key is venue + date + time) | `test_prompts.py`, then the eval |
 
 Each block will carry Lesson / Code (near-exact lines to type or paste) / Check, per `AGENTS.md`.
@@ -352,12 +352,12 @@ Order matters: **the baseline must be captured before the schema changes.**
    fill in the results table and the verdict (better / worse / mixed, with the evidence). If
    `after` is worse than `baseline`, `schema-only` says whether the schema or the new rules did it (its base sentence differs from baseline's by A2's one wording edit, so "schema only" is the schema plus that sentence),
    so the response (below, Risks) removes the right thing. 6 files × 3 runs × 3 labels = 54 runs.
-6. **Docs.** Tick A2 in the build plan; add **G25** ("`html_clean` strips image URLs, so `image_url`
+6. **Docs.** Tick A2 in the build plan; add **v0.1-G25** ("`html_clean` strips image URLs, so `image_url`
    can't be populated from text pages") as a new item under A3/fetch; note in `arch-initial.md` §7
    that its extraction field list is superseded by `requirements-initial.md`; update the
    `schemas.py` docstring that cites the old list; add anything non-obvious that bit during the work
    to `docs/dev/notes.md` (candidate: `X | None` without a default is still required). Also, from
-   plan review: edit **A7's G14 item** to say the `agent_worker/tests` path was added to `testpaths`
+   plan review: edit **A7's v0.1-G14 item** to say the `agent_worker/tests` path was added to `testpaths`
    in A2 (so A7 widens rather than redoes it); add to **A5** the null-`time` matching question above;
    add to **A3** a completeness check that `acts` is non-empty; add to **A6** that prices are
    floats in the extraction and become `Decimal(str(v))` quantized to `Numeric(10, 2)` at write.
@@ -486,7 +486,7 @@ against returned act names.*
 
 Derived scoring rules: an **invented end time** is any `end_time` on every fixture except White
 Squirrel; an **invented start time** is any show `time` on the Terminal Bar html page (under the
-baseline schema `time` is required, so this counts every show there — G8's cost, measured); an
+baseline schema `time` is required, so this counts every show there — v0.1-G8's cost, measured); an
 **invented price** is any admission/ticket field on White Squirrel, Midway or Terminal html; an
 **invented image URL** is any non-null `image_url` not found verbatim in the page text (for posters
 there is no page text, so any non-null `image_url` counts). Dates are not scored: Zhora and the posters omit
@@ -531,7 +531,7 @@ at Ollama's default. Raw: `eval/results/baseline.json`. **Two conditions to read
 | Completion | **8/18** (10 × `IncompleteOutputException`) |
 | Mean attempts used / mean wall time | 0.56 / 63.5 s (each failed large page runs ~70–80 s and is cut off when the 4096-token context fills — not at `max_tokens`; see `notes.md`) |
 | Parse failures by field | 13 × `shows.*.time:time_type`, all on Terminal Bar html — the model returned `time: null` for a required field, was rejected, re-asked |
-| **Invented start times (G8, measured)** | **15** — every show on the Terminal Bar page (7 + 8), which states no time anywhere; the model wrote `00:00:00` for 14 of them and `09:30` for one (it read the act "Dirty 930" as a time and dropped the act) |
+| **Invented start times (v0.1-G8, measured)** | **15** — every show on the Terminal Bar page (7 + 8), which states no time anywhere; the model wrote `00:00:00` for 14 of them and `09:30` for one (it read the act "Dirty 930" as a time and dropped the act) |
 | Invented end times / prices / image URLs | 0 / 0 / 0 (the baseline schema has no end time or image field; no price invented) |
 | Non-music leaks / empty-`acts` shows | 0 / **2** (both poster 2) — leaks are matched on act names and `venue`, so the two empty shows score as clean; only 2 usable runs on the one page with such entries (Terminal Bar's OPEN MIC / DJ Night / OPEN COMEDY headers), and no run extracted them even without the exclusion rule |
 | `is_ambiguous` true | 14 of 21 shows (all but the six poster shows and one Terminal Bar show) |
@@ -544,7 +544,7 @@ as a time. Run 2 has all eight dates right. Poster runs: right times and price, 
 catch** (this is the case the plan's "`acts` may be empty" decision exists for, and it happens
 without any A2 change).
 
-**What this baseline can and cannot support.** It *does* show, directly, G8's cost (15 invented
+**What this baseline can and cannot support.** It *does* show, directly, v0.1-G8's cost (15 invented
 times, 13 rejected nulls) and that the baseline schema already fails or comes back empty-ish on a
 third of runs. It *cannot* say much about the three largest pages, where it fails 9/9 for what is
 a context-window reason (confirmed for White Squirrel by replaying `instructor`'s exact messages through native `/api/chat`: truncated at `num_ctx` 4096, complete with 12 shows at 32768): any label run under the same 4096-token window will
@@ -589,7 +589,7 @@ Shows found per fixture, three runs each (reference ≈ in the first column):
 
 **What each number means (read before the verdict).**
 
-- **Reliability improved, and G8 is why.** The old schema's required `time` produced 75 rejected time values on
+- **Reliability improved, and v0.1-G8 is why.** The old schema's required `time` produced 75 rejected time values on
   the Terminal Bar page (the model returning null, then — on two runs — exhausting all four attempts) and 8
   invented start times. With `time` optional the same page completed 6/6 in both new labels. This is the
   clearest result in the table. Mean attempts and wall time fell with it.
@@ -629,7 +629,7 @@ Shows found per fixture, three runs each (reference ≈ in the first column):
   run because the posters have none; act counts vary (1, 3 or 4) where each poster lists 3.
 
 **Verdict: better overall, with named regressions — "mixed, leaning better".** A2's schema change fixed the
-reliability failure it was written for (G8: 16 → 18 completions, failed parses 14 → 1, invented
+reliability failure it was written for (v0.1-G8: 16 → 18 completions, failed parses 14 → 1, invented
 start times 8 → 2), and the exclusion rule removes the non-music entries it targets (26 → 0). Against that:
 the model ignores "otherwise null" for `free_admission` (writes `false`), mislabels single prices as advance
 on Zhora, merges separately timed listings on one White Squirrel seed, and invented one end time and one image URL
@@ -671,8 +671,8 @@ one object per listing), and its description lost the plural: pre-A2 `"The name(
 in listed order"`, now `"The act(s) performing, in the order the page lists them"`. A2.1 should test the
 description alone before anything structural, since it is a one-line change.
 
-**Amended verdict: mixed — better on reliability and exclusion, clearly worse on acts.** G8 (completions,
-failed parses, invented start times) and G9 (non-music leaks) improved as stated above. But **acts**, one
+**Amended verdict: mixed — better on reliability and exclusion, clearly worse on acts.** v0.1-G8 (completions,
+failed parses, invented start times) and v0.1-G9 (non-music leaks) improved as stated above. But **acts**, one
 of the three fields in the 95% bar (Decision 9), regressed from mostly split to almost never split on every
 multi-act text page. This is recorded as failure **F9** below and is the first thing A2.1 should fix or
 explain.
@@ -701,7 +701,7 @@ this refinement, not on a rubber stamp.)
 | F8 | `is_ambiguous` fell to 0 under the new rules | `after`: 0 of 196 shows (9 and 8 in the other labels) | meaning undecided; A3 reads it |
 | F9 | **Acts not split**: a multi-act listing comes back as one act named with the whole title ("Lent w. Gills, Boomdagger") | *Added October 10* (Eval results › Addendum): multi-act shows White Squirrel 9/12 → 0/12, Zhora ~17/23 → 0 in every run, Terminal Bar 3/8 → 0–2/8; same in `schema-only`, so the schema caused it. Reproduced by `local_test` (12 of 12 single-act) | **schema-induced regression**; first suspect is the `acts` description, which lost "name(s)" |
 
-What *did* improve and should be kept: reliability (G8: 16 → 18 completions, failed parses 14 → 1), and the exclusion
+What *did* improve and should be kept: reliability (v0.1-G8: 16 → 18 completions, failed parses 14 → 1), and the exclusion
 rule (26 → 0 leaks on Midway). The refinements below must not regress those.
 
 ### Strategies considered
@@ -709,7 +709,7 @@ rule (26 → 0 leaks on Midway). The refinements below must not regress those.
 | ID | Strategy | Addresses | Expected value | Cost / risk | Status |
 |---|---|---|---|---|---|
 | S1 | **Use structured data where the page already has it** (schema.org JSON-LD, an `.ics` feed, the calendar plugin's JSON/REST endpoint); the model is only the fallback. *Unchecked:* White Squirrel's cleaned text mentions "Export .ics file"; Zhora and Midway look like hosted site builders; Terminal Bar is WordPress. Nobody has searched the saved pages or the live sites for this | F1–F6 wherever it applies (exact data, no model) | Potentially the largest: exact dates, times, prices, images with no inference | Fetch changes (A5/fetch scope); some sites won't have it. *October 10:* one generic JSON-LD reader, not per-venue work | **Look done October 10 (on the saved pages; live sites not yet fetched)** — see "S1 look: results" below: 2 of 4 venues have complete JSON-LD |
-| S2 | **Preserve structure in the cleaned text** instead of stripping it: one line per element/list item/table cell, day cells kept with their numbers, links and `<img src>` kept (this is also G25) | F4, F5, F6 (gives the model boundaries and real image URLs) | High on Midway and Terminal Bar. Token savings are small — the cleaned pages are already 0.8–2.7 KB (~500–900 tokens); the schema in the system prompt (~1000 tokens) and the reasoning dominate | New cleaning code per page shape; must not regress White Squirrel/Zhora | Not started |
+| S2 | **Preserve structure in the cleaned text** instead of stripping it: one line per element/list item/table cell, day cells kept with their numbers, links and `<img src>` kept (this is also v0.1-G25) | F4, F5, F6 (gives the model boundaries and real image URLs) | High on Midway and Terminal Bar. Token savings are small — the cleaned pages are already 0.8–2.7 KB (~500–900 tokens); the schema in the system prompt (~1000 tokens) and the reasoning dominate | New cleaning code per page shape; must not regress White Squirrel/Zhora | Not started |
 | S3 | **Move code-fixable rules out of the model** (validation/coercion between extraction and write): F1 false→null when no price; F2 one price ⇒ `admission_day`; F3 supply the year from the run date or the page's stated month; F6 drop an `image_url` not found verbatim in the page, and treat `end_time` equal to a stated start with `time` null as a misplaced start | F1, F2, F3, F6 | Reliable by construction, cheap, testable without a model; this *is* A3's "validation of agentic output" | Rules can be wrong at the edges; they hide model unreliability rather than reduce it, so keep counting how often they fire | Not started; partly already in the build plan (A3 bullets added Oct 9) |
 | S4 | **Shrink what the model must produce**: drop per-act `start_time` / `sequence_number` from the extraction schema (A5 derives order from list position anyway), keep date, time, act names, price, free flag; possibly drop `confidence` | F4 (removes the merge incentive), F7 (shorter output) | Medium; the per-act times are what made merging look correct to the model. Costs the per-act-time requirement, which would then need another route | Departs from requirements-initial.md's per-artist start time; needs Ari's call | Not started |
 | S5 | **Chunk the page** (e.g. one day or section per call) | F4, F5, F7, and the original context pressure | Medium–high on Midway/Zhora; short answers are easier to get right | More calls; chunk boundaries need S2's structure to find; merges across chunks | Not started |
@@ -890,7 +890,7 @@ Severity is `blocker` / `should-fix` / `nit`. Evidence is a file:line, a doc sec
 output, marked **CONFIRMED** (you reproduced it) or **PLAUSIBLE** (reasoned only).
 
 **Read first:** this file; `AGENTS.md` (especially "[fill-in] tasks" and "Implementation plans");
-`docs/dev/alpha-build-plan.md` §3 and §5 A2–A3, A7 and the G7/G8/G9 rows of §1.3;
+`docs/dev/alpha-build-plan.md` §3 and §5 A2–A3, A7 and the v0.1-G7/G8/G9 rows of §1.3;
 `docs/arch/requirements-initial.md` "Agent Extraction: Fields", "One Show or Several?", "Agent
 Handling of Entries … without performing artists", "Agent Validation";
 `docs/arch/data-model-initial.md` §2 `show` / `show_artist`; `docs/dev/env-setup.md` Phase 5 (the
@@ -930,7 +930,7 @@ the eval harness end to end (that is step 2 of the plan and takes a long time).
    could pass while the code is wrong? The description-contains-"null" test and the prompt
    string-contains tests pin wording, not behaviour: acceptable, or a trap? Is the "both modules
    use `prompts.extraction_instruction`" check meaningful or satisfied by an unused import? Is
-   pulling a slice of A7 (G14) forward into `testpaths` the right call, and is anything in CI
+   pulling a slice of A7 (v0.1-G14) forward into `testpaths` the right call, and is anything in CI
    affected (the python job now has a Postgres service; `make test` sets `REQUIRE_DB=1`)?
 5. **The `TODO(Ari)` gaps** (table in "The `[fill-in]` steps"). Are these the right lines — where
    the concept lives, not where the typing is — per `AGENTS.md`? Is leaving the *old* declarations
@@ -965,7 +965,7 @@ the Resolution column afterwards, then Ari approves._
 ### Round 1 — Claude Opus 5.5, October 8, 2026
 
 **Scope:** the plan as written (no code exists yet). **Read:** this file; `AGENTS.md` ("[fill-in]
-tasks", "Implementation plans"); `alpha-build-plan.md` §3, §5 A2/A3/A5/A7, G7–G9/G14;
+tasks", "Implementation plans"); `alpha-build-plan.md` §3, §5 A2/A3/A5/A7, v0.1-G7–v0.1-G9/G14;
 `requirements-initial.md` "Show", "Agent Extraction: Fields", "One Show or Several?", "…don't have
 performing artists", "Agent Validation", "Agent Reconciliation"; `env-setup.md` Phase 5;
 `agent_worker/{schemas,nodes,state}.py`, `eval/run_eval.py`, `local_test.py`, `pyproject.toml`, root
@@ -1003,7 +1003,7 @@ imports `app.testing.db` and defines fixtures nothing in `agent_worker/tests` re
 | 12 | nit | `acts` is required but can be `[]`. The requirements say a show has "one or more" artists, and the non-music rule says artist-less entries are not shows. The plan doesn't say whether that is a schema rule (`min_length=1`) or A3's completeness check. | `requirements-initial.md` "Show" ("Artists … One or more"). PLAUSIBLE | Left implicit, A3 may assume the schema enforces it while the schema assumes A3 does. A leaked "Karaoke" with `acts: []` passes both. | **Fixed.** `acts` stays a plain list; `acts=[]` validates, pinned by a test that says A3 owns the check; Step 6 adds the non-empty-`acts` completeness check to A3. Reason in Design › Consequences: a schema rule would turn one leaked entry into a full-page re-ask. |
 | 13 | nit | The "every optional description contains `null`" test is satisfied by words like "nullable" or "not null". | Plan test table. PLAUSIBLE | The convention it guards ("say how to express not-stated") can quietly drop out while the test stays green. | **Fixed.** Descriptions must contain the exact phrase `otherwise null` (test table). |
 | 14 | nit | Both the pipeline and the eval label every image as `image/png`, including `terminal_bar_show_2.webp`. This predates A2 and affects both labels equally, but it adds noise to the two image rows. | `nodes.py:151`; `run_eval.py:124`. CONFIRMED | The poster results for the webp fixture may reflect a mislabelled image rather than the model. | **Rejected.** The `image/png` label is a pre-existing bug on a path the build plan defers (§8, image-embedded shows) and affects every label equally. Not fixed in A2; Step 1 and Risks record it as known noise on the two image rows. |
-| 15 | nit | Adding `agent_worker/tests` to `testpaths` pulls part of A7 (G14) forward, but Step 6 doesn't update A7's item. | `alpha-build-plan.md` A7 item 1; plan Step 6. CONFIRMED | A7 later redoes or contradicts the change ("a `tests/` directory and a narrower `python_files`"). | **Fixed.** Step 6 edits A7's G14 item to say the `agent_worker/tests` path was added to `testpaths` in A2. |
+| 15 | nit | Adding `agent_worker/tests` to `testpaths` pulls part of A7 (v0.1-G14) forward, but Step 6 doesn't update A7's item. | `alpha-build-plan.md` A7 item 1; plan Step 6. CONFIRMED | A7 later redoes or contradicts the change ("a `tests/` directory and a narrower `python_files`"). | **Fixed.** Step 6 edits A7's v0.1-G14 item to say the `agent_worker/tests` path was added to `testpaths` in A2. |
 | 16 | nit | Reproducibility: the results files don't record the model digest, Ollama version or options. | Plan Step 1. PLAUSIBLE | A later "after" or re-run can't be checked against the same model build, and `ollama pull` silently changes `gemma4:e4b`. | **Fixed.** Results files record the model digest (`/api/show`), Ollama version (`/api/version`) and request options, with `options.seed` = run index; temperature left at the pipeline default (Step 1). |
 | 17 | nit | Only one fixture shows any price (Zhora: `$12`–`$34`); White Squirrel, Midway and Terminal have none. | Cleaned-fixture scan. CONFIRMED | Admission fill rates and the single-price → `admission_day` rule are measured on one page × 3 runs. The verdict should say so rather than generalize. | **Fixed.** Added to Risks: admission fill rates and the single-price rule rest on one page × 3 runs. |
 
@@ -1023,7 +1023,7 @@ imports `app.testing.db` and defines fixtures nothing in `agent_worker/tests` re
 12. Leave `acts` as a plain list in the schema, and name this as an explicit A3 completeness check, since a schema rule would turn one leaked entry into a full-page retry.
 13. Assert a fixed phrase (e.g. "otherwise null"), or `description.rstrip(".").endswith("null")`.
 14. Derive the MIME type from the file suffix in both places, or note the known noise in the results.
-15. Add to Step 6: edit A7's G14 item to say the `agent_worker/tests` path was added in A2.
+15. Add to Step 6: edit A7's v0.1-G14 item to say the `agent_worker/tests` path was added in A2.
 16. Write `ollama show gemma4:e4b` (digest), the Ollama version and the request options into each results file. Optionally set `options.seed` per run index so any single run can be reproduced; leave temperature at the pipeline default so the runs stay representative.
 17. Add the single-fixture limit to the Risks section.
 
@@ -1048,7 +1048,7 @@ the paths below rather than the whole tree. A2's files:
 - *Modified:* `agent_worker/{schemas,nodes}.py`, `agent_worker/eval/run_eval.py`,
   `apps/api/pyproject.toml` (`testpaths`), `apps/api/.gitignore` (`eval/results/`).
 - *Docs:* this file (Eval reference, Eval results, Decisions #6); `docs/dev/alpha-build-plan.md` — only
-  the G25 row, the A2 status line, and the new A3 / A5 / A6 / A7 bullets (other hunks in that file are
+  the v0.1-G25 row, the A2 status line, and the new A3 / A5 / A6 / A7 bullets (other hunks in that file are
   B2's); `docs/arch/arch-initial.md` — only the italic note at the end of the "Fetch and extract"
   paragraph; `docs/dev/notes.md` — the last two sections (Pydantic `X | None`; Ollama `/v1`).
 - *Not committed; not touched:* `agent_worker/state.py`, `graph.py`, `local_test.py`, `app/`.
@@ -1168,7 +1168,7 @@ to a scratch state they take the suite to 145 passed, then restored.
 |---|---|---|---|---|---|
 | 1 | should-fix | **The baseline can't be regenerated from the tree, but Decision #6 recommends option (b), "re-run the baseline".** The baseline's schema (`ticket_info`, required `time`, `list[str]` acts) and its verbatim pre-A2 prompt exist nowhere now: `schemas.py` already has the new fields, `prompts._BASE` has the new wording, and the step-0 state was never committed (`prompts.py` is untracked). Results files also don't record the prompt text or the JSON schema each label sent. The Eval results heading says "regenerable with `… --label <label>`", which is not true for `baseline`. | `schemas.py:119-194` (no `ticket_info`); `prompts.py:20-28`; `git status` (`prompts.py` untracked); `baseline.json` keys are `label, started_at, include_new_rules, options, provenance, aggregate, runs`, with no prompt or schema. CONFIRMED | If Ari picks (b), the "re-run baseline" will quietly run something else, either the new schema or a hand reconstruction, and `baseline` vs `schema-only` vs `after` stop being the conditions the plan compares. The 4096-window problem makes this worse: the new schema is 68% larger (2,418 → 4,057 chars), so any label run at 4096 is confounded by size as well. | **Fixed.** New `eval/legacy.py` freezes the pre-A2 schema (verbatim from 283564e) and the step-0 instruction; `--legacy` runs it, so `baseline` is re-runnable independent of git or the live files. Every results file now stores the instruction text, the JSON schema, their hashes and the schema's size (`request`), plus `loaded_context_length`; `baseline.json` got a reconstructed `request` (marked as reconstructed, not captured). A test pins that `legacy=True` sends "any ticket info" and the old schema. The Eval results note now says which flag regenerates each label. The 68% schema growth is a real confound at 4096 and is now visible per label in `--compare`. |
 | 2 | should-fix | **The normalizer rejects valid ISO times that Pydantic accepted before it existed.** It never passes a string through to Pydantic. Any string its two regexes don't match is refused, including fractional seconds. | `normalize.py:39-42,93`. Probe: `"19:30:00.000"`, `"19:30:00.123456"` → `ValueError`. Plain `TypeAdapter(datetime.time \| None)` accepts both (and `"19:30:00,5"`). CONFIRMED | This contradicts the plan's contract that normalization "only turns *recoverable* formats into successes" (Design › Time normalizer). A model emitting ISO-with-milliseconds, a common serializer output, now costs a full-page re-ask where the pre-A2 schema succeeded. That flatters `baseline` against `schema-only` / `after` on the time-failure row, the opposite of the bias the plan notes. Fix: accept an optional `(?:[.,]\d+)?` after seconds in `_TWENTY_FOUR_HOUR` and keep the microseconds, or truncate them. Add `"19:30:00.000"` to the accepted table. | **Fixed.** `_TWENTY_FOUR_HOUR` accepts `[.,]\d+` after the seconds and keeps up to six digits as microseconds. Added `"19:30:00.000"` and `"19:30:00.500"` (→ `time(19,30,0,500000)`) to the accepted table, run against all three fields. Test written first, saw it fail. |
-| 3 | should-fix | **The leak metric can't see a leak that comes back with `acts: []`.** `score_extraction` matches non-music terms against act names only. A show with no acts contributes no names, so it is never counted, yet the plan's own Consequences section predicts that shape ("one leaked 'Karaoke' entry … with `acts: []`"). The baseline already produced two empty-`acts` shows (poster 2, runs 0 and 1), and the harness recorded them nowhere. The numbers in the results text were counted by hand. | `run_eval.py:221-231`; `baseline.json` `terminal_poster_2` runs 0–1: `'acts': []`; `aggregate` has no empty-acts field. CONFIRMED | "Non-music leaks: 0" can be a false zero, precisely for the G9 rule (TODO #3) that A2 is measuring. Fix: count `empty_acts` per run and in `aggregate` / `compare`. Consider also matching the terms against the `venue` string, since a model sometimes puts the entry's title there. | **Fixed.** `score_extraction` now counts `empty_acts` per run, aggregate and `--compare` carry it, and leak matching also checks the `venue` string. Tests first: empty acts counted, venue-titled leak counted, aggregate sums over ok runs only. `--rescore` recomputed `baseline.json`: **empty_acts = 2**, leaks still 0 (recorded in Eval results — the false-zero caveat is now stated). |
+| 3 | should-fix | **The leak metric can't see a leak that comes back with `acts: []`.** `score_extraction` matches non-music terms against act names only. A show with no acts contributes no names, so it is never counted, yet the plan's own Consequences section predicts that shape ("one leaked 'Karaoke' entry … with `acts: []`"). The baseline already produced two empty-`acts` shows (poster 2, runs 0 and 1), and the harness recorded them nowhere. The numbers in the results text were counted by hand. | `run_eval.py:221-231`; `baseline.json` `terminal_poster_2` runs 0–1: `'acts': []`; `aggregate` has no empty-acts field. CONFIRMED | "Non-music leaks: 0" can be a false zero, precisely for the v0.1-G9 rule (TODO #3) that A2 is measuring. Fix: count `empty_acts` per run and in `aggregate` / `compare`. Consider also matching the terms against the `venue` string, since a model sometimes puts the entry's title there. | **Fixed.** `score_extraction` now counts `empty_acts` per run, aggregate and `--compare` carry it, and leak matching also checks the `venue` string. Tests first: empty acts counted, venue-titled leak counted, aggregate sums over ok runs only. `--rescore` recomputed `baseline.json`: **empty_acts = 2**, leaks still 0 (recorded in Eval results — the false-zero caveat is now stated). |
 | 4 | should-fix | **`"7p"` / `"8:30p"`, the exact format on the Midway fixture, are rejected even though they carry an explicit meridiem.** The plan's rule is that "12-hour with an explicit meridiem is unambiguous". `_TWELVE_HOUR` requires the `m`. | `normalize.py:32-34`. Probe: `"7p"`, `"8:30p"`, `"7P"` → `ValueError`. The cleaned Midway text contains `7p`, `6p`, `8p` (8+ occurrences). CONFIRMED | A model that copies the page's own spelling triggers a re-ask on one of the three fixtures that matter most. The by-field parse-failure row would then report a normalizer gap as model unreliability. Fix: `(?P<meridiem>[ap])\.?(?:m\.?)?`, plus `"7p"` / `"8:30p"` rows in the accepted test table. | **Fixed.** `_TWELVE_HOUR` meridiem is `[ap]\.?(?:m\.?)?`, so `"7p"`, `"8:30p"`, `"7P"`, `"11a"` convert; a bare `"7"` still doesn't (no meridiem). Rows added to the accepted table, test first. |
 | 5 | nit | **TODO #2's Check doesn't go green until #1 is filled too.** `test_acts_must_be_objects` builds a whole `ShowExtraction` from `minimal_show()`, which omits `time`. With only #2 filled it stays red on `time: missing`. Separately, its `pytest.raises(ValidationError)` half passes for *any* error, not specifically the `acts` one. | Worktree: #2's Code block alone → `test_acts_must_be_objects`, `test_an_empty_acts_list_is_deliberately_valid` still fail (missing `time`). `test_extraction_schema.py:167-173`. CONFIRMED | Ari fills #2, runs the named Check, sees red, and goes looking for a mistake that isn't there. A gap should cost minutes. Fix: either say "after #1" in TODO #2's Check, or validate `acts` in isolation (`validate_field(ShowExtraction, "acts", ["Band A"])`) and assert the error `loc` starts with `("acts", 0)`. | **Fixed.** `test_acts_must_be_objects` and `test_an_empty_acts_list_is_deliberately_valid` now validate the `acts` field in isolation (`validate_field`), so TODO #2 alone turns the first green (verified: both pass with only #2 applied; the `ValidationError` is now specifically on the `acts` field). TODO #2's Check comment says the round-trip tests also need #1. |
 | 6 | nit | **Cross-midnight end times are real in the fixtures, and nothing downstream is warned.** White Squirrel lists "Nona … 9:00 pm - 12:00 am", which normalizes correctly to `end_time` 00:00, earlier than its start of 21:00. | Cleaned White Squirrel text. The A3 bullets added to `alpha-build-plan.md` mention non-empty `acts` but not this. CONFIRMED (fixture) / PLAUSIBLE (impact) | A3's consistency check, or A6's write, may flag or reject a correct record as "ends before it starts". Fix: one line under A3: an `end_time` earlier than `time` means the next day. | **Fixed.** New A3 bullet in `alpha-build-plan.md`: consistency/plausibility must allow `end_time` earlier than `time` (next day), citing White Squirrel's "9:00 pm - 12:00 am". |

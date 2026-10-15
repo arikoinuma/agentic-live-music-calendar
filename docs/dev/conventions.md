@@ -64,14 +64,16 @@ So `A3-Gap-B` (`classify_page`) is now `A3-K2`.
 
 1. **The scope is the document that defines the ID, not the one that cites it.** `S6` is
    defined in A2's lever list, so it is `A2-S6` even where A2.1 cites it.
-2. **Scope everywhere.** That includes code, tests, docs, and inside a plan file itself. An
-   excerpt has to stand on its own, so a bare ID is never acceptable.
+2. **Scope cross-references, not in-file items.** Inside the document that defines an ID, a
+   bare ID is fine: `D3` in A1 is A1's own D3, so it stays `D3`. Only a reference to another
+   document's item carries its scope, for example `A2.1-D3` written in A1. Code and tests
+   always scope, since they cite plans rather than define them.
 3. **Write the token form:** `A2.1-D5`, with no space and no comma. It is one token, so it
    can be searched for, and a reader sees it as one thing.
 4. **Review items carry their round:** `A2.1-R2-3` means round 2, item 3. Items with no
    round number get one assigned in their plan before they are cited.
-5. **The catalogue is versioned.** Write `v0.1-G6`, never `G6`. A bare `G6` no longer means
-   anything once a second version exists.
+5. **The catalogue is versioned.** Outside `alpha-build-plan.md`, write `v0.1-G6`, never `G6`.
+   Inside the build plan, the catalogue is its own, so a bare `G6` stays.
 
 ### Checking
 
@@ -84,12 +86,15 @@ grep -rnE --exclude-dir=.venv --exclude-dir=node_modules --exclude-dir=.mypy_cac
   '(^|[^A-Za-z0-9._-])(D|E|F|S|G)[0-9]+([^0-9]|$)|Gap[s]? [A-E]\b' .
 ```
 
-Any hit is a bare designation to fix. The exceptions below are the only expected hits.
+A hit inside the document that defines the ID is fine. Any other hit is a cross-reference
+that needs its scope. The exceptions below are the only expected hits.
 
 ## Known exceptions
 
-- **Not yet applied.** Only the pilot files use the new forms so far. Everything else still
-  uses the earlier scheme until it is converted.
+- **Code not yet converted.** The docs use the new forms. Most code and tests still use the
+  earlier scheme until they are converted.
+- **Quoted history.** Where a document quotes old scaffold text (for example
+  `(Ari) — Gap X. Lesson:`), the quote stays as written.
 - **String literals.** The label notes in `apps/api/agent_worker/eval/labels.py` and two
   `argparse` help strings in `eval/run_eval.py` still use bare IDs. They are data and
   user-facing text, so they're converted separately from the comment-only passes.
