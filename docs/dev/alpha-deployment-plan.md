@@ -33,7 +33,7 @@ deterministic and clean on the "never" tiers: no invented shows, no wrong field 
 slips on ambiguous titles, and they look like the limit of the small local model (`gemma4-e4b`, about 4B
 parameters). A larger model doesn't fit the development laptop. Evidence and the full list of deferred ideas are in
 `implementations/a2.1-extraction-reliability.md`: "Experiment results" (`a21-confirm`, `a21-review2`) and "Deferred
-explorations" (E1–E17).
+explorations" (A2.1-E1–A2.1-E17).
 
 ---
 
@@ -57,8 +57,8 @@ it is built.
 
 ### H1. Hosted inference and the extraction accuracy gate
 
-**Why:** A2.1 ended at 56 of 60 with the D1 gate unmet, and named a larger model for the act splitter as the next fix
-(E1). That model can only run hosted. This milestone moves inference to DeepInfra, the production provider
+**Why:** A2.1 ended at 56 of 60 with the A2.1-D1 gate unmet, and named a larger model for the act splitter as the next fix
+(A2.1-E1). That model can only run hosted. This milestone moves inference to DeepInfra, the production provider
 `arch-initial.md` §5/§7 already chose, and closes the gate there.
 
 - [ ] **Make the model endpoint configurable.** `agent_worker/llm.py` hard-codes Ollama's `localhost:11434/v1`
@@ -67,26 +67,26 @@ it is built.
 - [ ] **Hosted parity first.** Run the gated eval on DeepInfra's `gemma-4-e4b-it`, the same model as local, before
   changing models. Then any change in the numbers can be put down to the model, not the provider. Expect small
   differences even at temperature 0, and record them.
-- [ ] **A larger model for the act splitter only (E1).** The splitter is one short call per page, so a bigger model
-  costs little there. Re-try E2 ("a title that is just a name is a performer") and add E3 (a code check that every
+- [ ] **A larger model for the act splitter only (A2.1-E1).** The splitter is one short call per page, so a bigger model
+  costs little there. Re-try A2.1-E2 ("a title that is just a name is a performer") and add A2.1-E3 (a code check that every
   returned act appears in its title) with it. Target: the four known misses (Mortimer's "Flange August Back to Back";
   7th St Entry's "The Bright Light Social Hour" and the INTERNET KIDS night; White Squirrel's "Cole Diamond’s Whiskey
   Wednesdays").
-- [ ] **A held-out test set.** The gated pages aren't held out: D5's conventions were drawn from them, and the prompt
+- [ ] **A held-out test set.** The gated pages aren't held out: A2.1-D5's conventions were drawn from them, and the prompt
   was tuned against them (A2.1 code review round 2, #2). Capture fresh pages, from new venues or a later month, with
   `eval/capture.py`, and have Ari label them (`eval/labels.py`) *before* any run is scored against them. **[fill-in]**
-  for the labelling, as in A2.1's D11.
+  for the labelling, as in A2.1-D11.
 - [ ] **Per-act start times on the title-split route.** That route returns each listing's verbatim title and no act
   objects, so per-act start times are lost. Ari accepted this for the alpha on October 12, 2026 (A2.1 code review round 2,
   #9); it departs from A2 Decision 8. Decide whether a larger page model can return acts directly again (dropping
   title split), or add an optional verbatim set-times text to the listing.
-- [ ] **Throughput and cost (E15, E4).** Measure a page's duration and cost on hosted inference, with parallel
+- [ ] **Throughput and cost (A2.1-E15, A2.1-E4).** Measure a page's duration and cost on hosted inference, with parallel
   requests, and with thinking on and off. `alpha-build-plan.md` §8 had the laptop at 1.5–7 minutes a page.
 
-**Done when:** the D1 gate passes on every run, on both the gated pages and the held-out capture; the chosen models
+**Done when:** the A2.1-D1 gate passes on every run, on both the gated pages and the held-out capture; the chosen models
 and their configuration are recorded in `arch-initial.md` §7; duration and cost per page are recorded.
 
-**Constraints carried over from A2.1:** never try to get past a bot challenge (Midway, D3); capture fixtures with the
+**Constraints carried over from A2.1:** never try to get past a bot challenge (Midway, A2.1-D3); capture fixtures with the
 pipeline's own fetch, one plain GET per URL; results files record every prompt sent (code review round 2, #3).
 
 ### H2. The agent worker on Railway (outline)
@@ -114,4 +114,4 @@ GitHub Pro or a public repo, `env-setup.md` Phase 8, "CI").
 
 Unchanged from `alpha-build-plan.md` §8, except for what moved here (the hosted services, the larger model,
 throughput): public edit and flag endpoints with Turnstile and Resend; Playwright fetching beyond what H2's image
-makes possible; the deeper venue sources (A2.1's E9–E13); image-based show listings (`arch-initial.md` §11, not yet scheduled); the MCP admin server; chat search; multi-metro.
+makes possible; the deeper venue sources (A2.1-E9–A2.1-E13); image-based show listings (`arch-initial.md` §11, not yet scheduled); the MCP admin server; chat search; multi-metro.

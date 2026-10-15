@@ -44,11 +44,11 @@ Deleted: `app/_components/plain-show-list.tsx` and the demo venue links on `/` (
 ### Decisions already made (earlier in this project)
 
 - **Filters are URL search params** (`arch-initial.md` §4), parsed by `lib/params.ts` and written by
-  `buildCalendarHref` (B2). Keys `venue`, `artist` (repeatable ids) and `month=YYYY-MM` (whole calendar month, B2 D2).
+  `buildCalendarHref` (B2). Keys `venue`, `artist` (repeatable ids) and `month=YYYY-MM` (whole calendar month, B2-D2).
   B3 adds no keys.
 - **The server owns "now"** (`api-contract.md` §3): the default window is whatever `start`/`end` the API echoes; the
   month dropdown's options come from `GET /calendar/months`, which decides "future-facing" and "has shows".
-- **Every route is dynamic, nothing cached** (B2 D1). Unchanged.
+- **Every route is dynamic, nothing cached** (B2-D1). Unchanged.
 - **Server Components fetch; `"use client"` only on the smallest interactive leaf** (style guide). Here that is the
   filter header and nothing else.
 - **Times after midnight** (Ari, October 11, `requirements-initial.md` "Show"): a show belongs to the night the venue
@@ -70,7 +70,7 @@ That is true but easy to misread, so the plan states it precisely:
   *in Minneapolis*. This code runs on the Next server, not in the browser — and on Vercel the server's zone is UTC, so
   `new Date()` or a zone-less `Temporal.Now.plainDateISO()` says "tomorrow" from 7 PM Central onward (6 PM in winter).
   Checked: `Instant.from("2026-10-13T02:30:00Z").toZonedDateTimeISO("America/Chicago").toPlainDate()` is
-  `2026-10-12`. This is Gap A.
+  `2026-10-12`. This is K1.
 - **The trap that remains is `new Date("2026-10-12")`** (UTC midnight, the 11th west of Greenwich). B3 adds no
   `Date` anywhere; the review checklist should grep for it.
 
@@ -81,10 +81,10 @@ That is true but easy to misread, so the plan states it precisely:
    `apps/calendar` routes. The shadcn primitives the filter header needs *do* go in `packages/ui`, per
    `apps/calendar/AGENTS.md`.
 2. **Two [fill-in] items have no line that carries a lesson** and are proposed as [written] (D6): the show block
-   (markup; its one real rule — after-midnight display — is Gap B in `lib/dates.ts`) and the empty state (one
+   (markup; its one real rule — after-midnight display — is K2 in `lib/dates.ts`) and the empty state (one
    condition and a link).
 3. **The Temporal item's wording** is sharpened to the section above: wall-clock values need no zone; "today" does.
-4. **Added, not in the build plan's B3 list:** `<Suspense>` streaming on `/` (B2 D4 said "add it with B3"; D4 here);
+4. **Added, not in the build plan's B3 list:** `<Suspense>` streaming on `/` (B2-D4 said "add it with B3"; D4 here);
    `getCalendarMonths()`; four rows of sample data (D5); a Temporal-free module for `buildCalendarHref` so the client
    bundle doesn't ship the polyfill (step 5); switching `/day/[date]` to show blocks so `PlainShowList` can go.
 
@@ -112,7 +112,7 @@ before approving** — D1 and D4 change the most code.
   the venue filter (and B4's venue page).
   *Alternative:* an aligned grid — every venue a column on every date, one two-dimensional scroll container with a
   sticky venue-name header row and a sticky date column. Better for comparing one venue across dates; much emptier,
-  and a 2D scroll region is the hardest case on touch. Choosing it rewrites steps 3 and 7 and Gap E (the grid becomes
+  and a 2D scroll region is the hardest case on touch. Choosing it rewrites steps 3 and 7 and K5 (the grid becomes
   one `overflow-auto` container with `position: sticky` on two axes). Note that B1's comment in `globals.css` mentions
   "B3's sticky date and venue headers", which suggests B1's author pictured this alternative; it was never decided.
 - **D2 — Every date in the range is a row, including dates with no shows. Recommended.** It is what makes it a
@@ -128,7 +128,7 @@ before approving** — D1 and D4 change the most code.
   plan's wording — `packages/ui/src/components/show-block.tsx` with plain props (strings and hrefs), the app mapping
   `ShowSummary` to them.
 - **D4 — Streaming on `/` only: a `<Suspense>` boundary with a skeleton inside the home page; no root `loading.tsx`.
-  Recommended.** B2 D4 deferred `loading.tsx` to B3 with two consequences recorded: it lets the shell render during
+  Recommended.** B2-D4 deferred `loading.tsx` to B3 with two consequences recorded: it lets the shell render during
   an API outage (fixing B2's bare-500 document), but once a response streams, `notFound()` returns HTTP 200 (a soft
   404). A root `loading.tsx` wraps *every* page, so every detail page's 404 would turn into a 200. `/` never calls
   `notFound()`, so a boundary inside `/` gets the benefits there and costs nothing elsewhere. Consequence, to accept:
@@ -155,7 +155,7 @@ before approving** — D1 and D4 change the most code.
   these cases only in unit tests with hand-built shows.
 - **D6 — Re-mark the show block and the empty state [written].** Per `AGENTS.md` ("If no line in a [fill-in] task
   meets that bar, say so … propose re-marking it [written] — don't invent a gap"). The show block's lesson-bearing rule
-  (after-midnight display) sits in `lib/dates.ts` as Gap B; what remains is markup. The empty state is
+  (after-midnight display) sits in `lib/dates.ts` as K2; what remains is markup. The empty state is
   `isFiltered && shows.length === 0` and a `<Link href="/">`.
 - **D7 — A venue with three or more shows on one date shows all of them. Recommended.** The requirement says a column
   "can contain 1-2 shows", which describes the usual case rather than a cap; a cap hides real shows behind a link. The
@@ -173,15 +173,15 @@ Ari's browser check (Verification). Expected values below are worked out by hand
 data, never read back from the code under test; each test says where its numbers come from.
 
 ### 1. `lib/dates.test.ts` (new)
-`metroToday(timeZone, now)` — **Gap A**:
+`metroToday(timeZone, now)` — **K1**:
 - `2026-10-13T02:30:00Z`, `America/Chicago` → `2026-10-12` (21:30 CDT on the 12th; UTC already says the 13th — the
   Vercel bug). `2026-10-12T17:00:00Z` → `2026-10-12`. `2026-11-02T05:30:00Z` → `2026-11-01` (23:30 **CST** on the 1st,
   the first evening after the fall-back change at 07:00Z on the 1st; UTC says the 2nd — so the offset used must be
   −6, not −5; review #4). `Pacific/Auckland` at `2026-10-12T12:00:00Z` → `2026-10-13` (a zone ahead of UTC).
-`metroTodayOrNull(timeZone, now)` (written, around Gap A): a valid zone → the same date as `metroToday`; an unknown
+`metroTodayOrNull(timeZone, now)` (written, around K1): a valid zone → the same date as `metroToday`; an unknown
 IANA id (`"Not/A_Zone"`) → `null` instead of a `RangeError` (review #9: the zone is free text in the `metro` row, and a
 cosmetic "Today" label must not take the calendar down).
-`isAfterMidnight(time)` — **Gap B**:
+`isAfterMidnight(time)` — **K2**:
 - `00:00`, `01:00`, `04:59` → true; `05:00`, `12:00`, `20:00`, `23:59` → false. Cut-off from
   `requirements-initial.md` ("before 5:00 AM"); 5:00 itself is not after midnight.
 `formatDayHeading(date)`:
@@ -204,7 +204,7 @@ after-midnight after it, untimed last (the API's own `_ordering` puts untimed la
 with calendar gregory") — checked.
 
 ### 2. `lib/calendar.test.ts` (new) — `groupCalendar({ start, end, shows, today })`
-- **Every date, inclusive, in order** — **Gap C**: `lib/fixtures/shows.json` (start `2026-09-28`, end `2026-10-25`)
+- **Every date, inclusive, in order** — **K3**: `lib/fixtures/shows.json` (start `2026-09-28`, end `2026-10-25`)
   gives 28 rows: 28 because the API's default window is today plus 27 days (`routers/shows.py`, `DEFAULT_WINDOW`).
   The first row is `2026-09-28`, the last `2026-10-25`, and `2026-10-04` (sample day 6, "deliberately empty") is
   present with no venues.
@@ -233,7 +233,7 @@ ones (a stable sort).
   selection order, and `buildCalendarHref` expects canonical input).
 - `monthOptions(months, current)` (in `lib/calendar.ts`, since it formats with Temporal): the fixture's months →
   `[{ value: "2026-09", label: "September 2026" }, { value: "2026-10", label: "October 2026" }]`; a `current` month
-  that isn't offered (a hand-edited past month — B2 D2 allows it) is added so the select can show the truth; `null`
+  that isn't offered (a hand-edited past month — B2-D2 allows it) is added so the select can show the truth; `null`
   adds nothing.
 - `params.test.ts` stays green **unmodified** after `buildCalendarHref` and `CalendarFilters` move to
   `lib/calendar-href.ts` and are re-exported from `params.ts`. That is the check that the move broke nothing.
@@ -250,9 +250,9 @@ count is updated with the new number worked out by hand. `make fixtures` then `m
 ### What is *not* covered, stated plainly
 - Rendered output of `/`, the grid, the show block and `/day/[date]` (async Server Components): build, HTTP checks and
   Ari's browser check.
-- The filter header (a Client Component; Gap D): `pnpm check-types`, the build, and Ari's browser check. Its component
+- The filter header (a Client Component; K4): `pnpm check-types`, the build, and Ari's browser check. Its component
   test is B5's ("the filter header" is the first item there).
-- Responsive layout (Gap E): measured by me in headless Chrome at 1280/768/500px (Verification 6); 375px, touch
+- Responsive layout (K5): measured by me in headless Chrome at 1280/768/500px (Verification 6); 375px, touch
   scrolling and keyboard are Ari's browser check (Verification 7).
 
 ### Tests-first caveat
@@ -282,7 +282,7 @@ Temporal code. If Ari wants fewer, A and B are the two to merge into one block.
 While A–C are open, `/` renders the error boundary (the grid calls them), so E's and D's browser checks need A–C
 filled. D's and E's own checks are `pnpm check-types` plus the browser.
 
-- **Gap A — `metroToday` in `lib/dates.ts`** (step 2; the build plan's Temporal item).
+- **K1 — `metroToday` in `lib/dates.ts`** (step 2; the build plan's Temporal item).
   *Lesson:* "today" is a question about a place. This code runs on the Next server, whose zone is UTC on Vercel, so
   any zone-less "now" is tomorrow from early evening Central time on. Ask for the date in the metro's IANA zone
   (`MetroSummary.timezone`, `requirements-initial.md` "Metro"). Show dates themselves need no zone (they are wall-clock
@@ -293,7 +293,7 @@ filled. D's and E's own checks are `pnpm check-types` plus the browser.
   *Check:* `pnpm --filter calendar test dates` — the `2026-10-13T02:30:00Z` case. Likeliest mistakes:
   `Temporal.Now.plainDateISO()` with no zone argument (the server's zone; also ignores `now`, so every case fails), or
   `new Date().toISOString().slice(0, 10)` (UTC).
-- **Gap B — `isAfterMidnight` in `lib/dates.ts`** (step 2; the show block's rule).
+- **K2 — `isAfterMidnight` in `lib/dates.ts`** (step 2; the show block's rule).
   *Lesson:* Ari's after-midnight rule (`requirements-initial.md`, "Show", October 11) as one comparison — and Temporal
   refuses `<`: its objects throw on `valueOf()` precisely so `a < b` can't silently compare strings or `NaN`. Ordering
   goes through `compare`. Both `formatShowTime` (the "Sat" suffix) and `nightSortKey` (after the evening's shows) call
@@ -303,7 +303,7 @@ filled. D's and E's own checks are `pnpm check-types` plus the browser.
   *Check:* `pnpm --filter calendar test dates` — `04:59` true, `05:00` false; the `formatShowTime` and `nightSortKey`
   cases go green with it. Likeliest mistakes: `time < NIGHT_CUTOFF` (throws a TypeError naming `compare` — the test
   shows it), or `<= 0` (makes 5:00 AM "after midnight").
-- **Gap C — the date loop in `groupCalendar`, `lib/calendar.ts`** (step 3; the layout item).
+- **K3 — the date loop in `groupCalendar`, `lib/calendar.ts`** (step 3; the layout item).
   *Lesson:* the calendar's rows come from the **range the server served**, not from the shows — that is how an empty
   day gets a row (D2), and why the page renders `start`/`end` from the response (`api-contract.md` §3). Walk it with
   Temporal: `add({ days: 1 })` handles month ends and leap days, `compare` handles the inclusive end.
@@ -312,7 +312,7 @@ filled. D's and E's own checks are `pnpm check-types` plus the browser.
   *Check:* `pnpm --filter calendar test calendar` — the 28-row fixture case and the leap-year range. Likeliest
   mistakes: `< 0` (drops the last day; the API's `end` is inclusive), `d <= end` (throws), or building rows from
   `shows.map(s => s.date)` (passes the venue tests, fails the empty-day one).
-- **Gap D — navigating from the filter header, `app/_components/filter-header.tsx`** (step 6; the filter item).
+- **K4 — navigating from the filter header, `app/_components/filter-header.tsx`** (step 6; the filter item).
   *Lesson:* the Client Component never holds the calendar's results. A selection changes the **URL**; the server page
   re-renders from `searchParams` and streams new props down. `router.push` runs inside a transition, so
   `useTransition`'s `isPending` says a navigation is in flight; `useOptimistic` shows the new selection immediately and
@@ -329,7 +329,7 @@ filled. D's and E's own checks are `pnpm check-types` plus the browser.
   filters. Likeliest mistakes: keeping the selection in `useState` and filtering client-side (works, until the URL is
   shared — the recipient sees an unfiltered calendar), or `router.push` without `scroll: false` (the page jumps to the
   top on every change).
-- **Gap E — the date row's scroller, `app/_components/calendar-grid.tsx`** (step 7; the responsive item). *Rewritten
+- **K5 — the date row's scroller, `app/_components/calendar-grid.tsx`** (step 7; the responsive item). *Rewritten
   after review #1, which measured the original lesson as wrong for this markup.*
   *Lesson:* the one thing nested scrolling gets wrong is **which element is the grid item**. A grid item's automatic
   minimum width is its content's min-content width — *unless the item is itself a scroll container*, whose automatic
@@ -364,9 +364,9 @@ filled. D's and E's own checks are `pnpm check-types` plus the browser.
   on the API's order within a day (it groups and re-sorts), but A1b's query, and A5, should order by night. Recorded in
   "Follow-ups" below.
 
-### 2. Temporal helpers (fill-in: Gaps A, B) — `lib/dates.ts`
+### 2. Temporal helpers (fill-in: K1, K2) — `lib/dates.ts`
 - Tests first (§1). Explicit `import { Temporal } from "@js-temporal/polyfill"` (Node has no global Temporal).
-- `metroToday` (Gap A), `isAfterMidnight` (Gap B); written around them: `metroTodayOrNull` (catches only
+- `metroToday` (K1), `isAfterMidnight` (K2); written around them: `metroTodayOrNull` (catches only
   `RangeError`), `formatDayHeading`, `formatShowTime`,
   `formatClockTime`, `nightSortKey`, `formatMonthLabel`. All take the API's strings or Temporal values; none touch
   `Date`.
@@ -375,11 +375,11 @@ filled. D's and E's own checks are `pnpm check-types` plus the browser.
   it (step 5). Not marked `import "server-only"`: nothing secret is in it, and the tests import it directly; the
   bundle check in Verification 3 is the guard instead.
 
-### 3. Grouping (fill-in: Gap C) — `lib/calendar.ts`
+### 3. Grouping (fill-in: K3) — `lib/calendar.ts`
 - Tests first (§2). Types: `CalendarRow = { date: string; isToday: boolean; venues: VenueColumn[] }`,
   `VenueColumn = { venue: VenueSummary; shows: ShowSummary[] }`. Dates stay ISO strings in the output (what the page
   renders and links with); Temporal is used inside.
-- `groupCalendar` — the date loop is Gap C; written around it: bucket shows by date (ignoring out-of-range), group by
+- `groupCalendar` — the date loop is K3; written around it: bucket shows by date (ignoring out-of-range), group by
   venue id, sort columns by venue name (`localeCompare`), sort each column's shows by `nightSortKey`.
 - `monthOptions(months, current)` (§4).
 
@@ -408,7 +408,7 @@ filled. D's and E's own checks are `pnpm check-types` plus the browser.
 - `lib/api.ts`: add `getCalendarMonths()` to `ApiClient`, `createApiClient` and the exports (no `cache()` — one call
   per page). Test first (§5). Update the docstring's "six getters".
 
-### 6. The filter header (fill-in: Gap D) — `packages/ui` primitives, `app/_components/filter-header.tsx`
+### 6. The filter header (fill-in: K4) — `packages/ui` primitives, `app/_components/filter-header.tsx`
 - **Primitives from the shadcn CLI**, into `packages/ui` (`apps/calendar/AGENTS.md`: "Shared primitives go in
   `packages/ui`"): `combobox` (multi-select with chips and type-to-filter — Base UI ships `Combobox`, present in
   `node_modules/@base-ui/react/combobox`) and `select` for the month. Run `pnpm dlx shadcn@latest add combobox select`
@@ -436,18 +436,18 @@ filled. D's and E's own checks are `pnpm check-types` plus the browser.
   needs no Temporal). No `useSearchParams` (it would need its own `<Suspense>`; the server already parsed the URL and
   passes it down). Venue combobox, artist combobox, month select (first option "Next four weeks" = no month), and a
   "Clear filters" `<Link href="/">` when anything is set. `useOptimistic(filters)` + `useTransition`; each change
-  builds `next` with `withIds` (or the month) and calls Gap D. While pending, `aria-busy` on the header and a quiet
+  builds `next` with `withIds` (or the month) and calls K4. While pending, `aria-busy` on the header and a quiet
   "Updating…".
 - Imports `buildCalendarHref`/`withIds`/`CalendarFilters` from `@/lib/calendar-href` — **never** `@/lib/params` or
   `@/lib/dates` (comment says why).
 
-### 7. The calendar grid (fill-in: Gap E) — `app/_components/calendar-grid.tsx`
+### 7. The calendar grid (fill-in: K5) — `app/_components/calendar-grid.tsx`
 - `CalendarGrid({ rows })` — a Server Component rendering `groupCalendar`'s output as an `<ol>` of dates:
   - Date heading: `formatDayHeading`, a `<Link>` to `/day/[date]` (requirements: "Clicking on the day will switch to
     the day view"), a "Today" label when `isToday`. On phones it sits above the row and is `sticky top-0` with a
     background so it stays visible while its row is on screen; from `md` up it is the row's first grid column.
   - The row `<li>` is `grid gap-2 py-3 md:grid-cols-[9rem_1fr]` with exactly two children, the heading and the
-    scroller. The scroller (Gap E) is the `<li>`'s **direct** grid item — that is what lets plain `1fr` work
+    scroller. The scroller (K5) is the `<li>`'s **direct** grid item — that is what lets plain `1fr` work
     (review #1), and a comment above it says so, so nobody wraps it later. *(As planned it also had `role="region"`, an
     `aria-label` and `tabIndex={0}` so keyboard users could scroll it; Ari's keyboard check found the per-row tab stops and
     landmarks to be noise, so they were removed — code review #4. Each venue column starts with a link, so Tab still lands inside the row.)*
@@ -527,7 +527,7 @@ Order: as the API returns them for now — the three sort modes are B4. Delete `
    `--headless=new`) against `next start` with the snippets applied, recording for `/` at 1280px, 768px and 500px
    (headless Chrome's minimum window; 375px is left to Ari's devtools) the page's `scrollWidth`/`clientWidth` and the
    2026-10-07 scroller's `scrollWidth`/`clientWidth`. Expected: page equal at every width, scroller wider than its box
-   at 768 and 500 (and at 1280, per the Gap E arithmetic). I also run Gap E's wrapper experiment once and record both
+   at 768 and 500 (and at 1280, per the K5 arithmetic). I also run K5's wrapper experiment once and record both
    numbers, so the lesson Ari is about to see is known to reproduce in the real page, not only in the reviewer's
    plain-CSS model. The numbers go in the Implementation log.
 7. **Browser check by Ari** — what needs a person:
@@ -538,7 +538,7 @@ Order: as the API returns them for now — the three sort modes are B4. Delete `
    - Keyboard — **done by Ari, October 14, 2026:** the plan's extra per-row tab stop (`tabIndex={0}`) and `role="region"` landmark
      were noise; removed (code review #4). Confirmed on the running app afterwards: 0 `role="region"` elements and no `tabindex="0"`
      on the rows (was 20 and 20), so Tab goes straight to each row's links.
-   - Filters (Gap D): type-to-filter narrows the venue and artist lists; picking venues gives the canonical URL;
+   - Filters (K4): type-to-filter narrows the venue and artist lists; picking venues gives the canonical URL;
      Back undoes a change; the month select switches to the whole month and back to "Next four weeks"; "Clear filters"
      and the empty state's reset link both return to `/`; a shared filtered URL opened in a new window shows the same
      calendar.
@@ -575,7 +575,7 @@ the code the plan builds on: `app/page.tsx`, `app/layout.tsx`, `app/error.tsx`, 
 **How it was checked.** No `git worktree` was needed: every experiment ran outside the repo, in the session scratchpad
 (throwaway HTML files and one Node script that imports the repo's installed `@js-temporal/polyfill`), and nothing in the
 repo was touched. Experiments: (1) Temporal under `TZ=Pacific/Kiritimati` / `Pacific/Pago_Pago`, the Chicago DST edge, a
-`Pacific/Auckland` "today", `PlainYearMonth.toLocaleString`, weekday arithmetic; (2) the Gap E layout reproduced as plain
+`Pacific/Auckland` "today", `PlainYearMonth.toLocaleString`, weekday arithmetic; (2) the K5 layout reproduced as plain
 CSS in headless Google Chrome (1280 and 500 px windows, `document.documentElement.scrollWidth` vs `clientWidth`) with
 10 venue columns, comparing `1fr` against `minmax(0,1fr)` with the scroller as the grid item and with a wrapper `<div>`
 around it; (3) `shadcn view combobox select input-group` against the live `base-nova` registry; (4) path arithmetic for
@@ -597,21 +597,21 @@ appended rows should not break it; the root layout already survives an API outag
 
 **Counts:** 0 blocker, 2 should-fix, 8 nit. **Verdict: proceed after fixes.** The structure, the test approach (pure
 functions first, no unit tests for async Server Components, expected values hand-derived) and the decision list are sound.
-The two should-fix items are Gap E teaching something the experiment contradicts, and the shadcn step underestimating what
+The two should-fix items are K5 teaching something the experiment contradicts, and the shadcn step underestimating what
 the CLI will add.
 
 | # | Sev | Finding | Evidence | What goes wrong | Resolution |
 |---|---|---|---|---|---|
-| 1 | should-fix | **Gap E's lesson and its "likeliest mistake" are wrong for the markup the plan itself describes.** The gap says a `1fr` track "has a minimum of its content's min-content width, so a day with many venues widens the whole page", and that `md:grid-cols-[9rem_1fr]` makes the console check return `false` at 1280px. That is only true when the scroller is *wrapped* in another element. In step 7 the scroller is the row `<li>`'s direct grid child, and a scroll container's automatic minimum size is 0, so `1fr` is fine. | CONFIRMED in headless Chrome, 10 venue columns of `min(80vw,16rem)`, `max-w-6xl` container. Scroller as the direct grid item: `grid-template-columns: 9rem 1fr` gives `1280/1280` (scrollWidth/clientWidth, no page overflow), `9rem minmax(0,1fr)` gives `1280/1280`. Scroller wrapped in a plain `<div>` that is the grid item: `9rem 1fr` gives `2884/1280` (page blows out), `9rem minmax(0,1fr)` gives `1280/1280`. Phone (500px, single implicit column): scroller direct `500/500`, wrapped `2684/500`. | Ari types `minmax(0,1fr)`, runs the check, gets `true`, and has learned a false cause. The named mistake (`1fr`) also *passes* the check, so the gap's Check cannot go red for it; and the gap lives in class strings, which `AGENTS.md` lists as a poor place for a gap unless the concept really is in them. The real, demonstrable lesson is: the element that scrolls must be the grid/flex item itself (or the wrapper needs `min-w-0` / `minmax(0,1fr)`), because a wrapper's min-content includes its scrolling child's full width. | **Fixed.** Accepted on the reviewer's measurement (I didn't re-measure; Verification 6 now reproduces it in the real page before handoff). Gap E rewritten: the lesson is that the scroller must be the grid item itself (a scroll container's automatic minimum is 0; a wrapper's is its content's min-content); *Code* is the scroller as the `<li>`'s direct child; the written `<li>` keeps plain `1fr` on purpose; *Check* adds the wrapper experiment (wrap → `false`, `min-w-0` → `true`, unwrap). Step 7 says the scroller is the direct grid item, with a comment so nobody wraps it |
+| 1 | should-fix | **K5's lesson and its "likeliest mistake" are wrong for the markup the plan itself describes.** The gap says a `1fr` track "has a minimum of its content's min-content width, so a day with many venues widens the whole page", and that `md:grid-cols-[9rem_1fr]` makes the console check return `false` at 1280px. That is only true when the scroller is *wrapped* in another element. In step 7 the scroller is the row `<li>`'s direct grid child, and a scroll container's automatic minimum size is 0, so `1fr` is fine. | CONFIRMED in headless Chrome, 10 venue columns of `min(80vw,16rem)`, `max-w-6xl` container. Scroller as the direct grid item: `grid-template-columns: 9rem 1fr` gives `1280/1280` (scrollWidth/clientWidth, no page overflow), `9rem minmax(0,1fr)` gives `1280/1280`. Scroller wrapped in a plain `<div>` that is the grid item: `9rem 1fr` gives `2884/1280` (page blows out), `9rem minmax(0,1fr)` gives `1280/1280`. Phone (500px, single implicit column): scroller direct `500/500`, wrapped `2684/500`. | Ari types `minmax(0,1fr)`, runs the check, gets `true`, and has learned a false cause. The named mistake (`1fr`) also *passes* the check, so the gap's Check cannot go red for it; and the gap lives in class strings, which `AGENTS.md` lists as a poor place for a gap unless the concept really is in them. The real, demonstrable lesson is: the element that scrolls must be the grid/flex item itself (or the wrapper needs `min-w-0` / `minmax(0,1fr)`), because a wrapper's min-content includes its scrolling child's full width. | **Fixed.** Accepted on the reviewer's measurement (I didn't re-measure; Verification 6 now reproduces it in the real page before handoff). K5 rewritten: the lesson is that the scroller must be the grid item itself (a scroll container's automatic minimum is 0; a wrapper's is its content's min-content); *Code* is the scroller as the `<li>`'s direct child; the written `<li>` keeps plain `1fr` on purpose; *Check* adds the wrapper experiment (wrap → `false`, `min-w-0` → `true`, unwrap). Step 7 says the scroller is the direct grid item, with a comment so nobody wraps it |
 | 2 | should-fix | **Step 6 underestimates what `shadcn add combobox select` writes.** The plan expects `combobox.tsx` and `select.tsx` "plus whatever it adds" and only flags a possible `hooks/` folder. The registry says `combobox` has `registryDependencies: ["button", "input-group"]` and `input-group` pulls `["button", "input", "textarea"]`. The generated code also uses `lucide-react` (`IconPlaceholder` is rewritten to lucide imports for `iconLibrary: "lucide"`), which is a dependency of `apps/calendar` but **not** of `packages/ui` (`packages/ui/package.json` has no `lucide-react`). | CONFIRMED: `shadcn view combobox select input-group` output (registryDependencies as above); `grep lucide` finds it only in `apps/calendar/package.json:20`. The overwrite of an existing `button.tsx` is PLAUSIBLE (the CLI normally prompts). | (a) The CLI may offer to overwrite the existing `packages/ui/src/components/button.tsx`, which B1 already settled; accepting by habit changes a file B1 reviewed. (b) Four primitives (`button`, `input`, `textarea`, `input-group`) land in the diff, which is more than the Critical files list and the Implementation log scope will say. (c) If the CLI installs `lucide-react` into the wrong workspace, or not at all, `@repo/ui/components/combobox` fails to resolve from `packages/ui/src` (pnpm does not hoist across workspaces) and the failure shows up only at `pnpm check-types` or `next build`. | **Fixed.** Step 6 now lists what the CLI adds (`input-group`, `input`, `textarea` besides `combobox`/`select`), says to decline any overwrite of B1's `button.tsx` and diff it instead, and adds `lucide-react` to `packages/ui` dependencies, checked with `pnpm --filter @repo/ui check-types`. Critical files updated (primitives, `packages/ui/package.json`, `pnpm-lock.yaml`) |
-| 3 | nit | **Five `TODO(Ari)` blocks exceed `AGENTS.md`'s "1-3 spots", and three are one-liners.** A (`toZonedDateTimeISO`), B (`compare(...) < 0`) and C (a `for` loop) are each a single line; B's lesson ("Temporal refuses `<`") is real but small, and C's real lesson (rows come from the served range, not the shows) is a design point the test already pins. Combined with finding 1, the two items the build plan calls the hard part (the layout, responsiveness) have the thinnest gap. | `AGENTS.md` "[fill-in] tasks" step 2 and "Picking the gaps". | Nothing breaks, but the budget is spent on small Temporal one-liners while the layout's actual structural decision (scroller is the grid item; sticky heading as a sibling) is written by the author. Ari's call: either accept five, or merge A+B into one "Temporal for the two time rules" block and put the structural lesson of finding 1 into Gap E. | **Rejected** (merging), **documented** (the count). `AGENTS.md`'s 1–3 is per task, and the five gaps map to four [fill-in] items with at most two each; that mapping is now stated at the top of the gaps section. The one-liners are the lines where a requirement becomes Temporal code, which is the lesson. The structural lesson the reviewer asked for is now Gap E's (#1). Flagged to Ari: A and B are the pair to merge if Ari wants fewer |
+| 3 | nit | **Five `TODO(Ari)` blocks exceed `AGENTS.md`'s "1-3 spots", and three are one-liners.** A (`toZonedDateTimeISO`), B (`compare(...) < 0`) and C (a `for` loop) are each a single line; B's lesson ("Temporal refuses `<`") is real but small, and C's real lesson (rows come from the served range, not the shows) is a design point the test already pins. Combined with finding 1, the two items the build plan calls the hard part (the layout, responsiveness) have the thinnest gap. | `AGENTS.md` "[fill-in] tasks" step 2 and "Picking the gaps". | Nothing breaks, but the budget is spent on small Temporal one-liners while the layout's actual structural decision (scroller is the grid item; sticky heading as a sibling) is written by the author. Ari's call: either accept five, or merge A+B into one "Temporal for the two time rules" block and put the structural lesson of finding 1 into K5. | **Rejected** (merging), **documented** (the count). `AGENTS.md`'s 1–3 is per task, and the five gaps map to four [fill-in] items with at most two each; that mapping is now stated at the top of the gaps section. The one-liners are the lines where a requirement becomes Temporal code, which is the lesson. The structural lesson the reviewer asked for is now K5's (#1). Flagged to Ari: A and B are the pair to merge if Ari wants fewer |
 | 4 | nit | **The DST test case does not test what the plan says.** "`2026-11-01T06:30:00Z` → `2026-11-01` (00:30 CST, just after the fall-back change)". The US fall-back is 07:00Z on 2026-11-01, so 06:30Z is still **01:30 CDT**. | CONFIRMED: `Instant.from("2026-11-01T06:30:00Z").toZonedDateTimeISO("America/Chicago")` is `2026-11-01T01:30:00-05:00`. | The test passes but exercises no DST edge, and its comment would be false. A case that does discriminate: `2026-11-02T05:30:00Z` is `2026-11-01T23:30:00-06:00`, so `metroToday` must give `2026-11-01` where UTC says the 2nd. | **Fixed.** The DST case is now `2026-11-02T05:30:00Z` → `2026-11-01` (23:30 CST, offset −6), with the reason. Arithmetic re-done by hand: fall-back is 07:00Z on Nov 1, so 05:30Z on Nov 2 is 23:30 at −6 |
 | 5 | nit | **Zone-independence test: one of the two zones cannot catch the trap named, and the restore is easy to get wrong.** The plan says the Kiritimati and Pago_Pago runs pin the property "so a later switch to `new Date(...)` fails here". `new Date("2026-10-12")` is UTC midnight, which is still Oct 12 east of UTC; only the western zone fails. Separately, "restored after" invites `process.env.TZ = original` where `original` is `undefined`, and Node coerces that to the string `"undefined"`. | CONFIRMED: a `Date`-based formatter prints "Mon, Oct 12" under Kiritimati and "Sun, Oct 11" under Pago_Pago; the Temporal formatter prints "Mon, Oct 12" under both. Vitest 5's default pool is `forks` (child processes), so changing `TZ` at runtime takes effect there. | Kiritimati would catch a different bug (local-time construction then UTC output) and is worth keeping, but the plan's stated reason is only true of Pago_Pago, so the comment should say so. A bad restore leaks an invalid TZ into later tests in the file. Use `delete process.env.TZ` when there was no original. | **Fixed.** Test §1 now says Pago Pago (west) catches `new Date("YYYY-MM-DD")` and Kiritimati (east) the mirror bug, notes the `forks` pool, and requires restoring with the original value or `delete process.env.TZ` |
 | 6 | nit | **`formatDayHeading` test input `2026-02-29` is not a date.** "`2026-02-29`-style leap date -> its weekday". 2026 is not a leap year and `Temporal.PlainDate.from("2026-02-29")` throws (the repo's own `parseDateParam` relies on that). The `groupCalendar` section correctly uses 2028. | `params.ts` `parseDateParam` docstring ("Temporal itself … throws on impossible dates"); calendar arithmetic. | A test written literally from the plan throws at construction instead of testing anything. Use `2028-02-29` (a Tuesday). | **Fixed.** `2028-02-29` → "Tue, Feb 29" (checked: 2028-02-29 is a Tuesday) |
-| 7 | nit | **D5's rows are specified without lineups, prices or flags.** `_SHOW_ROWS` tuples need a lineup (`_lineup(...)` of existing artist names, which raises `KeyError` on an unknown name) and the price/free/image columns. Which artists are used matters: reusing an artist already at another venue that night would create an unrealistic double-booking, and the artist filter (Gap D check) benefits from at least one new row having an artist who appears elsewhere. | `sample_data.py` `_lineup`, `_SHOW_ROWS` tuple shape. | Not a defect, just an under-specified step that the author will fill ad hoc. Say which artists and which admission cases (e.g. one new row with null prices, since "not stated" rendering is only covered by that today) so the fixture choices are deliberate and the `formatAdmission` cases appear in real data. | **Fixed.** D5 now has a table giving each new row's venue, times, lineup, prices/free and the case it exercises; no artist on The Terminal Bar's bill that night is reused; one row has all-null admission, one is free, one has per-act times and an end after midnight, and Charlie Parr appears at a second venue |
+| 7 | nit | **D5's rows are specified without lineups, prices or flags.** `_SHOW_ROWS` tuples need a lineup (`_lineup(...)` of existing artist names, which raises `KeyError` on an unknown name) and the price/free/image columns. Which artists are used matters: reusing an artist already at another venue that night would create an unrealistic double-booking, and the artist filter (K4 check) benefits from at least one new row having an artist who appears elsewhere. | `sample_data.py` `_lineup`, `_SHOW_ROWS` tuple shape. | Not a defect, just an under-specified step that the author will fill ad hoc. Say which artists and which admission cases (e.g. one new row with null prices, since "not stated" rendering is only covered by that today) so the fixture choices are deliberate and the `formatAdmission` cases appear in real data. | **Fixed.** D5 now has a table giving each new row's venue, times, lineup, prices/free and the case it exercises; no artist on The Terminal Bar's bill that night is reused; one row has all-null admission, one is free, one has per-act times and an end after midnight, and Charlie Parr appears at a second venue |
 | 8 | nit | **Doc bookkeeping list misses a second "21 shows".** Step 10 updates `api-contract.md` §8 only. `alpha-build-plan.md:117` (the A1/Track 0 fixture checkbox) also says "21 shows over four weeks", and `calendar-months.json` changes too (October 18 -> 22), which `docs/dev/b2-…` verification notes do not depend on but any doc quoting it will. | CONFIRMED by grep: `docs/dev/alpha-build-plan.md:117`, `docs/dev/api-contract.md:151`. | A stale count in the build plan, which is the doc `AGENTS.md` points agents at. It is a historical checkbox, so either leave it with a "(25 after B3)" note or edit it; decide rather than miss it. | **Fixed.** Steps 1 and 10 and D5 update both counts: `api-contract.md` §8, and `alpha-build-plan.md` Track 0 gets "(25 since B3)" appended to its ticked historical line rather than a rewrite. D5 also notes `calendar-months.json` (October 18 → 22) |
-| 9 | nit | **`metroToday` can throw on a bad zone and take the whole calendar down.** Step 8 does `metro ? metroToday(metro.timezone)...`. `getMetroOrNull` only guards the fetch; `toZonedDateTimeISO` throws `RangeError` for an unknown IANA id (a typo in the `metro` row, or a polyfill/ICU gap). | PLAUSIBLE (not run against a bad zone; the API's `timezone` is free text in the schema). | The "Today" label is cosmetic, but a throw inside `CalendarBody` is a full error page (and, after D4, a 200 with the error boundary). Cheap fix: catch `RangeError` in the page's one call site and treat it like `metro === null` (no Today), with a `console.error`. | **Fixed.** New written `metroTodayOrNull` in `lib/dates.ts` (catches only `RangeError`, logs, returns `null`), tested with `"Not/A_Zone"`; step 8 uses it, so a bad zone costs the "Today" label, not the page. Gap A stays the pure `metroToday` |
-| 10 | nit | **Verification relies on Ari for numbers the author can measure.** The plan says "I have no browser". A headless Chrome exists at `/Applications/Google Chrome.app` and ran the layout experiment above with `--headless=new --dump-dom` and an inline script that writes `scrollWidth/clientWidth` into the DOM. | CONFIRMED (that is how finding 1 was measured). | Gap E's check, and the 375/768/1280 `scrollWidth === clientWidth` assertions in Verification 6, could be produced as recorded numbers before handoff against `next start`, leaving Ari the touch and keyboard checks that really need a person. Chrome's minimum headless window is about 500 px, so 375 needs devtools emulation or a `meta viewport` page. | **Fixed.** New Verification 6: I measure page and 2026-10-07 scroller `scrollWidth`/`clientWidth` in headless Chrome against `next start` (snippets applied) at 1280/768/500px, and run Gap E's wrapper experiment once, recording the numbers in the Implementation log. Ari's check (now 7) keeps 375px, touch, keyboard and the filter flows |
+| 9 | nit | **`metroToday` can throw on a bad zone and take the whole calendar down.** Step 8 does `metro ? metroToday(metro.timezone)...`. `getMetroOrNull` only guards the fetch; `toZonedDateTimeISO` throws `RangeError` for an unknown IANA id (a typo in the `metro` row, or a polyfill/ICU gap). | PLAUSIBLE (not run against a bad zone; the API's `timezone` is free text in the schema). | The "Today" label is cosmetic, but a throw inside `CalendarBody` is a full error page (and, after D4, a 200 with the error boundary). Cheap fix: catch `RangeError` in the page's one call site and treat it like `metro === null` (no Today), with a `console.error`. | **Fixed.** New written `metroTodayOrNull` in `lib/dates.ts` (catches only `RangeError`, logs, returns `null`), tested with `"Not/A_Zone"`; step 8 uses it, so a bad zone costs the "Today" label, not the page. K1 stays the pure `metroToday` |
+| 10 | nit | **Verification relies on Ari for numbers the author can measure.** The plan says "I have no browser". A headless Chrome exists at `/Applications/Google Chrome.app` and ran the layout experiment above with `--headless=new --dump-dom` and an inline script that writes `scrollWidth/clientWidth` into the DOM. | CONFIRMED (that is how finding 1 was measured). | K5's check, and the 375/768/1280 `scrollWidth === clientWidth` assertions in Verification 6, could be produced as recorded numbers before handoff against `next start`, leaving Ari the touch and keyboard checks that really need a person. Chrome's minimum headless window is about 500 px, so 375 needs devtools emulation or a `meta viewport` page. | **Fixed.** New Verification 6: I measure page and 2026-10-07 scroller `scrollWidth`/`clientWidth` in headless Chrome against `next start` (snippets applied) at 1280/768/500px, and run K5's wrapper experiment once, recording the numbers in the Implementation log. Ari's check (now 7) keeps 375px, touch, keyboard and the filter flows |
 
 **Resolutions** (Claude Opus 5.5, October 12, 2026): 9 fixed in the plan above, 1 rejected. I re-did the arithmetic
 for #4 and #6 by hand and confirmed #8 with `grep`. #1 and #2 are accepted on the reviewer's measurements and
@@ -643,13 +643,13 @@ deleted (`git rm`); that is the only staged change.
 **Departures from the plan.**
 1. **The row `<li>` is block flow below `md` and a grid from `md` up** (`md:grid md:grid-cols-[9rem_1fr]`), not a grid at
    every width. A `sticky` heading only sticks within its own grid area, which in a one-column grid is its own row, so
-   the plan's "heading stays visible on phones" could not work with a grid there (`notes.md`). Gap E's lesson is unchanged
+   the plan's "heading stays visible on phones" could not work with a grid there (`notes.md`). K5's lesson is unchanged
    and the wrapper experiment is run at 1280px, where the grid applies.
-2. **Gap E's scaffold** is the finished element with only the scroll classes missing (`className="flex gap-3"`), and its
+2. **K5's scaffold** is the finished element with only the scroll classes missing (`className="flex gap-3"`), and its
    `Code:` is that one `className`. The plan said the `<li>` classes were "written, plain `1fr`"; they are.
 3. **`lib/todo.ts` (new)**: a `todo(...inputs): never` helper every scaffolded gap calls, in place of B2's per-file
    `todo<T>()` copies. The helper's file is to be deleted when the last gap is filled (its docstring says so).
-4. **Gap C's loop sits in `groupCalendar` itself** (as planned), with an `emptyRow` closure written around it.
+4. **K3's loop sits in `groupCalendar` itself** (as planned), with an `emptyRow` closure written around it.
 5. **`/day/[date]` re-sorts by `nightSortKey`** and formats its heading with the year ("Mon, Oct 12, 2026"). The plan said
    "as the API returns them"; but that puts a 1:00 AM show first in its day, which is exactly the wrong answer for the new
    sample row. Sort is stable, so ties keep the API's order. B4's sort modes replace it.
@@ -665,11 +665,11 @@ deleted (`git rm`); that is the only staged change.
 9. **Plan review #2's "may offer to overwrite `button.tsx`"** was right; **#10's** headless-Chrome measurement is Verification 6.
 
 **`TODO(Ari)` gaps (all five open; none filled by anyone).** Review the code as it stands; open gaps aren't findings.
-- Gap A — `metroToday`, [lib/dates.ts:47](apps/calendar/lib/dates.ts#L47): "today" is the metro's date, not the server's.
-- Gap B — `isAfterMidnight`, [lib/dates.ts:98](apps/calendar/lib/dates.ts#L98): the 5:00 AM rule as one `PlainTime.compare`.
-- Gap C — the date loop in `groupCalendar`, [lib/calendar.ts:61](apps/calendar/lib/calendar.ts#L61): rows come from the served range.
-- Gap D — `navigate` in the filter header, [app/_components/filter-header.tsx:76](apps/calendar/app/_components/filter-header.tsx#L76): the URL is the state.
-- Gap E — the scroller's classes, [app/_components/calendar-grid.tsx:63](apps/calendar/app/_components/calendar-grid.tsx#L63): the scroller must be the grid item.
+- K1 — `metroToday`, [lib/dates.ts:47](apps/calendar/lib/dates.ts#L47): "today" is the metro's date, not the server's.
+- K2 — `isAfterMidnight`, [lib/dates.ts:98](apps/calendar/lib/dates.ts#L98): the 5:00 AM rule as one `PlainTime.compare`.
+- K3 — the date loop in `groupCalendar`, [lib/calendar.ts:61](apps/calendar/lib/calendar.ts#L61): rows come from the served range.
+- K4 — `navigate` in the filter header, [app/_components/filter-header.tsx:76](apps/calendar/app/_components/filter-header.tsx#L76): the URL is the state.
+- K5 — the scroller's classes, [app/_components/calendar-grid.tsx:63](apps/calendar/app/_components/calendar-grid.tsx#L63): the scroller must be the grid item.
 Fill order: A, B, C (unit tested), then E, then D. Tests: `pnpm --filter calendar test dates calendar`. While A–C are open `/`
 renders the error boundary; with D–E open nothing fails to build, E's page overflows sideways and D's handler throws on use.
 
@@ -681,7 +681,7 @@ renders the error boundary; with D–E open nothing fails to build, E's page ove
 - **V3 (build, API unreachable):** `API_BASE_URL=http://127.0.0.1:9 pnpm build` succeeds; `/`, `/_not-found`, `/artist/[id]`, `/artists`, `/day/[date]`, `/health`, `/venue/[id]`, `/venues` all `ƒ`; only `_global-error.html` is prerendered. **Bundle check:** the polyfill's error text is in server chunks only, **none in `.next/static`**. **`@source`:** built three ways and grepped the CSS for `combobox-chip` — old two-`..` path absent, no `@source` absent, the three-`..` path present.
 - **V4 (HTTP matrix, `next start`, snippets applied):** `/` 200 (28 rows, 25 blocks, one "Today"); `/?venue=1` 8 blocks; `/?venue=1&venue=3` 14; `/?venue=9999` and `/?month=2026-02` "No matches found" and no grid; `/?venue=abc` ignored (25); `/?month=2026-10` 31 rows, 22 blocks; `/day/2026-10-07` 5 blocks; `/day/2026-02-30`, `/day/garbage`, `/venue/9999`, `/venue/abc`, `/nope` all **404** (re-checked because `/` now streams); `/venue/1`, `/artist/1`, `/health` 200.
 - **V5 (API stopped):** `/` **200** with header, footer and skeleton and no error text or URL; `/venues`, `/venue/1` still B2's bare 500; `/venue/abc` and `/nope` 404; `/health` 200; recovers on restart with no Next restart.
-- **V6 (headless Chrome, CDP, snippets applied):** page `scrollWidth`/`clientWidth` equal at 375, 500, 768 and 1280px; the 2026-10-07 scroller is 1060 wide in a 343 / 468 / 580 / 964px box. **Wrapper experiment at 1280px:** direct 1280/1280, wrapped in a bare `<div>` **1296**/1280, wrapper with `min-width: 0` 1280/1280. **With only Gap E open:** page 1076 (375, 500), 1232 (768), 1296 (1280) against the viewport — the failure its Check names. 500px is headless Chrome's floor; 375 was set with device-metrics emulation.
+- **V6 (headless Chrome, CDP, snippets applied):** page `scrollWidth`/`clientWidth` equal at 375, 500, 768 and 1280px; the 2026-10-07 scroller is 1060 wide in a 343 / 468 / 580 / 964px box. **Wrapper experiment at 1280px:** direct 1280/1280, wrapped in a bare `<div>` **1296**/1280, wrapper with `min-width: 0` 1280/1280. **With only K5 open:** page 1076 (375, 500), 1232 (768), 1296 (1280) against the viewport — the failure its Check names. 500px is headless Chrome's floor; 375 was set with device-metrics emulation.
 - **Filter header in a browser (CDP, snippets applied, no console errors or exceptions):** typing "Zhor" leaves one option; picking it gives `/?venue=3` and 6 blocks; adding White Squirrel gives `/?venue=1&venue=3` (canonical though 3 was picked first) and 14 blocks; Back returns to `/?venue=3`; "Clear filters" to `/`; `/?month=2026-10&venue=9999` shows "October 2026" in the select and the empty state.
 - **Not verified:** touch scrolling and back-gesture chaining (no touch device), keyboard scrolling of a row, picking a month through the select's popup (the month round-trips via URL only), dark mode, the sticky heading on a real phone, and Vercel's build as opposed to a local one.
 
@@ -755,9 +755,9 @@ Base UI's `AriaCombobox.mjs`), plus `a2-extraction-schema.md` for how gap marker
 
 | # | Sev | Finding | Evidence | What goes wrong | Resolution |
 |---|---|---|---|---|---|
-| 1 | should-fix | **The five open gaps carry no `TODO(Ari)` marker.** Each block opens `(Ari) — Gap X. Lesson:`. That is the form a gap is rewritten to *after* it is filled. | CONFIRMED. Searching `TODO(Ari)` in `apps/calendar/{lib,app}` finds only `lib/todo.ts:2,17`. The open blocks (`lib/dates.ts:47`, `:98`, `lib/calendar.ts:61`, `app/_components/filter-header.tsx:76`, `calendar-grid.tsx:63`) read exactly like B2's filled ones (`lib/params.ts:121`, `:166`, `lib/metro.ts:38`, `app/venue/[id]/page.tsx:18`, `:34`), and both milestones use the letters A–E. `AGENTS.md` "[fill-in] tasks" step 2 and its example (`TODO(Ari) — Lesson:`). `a2-extraction-schema.md` (Implementation log, item 3) records Ari's rule that *resolved* gaps must not appear in a TODO search; the open ones are meant to. | A search for open work finds nothing. "Gap A" in `dates.ts` (open) and "Gap A" in `params.ts` (filled) look identical. Filling a gap leaves no textual change in its comment, so nobody can tell from the code which lessons have been typed. Fix: prefix each open block with `TODO(Ari) —` (`// TODO(Ari) — Gap E. Lesson:` …). This is a comment-only change, so use the repo's snapshot-and-compare check. The filled form then drops `TODO`, as A2 did. | **Fixed.** All five open blocks now open `TODO(Ari) — Gap X. Lesson:` (`lib/dates.ts` ×2, `lib/calendar.ts`, `filter-header.tsx`, `calendar-grid.tsx`), so a search for `TODO(Ari)` finds open work and a filled gap, once its `TODO` is dropped, no longer matches (the A2 convention). Comment-only: snapshotted the four files and compared them with comments stripped (TypeScript `transpileModule`, `removeComments`): identical for all four; the comparator was shown to report a difference when code does change |
-| 2 | nit | **Filling a gap as its `Code:` says leaves an unused `todo` import, so `make check` fails at lint.** Gaps A, B, C and D say "replace the `todo` line". Only D mentions an import change, and that one is adding `buildCalendarHref`. | CONFIRMED in the worktree: with the snippets applied and `import { todo } from "./todo"` left in `lib/dates.ts`, `pnpm lint` reports `'todo' is defined but never used  @typescript-eslint/no-unused-vars` and exits 1 under `--max-warnings 0`. `lib/todo.ts`'s docstring says to delete the file after the last gap, but no gap says so. | Ari's own Check (`pnpm --filter calendar test dates`) goes green, then `make check` goes red on a line Ari didn't write. It costs a minute, but it is avoidable. Fix: add "and delete the `todo` import once no gap in this file uses it" to the `Code:` of B, C and D (the last gap in each file). In the handoff, say that `lib/todo.ts` goes once all four are filled. | **Fixed.** The `Code:` of Gaps A/B (`dates.ts`: the second one filled removes the import), C (`calendar.ts`) and D (`filter-header.tsx`) now says to delete the `todo` import. Verified by applying the snippets that way with `lib/todo.ts` removed: Vitest 153/153, `check-types` and `lint` clean. The handoff says `lib/todo.ts` goes when the last of A–D is filled |
-| 3 | nit | **Gap E's lesson holds only from `md` up, and its experiment barely shows at the width the Check names.** The comment at `calendar-grid.tsx:50-57` says the scroller is "the `<li>`'s direct grid item" without a width condition. Since departure 1, the `<li>` is block flow below `md`, and there a wrapper is harmless. At 1280 px the overflow is 16 px. Separately, departure 2 cut the typed part to one `className`, so the structural lesson is carried by the experiment rather than by what Ari types. | CONFIRMED by wrapping the 2026-10-07 scroller in a bare `<div>` in the live page (DOM edit over CDP) and reading page `scrollWidth`/`clientWidth` direct, wrapped, then wrapped with `min-width: 0`: at 375 px **375 / 375 / 375**; at 768 px **768 / 1232 / 768**; at 1024 px **1024 / 1232 / 1024**; at 1280 px **1280 / 1296 / 1280**. | At phone width Ari can't reproduce the stated failure. At 1280 the check does turn `false`, but "the page scrolls sideways" is a 16 px nudge that is easy to miss. Fix: say "from `md` up (below it the row is block flow, where a wrapper's width is its container's)" in the comment and in Gap E's Lesson. Run the wrapper experiment at 768–1024 px, where the page grows by roughly 460 px. Whether a class-string gap is still worth keeping is Ari's call, as plan review #3 left it. | **Fixed.** The comment in `calendar-grid.tsx` and Gap E's lesson/check in this plan say the lesson holds from `md` up and that below it a wrapper is harmless; the experiment is now to be run at 768–1024px (page 768 → 1232) rather than 1280px (only +16px). I re-measured nothing — the numbers are the reviewer's; they agree with my own 1280px figure (1296). `notes.md` carries all four widths. Whether a class-string gap is worth keeping is left to Ari, as in plan review #3: the structural lesson is carried by the experiment, not by the typed classes |
+| 1 | should-fix | **The five open gaps carry no `TODO(Ari)` marker.** Each block opens `(Ari) — Gap X. Lesson:`. That is the form a gap is rewritten to *after* it is filled. | CONFIRMED. Searching `TODO(Ari)` in `apps/calendar/{lib,app}` finds only `lib/todo.ts:2,17`. The open blocks (`lib/dates.ts:47`, `:98`, `lib/calendar.ts:61`, `app/_components/filter-header.tsx:76`, `calendar-grid.tsx:63`) read exactly like B2's filled ones (`lib/params.ts:121`, `:166`, `lib/metro.ts:38`, `app/venue/[id]/page.tsx:18`, `:34`), and both milestones use the letters A–E. `AGENTS.md` "[fill-in] tasks" step 2 and its example (`TODO(Ari) — Lesson:`). `a2-extraction-schema.md` (Implementation log, item 3) records Ari's rule that *resolved* gaps must not appear in a TODO search; the open ones are meant to. | A search for open work finds nothing. "K1" in `dates.ts` (open) and "K1" in `params.ts` (filled) look identical. Filling a gap leaves no textual change in its comment, so nobody can tell from the code which lessons have been typed. Fix: prefix each open block with `TODO(Ari) —` (`// TODO(Ari) — K5. Lesson:` …). This is a comment-only change, so use the repo's snapshot-and-compare check. The filled form then drops `TODO`, as A2 did. | **Fixed.** All five open blocks now open `TODO(Ari) — Gap X. Lesson:` (`lib/dates.ts` ×2, `lib/calendar.ts`, `filter-header.tsx`, `calendar-grid.tsx`), so a search for `TODO(Ari)` finds open work and a filled gap, once its `TODO` is dropped, no longer matches (the A2 convention). Comment-only: snapshotted the four files and compared them with comments stripped (TypeScript `transpileModule`, `removeComments`): identical for all four; the comparator was shown to report a difference when code does change |
+| 2 | nit | **Filling a gap as its `Code:` says leaves an unused `todo` import, so `make check` fails at lint.** K1, K2, K3, K4 say "replace the `todo` line". Only D mentions an import change, and that one is adding `buildCalendarHref`. | CONFIRMED in the worktree: with the snippets applied and `import { todo } from "./todo"` left in `lib/dates.ts`, `pnpm lint` reports `'todo' is defined but never used  @typescript-eslint/no-unused-vars` and exits 1 under `--max-warnings 0`. `lib/todo.ts`'s docstring says to delete the file after the last gap, but no gap says so. | Ari's own Check (`pnpm --filter calendar test dates`) goes green, then `make check` goes red on a line Ari didn't write. It costs a minute, but it is avoidable. Fix: add "and delete the `todo` import once no gap in this file uses it" to the `Code:` of B, C and D (the last gap in each file). In the handoff, say that `lib/todo.ts` goes once all four are filled. | **Fixed.** The `Code:` of Gaps A/B (`dates.ts`: the second one filled removes the import), C (`calendar.ts`) and D (`filter-header.tsx`) now says to delete the `todo` import. Verified by applying the snippets that way with `lib/todo.ts` removed: Vitest 153/153, `check-types` and `lint` clean. The handoff says `lib/todo.ts` goes when the last of A–D is filled |
+| 3 | nit | **K5's lesson holds only from `md` up, and its experiment barely shows at the width the Check names.** The comment at `calendar-grid.tsx:50-57` says the scroller is "the `<li>`'s direct grid item" without a width condition. Since departure 1, the `<li>` is block flow below `md`, and there a wrapper is harmless. At 1280 px the overflow is 16 px. Separately, departure 2 cut the typed part to one `className`, so the structural lesson is carried by the experiment rather than by what Ari types. | CONFIRMED by wrapping the 2026-10-07 scroller in a bare `<div>` in the live page (DOM edit over CDP) and reading page `scrollWidth`/`clientWidth` direct, wrapped, then wrapped with `min-width: 0`: at 375 px **375 / 375 / 375**; at 768 px **768 / 1232 / 768**; at 1024 px **1024 / 1232 / 1024**; at 1280 px **1280 / 1296 / 1280**. | At phone width Ari can't reproduce the stated failure. At 1280 the check does turn `false`, but "the page scrolls sideways" is a 16 px nudge that is easy to miss. Fix: say "from `md` up (below it the row is block flow, where a wrapper's width is its container's)" in the comment and in K5's Lesson. Run the wrapper experiment at 768–1024 px, where the page grows by roughly 460 px. Whether a class-string gap is still worth keeping is Ari's call, as plan review #3 left it. | **Fixed.** The comment in `calendar-grid.tsx` and K5's lesson/check in this plan say the lesson holds from `md` up and that below it a wrapper is harmless; the experiment is now to be run at 768–1024px (page 768 → 1232) rather than 1280px (only +16px). I re-measured nothing — the numbers are the reviewer's; they agree with my own 1280px figure (1296). `notes.md` carries all four widths. Whether a class-string gap is worth keeping is left to Ari, as in plan review #3: the structural lesson is carried by the experiment, not by the typed classes |
 | 4 | nit | **`tabIndex={0}` and `role="region"` on every row with shows: 20 extra tab stops and 20 landmarks on `/`.** | CONFIRMED count: `document.querySelectorAll('[role=region][tabindex="0"]').length` is 20. PLAUSIBLE, not run through axe: every venue column already holds a focusable link (its heading), so Tab reaches each row and scrolls it into view, and arrow keys scroll the focused link's scroll container. axe's `scrollable-region-focusable` passes when a region contains focusable content. | Keyboard users tab through an extra stop per date before reaching that date's links, and a screen reader's landmarks list has 20 near-identical "Shows on …" entries. This is not a defect, and the implementer flagged it. Decide during Ari's keyboard check (Verification 7): either drop `tabIndex` (and possibly the region role), or record in the plan why the extra stops are wanted. | **Fixed (October 14, 2026, after Ari's keyboard check).** First rejected for now (the approved plan specified `role="region"` + `tabIndex={0}`, and the keyboard check was Ari's to make). Ari then tried it: the extra stops are noise. Removed `tabIndex`, `role="region"` and the `aria-label` (meaningless without the role) from the scroller in `calendar-grid.tsx`, and replaced the comment with the reasoning so they aren't re-added. Checked against the running dev server: `role="region"` 20 → 0 and `tabindex="0"` 21 → 1 (the remaining one is not ours); `check-types`, `lint` and all 187 tests pass. Not unit-testable (an async Server Component) |
 | 5 | nit | **`aria-controls={listId}` on `ComboboxChipsInput` overrides Base UI's own value, and nothing says why.** Base UI sets `aria-controls` only while the popup is open. The override makes it point, while collapsed, at a list that isn't in the DOM. | CONFIRMED: `@base-ui/react/combobox/root/AriaCombobox.mjs:873` (`reference['aria-controls'] = expanded ? listElement?.id : undefined`). The server-rendered `/` has `<input … role="combobox" aria-expanded="false" … aria-controls="_R_12pbtb_" id="filter-venues">`, and no element with that id exists while closed. Log departure 8 lists it as an "unplanned extra" without a reason. | Probably harmless: ARIA 1.2 lists `aria-controls` as required on a combobox, and that may be the intent. But it changes a generated primitive's behaviour without the comment this repo asks for, so the next person may remove it, or copy it, blind. Fix: add a one-line comment giving the reason, or drop it if there isn't one. | **Fixed.** Dropped the `aria-controls` override, the `useId` that fed it and the `id` on `ComboboxList` from `filter-header.tsx` — I had no reason for it beyond ARIA 1.2's wording, and Base UI sets `aria-controls` itself while the popup is open (`AriaCombobox.mjs:873`). Re-ran the browser interaction (type-to-filter, pick, canonical URL, Back, Clear) on the final code: same results, no console errors |
 | 6 | nit | **`docs/dev/notes.md` gains a trailing blank line at EOF.** | CONFIRMED: `git diff HEAD --check` reports `docs/dev/notes.md:375: new blank line at EOF`. | Whitespace noise in the diff. Fix: delete the last empty line. | **Fixed.** Removed the trailing blank line; `git diff HEAD --check` is clean |
