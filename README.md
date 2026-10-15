@@ -2,13 +2,17 @@
 
 A browsable, consolidated live music calendar for Minneapolis/St. Paul. Scheduled AI agents read each venue's own calendar page once a day, extract the listed shows with a local open-weight model, validate and reconcile them against what is already stored, and a Next.js frontend renders the result.
 
-It is also a learning project: agent orchestration, validation of agentic output, auditability, and Python and React/Next.js built from scratch. Focus is on local and indie acts and smaller venues that national listing sites miss.
+It is also a learning project: agent orchestration, validation of agentic output, auditability, plus Python and React/Next.js, learned by working with Claude Code and typing the key learning lines himself. Focus is on local and indie acts and smaller venues that national listing sites miss.
 
 ## About the Owner
 
-Ari Koinuma is a software engineering leader based in St. Paul, Minnesota. He spent 15 years delivering software for enterprise clients, most recently as a Director of Software Engineering at a Big 4 consulting firm. He is also a freelance musician on the side and wanted a live music calendar that covers the small rooms and local artists. He defines the requirements, architects all layers, sets the accuracy standards, directs Claude Code, and explores how to work effectively with AI to build software. 
+Ari Koinuma is a software engineering leader based in St. Paul, Minnesota. He spent 15 years delivering software for enterprise clients, most recently as a Director of Software Engineering at a Big 4 consulting firm. He is also a freelance musician on the side and wanted a live music calendar that covers the small rooms and local artists. He defines the requirements, makes the architecture decisions across all layers, sets the accuracy standards and directs Claude Code. 
 
 This application is intentionally built robustly: audit trails, accuracy gates and tests that fail loudly. That discipline is how Ari is learning to run an agentic system in production. Other metro areas are possible later, once the Twin Cities version works.
+
+## License
+
+PolyForm Noncommercial 1.0.0. You may read, run and learn from this code for noncommercial purposes. Commercial use needs Ari's written permission. Reviewing the code as part of a hiring evaluation is welcome.
 
 ## How it fits together
 
@@ -99,11 +103,13 @@ Shared configuration lives in `packages/eslint-config` and `packages/typescript-
 
 ## Conventions
 
-Read [AGENTS.md](AGENTS.md) before contributing. The short version:
+Read [AGENTS.md](AGENTS.md). The short version:
 
 - Comments explain *why*, not just *what*. Each module opens with a docstring saying what it is.
 - Every change ends with `make check` passing.
 - Design decisions are written down in `docs/arch/` and `docs/dev/notes.md`. Check there before proposing an approach.
+
+Not accepting pull requests at this time.
 
 ## Useful links
 
