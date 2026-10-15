@@ -12,7 +12,7 @@ import venues from "./fixtures/venues.json";
 // does), so none of these tests touch the network. Fixtures are served as
 // JSON response bodies and the tests assert the client hands them back
 // unchanged. That does NOT prove the fixtures match the generated types
-// (JSON imports widen enum fields to `string`; plan review #6) — that
+// (JSON imports widen enum fields to `string`; B2-PR1-6) — that
 // guarantee is `make contract-check`, since generate_fixtures.py dumps the
 // fixtures from the same Pydantic models the types come from.
 
@@ -173,7 +173,7 @@ describe("errors", () => {
     // PURPOSE to mark the route dynamic. If the client wrapped it in an
     // ApiError the build would fail whether or not the API is up, and no
     // other test can see it because Vitest has no patched `fetch`
-    // (plan review #1). It must come out as the *same object*.
+    // (B2-PR1-1). It must come out as the *same object*.
     const signal = dynamicUsageError();
     const fetchImpl = vi.fn(async () => {
       throw signal;

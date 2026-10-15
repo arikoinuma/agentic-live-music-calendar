@@ -2,7 +2,7 @@
 
 A2.1-D12 (decided by Ari, October 11, 2026): cancelled and postponed listings are found by a separate
 narrow question, and code merges the answer — a matching show gets its status, a skipped listing
-is added. The merge is in the adopted pipeline, and code review round 2 (#1) showed three ways a
+is added. The merge is in the adopted pipeline, and A2.1-CR2-1 showed three ways a
 loose merge corrupts a calendar: marking the wrong show cancelled, adding a duplicate, and adding
 an invented show from a date slip. These tests pin the stricter rules. Expected values are worked
 out by hand from each case.
@@ -85,7 +85,7 @@ def test_an_answer_the_page_doesnt_contain_is_not_added() -> None:
 
 
 def test_an_added_listing_is_split_when_a_splitter_is_given() -> None:
-    # Proves: code review #4 — on the title-split route, an added cancelled listing goes through
+    # Proves: A2.1-CR2-4 — on the title-split route, an added cancelled listing goes through
     # the same act splitter as every other title, so it isn't stored as one long "artist".
     shows = merge(
         extraction(), answer((17, ["Sophie Truax with Sasha Cee"], "cancelled")),

@@ -53,7 +53,7 @@ class ExtractionConfig:
     # "auto" = A2.1-Gap-C's routing (JSON-LD first); "model" = always the full-page model route.
     route: Literal["auto", "model"] = "model"
     # Clean with get_text(separator="\n") instead of " ": keeps the act boundaries Terminal
-    # Bar marks with <br> (plan review #1). Rung `a21-newlines`.
+    # Bar marks with <br> (A2.1-PR1-1). Rung `a21-newlines`.
     keep_line_breaks: bool = False
     # False = A2's `schema-only` instruction (no exclusion / one-show rules); kept so A2's
     # middle label can still be reproduced.
@@ -62,7 +62,7 @@ class ExtractionConfig:
     status_field: bool = False
     # A2.1-D13: each model-route date's year set from the fetch date, in code. Rung `a21-year`.
     year_rule: bool = False
-    # A2.1-D5's conventions sent on the model route too (round 2 #2). Rung `a21-act-conventions`.
+    # A2.1-D5's conventions sent on the model route too (A2.1-PR2-2). Rung `a21-act-conventions`.
     act_conventions: bool = False
     # A2-F9: the `acts` description that says to split listings into separate acts. Rung
     # `a21-acts-desc`.
@@ -280,7 +280,7 @@ def _from_jsonld(
     is kept with `acts: []`, exactly as the model route does, so A3's completeness check sees
     the same shapes from both routes (A2 Design, "Consequences"). `confidence` 1.0 is a
     placeholder: it claims a certainty about acts the splitter doesn't have, and A3's decision
-    on combining checks with confidence replaces it (plan review #15).
+    on combining checks with confidence replaces it (A2.1-PR1-15).
     """
     # The page's own visible text, so an end time is kept only where the page states it (A2.1-D10).
     page_text = clean_text(html, keep_line_breaks=False)

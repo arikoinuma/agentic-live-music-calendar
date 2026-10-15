@@ -178,7 +178,7 @@ def infer_year(listed: datetime.date, fetch_date: datetime.date) -> datetime.dat
 
 # Typographic characters that vary between a venue's page, its JSON-LD and a model's echo of
 # either, mapped to one plain form. NFKC alone leaves curly quotes and dashes as they are
-# (plan review #5: "Dan’s" != "Dan's" after NFKC).
+# (A2.1-PR1-5: "Dan’s" != "Dan's" after NFKC).
 _TYPOGRAPHIC = str.maketrans({
     "‘": "'", "’": "'", "‚": "'", "′": "'",
     "“": '"', "”": '"', "″": '"',
@@ -210,7 +210,7 @@ _FILLER = {
 def identifying_words(text: str) -> set[str]:
     """The words of a title or act list that can identify it: folded, three letters or more,
     filler dropped. Shared by the eval's leak test and the status merge, which both decide
-    whether two pieces of text name the same listing (code review round 2, #1: matching on any
+    whether two pieces of text name the same listing (A2.1-CR2-1: matching on any
     shared word, "the" included, marked the wrong show cancelled)."""
     words = "".join(c if c.isalnum() else " " for c in fold_text(text)).split()
     return {w for w in words if len(w) >= 3 and w not in _FILLER}

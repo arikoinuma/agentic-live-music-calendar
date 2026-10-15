@@ -27,7 +27,7 @@ def fixtures_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
 
 
 def test_an_existing_fixture_is_not_overwritten(fixtures_dir: Path) -> None:
-    # Proves: code review #10. A second capture on the same date leaves the labelled fixture
+    # Proves: A2.1-CR1-10. A second capture on the same date leaves the labelled fixture
     # alone unless forced — otherwise the page under a label changes without anyone noticing.
     existing = fixtures_dir / f"terminal-{TODAY.isoformat()}.html"
     existing.write_text("the labelled page")
@@ -38,7 +38,7 @@ def test_an_existing_fixture_is_not_overwritten(fixtures_dir: Path) -> None:
 
 
 def test_a_blocked_venue_is_skipped_unless_named() -> None:
-    # Proves: code review #10 / A2.1-D3. Midway answered with a bot challenge; capturing "every
+    # Proves: A2.1-CR1-10 / A2.1-D3. Midway answered with a bot challenge; capturing "every
     # venue" doesn't ask it again. Naming it explicitly still can.
     assert "midway" not in capture.default_venues()
     assert "white_squirrel" in capture.default_venues()

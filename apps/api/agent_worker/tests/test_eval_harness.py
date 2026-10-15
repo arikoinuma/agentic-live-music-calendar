@@ -152,7 +152,7 @@ def test_the_legacy_configuration_is_the_pre_a2_one(
 
 
 def test_aggregate_records_whether_a_fixtures_runs_were_identical() -> None:
-    # Proves: code review #3 / plan A2.1-D1 — at temperature 0 five runs may be one sample in
+    # Proves: A2.1-CR1-3 / plan A2.1-D1 — at temperature 0 five runs may be one sample in
     # disguise, and the comparison must say so. Identical extractions -> True; any difference
     # -> False.
     def ok_run(run: int, shows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -190,7 +190,7 @@ def test_runs_identical_compares_runs_of_the_same_page_only() -> None:
 
 
 def test_the_request_record_stores_every_prompt_a_label_sends() -> None:
-    # Proves: code review round 2, #3 — a results file is auditable on its own: besides the page
+    # Proves: A2.1-CR2-3 — a results file is auditable on its own: besides the page
     # model's instruction it stores the act splitter's (which carries the conventions), the
     # status question's, and the one the image route sends. Without them the prompt behind a
     # score would exist nowhere once the code changes.
@@ -201,7 +201,7 @@ def test_the_request_record_stores_every_prompt_a_label_sends() -> None:
 
 
 def test_runs_identical_needs_two_runs_of_every_page() -> None:
-    # Proves: code review round 2, #5 — "identical" is only claimed when each page of the venue
+    # Proves: A2.1-CR2-5 — "identical" is only claimed when each page of the venue
     # has at least two successful runs; with one run per page it is unknown (None), not True.
     def ok_run(fixture: str, run: int) -> dict[str, Any]:
         extraction_dump = {"page_readable": True, "shows": [show(["A"])]}

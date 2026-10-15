@@ -428,7 +428,7 @@ def check_empty_but_dated(
     that is empty and also posts dated news; one human look.
 
     `shown` is the (month, day) of EVERY extracted show, excluded ones included, exactly as in
-    `check_under_reported` (code review round 1, #1): a JSON-LD page whose events were all left out
+    `check_under_reported` (A3-CR1-1): a JSON-LD page whose events were all left out
     for an out-of-window date has its dates in the text, but they are accounted for. Without the
     subtraction the guard fired on them, sent the page to the model route, and that route's year
     rule re-dated the shows into a plausible, wrong year (A2.1-D13 exists to stop exactly that)."""

@@ -64,7 +64,7 @@ describe("metroTodayOrNull", () => {
   it("returns null, and logs, for an unknown zone instead of throwing", () => {
     // Proves: the metro's timezone is free text in the database, and the
     // "Today" label is cosmetic. A typo must cost the label, not the whole
-    // calendar page (plan review #9).
+    // calendar page (B3-PR1-9).
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     expect(metroTodayOrNull("Not/A_Zone")).toBeNull();
     expect(log).toHaveBeenCalled();
@@ -136,7 +136,7 @@ describe("formatDayHeading", () => {
       // (UTC-11) is the one that catches the classic bug —
       // `new Date("2026-10-12")` is UTC midnight, which is the 11th there;
       // the eastern one (UTC+14) catches the mirror (building a local-time
-      // Date and reading it back in UTC). Plan review #5.
+      // Date and reading it back in UTC). B3-PR1-5.
       process.env.TZ = zone;
       expect(formatDayHeading("2026-10-12")).toBe("Mon, Oct 12");
     });

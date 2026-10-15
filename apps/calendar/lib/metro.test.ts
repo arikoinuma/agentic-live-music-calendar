@@ -28,7 +28,7 @@ describe("getMetroOrNull", () => {
   it("rethrows Next's dynamic-usage signal unchanged", async () => {
     // Proves: a bare `catch { return null }` also swallows the error a
     // no-store fetch throws during `next build` to mark a route dynamic,
-    // which turns a working build into a failing one (plan review #1).
+    // which turns a working build into a failing one (B2-PR1-1).
     // That mistake passes the two tests above, so this one is the point.
     const signal = Object.assign(new Error("Dynamic server usage"), {
       digest: "DYNAMIC_SERVER_USAGE",

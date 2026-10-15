@@ -227,7 +227,7 @@ def parse_overrides(argv: list[str]) -> dict[str, Any]:
 
 def configure(overrides: dict[str, Any]) -> tuple[RequestOptions, extraction.ExtractionConfig]:
     """Start from the pipeline's configuration and apply the overrides. With none, the result
-    IS the pipeline's (round 2 #5): a label measures whatever the pipeline has adopted."""
+    IS the pipeline's (A2.1-PR2-5): a label measures whatever the pipeline has adopted."""
     options = extraction.PIPELINE_OPTIONS
     if "temperature" in overrides:
         options = replace(options, temperature=overrides["temperature"])
@@ -261,7 +261,7 @@ def score_extraction(
     returned one". `leaks` are returned acts matching a non-music term. Both are only as
     good as reference.py, which is written by hand and kept deliberately small.
 
-    `source` and `page_html` make the invented-image-URL count meaningful (A3, round 1 #11): a URL on
+    `source` and `page_html` make the invented-image-URL count meaningful (A3-PR1-11): a URL on
     a JSON-LD show came from structured data, not a model, and an image run has no page to check,
     so neither can be "invented" — checked against the cleaned text, every JSON-LD URL was (225 in
     a21-confirm). The rest are checked against the unescaped HTML as well as the text: the same
@@ -510,9 +510,9 @@ def aggregate(runs: list[dict[str, Any]]) -> dict[str, Any]:
             "page_readable": [r["page_readable"] for r in mine_ok],
             # Whether every successful run returned the same extraction. At temperature 0 the
             # runs may be identical, which makes "worst of 5" one sample in disguise (A2.1-D1,
-            # code review #3); the comparison has to be able to say so.
+            # A2.1-CR1-3); the comparison has to be able to say so.
             # Compared per page file (a venue key can hold several pages); claimed only when every
-            # page has two or more successful runs — otherwise unknown, None (code review round 2, #5).
+            # page has two or more successful runs — otherwise unknown, None (A2.1-CR2-5).
             "runs_identical": _runs_identical(mine_ok),
         }
     out["per_fixture"] = per_fixture
@@ -529,7 +529,7 @@ def request_record(config: extraction.ExtractionConfig, legacy: bool) -> dict[st
     instruction = legacy_config.LEGACY_INSTRUCTION if legacy else extraction.instruction_for(config)
     model_cls = legacy_config.VenuePageExtraction if legacy else extraction.page_model_for(config)
     schema = json.dumps(model_cls.model_json_schema(), sort_keys=True)
-    # Every prompt the label can send, not only the page model's (code review round 2, #3): the
+    # Every prompt the label can send, not only the page model's (A2.1-CR2-3): the
     # act splitter's (it carries the conventions on the JSON-LD and title-split routes), the
     # status question's, and the image route's (which never uses title split).
     others = {} if legacy else {
@@ -553,7 +553,7 @@ def rescore(label: str) -> None:
 
     The model output (`extraction`) is the raw data and doesn't change, so scoring — A2's
     reference metrics and A2.1's label scores — can be redone without a model call. Written to
-    `results/a21-rescore-<label>.json`; the original stays byte-identical (plan review #13).
+    `results/a21-rescore-<label>.json`; the original stays byte-identical (A2.1-PR1-13).
     """
     source = RESULTS_DIR / f"{label}.json"
     data = json.loads(source.read_text())
@@ -636,8 +636,7 @@ def compare(labels: list[str]) -> None:
 
 def select_fixtures(which: str, only: str | None) -> list[Path]:
     """The fixtures a label runs: drawn only from `labels.PAGE_LABELS` (so an unlabelled file,
-    such as the Uptown Art House .ics feed with no reader yet, is never run as a page — round 2
-    #10), filtered by set and by `--only`, and present on disk (fixtures are git-ignored)."""
+    such as the Uptown Art House .ics feed with no reader yet, is never run as a page — A2.1-PR2-10), filtered by set and by `--only`, and present on disk (fixtures are git-ignored)."""
     names = {"gated": gated_fixtures(), "informational": informational_fixtures(),
              "all": gated_fixtures() + informational_fixtures()}[which]
     chosen = []

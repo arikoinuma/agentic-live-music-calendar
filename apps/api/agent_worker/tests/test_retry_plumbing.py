@@ -133,7 +133,7 @@ def model_route(**config: Any) -> Any:
 
 
 def test_a_page_hint_reaches_the_page_instruction_and_nothing_else() -> None:
-    # Proves (round 1 #5): a date problem's hint is appended to the page model's instruction, and the act
+    # Proves (A3-PR1-5): a date problem's hint is appended to the page model's instruction, and the act
     # splitter's request is byte-identical to the unhinted one — a date sentence can't perturb the call
     # A2.1 found most sensitive.
     plain, hinted = model_route(), model_route(**HINTED)
@@ -142,7 +142,7 @@ def test_a_page_hint_reaches_the_page_instruction_and_nothing_else() -> None:
 
 
 def test_a_splitter_hint_reaches_the_splitters_instruction_and_nothing_else() -> None:
-    # Proves (round 1 #5): the reverse.
+    # Proves (A3-PR1-5): the reverse.
     plain = model_route()
     hinted = model_route(splitter_hint="- return every id")
     assert "return every id" in message_text(completions(hinted).calls_for(SPLITTER)[0])
@@ -159,7 +159,7 @@ def test_the_splitter_hint_reaches_the_json_ld_route_where_it_is_the_only_model_
 
 
 def test_the_splitter_hint_reaches_the_status_merges_own_splitter_call() -> None:
-    # Proves (round 2 #11): the status merge calls `split_titles` a third time (to split the acts of a
+    # Proves (A3-PR2-11): the status merge calls `split_titles` a third time (to split the acts of a
     # cancelled listing the main extraction skipped); it gets the same hint, and the shows it adds are
     # recorded in `notes["added_indices"]` for validation to leave out of the confidence.
     html = text_page("Ghost Band Oct 20 CANCELLED")
@@ -182,7 +182,7 @@ def test_no_shows_added_by_the_merge_means_an_empty_added_list() -> None:
 
 
 def test_a_hinted_page_request_keeps_the_blank_line_before_the_page_text() -> None:
-    # Proves (code review round 1, #5b): the unhinted instruction ends with a blank line before the page
+    # Proves (A3-CR1-5b): the unhinted instruction ends with a blank line before the page
     # text; the hinted one must keep it, or the last hint line runs into the page's first line.
     hinted = message_text(completions(model_route(**HINTED)).calls_for(PAGE)[0])
     text = extraction.clean_text(text_page("Nona", "Oct 20", "8 pm"), True)
@@ -320,7 +320,7 @@ def test_a_server_error_then_a_page_is_a_page(monkeypatch: pytest.MonkeyPatch) -
 
 
 def test_an_empty_body_is_retried_and_then_a_fetch_error_not_a_page(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Proves (round 1 #3, round 2 #8): arch-initial.md §7 counts an empty response as a fetch failure that
+    # Proves (A3-PR1-3, A3-PR2-8): arch-initial.md §7 counts an empty response as a fetch failure that
     # is retried with backoff; one that survives is recorded, never handed to a model.
     get = FakeGet((200, "<html><body></body></html>"))
     state = fetch(monkeypatch, get)
@@ -328,7 +328,7 @@ def test_an_empty_body_is_retried_and_then_a_fetch_error_not_a_page(monkeypatch:
 
 
 def test_a_page_with_no_visible_text_but_json_ld_events_is_not_empty(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Proves (round 2 #8c): a script shell whose events live in JSON-LD is something the JSON-LD route can
+    # Proves (A3-PR2-8c): a script shell whose events live in JSON-LD is something the JSON-LD route can
     # serve, so it must not be rejected as an empty response.
     shell = jsonld_page(event("Nona", "2026-10-20T21:00:00-05:00"), body="")
     state = fetch(monkeypatch, FakeGet((200, shell)))
@@ -336,7 +336,7 @@ def test_a_page_with_no_visible_text_but_json_ld_events_is_not_empty(monkeypatch
 
 
 def test_an_empty_local_text_file_is_a_fetch_error_after_one_attempt(tmp_path: Path) -> None:
-    # Proves: the empty rule covers a local text page too (round 2 #8a), without retrying a file.
+    # Proves: the empty rule covers a local text page too (A3-PR2-8a), without retrying a file.
     path = tmp_path / "empty.html"
     path.write_text("<html></html>")
     state = nodes.fetch_node(VenueGraphState(
@@ -383,7 +383,7 @@ def _extraction_dump(*urls: str) -> dict[str, Any]:
 
 
 def test_the_eval_does_not_count_a_json_ld_url_as_invented() -> None:
-    # Proves (round 1 #11): a21-confirm reported 225 "invented" image URLs, every one a JSON-LD show
+    # Proves (A3-PR1-11): a21-confirm reported 225 "invented" image URLs, every one a JSON-LD show
     # checked against cleaned text that can't contain them. The check is source-aware.
     score = run_eval.score_extraction(
         _extraction_dump("https://v.example/a.png"), FixtureReference(), page_text="Nona", source="jsonld",

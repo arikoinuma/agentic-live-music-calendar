@@ -161,7 +161,7 @@ def test_openapi_exposes_the_metro_route() -> None:
     Deliberately not "add MetroSummary to the schema-name check above":
     MetroSummary is already in components.schemas, nested inside
     VenueDetail, so that assertion would pass before the route exists
-    (plan review #5). What the generated TypeScript needs is the *path*
+    (B2-PR1-5). What the generated TypeScript needs is the *path*
     with a typed response; this fails if the return annotation is dropped.
     """
     paths = app.openapi()["paths"]

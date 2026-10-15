@@ -51,7 +51,7 @@ def _non_music_rule() -> str:
     # performing artist, so a DJ night with a named DJ is a show; comedy is not music and is excluded
     # like karaoke and open mic; a party or "night" naming no artist is excluded. "Hosted by" alone
     # doesn't make a non-music night a show, but since October 11, 2026 a named host of a *music* show
-    # is one of its acts (Ari, A2.1-D5; code review round 2, #12).
+    # is one of its acts (Ari, A2.1-D5; A2.1-CR2-12).
     # It belongs in the prompt, not the schema: it is about what counts as a show at all (a
     # cross-cutting rule), not about one field's meaning.
     # Reworded October 11, 2026 (A2.1) to Ari's "when in doubt, include it": a missed show
@@ -74,9 +74,9 @@ def _one_show_rule(per_act_times: bool = True) -> str:
     """The one-show-vs-several rule: how to split a listing into shows, for the model.
 
     `per_act_times=False` drops the last sentence for the title-split route, whose listing
-    schema has no acts to put a start time on (code review round 2, #9: a rule the model has
+    schema has no acts to put a start time on (A2.1-CR2-9: a rule the model has
     no field to follow). That route loses per-act start times — a known limit, recorded with
-    #9's resolution in the A2.1 plan and left to Ari against A2 Decision 8.
+    A2.1-CR2-9's resolution in the A2.1 plan and left to Ari against A2 Decision 8.
     """
     # One listing can be one show with several artists, or several distinct shows back to back, and
     # the answer decides insert-vs-update downstream: reconcile's composite key is (venue, date, time),
@@ -118,14 +118,14 @@ def _act_conventions() -> str:
 
     The labels the eval scores against apply these conventions (A2.1-D5, approved by
     Ari October 10). Both routes must be told them, or the labels and the model disagree by
-    construction (plan review round 2, #2): the JSON-LD route's act splitter includes this
+    construction (A2.1-PR2-2): the JSON-LD route's act splitter includes this
     text in its instruction (`act_split.py`), and the full-page model route includes it when
     `ExtractionConfig.act_conventions` is on (rung `a21-act-conventions`). The display of a
     listing's artist text is a separate, deferred question (requirements-initial.md, Show:
     "artists: display text and associations").
     """
     return (
-        # Every example below is INVENTED (code review round 2, #2): the first version quoted
+        # Every example below is INVENTED (A2.1-CR2-2): the first version quoted
         # the eval's own labelled titles with their answers, which made the score partly
         # in-sample. A test (test_no_prompt_quotes_a_labelled_answer) keeps it that way.
         "How to name the performing acts in a listing:\n"

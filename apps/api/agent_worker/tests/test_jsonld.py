@@ -212,7 +212,7 @@ def test_event_status_maps_to_show_status(status: str | None, expected: str) -> 
 
 
 def test_a_space_separated_date_time_is_a_time_not_a_date() -> None:
-    # Proves: code review #6a. ISO 8601 allows a space instead of "T"; it must not take the
+    # Proves: A2.1-CR1-6a. ISO 8601 allows a space instead of "T"; it must not take the
     # date-only branch (which would raise and fail the page).
     assert jsonld.local_wall_clock("2026-10-09 21:00:00", CHICAGO) == (
         datetime.date(2026, 10, 9), datetime.time(21, 0)
@@ -274,7 +274,7 @@ def test_a_start_after_midnight_belongs_to_the_previous_night(
 
 
 def test_a_local_midnight_start_means_no_time_stated() -> None:
-    # Proves: code review round 2, #6 — many event plugins write T00:00:00 for an all-day or
+    # Proves: A2.1-CR2-6 — many event plugins write T00:00:00 for an all-day or
     # untimed event. Read as a real start, the 5:00 AM cutoff would move it to the previous day
     # (a missed show plus an invented one); read as "no time stated", the date is kept and the
     # time is a tolerated missing value.
@@ -283,7 +283,7 @@ def test_a_local_midnight_start_means_no_time_stated() -> None:
 
 
 def test_an_end_time_must_be_stated_near_its_own_title() -> None:
-    # Proves: code review round 2, #7 — a platform-default end time is not "stated" just because
+    # Proves: A2.1-CR2-7 — a platform-default end time is not "stated" just because
     # some other listing on the page shows that clock time: the check looks only at the text that
     # follows the event's own title, up to the next event's title (the page's event names are
     # passed in, as `_from_jsonld` does).
@@ -302,7 +302,7 @@ def test_an_end_time_must_be_stated_near_its_own_title() -> None:
     [("CANCELLED: Robert Ellis", "cancelled"), ("Baby Bugs (Postponed)", "postponed"), ("Lent", "scheduled")],
 )
 def test_a_status_written_in_the_title_counts_on_the_json_ld_route(name: str, status: str) -> None:
-    # Proves: code review round 2, #8 — a site that writes "CANCELLED" in the event's name but
+    # Proves: A2.1-CR2-8 — a site that writes "CANCELLED" in the event's name but
     # leaves eventStatus at Scheduled (or absent) still gets the right status (A2.1-D12: a wrong
     # status is never acceptable).
     assert jsonld.to_structured_show(event(name), CHICAGO).status == status

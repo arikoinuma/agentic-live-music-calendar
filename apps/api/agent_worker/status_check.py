@@ -114,7 +114,7 @@ def apply(
     that, a day either side (this model sometimes shifts a listing by a day) — and given its
     status. A listing nothing matches was skipped by the main extraction and is added with its
     status, **only if its acts appear in the page text**; otherwise it is recorded in the notes
-    and not added (code review round 2, #1). An added listing's acts go through `split_titles`
+    and not added (A2.1-CR2-1). An added listing's acts go through `split_titles`
     when given (the title-split route's act splitter, #4). Its date follows the year rule when
     `fetch_date` is given (A2.1-D13); it has no time (the question doesn't ask for one: missing is
     tolerated, a wrong value is not) and `confidence` 1.0 — a placeholder, like the JSON-LD

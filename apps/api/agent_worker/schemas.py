@@ -260,7 +260,7 @@ def show_model(*, status: bool, split_acts: bool) -> type[ShowExtraction]:
     if split_acts:
         fields["acts"] = (list[ActExtraction], Field(description=SPLIT_ACTS_DESCRIPTION))
     # `__doc__` passed on: create_model drops a class docstring otherwise, and the docstring is
-    # the schema's description, which the model is sent (code review #2).
+    # the schema's description, which the model is sent (A2.1-CR1-2).
     return create_model("ShowExtraction", __base__=ShowExtraction, __doc__=ShowExtraction.__doc__, **fields)
 
 
@@ -293,8 +293,7 @@ _SHOW = ShowExtraction.model_fields
 
 
 class ListingExtraction(BaseModel):
-    # The docstring is model-facing: instructor sends it as the schema's description (code
-    # review round 1, #2; round 2, #9). Which route uses this class is said in the comment above.
+    # The docstring is model-facing: instructor sends it as the schema's description (A2.1-CR1-2; A2.1-CR2-9). Which route uses this class is said in the comment above.
     """One listing on a venue's calendar page: its date, time and prices, and its performer
     text copied exactly as the page writes it."""
 

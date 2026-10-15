@@ -93,7 +93,7 @@ REFERENCE: dict[str, FixtureReference] = {
 
 
 # A2.1's captures are named `<venue>-<YYYY-MM-DD>.html` (eval/capture.py); each venue maps to
-# the REFERENCE entry for its page type (plan review #12).
+# the REFERENCE entry for its page type (A2.1-PR1-12).
 _CAPTURE_KEYS = {
     "white_squirrel": "white_squirrel", "terminal": "terminal_html", "zhora": "zhora",
     "midway": "midway", "seventh_st_entry": "seventh_st_entry", "mortimers": "mortimers",

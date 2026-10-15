@@ -20,7 +20,7 @@ import type { MetroSummary } from "./types";
 // grep the built HTML for it: a static page with this text baked in would
 // mean the metro fetch got cached at build time, which is exactly what
 // decision B2-D1 (no persistent caching in B2) exists to prevent
-// (plan Verification 3, review #7).
+// (plan Verification 3, B2-PR1-7).
 export const FALLBACK_DESCRIPTION =
   "Live music, gathered from venue calendars.";
 

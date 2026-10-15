@@ -101,7 +101,7 @@ def find_events(html: str) -> list[dict[str, Any]]:
 
 def _is_date_only(value: str) -> bool:
     """True for "2026-10-09"; False for any date-time, whether written with "T" or with the
-    space ISO 8601 also allows (code review #6a)."""
+    space ISO 8601 also allows (A2.1-CR1-6a)."""
     return len(value.strip()) == 10
 
 
@@ -139,7 +139,7 @@ _STATUS_IN_TITLE = re.compile(r"\b(cancell?ed|postponed)\b", re.IGNORECASE)
 def _status(event: dict[str, Any]) -> str:
     """schema.org eventStatus (a full URL or the bare name) -> A2.1-D12's show status. A status
     written in the event's own name ("CANCELLED: …") counts too, for sites that leave eventStatus
-    at Scheduled or omit it (code review round 2, #8)."""
+    at Scheduled or omit it (A2.1-CR2-8)."""
     raw = event.get("eventStatus")
     name = raw.rsplit("/", 1)[-1] if isinstance(raw, str) else ""
     status = _STATUS.get(name, "scheduled")
@@ -197,8 +197,7 @@ def end_time_is_stated(
     A2.1-D10 as revised under A2.1-D1 (Ari, October 10, 2026): an end time no page states is a wrong
     value, never acceptable — and platforms such as DICE emit an endDate 3-15 hours after the
     start that the venue never wrote. A JSON-LD end time is kept only when the page says it —
-    and, given the event's `title`, only in the text that follows that title (code review round
-    2, #7: anywhere on the page, another listing's "11:00 pm" would vouch for a default end of
+    and, given the event's `title`, only in the text that follows that title (A2.1-CR2-7: anywhere on the page, another listing's "11:00 pm" would vouch for a default end of
     23:00). The listing's text runs from its title to the next other title (`other_titles`, the
     page's other events), capped at 300 characters past the title. A title the text doesn't
     contain vouches for nothing.
@@ -250,7 +249,7 @@ def to_structured_show(
     show_date, show_time = local_wall_clock(start, metro_timezone)
     # A local 00:00:00 start is how many event plugins write an all-day or untimed event: read it
     # as "no time stated" (a tolerated missing value), not as a show after midnight, which the
-    # cutoff below would move to the previous day (code review round 2, #6).
+    # cutoff below would move to the previous day (A2.1-CR2-6).
     if show_time == datetime.time(0, 0):
         show_time = None
     # A structured source states the calendar date; a start before the cutoff belongs to the

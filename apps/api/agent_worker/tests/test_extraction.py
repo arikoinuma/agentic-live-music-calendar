@@ -140,7 +140,7 @@ def test_events_without_a_start_date_are_not_usable() -> None:
 
 
 def test_route_model_ignores_json_ld() -> None:
-    # Proves: the ladder's switch works (plan review #3) — `route="model"` measures the model
+    # Proves: the ladder's switch works (A2.1-PR1-3) — `route="model"` measures the model
     # route even on a page that has usable JSON-LD, and no splitter call is made.
     html = jsonld_page(ws_event("Nona", "2026-08-17T21:00:00-05:00"))
     client = fake_client()
@@ -158,7 +158,7 @@ def test_the_json_ld_route_builds_shows_from_events_and_the_splitter() -> None:
     # Proves: dates and times come from JSON-LD (converted into the metro's zone), acts from
     # the splitter, the venue from the caller; a title the splitter gave no acts (a non-music
     # entry) is kept with `acts: []` for A3 to drop, and noted; a cancelled event keeps its
-    # status (A2.1-D12). `confidence` 1.0 is a recorded placeholder (plan review #15).
+    # status (A2.1-D12). `confidence` 1.0 is a recorded placeholder (A2.1-PR1-15).
     html = jsonld_page(
         ws_event("Lent w. Gills", "2026-08-20T21:00:00-05:00"),
         ws_event("Open Jam", "2026-08-21T23:00:00Z"),
@@ -181,7 +181,7 @@ def test_the_json_ld_route_builds_shows_from_events_and_the_splitter() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Switches reach what is sent (plan review #1, #3; round 2 #4)
+# Switches reach what is sent (A2.1-PR1-1, A2.1-PR1-3; A2.1-PR2-4)
 # ---------------------------------------------------------------------------
 
 BR_PAGE = "<h2>Friday August 28th<br/>Man Down<br/>Justin Payne / Larrkins</h2>"
@@ -196,7 +196,7 @@ def test_clean_text_keeps_line_breaks_only_when_asked() -> None:
 
 def test_every_switch_reaches_the_sent_request() -> None:
     # Proves: each switch changes the request actually sent through `extract_page`, not
-    # just a helper (round 2 #4): line breaks in the page text, the status field in the
+    # just a helper (A2.1-PR2-4): line breaks in the page text, the status field in the
     # response schema and its sentence in the instruction, the conventions text, and the
     # split-acts description in the schema. And each is off by default (today's behaviour).
     def sent(**config: Any) -> tuple[str, str]:
@@ -219,7 +219,7 @@ def test_every_switch_reaches_the_sent_request() -> None:
 
 def test_old_rules_survive_the_move() -> None:
     # Proves: `include_new_rules=False` (A2's `schema-only` instruction) still omits the two
-    # A2 rules through the new entry point (plan review #16).
+    # A2 rules through the new entry point (A2.1-PR1-16).
     client = fake_client()
     run("<p>x</p>", client, include_new_rules=False)
     assert "karaoke" not in sent_content(client).lower()
@@ -270,7 +270,7 @@ def test_the_year_rule_rewrites_model_route_years_only_when_on() -> None:
 
 
 def test_the_harness_with_no_flags_is_the_pipeline() -> None:
-    # Proves: the eval keeps measuring the adopted pipeline (round 2 #5) — with no override
+    # Proves: the eval keeps measuring the adopted pipeline (A2.1-PR2-5) — with no override
     # flags the harness builds exactly the pipeline's options and config, and one flag
     # changes exactly one field.
     assert run_eval.configure(run_eval.parse_overrides([])) == (
@@ -338,7 +338,7 @@ def test_fetch_node_keeps_raw_html_and_cleaned_text(monkeypatch: pytest.MonkeyPa
 
 
 def test_events_without_a_name_are_not_usable() -> None:
-    # Proves: code review #6b. An Event with a start but no name can't be split into acts; the
+    # Proves: A2.1-CR1-6b. An Event with a start but no name can't be split into acts; the
     # module docstring promises such a site falls back to the model route, not that it yields
     # a show with an empty title.
     html = jsonld_page({"@type": "Event", "startDate": "2026-08-17T21:00:00-05:00"})
@@ -347,7 +347,7 @@ def test_events_without_a_name_are_not_usable() -> None:
 
 
 def test_schema_variants_keep_the_class_descriptions() -> None:
-    # Proves: code review #2. A variant schema differs from the base ONLY by its change — the
+    # Proves: A2.1-CR1-2. A variant schema differs from the base ONLY by its change — the
     # `status` property for A2.1-D12 — so a rung measures one thing. `create_model` drops class
     # docstrings unless told otherwise, which would silently remove two descriptions the model
     # is sent.
@@ -364,7 +364,7 @@ def test_schema_variants_keep_the_class_descriptions() -> None:
 
 
 def test_fetch_node_keeps_a_fetch_date_it_was_given(tmp_path: Path) -> None:
-    # Proves: code review #7. local_test runs an AUGUST fixture; once the year rule is on, a
+    # Proves: A2.1-CR1-7. local_test runs an AUGUST fixture; once the year rule is on, a
     # fetch date of today would put its shows a year ahead. A caller that knows when the page
     # was captured passes `fetched_on`, and fetch_node keeps it.
     page = tmp_path / "page.html"
@@ -379,7 +379,7 @@ def test_fetch_node_keeps_a_fetch_date_it_was_given(tmp_path: Path) -> None:
 def test_extract_node_and_the_harness_send_identical_image_requests(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    # Proves: code review #12 — the image route has the same pipeline/harness parity as the
+    # Proves: A2.1-CR1-12 — the image route has the same pipeline/harness parity as the
     # page route, and the year rule (A2.1-D13) rewrites a poster's guessed year there too.
     poster = tmp_path / "poster.png"
     poster.write_bytes(b"not really a png")
@@ -550,7 +550,7 @@ def test_title_split_sends_layout_but_not_the_splitting_conventions_to_the_page_
 
 
 def test_every_listing_field_carries_over_to_its_show() -> None:
-    # Proves: code review round 2, #11 — on the title-split route a listing's fields (time, end
+    # Proves: A2.1-CR2-11 — on the title-split route a listing's fields (time, end
     # time, prices, free admission after A2-F1, image, ambiguity, confidence) reach the show
     # unchanged; and ListingExtraction has exactly ShowExtraction's fields, with `title` in place
     # of `acts`, so a field added to one and not the other fails here instead of silently dropping.

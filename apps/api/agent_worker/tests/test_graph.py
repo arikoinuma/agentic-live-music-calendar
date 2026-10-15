@@ -270,7 +270,7 @@ def test_a_json_ld_page_that_under_reports_falls_back_to_the_model_route(
 def test_the_route_fallback_is_sticky_and_an_escalation_names_both_routes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Proves (round 1 #1): attempt 1 under-reports on JSON-LD, attempt 2 (model route) fails low
+    # Proves (A3-PR1-1): attempt 1 under-reports on JSON-LD, attempt 2 (model route) fails low
     # confidence, and attempt 3 STAYS on the model route instead of going back to the JSON-LD route that
     # already failed. The escalation reason says both routes failed — what a human needs to know.
     unsure = listing("2026-10-20", "Nona", time="20:00", confidence=0.5)
@@ -285,7 +285,7 @@ def test_the_route_fallback_is_sticky_and_an_escalation_names_both_routes(
 def test_a_malformed_json_ld_date_is_recorded_and_the_retry_uses_the_model_route(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Proves (A3-Gap-A, round 2 #3): a deterministic ValueError from `fromisoformat` is a failed attempt that
+    # Proves (A3-K1, A3-PR2-3): a deterministic ValueError from `fromisoformat` is a failed attempt that
     # records the route it used (`jsonld`, even though `extraction_source` is None for a failed attempt),
     # and — because a JSON-LD retry would raise identically — attempt 2 runs the model route.
     page = jsonld_page(event("Nona", "not-a-date"), body="Nona Oct 20 8 pm")
@@ -313,7 +313,7 @@ def test_a_far_future_json_ld_event_is_excluded_and_not_retried(tmp_path: Path, 
 def test_a_json_ld_page_of_only_stale_events_is_excluded_not_sent_to_the_model_route(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Proves (code review round 1, #1; A3-D13): every event is more than 31 days back, so each is excluded
+    # Proves (A3-CR1-1; A3-D13): every event is more than 31 days back, so each is excluded
     # with a warning. The page's text names those same dates, which `upcoming_dates` places in NEXT year;
     # the empty-page guard must not read them as dates the extraction ignored. It did, sent the page to
     # the model route, and the year rule committed the shows as 2027-08-01..03 with a clean pass. The
@@ -334,7 +334,7 @@ def test_a_json_ld_page_of_only_stale_events_is_excluded_not_sent_to_the_model_r
 def test_an_end_time_equal_to_the_start_is_repaired_and_the_json_ld_route_is_kept(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Proves (round 2 #4): a plugin that writes endDate == startDate does not send the page to the model
+    # Proves (A3-PR2-4): a plugin that writes endDate == startDate does not send the page to the model
     # route on every run: the end time is dropped as a repair, the page passes on attempt 1.
     page = jsonld_page(
         event("Nona", "2026-10-20T20:00:00-05:00", endDate="2026-10-20T20:00:00-05:00"), body="Nona 8:00 pm",
@@ -348,7 +348,7 @@ def test_an_end_time_equal_to_the_start_is_repaired_and_the_json_ld_route_is_kep
 def test_a_page_whose_every_show_is_excluded_and_undated_passes_without_crashing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Proves (round 1 #4): the splitter says the only event isn't music. Nothing is kept, confidence is
+    # Proves (A3-PR1-4): the splitter says the only event isn't music. Nothing is kept, confidence is
     # None (not `min([])`, which would raise in validate_node), the page passes, and the exclusion is on record.
     page = jsonld_page(event("Karaoke Night", "2026-10-20T21:00:00-05:00"), body="Karaoke Night")
     state, _ = run_graph(tmp_path, monkeypatch, page, {SPLITTER: [split_answer(("Karaoke Night", []))]})
@@ -374,7 +374,7 @@ def test_a_page_that_cannot_be_read_escalates_without_calling_the_model(
 
 
 def test_an_empty_page_escalates_instead_of_reaching_the_model(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # Proves (round 1 #3): arch-initial.md §7 counts an "empty response" as a fetch failure. A model handed
+    # Proves (A3-PR1-3): arch-initial.md §7 counts an "empty response" as a fetch failure. A model handed
     # a blank page can answer `page_readable: true, shows: []`, which would pass as a confirmed-empty
     # calendar. The empty script asserts the model is never called.
     state, client = run_graph(tmp_path, monkeypatch, "<html><body>  </body></html>", {})
