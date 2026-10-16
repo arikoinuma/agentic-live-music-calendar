@@ -8,7 +8,7 @@ answer "which acts, or none" per title (A2.1-D4, A2.1-D5 of
 docs/dev/implementations/a2.1-extraction-reliability.md).
 
 How to read it: the response models (`ActSplitItem`, `ActSplitAnswer`) are what the model
-fills in; `_act_split_instruction` is the instruction (A2.1-Gap-D); `split_titles` numbers
+fills in; `_act_split_instruction` is the instruction (A2.1-K4); `split_titles` numbers
 the titles, makes the call, and aligns the answer back to the titles **by id**, so a dropped or
 reordered item can never put one show's acts on another.
 
@@ -59,8 +59,7 @@ def _act_split_instruction() -> str:
     # asked only "which acts does this title name, and is it a music show at all?" has one judgement
     # to make per title, not a whole page's worth (dates, times, prices are already exact from
     # JSON-LD). The conventions it must follow are A2.1-D5's, in ONE shared text (`prompts._act_conventions()`)
-    # that the full-page model route also gets, so the two routes can't disagree (plan review round 2,
-    # #2). Keep the rules there rather than writing them here, or the splitter and the model route
+    # that the full-page model route also gets, so the two routes can't disagree (A2.1-PR2-2). Keep the rules there rather than writing them here, or the splitter and the model route
     # drift apart. The exclusion rule is the same one the model route uses, because JSON-LD lists
     # every event on the calendar, karaoke included. Ask for every id back, with an empty list for a
     # non-music title, so a dropped title is visible rather than silent.
@@ -99,7 +98,7 @@ def split_titles(
 
     # Align by id. The first answer for an id wins; ids outside the range are ignored. The
     # echoed title is only a cross-check, compared after folding, since a model may re-quote
-    # an apostrophe or re-escape an "&" without changing the title (plan review #10).
+    # an apostrophe or re-escape an "&" without changing the title (A2.1-PR1-10).
     by_id: dict[int, ActSplitItem] = {}
     for item in answer.items:
         if 0 <= item.id < len(titles) and item.id not in by_id:

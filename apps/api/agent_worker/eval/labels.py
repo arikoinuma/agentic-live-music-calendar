@@ -179,7 +179,7 @@ PAGE_LABELS: dict[str, PageLabel] = {
     # takes the first line as the act and turns later lines into extra shows). The text states dates
     # and acts, never a time (the times are in
     # the poster images, which the image path would read — deferred); no prices. Each act
-    # line is its own <br> line on the page (plan review #1).
+    # line is its own <br> line on the page (A2.1-PR1-1).
     # -------------------------------------------------------------------------------------
     "Terminal Bar – The Terminal Bar.html": PageLabel(
         venue="terminal", gated=False, captured_on=AUGUST_CAPTURE, non_shows=_TERMINAL_HEADERS, shows=(

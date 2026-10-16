@@ -141,7 +141,7 @@ def test_the_cancelled_rule_keeps_cancelled_listings_with_their_status() -> None
 def test_the_act_conventions_are_one_text_for_both_routes() -> None:
     # Proves: A2.1-D5's conventions (tour names, parentheticals, named DJs, splitting markers) are
     # one text, sent to the model route when the rung asks for it — the same text the
-    # JSON-LD splitter gets (round 2 #2; test_act_split.py checks the other side).
+    # JSON-LD splitter gets (A2.1-PR2-2; test_act_split.py checks the other side).
     text = prompts._act_conventions().lower()
     assert "tour" in text and "parenthes" in text and "dj" in text
     # Ari, October 11, 2026: a DJ keeps "DJ" in the name ("DJ Dedicated Enemy", not "Dedicated Enemy").
@@ -177,7 +177,7 @@ def test_hosts_and_album_releases_follow_aris_conventions() -> None:
 
 
 def test_no_prompt_quotes_a_labelled_answer() -> None:
-    # Proves: code review round 2, #2 — the model-facing texts give examples, but none of them is
+    # Proves: A2.1-CR2-2 — the model-facing texts give examples, but none of them is
     # an act name from the eval's labels, so a score on the labelled pages is out of sample. (The
     # first conventions quoted the gated pages' own hard titles with their answers; three were
     # added right after their row failed.) Expected act names come from labels.py, not prompts.py.
@@ -202,7 +202,7 @@ def test_no_prompt_quotes_a_labelled_answer() -> None:
 
 
 def test_a_presenter_is_not_an_act() -> None:
-    # Proves: code review round 2, #10 — the labels treat "X Presents:" as a promoter, and the
+    # Proves: A2.1-CR2-10 — the labels treat "X Presents:" as a promoter, and the
     # model is now told so (Zhora's "Crazy Clyde Presents:" was counted as an act in every
     # confirmation run once hosts became acts).
     assert "presents" in prompts._act_conventions().lower()
@@ -222,7 +222,7 @@ def test_the_date_heading_rule_goes_to_the_model_route_only() -> None:
 
 
 def test_the_title_split_instruction_asks_only_for_what_a_listing_can_hold() -> None:
-    # Proves: code review round 2, #9 — on the title-split route the model returns a listing
+    # Proves: A2.1-CR2-9 — on the title-split route the model returns a listing
     # (`ListingExtraction`: one verbatim title, no acts), so the instruction must not ask it to
     # "put each artist's own start time on that artist", a rule it has no field to follow. The
     # one-show-vs-several rule itself stays (it decides how many listings there are); the other
@@ -234,8 +234,8 @@ def test_the_title_split_instruction_asks_only_for_what_a_listing_can_hold() -> 
 
 
 def test_the_listing_schemas_describe_themselves_to_the_model() -> None:
-    # Proves: code review round 2, #9b — instructor sends a model's class docstring to the model
-    # as its schema description (code review round 1, #2), so the title-split schemas' docstrings
+    # Proves: A2.1-CR2-9b — instructor sends a model's class docstring to the model
+    # as its schema description (A2.1-CR1-2), so the title-split schemas' docstrings
     # say what a listing is, not which pipeline route uses them (wording the model can't use).
     from agent_worker.schemas import ListingExtraction, VenueListingsExtraction
 

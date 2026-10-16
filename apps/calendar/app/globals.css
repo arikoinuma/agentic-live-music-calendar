@@ -15,7 +15,7 @@
 
 /*
  * The create-turbo template's global resets were removed in B1
- * (alpha-build-plan.md G20). Two of them were actively harmful:
+ * (alpha-build-plan.md v0.1-G20). Two of them were actively harmful:
  *
  *   `* { margin: 0; padding: 0 }` — Tailwind's preflight already resets
  *   these, and because this rule was UNLAYERED it out-ranked every

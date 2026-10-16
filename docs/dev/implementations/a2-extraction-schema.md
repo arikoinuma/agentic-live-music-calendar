@@ -151,7 +151,7 @@ is unchanged** by the validator (field schema compared with a plain `time | None
 model is still told "24-hour HH:MM" and nothing about our leniency.
 
 **Rule: normalize only what is unambiguous; never guess.** *(Changed October 10, 2026 by Ari — Decisions
-for Ari #2: a 12-hour time with no AM/PM is now read as **PM**, not rejected. The two rows below marked
+for Ari D2: a 12-hour time with no AM/PM is now read as **PM**, not rejected. The two rows below marked
 "changed" record the new behaviour; the rest of the table stands.)*
 
 | Input | Result | Why |
@@ -236,7 +236,7 @@ clients, which makes no network call). The tests never read `agent_worker/eval/f
 | **normalizer, accepted** (parametrized, run through `ShowExtraction(date=…, time=value, …)`): `"19:30"`, `"19:30:00"`, `"07:30"` → as given; `"7pm"`, `"7 PM"`, `"7:30pm"`, `"7:30 PM"`, `"7:30 p.m."`, `"8:00pm"`, `" 7pm "` → 19:00 / 19:30 / 20:00; `"12am"` → 00:00, `"12pm"` → 12:00, `"12:15am"` → 00:15 | the sloppy formats a model actually emits are converted, not rejected — the behaviour this table section exists to pin |
 | **normalizer, null-ish → `None`**: `""`, `"null"`, `"None"`, `"N/A"`, `"na"`, `"TBD"`, `"tba"`, `"Unknown"` | the model writing the *word* for "not stated" means not stated |
 | **normalizer, tzinfo dropped**: `"19:30:00Z"`, `"19:30-05:00"` → naive `19:30` (`tzinfo is None`) | a timezone-aware time would later fail to compare with the database's naive times (A5) |
-| **normalizer, rejected** (`ValidationError`, `type == "value_error"`) — *October 10: `"7:30"` and `"7"` moved to accepted (→ PM, Decisions for Ari #2); `"0:30"` and `"13"` added here*: `"7:30"`, `"7"`, `"24:00"`, `"25:00"`, `"13pm"`, `"0pm"`, `"after dark"`, `68400`, `19.5`, `True` | ambiguity and non-times are refused, never guessed; integers specifically (Pydantic alone would accept `68400` as an aware time) |
+| **normalizer, rejected** (`ValidationError`, `type == "value_error"`) — *October 10: `"7:30"` and `"7"` moved to accepted (→ PM, Decisions for Ari D2); `"0:30"` and `"13"` added here*: `"7:30"`, `"7"`, `"24:00"`, `"25:00"`, `"13pm"`, `"0pm"`, `"after dark"`, `68400`, `19.5`, `True` | ambiguity and non-times are refused, never guessed; integers specifically (Pydantic alone would accept `68400` as an aware time) |
 | the normalizer applies to **all three** time fields: the accepted/rejected cases are run against `ShowExtraction.time`, `ShowExtraction.end_time` and `ActExtraction.start_time` | a lenient field next to a strict one is the bug this would otherwise hide |
 | `ShowExtraction.model_json_schema()` properties for `time`, `end_time` and (via `$defs`) `start_time` are `anyOf [{format: time, type: string}, {type: null}]` | leniency is invisible to the model: the schema it receives is unchanged |
 | a realistic multi-act payload (advance + day price, per-act times) round-trips through `model_validate_json`; so does a minimal one (date + one act, everything else null) | the schema accepts what a model would plausibly emit |
@@ -282,7 +282,7 @@ what Ari wants to type, and a `NotImplementedError` inside a Pydantic class body
 import, so the red tests are the placeholder.
 
 **Re-marking proposals** (per the rule "if no line meets the bar, say so"). *Closed October 10, 2026 —
-Decisions for Ari #5: moot once Ari filled the gaps; the build-plan item stays as it is.*
+Decisions for Ari D5: moot once Ari filled the gaps; the build-plan item stays as it is.*
 
 - Build-plan A2 item 1 is largely Pydantic field declarations — explicitly a *bad gap* by
   `AGENTS.md`. Only the `acts` shape change carries a lesson (TODO #2). The remaining new fields
@@ -410,9 +410,9 @@ Order matters: **the baseline must be captured before the schema changes.**
 ## Decisions for Ari
 
 *Open items that need you before or during implementation. Each has a recommendation.* **All resolved
-as of October 10, 2026** — #1–#5 by Ari on that date (each resolution is under its item), #6 on October 9.
+as of October 10, 2026** — D1–D5 by Ari on that date (each resolution is under its item), D6 on October 9.
 
-1. **The time normalizer wasn't seen by the plan reviewer.** Added October 9 at your request, after
+**D1. The time normalizer wasn't seen by the plan reviewer.** Added October 9 at your request, after
    round 1. It is specified (Design › Time normalizer) and tested, but no second model has checked
    it. **Recommendation:** approve without another round and let the code review examine it; its
    behaviour is pinned by a table of accepted/rejected inputs, and the one real judgment call
@@ -422,7 +422,7 @@ as of October 10, 2026** — #1–#5 by Ari on that date (each resolution is und
    normalizer directly (about 25 extra spellings probed against plain Pydantic) and found two real gaps,
    fractional seconds and the bare `"7p"`; both were fixed tests-first (findings #2 and #4). No separate
    plan-review round.
-2. **Ambiguous `"7:30"` (no AM/PM): reject, or assume PM?** The plan rejects it (one re-ask) rather
+**D2. Ambiguous `"7:30"` (no AM/PM): reject, or assume PM?** The plan rejects it (one re-ask) rather
    than guess, because a guessed PM is silently wrong for a morning or brunch show. Nightlife
    listings make PM likely, so assuming PM is defensible. **Recommendation:** reject now; revisit
    only if the eval's by-field parse failures show models emit that form often.
@@ -434,7 +434,7 @@ as of October 10, 2026** — #1–#5 by Ari on that date (each resolution is und
    trusted as 24-hour, so every time field's *description* now also says "if the page gives no AM/PM,
    assume PM" (the model does the 12→24 conversion itself). Recorded as a product rule in
    `requirements-initial.md` ("Agent Extraction: Fields", Start Time) and in `arch-initial.md` §7.
-3. **Tzinfo is dropped, not converted, from `"19:30:00Z"`.** The database column is a naive `time`
+**D3. Tzinfo is dropped, not converted, from `"19:30:00Z"`.** The database column is a naive `time`
    and a listing means the venue's local clock, so a zone suffix from a model is treated as noise.
    Alternative: reject zoned values. **Recommendation:** drop (as planned).
    — **RESOLVED (Ari, October 10, 2026): drop, as built — on the condition that there is a source of
@@ -446,18 +446,18 @@ as of October 10, 2026** — #1–#5 by Ari on that date (each resolution is und
    **Carried to A2.1:** "drop" is right for *model* output only. A structured source that states an
    offset (Zhora's JSON-LD gives `2026-08-17T23:00:00Z`, which is 18:00 in Minneapolis) must be
    **converted** into `metro.timezone`, never passed through `normalize_time`, which would keep 23:00.
-4. **Should the normalizer be a fifth `TODO(Ari)` gap?** It is mechanical string handling, so the
+**D4. Should the normalizer be a fifth `TODO(Ari)` gap?** It is mechanical string handling, so the
    plan marks it [written]. It does teach something real (validate-before-parse; refuse rather
    than guess). **Recommendation:** keep it [written]; add it as a gap only if you want to type
    it.
    — **RESOLVED (Ari, October 10, 2026): moot — it stays [written]**, as built and reviewed.
-5. **Re-marking build-plan A2 item 1 as [written]** (the field declarations are the "bad gap" kind
+**D5. Re-marking build-plan A2 item 1 as [written]** (the field declarations are the "bad gap" kind
    `AGENTS.md` warns about). You kept all four TODOs, which doesn't settle this. **Recommendation:**
    re-mark the item, keep the four TODOs.
    — **RESOLVED (Ari, October 10, 2026): moot.** Ari kept and filled all four gaps and the item is ticked;
    relabelling a finished item changes nothing. The build plan is left as it is.
 
-6. **Which Ollama context window should the A2 eval run under?** — **RESOLVED (Ari, October 9, 2026):
+**D6. Which Ollama context window should the A2 eval run under?** — **RESOLVED (Ari, October 9, 2026):
    option (b), via a derived model.** The pipeline's `num_ctx` override doesn't work on Ollama 0.35.0's
    `/v1` endpoint, so every call ran at 4096 and 9 of 9 runs on the three big pages failed. Confirmed the
    cause for White Squirrel (see Eval results and `notes.md`). Fix applied: `ollama create gemma4-e4b-32k`
@@ -549,12 +549,12 @@ times, 13 rejected nulls) and that the baseline schema already fails or comes ba
 third of runs. It *cannot* say much about the three largest pages, where it fails 9/9 for what is
 a context-window reason (confirmed for White Squirrel by replaying `instructor`'s exact messages through native `/api/chat`: truncated at `num_ctx` 4096, complete with 12 shows at 32768): any label run under the same 4096-token window will
 mostly fail there too, and the richer schema (a bigger JSON schema in the prompt) will have less
-room still. **Decision for Ari before Step 5** — see "Decisions for Ari" #6 (resolved: derived 32768-context model; the labels below are to be re-run under it).
+room still. **Decision for Ari before Step 5** — see "Decisions for Ari" D6 (resolved: derived 32768-context model; the labels below are to be re-run under it).
 
 
 ### Labels `baseline-32k`, `schema-only`, `after` — 32768-token window, 6 fixtures × 3 runs each (October 9–10, 2026)
 
-Run after Decision #6 was resolved: model `gemma4-e4b-32k` (digest `08aefbf02b7c`, same weights as
+Run after D6 was resolved: model `gemma4-e4b-32k` (digest `08aefbf02b7c`, same weights as
 `gemma4:e4b`), `loaded_context_length` 32768 in every file, Ollama 0.35.0, seed = run index (top-level, so each
 run is repeatable; **the same three seeds are used in every label**, so the labels are not independent samples).
 Raw: `eval/results/{baseline-32k,schema-only,after}.json`; reproduce with `--legacy`, `--old-rules`, and no flag.
@@ -673,7 +673,7 @@ description alone before anything structural, since it is a one-line change.
 
 **Amended verdict: mixed — better on reliability and exclusion, clearly worse on acts.** v0.1-G8 (completions,
 failed parses, invented start times) and v0.1-G9 (non-music leaks) improved as stated above. But **acts**, one
-of the three fields in the 95% bar (Decision 9), regressed from mostly split to almost never split on every
+of the three fields in the 95% bar (D9), regressed from mostly split to almost never split on every
 multi-act text page. This is recorded as failure **F9** below and is the first thing A2.1 should fix or
 explain.
 
@@ -747,7 +747,7 @@ What this means for A2.1 (recommendations; the A2.1 plan decides):
   events are absent from its server-rendered state, which suggests they load client-side — production may see an
   empty calendar where the eval saw a full grid. Whether the JSON-LD survives a plain fetch on the other two is
   plausible (both platforms render it server-side) but unverified. One `httpx` fetch per live venue settles it.
-- **Time zones.** JSON-LD times carry offsets and must be converted into `metro.timezone` (Decisions for Ari #3),
+- **Time zones.** JSON-LD times carry offsets and must be converted into `metro.timezone` (Decisions for Ari D3),
   never passed through `normalize_time`. Zhora's `endDate` is always 3–4 hours after the start, which looks like a
   platform default rather than a stated end time (the page text states none) — whether to store it is a decision.
 - **The reader.** A small JSON-LD reader on BeautifulSoup (already a dependency) plus `json` is about 30–50 lines;
@@ -804,18 +804,18 @@ This is more than a fix-up. It touches fetch/cleaning (S1, S2), validation (S3, 
 possibly the extraction schema (S4), and it needs its own plan, review and approval under `AGENTS.md`'s cycle.
 **Decided (Ari, October 10): a new milestone, A2.1.** This file stays as the record of A2 as built and measured; the
 refinement gets its own plan (`a2.1-extraction-reliability.md`, via `/plan-milestone`), with S1 and the labelling as its
-first items. A3 keeps the validation half (see Decision 7).
+first items. A3 keeps the validation half (see D7).
 
 ### Decisions for Ari (October 10) — resolved
 
-7. **New milestone or fold into A3? — DECIDED: a new milestone, named A2.1** (Ari, October 10). It gets its own plan file
+**D7. New milestone or fold into A3? — DECIDED: a new milestone, named A2.1** (Ari, October 10). It gets its own plan file
    (`docs/dev/implementations/a2.1-<slug>.md`, e.g. `a2.1-extraction-reliability.md`) and runs the plan → review →
    approval cycle in `AGENTS.md`. A3 keeps the validation half; where S3 overlaps A3's bullets, A2.1's plan decides
    which milestone owns which rule. (This file's earlier text calls it "A2b"; it is A2.1.)
-8. **Keep per-act start time in the extraction schema (S4)? — DECIDED: keep it for now** (Ari). It is in
+**D8. Keep per-act start time in the extraction schema (S4)? — DECIDED: keep it for now** (Ari). It is in
    `requirements-initial.md`. Revisit only if the merge problem (F4) proves catastrophic and too costly to solve another
    way (S2 structure-preserving text, S5 chunking); in that case bring the trade-off to Ari before dropping it.
-9. **What is "reliable enough"? — DECIDED: 95%** (Ari). Wording to carry into A2.1's plan: *at least 95% of shows on the
+**D9. What is "reliable enough"? — DECIDED: 95%** (Ari). Wording to carry into A2.1's plan: *at least 95% of shows on the
    labelled pages are extracted with the correct date, time and acts.* Ari's reasoning: the information is simple, so
    the extraction has to be reliable; a calendar that is often wrong is of no use. **Left for A2.1's plan to define
    precisely and for Ari to confirm** (not yet decided): whether the 95% is measured as recall (real shows found and
@@ -839,7 +839,7 @@ It also bears on the 95% bar: the notice is a mitigation for the remaining error
 - **State of the code** (updated October 10): A2 is built: `agent_worker/{schemas,prompts,normalize,nodes}.py`, the harness
   in `agent_worker/eval/` (`run_eval.py`, `reference.py`, `legacy.py`), 197 passing tests in `agent_worker/tests/`. The four
   `TODO(Ari)` gaps were filled by Ari and their scaffolding removed. Since the measurement, one behaviour change: a time with
-  no AM/PM is read as PM (normalizer and all three time descriptions — Decisions for Ari #2), so the schema the code now
+  no AM/PM is read as PM (normalizer and all three time descriptions — Decisions for Ari D2), so the schema the code now
   sends differs from the stored labels' by that phrase. `make check` green on October 10.
 - **Environment you must know about:** run the eval against the derived model `gemma4-e4b-32k`
   (`apps/api/ollama/gemma4-e4b-32k.Modelfile`, `MODEL_NAME` in `apps/api/.env`). Ollama 0.35.0's `/v1` endpoint ignores a
@@ -859,7 +859,7 @@ It also bears on the 95% bar: the notice is a mitigation for the remaining error
 - **First items for A2.1's plan:** see "Proposed order" › *Updated suggestion, October 10* (the S1 look on the saved pages
   is done; its results are in "S1 look: results"). Decisions the plan should put to Ari: the structured-data-first
   architecture, the F2 single-price wording, whether to store JSON-LD's default-looking end times, Midway's month grid, and
-  the open parts of the 95% bar (Decision 9).
+  the open parts of the 95% bar (D9).
 
 ## Reviewer brief — Plan review, round 1
 
@@ -1047,7 +1047,7 @@ the paths below rather than the whole tree. A2's files:
   `agent_worker/tests/{__init__,test_extraction_schema,test_prompts}.py`.
 - *Modified:* `agent_worker/{schemas,nodes}.py`, `agent_worker/eval/run_eval.py`,
   `apps/api/pyproject.toml` (`testpaths`), `apps/api/.gitignore` (`eval/results/`).
-- *Docs:* this file (Eval reference, Eval results, Decisions #6); `docs/dev/alpha-build-plan.md` — only
+- *Docs:* this file (Eval reference, Eval results, D6); `docs/dev/alpha-build-plan.md` — only
   the v0.1-G25 row, the A2 status line, and the new A3 / A5 / A6 / A7 bullets (other hunks in that file are
   B2's); `docs/arch/arch-initial.md` — only the italic note at the end of the "Fetch and extract"
   paragraph; `docs/dev/notes.md` — the last two sections (Pydantic `X | None`; Ollama `/v1`).
@@ -1061,7 +1061,7 @@ machine-readable twin in `reference.py`). Step 2: baseline, 18 runs. Step 3: tes
 against the old schema plus a bare `ActExtraction` (127 failed / 17 passed — the failures were the
 missing fields, the old required `time`, the absent normalizer behaviour, the old prompt: no import
 errors). Step 4: scaffold. Step 5 (`schema-only`, `after`) **not run** — it waits for Ari's TODOs and
-Decision #6. Step 6: docs, except ticking A2.
+D6. Step 6: docs, except ticking A2.
 
 **Departures from the plan, each with its reason.**
 
@@ -1072,7 +1072,7 @@ Decision #6. Step 6: docs, except ticking A2.
 2. **Bigger find, not fixed: `options.num_ctx` is ignored by `/v1` too** — the pipeline runs at 4096.
    Out of A2's scope (it changes the pipeline's call path or the Ollama setup) and not mine to decide, so:
    recorded in `notes.md`, measured into every results file (`loaded_context_length`), and raised as
-   Decision #6. The baseline stands as "the pipeline as it really runs".
+   D6. The baseline stands as "the pipeline as it really runs".
 3. **Model digest from `/api/tags`**, not `/api/show` (which carries no digest in this Ollama version).
 4. **`ticket_info` is already gone in the scaffold**, so `test_the_old_ticket_info_field_is_gone` is
    *green* at handoff. The plan's "red at handoff" list named it, but nothing about removing it is a
@@ -1129,7 +1129,7 @@ to a scratch state they take the suite to 145 passed, then restored.
 
 **Where to look hardest.**
 
-1. **`normalize.py`** — it was added after plan review round 1, so no second model has seen it (Decisions #1).
+1. **`normalize.py`** — it was added after plan review round 1, so no second model has seen it (D1).
    The two regexes, the `bool | int | float` check (bool is an `int`), `"12am"`/`"12pm"`, and that
    `"19:30-0500"` and `"19:30-05"` are handled.
 2. **`validate_field` in `test_extraction_schema.py`** — it rebuilds `Annotated[annotation, *metadata]`
@@ -1166,13 +1166,13 @@ to a scratch state they take the suite to 145 passed, then restored.
 
 | # | Sev | Finding | Evidence | What goes wrong | Resolution |
 |---|---|---|---|---|---|
-| 1 | should-fix | **The baseline can't be regenerated from the tree, but Decision #6 recommends option (b), "re-run the baseline".** The baseline's schema (`ticket_info`, required `time`, `list[str]` acts) and its verbatim pre-A2 prompt exist nowhere now: `schemas.py` already has the new fields, `prompts._BASE` has the new wording, and the step-0 state was never committed (`prompts.py` is untracked). Results files also don't record the prompt text or the JSON schema each label sent. The Eval results heading says "regenerable with `… --label <label>`", which is not true for `baseline`. | `schemas.py:119-194` (no `ticket_info`); `prompts.py:20-28`; `git status` (`prompts.py` untracked); `baseline.json` keys are `label, started_at, include_new_rules, options, provenance, aggregate, runs`, with no prompt or schema. CONFIRMED | If Ari picks (b), the "re-run baseline" will quietly run something else, either the new schema or a hand reconstruction, and `baseline` vs `schema-only` vs `after` stop being the conditions the plan compares. The 4096-window problem makes this worse: the new schema is 68% larger (2,418 → 4,057 chars), so any label run at 4096 is confounded by size as well. | **Fixed.** New `eval/legacy.py` freezes the pre-A2 schema (verbatim from 283564e) and the step-0 instruction; `--legacy` runs it, so `baseline` is re-runnable independent of git or the live files. Every results file now stores the instruction text, the JSON schema, their hashes and the schema's size (`request`), plus `loaded_context_length`; `baseline.json` got a reconstructed `request` (marked as reconstructed, not captured). A test pins that `legacy=True` sends "any ticket info" and the old schema. The Eval results note now says which flag regenerates each label. The 68% schema growth is a real confound at 4096 and is now visible per label in `--compare`. |
+| 1 | should-fix | **The baseline can't be regenerated from the tree, but D6 recommends option (b), "re-run the baseline".** The baseline's schema (`ticket_info`, required `time`, `list[str]` acts) and its verbatim pre-A2 prompt exist nowhere now: `schemas.py` already has the new fields, `prompts._BASE` has the new wording, and the step-0 state was never committed (`prompts.py` is untracked). Results files also don't record the prompt text or the JSON schema each label sent. The Eval results heading says "regenerable with `… --label <label>`", which is not true for `baseline`. | `schemas.py:119-194` (no `ticket_info`); `prompts.py:20-28`; `git status` (`prompts.py` untracked); `baseline.json` keys are `label, started_at, include_new_rules, options, provenance, aggregate, runs`, with no prompt or schema. CONFIRMED | If Ari picks (b), the "re-run baseline" will quietly run something else, either the new schema or a hand reconstruction, and `baseline` vs `schema-only` vs `after` stop being the conditions the plan compares. The 4096-window problem makes this worse: the new schema is 68% larger (2,418 → 4,057 chars), so any label run at 4096 is confounded by size as well. | **Fixed.** New `eval/legacy.py` freezes the pre-A2 schema (verbatim from 283564e) and the step-0 instruction; `--legacy` runs it, so `baseline` is re-runnable independent of git or the live files. Every results file now stores the instruction text, the JSON schema, their hashes and the schema's size (`request`), plus `loaded_context_length`; `baseline.json` got a reconstructed `request` (marked as reconstructed, not captured). A test pins that `legacy=True` sends "any ticket info" and the old schema. The Eval results note now says which flag regenerates each label. The 68% schema growth is a real confound at 4096 and is now visible per label in `--compare`. |
 | 2 | should-fix | **The normalizer rejects valid ISO times that Pydantic accepted before it existed.** It never passes a string through to Pydantic. Any string its two regexes don't match is refused, including fractional seconds. | `normalize.py:39-42,93`. Probe: `"19:30:00.000"`, `"19:30:00.123456"` → `ValueError`. Plain `TypeAdapter(datetime.time \| None)` accepts both (and `"19:30:00,5"`). CONFIRMED | This contradicts the plan's contract that normalization "only turns *recoverable* formats into successes" (Design › Time normalizer). A model emitting ISO-with-milliseconds, a common serializer output, now costs a full-page re-ask where the pre-A2 schema succeeded. That flatters `baseline` against `schema-only` / `after` on the time-failure row, the opposite of the bias the plan notes. Fix: accept an optional `(?:[.,]\d+)?` after seconds in `_TWENTY_FOUR_HOUR` and keep the microseconds, or truncate them. Add `"19:30:00.000"` to the accepted table. | **Fixed.** `_TWENTY_FOUR_HOUR` accepts `[.,]\d+` after the seconds and keeps up to six digits as microseconds. Added `"19:30:00.000"` and `"19:30:00.500"` (→ `time(19,30,0,500000)`) to the accepted table, run against all three fields. Test written first, saw it fail. |
 | 3 | should-fix | **The leak metric can't see a leak that comes back with `acts: []`.** `score_extraction` matches non-music terms against act names only. A show with no acts contributes no names, so it is never counted, yet the plan's own Consequences section predicts that shape ("one leaked 'Karaoke' entry … with `acts: []`"). The baseline already produced two empty-`acts` shows (poster 2, runs 0 and 1), and the harness recorded them nowhere. The numbers in the results text were counted by hand. | `run_eval.py:221-231`; `baseline.json` `terminal_poster_2` runs 0–1: `'acts': []`; `aggregate` has no empty-acts field. CONFIRMED | "Non-music leaks: 0" can be a false zero, precisely for the v0.1-G9 rule (TODO #3) that A2 is measuring. Fix: count `empty_acts` per run and in `aggregate` / `compare`. Consider also matching the terms against the `venue` string, since a model sometimes puts the entry's title there. | **Fixed.** `score_extraction` now counts `empty_acts` per run, aggregate and `--compare` carry it, and leak matching also checks the `venue` string. Tests first: empty acts counted, venue-titled leak counted, aggregate sums over ok runs only. `--rescore` recomputed `baseline.json`: **empty_acts = 2**, leaks still 0 (recorded in Eval results — the false-zero caveat is now stated). |
 | 4 | should-fix | **`"7p"` / `"8:30p"`, the exact format on the Midway fixture, are rejected even though they carry an explicit meridiem.** The plan's rule is that "12-hour with an explicit meridiem is unambiguous". `_TWELVE_HOUR` requires the `m`. | `normalize.py:32-34`. Probe: `"7p"`, `"8:30p"`, `"7P"` → `ValueError`. The cleaned Midway text contains `7p`, `6p`, `8p` (8+ occurrences). CONFIRMED | A model that copies the page's own spelling triggers a re-ask on one of the three fixtures that matter most. The by-field parse-failure row would then report a normalizer gap as model unreliability. Fix: `(?P<meridiem>[ap])\.?(?:m\.?)?`, plus `"7p"` / `"8:30p"` rows in the accepted test table. | **Fixed.** `_TWELVE_HOUR` meridiem is `[ap]\.?(?:m\.?)?`, so `"7p"`, `"8:30p"`, `"7P"`, `"11a"` convert; a bare `"7"` still doesn't (no meridiem). Rows added to the accepted table, test first. |
 | 5 | nit | **TODO #2's Check doesn't go green until #1 is filled too.** `test_acts_must_be_objects` builds a whole `ShowExtraction` from `minimal_show()`, which omits `time`. With only #2 filled it stays red on `time: missing`. Separately, its `pytest.raises(ValidationError)` half passes for *any* error, not specifically the `acts` one. | Worktree: #2's Code block alone → `test_acts_must_be_objects`, `test_an_empty_acts_list_is_deliberately_valid` still fail (missing `time`). `test_extraction_schema.py:167-173`. CONFIRMED | Ari fills #2, runs the named Check, sees red, and goes looking for a mistake that isn't there. A gap should cost minutes. Fix: either say "after #1" in TODO #2's Check, or validate `acts` in isolation (`validate_field(ShowExtraction, "acts", ["Band A"])`) and assert the error `loc` starts with `("acts", 0)`. | **Fixed.** `test_acts_must_be_objects` and `test_an_empty_acts_list_is_deliberately_valid` now validate the `acts` field in isolation (`validate_field`), so TODO #2 alone turns the first green (verified: both pass with only #2 applied; the `ValidationError` is now specifically on the `acts` field). TODO #2's Check comment says the round-trip tests also need #1. |
 | 6 | nit | **Cross-midnight end times are real in the fixtures, and nothing downstream is warned.** White Squirrel lists "Nona … 9:00 pm - 12:00 am", which normalizes correctly to `end_time` 00:00, earlier than its start of 21:00. | Cleaned White Squirrel text. The A3 bullets added to `alpha-build-plan.md` mention non-empty `acts` but not this. CONFIRMED (fixture) / PLAUSIBLE (impact) | A3's consistency check, or A6's write, may flag or reject a correct record as "ends before it starts". Fix: one line under A3: an `end_time` earlier than `time` means the next day. | **Fixed.** New A3 bullet in `alpha-build-plan.md`: consistency/plausibility must allow `end_time` earlier than `time` (next day), citing White Squirrel's "9:00 pm - 12:00 am". |
-| 7 | nit | **The harness's provenance is captured but not surfaced, and two fields mislead.** `compare()` prints no provenance, so a `baseline` at 4096 next to a label at 32768 (Decision #6) would print side by side with nothing to show they differ. `started_at` is stamped when the file is written, after all runs. Each baseline run record carries `"seed": 0/1/2` even though seeds weren't applied (only the top-level `options.seed` note says so). | `run_eval.py:368-390`, `:303`, `:438`; `baseline.json` runs. CONFIRMED | Like-for-like violations are invisible at exactly the moment the labels get compared. Fix: print `loaded_context_length`, `model_digest` and `include_new_rules` per label in `compare()`; take `started_at` before the loop; drop or annotate the per-run `seed` in `baseline.json`. | **Fixed.** `compare()` prints loaded context window, model digest, legacy flag, instruction hash, schema size and `started_at` above the metrics; `started_at` is taken before the loop; baseline's per-run `seed` fields are null and its `options.seed` note says why. |
+| 7 | nit | **The harness's provenance is captured but not surfaced, and two fields mislead.** `compare()` prints no provenance, so a `baseline` at 4096 next to a label at 32768 (D6) would print side by side with nothing to show they differ. `started_at` is stamped when the file is written, after all runs. Each baseline run record carries `"seed": 0/1/2` even though seeds weren't applied (only the top-level `options.seed` note says so). | `run_eval.py:368-390`, `:303`, `:438`; `baseline.json` runs. CONFIRMED | Like-for-like violations are invisible at exactly the moment the labels get compared. Fix: print `loaded_context_length`, `model_digest` and `include_new_rules` per label in `compare()`; take `started_at` before the loop; drop or annotate the per-run `seed` in `baseline.json`. | **Fixed.** `compare()` prints loaded context window, model digest, legacy flag, instruction hash, schema size and `started_at` above the metrics; `started_at` is taken before the loop; baseline's per-run `seed` fields are null and its `options.seed` note says why. |
 | 8 | nit | **Stale "step-0 wording" claims.** Departure 8 records that `include_new_rules=False` returns the *new* base wording, but the test comment and the plan body still call it the step-0 wording. | `test_prompts.py:82-83`; plan Design › Prompt ("returns the step-0 wording (base + `page_readable`, no new rules)"). CONFIRMED | Whoever reads the `schema-only` verdict will assume its prompt equals baseline's minus nothing. It actually differs from baseline in the base sentence as well as the schema, so the attribution `schema-only` exists to provide is slightly muddied. The verdict should say so. | **Fixed.** Plan Design › Prompt, the `test_prompts.py` comment, and the Step 5 text now say `include_new_rules=False` is base + `page_readable` with A2's one base-sentence edit, not the literal pre-A2 text; Step 5's `schema-only` note says its verdict is "schema plus that sentence". |
 | 9 | nit | `fake_client()` has no explanation. `AGENTS.md` asks that each test helper say in plain terms what it is. | `test_prompts.py:50-51`. CONFIRMED | Minor convention gap. Its neighbours (`FakeCompletions`, `sent_text`) both have one. | **Fixed.** `fake_client()` has a docstring. |
 | 10 | nit | The Eval reference says "the pages omit the year", but the Terminal Bar html states **"AUGUST 2026"**. | Cleaned Terminal text: "Music Calendar AUGUST 2026 OPEN MIC …". The plan's Eval reference, last paragraph. CONFIRMED | A free correctness check is left on the table. The posters' "2024" error is real, but on the html page the year *can* be scored. Optional: score the year there, or correct the sentence. | **Fixed.** The Eval reference sentence now says Zhora and the posters omit the year, the other pages state August 2026. Scoring the year on the Terminal Bar page is possible; not added (the baseline's wrong-year finding is on the posters, which have no page text to score against). |
@@ -1185,14 +1185,14 @@ to a scratch state they take the suite to 145 passed, then restored.
 - **Retry accounting.** `attempts_used` and the `parse:error` accounting match the baseline's own data: a run with 1 failed parse followed by `IncompleteOutputException` is recorded as attempts_used 1.
 - **Wiring tests.** They are behavioural (sentinel through a fake client) and would catch a module sending its own string.
 - **Test collection.** `testpaths` doesn't collect `local_test.py`, and the results directory is ignored at the right path.
-- **Docs.** The A3/A5/A6/A7/G25 build-plan bullets and the two `notes.md` entries are accurate against what I reproduced.
-- **Decision #6.** Escalating it rather than changing the Ollama setup was right. Option (b) is the sound recommendation, but see #1: it needs a reproducible baseline first.
+- **Docs.** The A3/A5/A6/A7/v0.1-G25 build-plan bullets and the two `notes.md` entries are accurate against what I reproduced.
+- **D6.** Escalating it rather than changing the Ollama setup was right. Option (b) is the sound recommendation, but see #1: it needs a reproducible baseline first.
 
 **Resolved October 9, 2026 (author, Claude Sonnet 5.5).** All 10 Resolution cells filled: 10 fixed, 0 rejected.
 `Rejected:` none. Fixes were tests-first where testable (#2, #3, #4, #5, #1's legacy configuration); the
 new and changed tests were seen red before the fix. One thing in the round I want Ari's eye on: #1 is the
-reviewer pointing at the same problem Decision #6 raises, and the fix (frozen legacy config + stored request)
-is what makes Decision #6 option (b) executable. **Test-suite result after the fixes:** `uv run pytest` in
+reviewer pointing at the same problem D6 raises, and the fix (frozen legacy config + stored request)
+is what makes D6 option (b) executable. **Test-suite result after the fixes:** `uv run pytest` in
 `apps/api` → 48 failed (all gated on the four open `TODO(Ari)` gaps), 170 passed, 18 skipped (DB suite,
 Postgres down); with the four Code blocks applied to a scratch state, `agent_worker/tests` → 170 passed, then
 restored. `ruff` clean, `mypy app/` clean, `contract-check` current. `make check` still ends red at pytest
@@ -1218,13 +1218,13 @@ build-plan text, `eval/results/baseline.json` (reconstructed `request`, nulled s
 **Where to look hardest:** `eval/legacy.py` — a hand copy of the old schema; it should match
 `git show 283564e:apps/api/agent_worker/schemas.py` field for field (I diffed the saved original against git's
 and it was identical, but the copy in the repo has the comments dropped). And that `--legacy` has been exercised
-live only once, on one poster (it ran, 1 show); the full baseline re-run waits on Decision #6. Its stored
+live only once, on one poster (it ran, 1 show); the full baseline re-run waits on D6. Its stored
 baseline `request` is reconstructed from the same module, so matching hashes prove consistency, not a
 record of what was sent at run time.
 
 ### Round 3 — Claude Sonnet 5.5, October 9, 2026 (environment fix, after Ari filled the TODOs)
 
-**Scope.** Not a code-review fix; this resolves Decision #6. Files: **new**
+**Scope.** Not a code-review fix; this resolves D6. Files: **new**
 `apps/api/ollama/gemma4-e4b-32k.Modelfile`; `apps/api/.env` (gitignored; `MODEL_NAME=gemma4-e4b-32k`),
 `apps/api/.env.example`; `agent_worker/eval/run_eval.py` (`MODELS = [settings.model_name]`; tag-tolerant
 model-name matching for `/api/ps` and `/api/tags`, since Ollama lists an untagged model as `name:latest`);
@@ -1267,12 +1267,12 @@ verdict rests on one small model at N=3.
 `agent_worker/schemas.py` (the PM rule — code); `agent_worker/prompts.py`, `agent_worker/tests/{test_prompts,
 test_extraction_schema}.py`, `apps/calendar/lib/{metro,params}.test.ts` (comment tidy, plus the new PM tests);
 `docs/arch/{requirements-initial,data-model-initial,arch-initial}.md`; `docs/dev/alpha-build-plan.md`; `docs/dev/notes.md`;
-this file (Status, Design › Time normalizer, Decisions for Ari #1–#5, Eval results › Addendum, Refinement strategies:
+this file (Status, Design › Time normalizer, Decisions for Ari D1–D5, Eval results › Addendum, Refinement strategies:
 F2/F9, S1/S11/S12, "S1 look: results", updated order, Start here).
 
 **What changed, and why.**
 
-1. **Decisions for Ari #1–#5 resolved** (Ari, October 10). #1, #4 and #5 accepted as recommended. #2 reversed:
+1. **Decisions for Ari D1–D5 resolved** (Ari, October 10). D1, D4 and D5 accepted as recommended. D2 reversed:
    assume PM. #3 accepted, conditional on a source of truth for the metro's zone, which already exists
    (`metro.timezone`); its second role is now written into the three design docs.
 2. **The PM rule, tests first.** Added the accepted cases (`"7:30"` → 19:30, `"7"` → 19:00, `"9:45"`, `"1:00"`,

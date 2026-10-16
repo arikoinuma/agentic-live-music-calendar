@@ -3,7 +3,7 @@
 # a request's `options.num_ctx`, so the pipeline and eval were silently running at 4096
 # tokens and long pages were cut off mid-answer (IncompleteOutputException). A model's
 # own default is the one setting /v1 does honour. See docs/dev/notes.md and
-# docs/dev/implementations/a2-extraction-schema.md (Decision #6).
+# docs/dev/implementations/a2-extraction-schema.md (A2-D6).
 #
 # Create it once:   ollama create gemma4-e4b-32k -f apps/api/ollama/gemma4-e4b-32k.Modelfile
 # Use it:           MODEL_NAME=gemma4-e4b-32k in apps/api/.env

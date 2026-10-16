@@ -103,7 +103,7 @@ milestone A7, not a drive-by fix.
 
 The pipeline's shape, the retry and escalation rules, and what each node must write to the
 audit trail are specified in `arch-initial.md` §7. The known gaps between that spec and the
-current code are catalogued in `docs/dev/alpha-build-plan.md` §1.3 as G1–G10 — check there
+current code are catalogued in `docs/dev/alpha-build-plan.md` §1.3 as v0.1-G1–v0.1-G10 — check there
 before treating something in `nodes.py` as intentional.
 
 Validation and retry (A3) live in two modules that nodes and graph only wire together:

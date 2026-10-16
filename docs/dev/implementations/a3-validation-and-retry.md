@@ -850,7 +850,7 @@ Rejected: none. All 11 findings were accepted. Round 2's size (it reworked the J
 9. **`fetch_html(url, *, reject_empty=False)`** gains a keyword and a `tenacity` retry (also used by `eval/capture.py`, whose behaviour on a good page is unchanged, tested).
 10. **`from instructor.core.exceptions import InstructorError`**, not `instructor.InstructorError`: verified in the venv that both exist and that `InstructorRetryException` is a subclass.
 
-**`TODO(Ari)` gaps — all five open**, in the order to fill them (B and C first: everything else runs through them):
+**`TODO(Ari)` gaps — all five open**, in the order to fill them (K2 and K3 first: everything else runs through them):
 
 | Gap | Where | Lesson |
 |---|---|---|
