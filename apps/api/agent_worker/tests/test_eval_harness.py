@@ -126,7 +126,7 @@ def test_the_legacy_configuration_is_the_pre_a2_one(
     # Proves: `legacy=True` sends the pre-A2 instruction ("any ticket info") and asks for
     # the pre-A2 schema (required `time`, a `ticket_info` string, bare-string acts), so the
     # `baseline` label can be re-run after the live schema and prompt have moved on —
-    # which Decision #6's "re-run the baseline under a fixed context window" needs.
+    # which A2-D6's "re-run the baseline under a fixed context window" needs.
     page = tmp_path / "page.html"
     page.write_text("<p>Show 8pm</p>")
     captured: list[dict[str, Any]] = []

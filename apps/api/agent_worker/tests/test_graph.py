@@ -93,7 +93,7 @@ def test_every_node_returns_the_state_it_was_given(
 ) -> None:
     # Proves: a node that forgets `return state` returns None, and LangGraph then drops the node's
     # changes: the attempt count never advances and a retrying graph loops until its recursion limit
-    # (10,007 steps, about a minute). It happened once, when the A3-Gap-A code was replaced and the line below
+    # (10,007 steps, about a minute). It happened once, when the A3-K1 code was replaced and the line below
     # it went with it; only the whole-graph tests noticed, and they were red for other reasons at the
     # time. Calling each node directly makes the failure immediate and says what is wrong.
     path = tmp_path / "page.html"
@@ -119,7 +119,7 @@ def test_every_node_returns_the_state_it_was_given(
 def test_a_clean_json_ld_page_passes_on_the_first_attempt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Proves: the happy path on the adopted JSON-LD route — one attempt, a PASSED verdict, reconcile
     # reached, one history row. The confidence is None, not 1.0: the route stamps a placeholder that is
-    # not evidence (A3-D9), and a None here must not crash the router (G6). Only the splitter calls a model.
+    # not evidence (A3-D9), and a None here must not crash the router (v0.1-G6). Only the splitter calls a model.
     page = jsonld_page(event("Nona", "2026-10-20T21:00:00-05:00"))
     state, client = run_graph(tmp_path, monkeypatch, page, {SPLITTER: [NONA]})
     assert state.attempt_count == 1 and len(state.attempt_history) == 1
@@ -132,7 +132,7 @@ def test_a_clean_json_ld_page_passes_on_the_first_attempt(tmp_path: Path, monkey
 def test_a_model_call_that_raises_once_is_a_recorded_failed_attempt_and_the_retry_recovers(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Proves (A3-Gap-A, G2): the failure Phase 5 documented (a model call that errors) no longer kills the
+    # Proves (A3-K1, v0.1-G2): the failure Phase 5 documented (a model call that errors) no longer kills the
     # graph: attempt 1 is recorded as `extract_failed`, the existing retry edge fires, attempt 2
     # succeeds. The attempt was counted (attempt_count == 2, not 1) and attempt 1's error didn't
     # outlive it (the per-attempt reset). RED today: the exception escapes `invoke`.
@@ -148,7 +148,7 @@ def test_a_model_call_that_raises_once_is_a_recorded_failed_attempt_and_the_retr
 
 
 def test_a_model_call_that_always_raises_escalates_after_the_cap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # Proves (A3-Gap-A, G2): a real `openai` connection error on every attempt is retried to the cap (3
+    # Proves (A3-K1, v0.1-G2): a real `openai` connection error on every attempt is retried to the cap (3
     # attempts, arch-initial.md §7) and then escalated, never retried forever and never crashing; the
     # escalation reason says what failed.
     boom = openai.APIConnectionError(request=httpx.Request("POST", "http://localhost:11434/v1"))
@@ -160,7 +160,7 @@ def test_a_model_call_that_always_raises_escalates_after_the_cap(tmp_path: Path,
 
 
 def test_a_page_with_nothing_listed_is_a_confirmed_empty_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # Proves (G3): `page_readable: true, shows: []` on a page that names no dates is a legitimate
+    # Proves (v0.1-G3): `page_readable: true, shows: []` on a page that names no dates is a legitimate
     # pass on the first attempt — it does not burn three retries and escalate, which was the bug.
     state, _ = run_graph(
         tmp_path, monkeypatch, text_page("No events scheduled right now."), {PAGE: [listings_answer()]},
@@ -171,7 +171,7 @@ def test_a_page_with_nothing_listed_is_a_confirmed_empty_pass(tmp_path: Path, mo
 
 
 def test_an_unreadable_page_retries_and_recovers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # Proves (G3): `page_readable: false` is a failure worth a retry, twice here, and the third attempt
+    # Proves (v0.1-G3): `page_readable: false` is a failure worth a retry, twice here, and the third attempt
     # (the last the cap allows) recovers.
     state, _ = run_graph(
         tmp_path, monkeypatch, GOOD_PAGE,
@@ -184,7 +184,7 @@ def test_an_unreadable_page_retries_and_recovers(tmp_path: Path, monkeypatch: py
 
 
 def test_a_check_error_retries_even_at_high_confidence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # Proves (A3-Gap-D, end to end): free admission together with a price is a deterministic error; the
+    # Proves (A3-K4, end to end): free admission together with a price is a deterministic error; the
     # model's 0.99 confidence does not outvote it. Attempt 1 fails with CHECK_ERRORS (not
     # low_confidence) and the page is retried.
     state, _ = run_graph(
@@ -208,14 +208,14 @@ def test_low_confidence_on_the_model_route_retries(tmp_path: Path, monkeypatch: 
 
 
 # ---------------------------------------------------------------------------
-# A retry changes the request (A3-Gap-E)
+# A retry changes the request (A3-K5)
 # ---------------------------------------------------------------------------
 
 
 def test_a_retry_sends_a_different_request_and_the_last_one_uses_the_larger_model(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Proves (A3-Gap-E, G5): at temperature 0 an identical retry returns an identical answer (A2.1's
+    # Proves (A3-K5, v0.1-G5): at temperature 0 an identical retry returns an identical answer (A2.1's
     # confirmation run: five byte-identical runs), so each retry must change what is sent. Attempt 2's
     # message is not attempt 1's and names the problem; attempt 3 runs the configured larger model.
     # THIS is the test that fails if someone reverts to identical re-calls. Every attempt here fails the

@@ -77,7 +77,7 @@ TIME_FIELDS = [
 
 def test_required_fields_are_exactly_the_five_the_requirements_demand() -> None:
     # Proves: the JSON schema `instructor` sends lists exactly these as required — the
-    # strongest single guard for G8 (a required `time` forces the model to invent one
+    # strongest single guard for v0.1-G8 (a required `time` forces the model to invent one
     # when a page states none). Catches the Pydantic v2 trap where `X | None` with no
     # `= None` is *still required*.
     required = set(ShowExtraction.model_json_schema()["required"])

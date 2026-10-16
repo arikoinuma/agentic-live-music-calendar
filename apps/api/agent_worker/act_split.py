@@ -8,7 +8,7 @@ answer "which acts, or none" per title (A2.1-D4, A2.1-D5 of
 docs/dev/implementations/a2.1-extraction-reliability.md).
 
 How to read it: the response models (`ActSplitItem`, `ActSplitAnswer`) are what the model
-fills in; `_act_split_instruction` is the instruction (A2.1-Gap-D); `split_titles` numbers
+fills in; `_act_split_instruction` is the instruction (A2.1-K4); `split_titles` numbers
 the titles, makes the call, and aligns the answer back to the titles **by id**, so a dropped or
 reordered item can never put one show's acts on another.
 

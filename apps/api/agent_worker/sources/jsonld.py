@@ -14,7 +14,7 @@ an offset — and each function below handles the shapes the fixtures actually u
 events lack `name` or `startDate` isn't usable here and falls back to the model route.
 
 How to read it: `find_events` pulls Event objects out of a page; `local_wall_clock` turns a
-schema.org date-time into the metro's local date and time (A2.1-Gap-A); `to_structured_show`
+schema.org date-time into the metro's local date and time (A2.1-K1); `to_structured_show`
 maps one event to a `StructuredShow`, the route's intermediate record.
 """
 
@@ -114,7 +114,7 @@ def local_wall_clock(value: str, metro_timezone: str) -> tuple[datetime.date, da
     if _is_date_only(value):
         return datetime.date.fromisoformat(value), None
 
-    # Convert, don't drop. A2 Decision #3 drops a zone suffix from a *model's* time, because a
+    # Convert, don't drop. A2-D3 drops a zone suffix from a *model's* time, because a
     # model's "Z" is noise. A structured source's offset is information: DICE's "2026-08-17T23:00:00Z"
     # IS 18:00 in Minneapolis, and after the November 1 change a UTC evening is the PREVIOUS local day
     # ("2026-11-06T02:00:00Z" is Nov 5, 20:00). So an aware value is converted into the metro's zone

@@ -76,7 +76,7 @@ def _one_show_rule(per_act_times: bool = True) -> str:
     `per_act_times=False` drops the last sentence for the title-split route, whose listing
     schema has no acts to put a start time on (A2.1-CR2-9: a rule the model has
     no field to follow). That route loses per-act start times — a known limit, recorded with
-    A2.1-CR2-9's resolution in the A2.1 plan and left to Ari against A2 Decision 8.
+    A2.1-CR2-9's resolution in the A2.1 plan and left to Ari against A2-D8.
     """
     # One listing can be one show with several artists, or several distinct shows back to back, and
     # the answer decides insert-vs-update downstream: reconcile's composite key is (venue, date, time),

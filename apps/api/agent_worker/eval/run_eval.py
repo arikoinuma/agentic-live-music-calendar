@@ -306,7 +306,7 @@ def score_extraction(
         "leaks": leaks,
         "borderline": borderline,
         # A start time the page never states. Under the baseline schema `time` is
-        # required, so every show on such a page counts — that is G8's cost, measured.
+        # required, so every show on such a page counts — that is v0.1-G8's cost, measured.
         "invented_time": 0 if ref.states_start_time else fills["time"],
         "invented_end_time": 0 if ref.states_end_time else fills["end_time"],
         "invented_price": 0 if ref.states_price else sum(fills[f] for f in _PRICE_FIELDS),

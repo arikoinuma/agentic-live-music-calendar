@@ -22,7 +22,7 @@ import {
 
 afterEach(() => vi.restoreAllMocks());
 
-// --- metroToday (B3-Gap-A) -----------------------------------------------------
+// --- metroToday (B3-K1) -----------------------------------------------------
 
 describe("metroToday", () => {
   const at = (iso: string) => Temporal.Instant.from(iso);
@@ -71,7 +71,7 @@ describe("metroTodayOrNull", () => {
   });
 });
 
-// --- the after-midnight rule (B3-Gap-B) ---------------------------------------
+// --- the after-midnight rule (B3-K2) ---------------------------------------
 
 describe("isAfterMidnight", () => {
   it.each(["00:00:00", "01:00:00", "04:59:00"])("is true at %s", (t) => {

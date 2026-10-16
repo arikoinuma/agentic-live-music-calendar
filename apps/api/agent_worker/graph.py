@@ -65,7 +65,7 @@ def route_after_validate(state: VenueGraphState) -> NodeOutcomes:
     """Read the verdict validate_node produced and the attempt count; nothing else.
 
     A thin reader of `policy.decide_route`, where the decision lives. It returns `NodeOutcomes`
-    members only, and says so in its annotation (G6): the old router returned `NodeNames.ESCALATE`
+    members only, and says so in its annotation (v0.1-G6): the old router returned `NodeNames.ESCALATE`
     against a path map keyed on `NodeOutcomes.ESCALATE`, which worked only because two different
     StrEnums happen to share the string "escalate", and compared `state.confidence >= 0.8`
     where the field is `float | None`. The verdict is never None here, and confidence never

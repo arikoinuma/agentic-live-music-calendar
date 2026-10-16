@@ -9,7 +9,7 @@ required) and each `Field(description=…)` text.
 
 Where the field list comes from: docs/arch/requirements-initial.md "Agent Extraction:
 Fields". (docs/arch/arch-initial.md §7's shorter list is superseded by it; A2 closed the
-gaps G7/G8 between the two — docs/dev/implementations/a2-extraction-schema.md.)
+gaps v0.1-G7/v0.1-G8 between the two — docs/dev/implementations/a2-extraction-schema.md.)
 
 How to read it, and the conventions that hold throughout:
 
@@ -91,7 +91,7 @@ class ShowExtraction(BaseModel):
     # The one field the requirements mark required.
     date: datetime.date = Field(description="The date of the show")
 
-    # time — (G8). Optional, because the requirements make Date the only required field, and a
+    # time — (v0.1-G8). Optional, because the requirements make Date the only required field, and a
     # required `time` leaves the model no honest answer for a page that states none (it invents one:
     # the Terminal Bar page has no times at all). In Pydantic v2 `datetime.time | None` WITHOUT
     # `= None` is still *required*, so the default is needed as well as the type. The `description`
@@ -119,13 +119,13 @@ class ShowExtraction(BaseModel):
         ),
     )
 
-    # acts — (G7). Changing `list[str]` to `list[ActExtraction]` is a SHAPE change, not a type tweak.
+    # acts — (v0.1-G7). Changing `list[str]` to `list[ActExtraction]` is a SHAPE change, not a type tweak.
     # The JSON schema `instructor` sends the model becomes nested (gaining a `$defs` section), the
     # model's output nests, and every reader of `.acts` must change from a string to an object.
     # Nothing reads `.acts` yet (verified by grep), which is why this is cheap now and would not be
     # after A5 writes `show_artist` rows. The point of the nesting: each act can carry its own start
     # time and order.
-    # Cite: a2-extraction-schema.md (Design › Schema, "Consequences"), build plan G7.
+    # Cite: a2-extraction-schema.md (Design › Schema, "Consequences"), build plan v0.1-G7.
     acts: list[ActExtraction] = Field(
         description="The act(s) performing, in the order the page lists them"
     )
@@ -137,7 +137,7 @@ class ShowExtraction(BaseModel):
         description="True if the page's listing order or timing was unclear or ambiguous"
     )
 
-    # Admission, replacing the old untyped `ticket_info` string (G7). Rules from
+    # Admission, replacing the old untyped `ticket_info` string (v0.1-G7). Rules from
     # requirements-initial.md: a single price shown is the Day price (advance stays null);
     # free admission is true only when the listing explicitly says free; it is fine for
     # all three to be empty. Floats, not Decimal, at this layer: nothing here needs exact
@@ -171,7 +171,7 @@ class ShowExtraction(BaseModel):
     # image_url — the show's poster, never an artist photo (requirements: "Do not populate
     # Artist image link"). Plain `str`, not a URL type: a URL type would turn a model typo
     # into a full-page retry. html_clean keeps only visible text, so on text pages this is
-    # null in practice until cleaning preserves image links (build plan G25); the guard
+    # null in practice until cleaning preserves image links (build plan v0.1-G25); the guard
     # against invention is the verbatim rule here plus the eval's substring check.
     image_url: str | None = Field(
         default=None,

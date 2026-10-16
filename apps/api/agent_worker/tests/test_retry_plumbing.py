@@ -12,7 +12,7 @@ How to read it, in order:
    attempt, with no hint, must still send exactly these. The expectation is a literal on purpose: a test
    that rebuilt it from `prompts.py` would follow a refactor of `prompts.py` instead of catching it.
 2. The retry hints: each reaches the call that produces the field, and no other.
-3. `clean_text` with image links (G25).
+3. `clean_text` with image links (v0.1-G25).
 4. The status merge's `added_indices`.
 5. Fetch: transient errors retried, 4xx not, an empty page is a failure, not a pass.
 6. The eval's image-URL check.
@@ -196,12 +196,12 @@ def test_a_request_with_no_hint_adds_no_hint_text() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 3. Image links in cleaned text (G25)
+# 3. Image links in cleaned text (v0.1-G25)
 # ---------------------------------------------------------------------------
 
 
 def test_image_urls_stay_in_the_cleaned_text_where_the_image_sat_when_asked() -> None:
-    # Proves (G25): an <img src> becomes a "[image: URL]" line at its position, so the model has the URL
+    # Proves (v0.1-G25): an <img src> becomes a "[image: URL]" line at its position, so the model has the URL
     # as text to copy. Before A3 `image_url` was null in practice on every text page.
     html = '<p>Nona</p><img src="https://v.example/uploads/nona.png"><p>8 pm</p>'
     text = extraction.clean_text(html, keep_line_breaks=True, keep_image_urls=True)
@@ -410,7 +410,7 @@ def test_the_eval_scoring_without_a_source_keeps_checking_as_before() -> None:
 
 
 def test_the_image_urls_flag_is_an_override_of_the_pipeline_config() -> None:
-    # Proves (G25 rung a3-image-urls): `--image-urls` flips exactly one field, and no flag leaves the pipeline's own.
+    # Proves (v0.1-G25 rung a3-image-urls): `--image-urls` flips exactly one field, and no flag leaves the pipeline's own.
     parser = run_eval.argparse.ArgumentParser()
     run_eval.add_override_flags(parser)
     on = run_eval.overrides_from(parser.parse_args(["--image-urls"]))

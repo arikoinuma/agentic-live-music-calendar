@@ -10,7 +10,7 @@ How to read it:
 - `ExtractionConfig` holds the switches A2.1's experiment ladder flips one at a time. Each
   defaults to today's behaviour; `PIPELINE_CONFIG` / `PIPELINE_OPTIONS` are what the pipeline
   runs, and adopting a rung means changing a default there (plan, "Experiment protocol").
-- `extract_page` chooses a route (A2.1-Gap-C): the venue's own JSON-LD when the page has
+- `extract_page` chooses a route (A2.1-K3): the venue's own JSON-LD when the page has
   usable events, otherwise the full-page model extraction A2 built.
 - `_from_model` and `_from_jsonld` are the two routes; `PageExtractionResult` records which
   one ran, the text sent, and anything worth noting, for the eval now and the audit trail
@@ -50,7 +50,7 @@ class ExtractionConfig:
     """The experiment ladder's switches. Every default is today's (A2's) behaviour, so the
     `a21-rebaseline` label is current code and each rung flips exactly one field."""
 
-    # "auto" = A2.1-Gap-C's routing (JSON-LD first); "model" = always the full-page model route.
+    # "auto" = A2.1-K3's routing (JSON-LD first); "model" = always the full-page model route.
     route: Literal["auto", "model"] = "model"
     # Clean with get_text(separator="\n") instead of " ": keeps the act boundaries Terminal
     # Bar marks with <br> (A2.1-PR1-1). Rung `a21-newlines`.
@@ -73,12 +73,12 @@ class ExtractionConfig:
     # A2-S6 (October 11): the page model copies each listing's performer text verbatim and the act
     # splitter splits it, as on the JSON-LD route. Rung `a21-title-split`.
     title_split: bool = False
-    # A3, G25: keep each <img> URL in the cleaned text as a "[image: URL]" line so the model can copy
+    # A3, v0.1-G25: keep each <img> URL in the cleaned text as a "[image: URL]" line so the model can copy
     # a poster's address (it was null in practice before: cleaning kept visible text only). Off until
     # one gated eval run shows the gate holds (A3-D12) — adding text to every page the model reads
     # is exactly the kind of change that moved act splitting before.
     keep_image_urls: bool = False
-    # A3, G5: what a retry adds to its requests. Empty on the first attempt, which leaves the
+    # A3, v0.1-G5: what a retry adds to its requests. Empty on the first attempt, which leaves the
     # request byte-identical to the one that scored 56/60. `policy.plan_for_attempt` sets them from
     # what the earlier attempts failed on, each aimed at the call that produces the field: `retry_hint`
     # is appended to the page model's instruction, `splitter_hint` to the act splitter's.
@@ -125,7 +125,7 @@ def clean_text(html: str, keep_line_breaks: bool, keep_image_urls: bool = False)
     97% markup around 2.7 KB of content). With `keep_line_breaks`, each element and <br> line
     becomes its own line instead of being joined with spaces.
 
-    With `keep_image_urls` (A3, G25) each <img> becomes a "[image: URL]" piece of text where it sits,
+    With `keep_image_urls` (A3, v0.1-G25) each <img> becomes a "[image: URL]" piece of text where it sits,
     so a poster's address is something the model can copy. The URL is the attribute as the page wrote
     it (entities already unescaped by the parser), not resolved against the page's address, so it
     stays checkable as "appears verbatim in the page". `data-src` stands in when `src` is absent or a

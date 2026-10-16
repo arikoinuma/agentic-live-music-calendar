@@ -3,7 +3,7 @@
 On the JSON-LD route, dates and times come from the venue's structured data; the model is
 asked only the question JSON-LD doesn't answer — which performing acts a title names, and
 whether it is a music show at all (A2.1-D4, A2.1-D5, A2.1-D12 of the A2.1 plan). The narrow instruction is
-`_act_split_instruction` (A2.1-Gap-D); everything around it — numbering the titles, aligning the answer back to
+`_act_split_instruction` (A2.1-K4); everything around it — numbering the titles, aligning the answer back to
 them — is written, and these tests pin that the alignment can't silently put one show's acts
 on another.
 

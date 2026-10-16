@@ -6,7 +6,7 @@ schema.org's published vocabulary, so they are mapped in code; what varies betwe
 the *shape* (an object or a list, `image` as a string or an object, `Z` or an offset), and
 that is what these tests pin.
 
-How to read it: sections run finding events -> wall-clock conversion (A2.1-Gap-A) ->
+How to read it: sections run finding events -> wall-clock conversion (A2.1-K1) ->
 mapping one event to a show. The HTML snippets are written here in the shapes the saved
 fixtures actually use (White Squirrel: a list block with `-05:00` offsets and HTML entities in
 names; DICE-backed pages: `Z` times and `offers`). Fixtures themselves are never read (they
@@ -37,7 +37,7 @@ def page(*blocks: Any, raw: str = "") -> str:
 def event(name: str = "Lent w. Gills, Boomdagger", **extra: Any) -> dict[str, Any]:
     """A minimal schema.org Event; keyword args override or add. The default start is
     date-only so the mapping tests (names, images, prices, status) don't depend on the
-    wall-clock conversion, which is A2.1-Gap-A and is tested on its own."""
+    wall-clock conversion, which is A2.1-K1 and is tested on its own."""
     base = {"@type": "Event", "name": name, "startDate": "2026-08-20"}
     base.update(extra)
     return base
@@ -79,7 +79,7 @@ def test_a_page_without_json_ld_has_no_events() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Wall clock: convert, don't drop (A2.1-Gap-A)
+# Wall clock: convert, don't drop (A2.1-K1)
 # ---------------------------------------------------------------------------
 
 
@@ -100,7 +100,7 @@ def test_local_wall_clock_converts_offsets_into_the_metro_zone(
     value: str, expected_date: datetime.date, expected_time: datetime.time
 ) -> None:
     # Proves: a structured source's offset is information and is CONVERTED into the metro's
-    # zone (A2 Decision #3: only a model's zone suffix is noise to drop) — across a DST
+    # zone (A2-D3: only a model's zone suffix is noise to drop) — across a DST
     # boundary, and including the date change a UTC evening carries.
     result_date, result_time = jsonld.local_wall_clock(value, CHICAGO)
     assert result_date == expected_date

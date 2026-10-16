@@ -13,7 +13,7 @@ tiered, and this module counts exactly its tiers:
   non-show entry) at most 1 per page.
 
 How to read it: `ReturnedShow` normalises one returned show (including A2's legacy
-string-acts form); `match_shows` pairs labelled and returned shows (A2.1-Gap-B);
+string-acts form); `match_shows` pairs labelled and returned shows (A2.1-K2);
 `score_page` counts one page; `gate` applies the standard to every run of a label. A returned
 show with `acts: []` is dropped before anything is counted — both routes keep rejected
 non-music entries that way for A3's completeness check to drop (A2.1-PR1-4).
@@ -100,7 +100,7 @@ def acts_correct(label: LabelledShow, acts: tuple[str, ...]) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Matching (A2.1-Gap-B)
+# Matching (A2.1-K2)
 # ---------------------------------------------------------------------------
 
 

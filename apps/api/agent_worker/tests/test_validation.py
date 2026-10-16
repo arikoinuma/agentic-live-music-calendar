@@ -65,28 +65,28 @@ def codes(result: validation.ValidationResult, severity: Severity | None = None)
 
 
 # ---------------------------------------------------------------------------
-# Page outcome (A3-Gap-B)
+# Page outcome (A3-K2)
 # ---------------------------------------------------------------------------
 
 
 def test_page_outcome_has_shows() -> None:
-    # Proves (A3-Gap-B): a readable page with shows is the normal case.
+    # Proves (A3-K2): a readable page with shows is the normal case.
     assert validation.classify_page(page(show())) is PageOutcome.HAS_SHOWS
 
 
 def test_page_outcome_confirmed_empty() -> None:
-    # Proves (A3-Gap-B): `page_readable` true with no shows is a *confirmed empty* calendar — a
-    # legitimate pass, the field's whole reason for existing (G3).
+    # Proves (A3-K2): `page_readable` true with no shows is a *confirmed empty* calendar — a
+    # legitimate pass, the field's whole reason for existing (v0.1-G3).
     assert validation.classify_page(page()) is PageOutcome.CONFIRMED_EMPTY
 
 
 def test_page_outcome_unreadable() -> None:
-    # Proves (A3-Gap-B): an unreadable page with no shows is a failure, not an empty calendar.
+    # Proves (A3-K2): an unreadable page with no shows is a failure, not an empty calendar.
     assert validation.classify_page(page(readable=False)) is PageOutcome.UNREADABLE
 
 
 def test_page_outcome_unreadable_wins_over_returned_shows() -> None:
-    # Proves (A3-Gap-B): readability is asked first. A model that says "I couldn't read this" and then
+    # Proves (A3-K2): readability is asked first. A model that says "I couldn't read this" and then
     # returns a show anyway is not trusted on the show; testing `shows` first would read it as normal.
     assert validation.classify_page(page(show(), readable=False)) is PageOutcome.UNREADABLE
 
@@ -180,12 +180,12 @@ def test_when_every_show_is_excluded_an_undated_page_passes_with_no_confidence()
 
 
 # ---------------------------------------------------------------------------
-# Plausibility (A3-Gap-C)
+# Plausibility (A3-K3)
 # ---------------------------------------------------------------------------
 
 
 def test_the_date_window_boundaries_on_the_model_route() -> None:
-    # Proves (A3-Gap-C): the window is 31 days back to 366 days ahead of the FETCH date (plan A3-D2, from
+    # Proves (A3-K3): the window is 31 days back to 366 days ahead of the FETCH date (plan A3-D2, from
     # the year rule's lookback and the build plan's "a month past, a year out"). 2026-09-11 is 31
     # days before 2026-10-12 and passes; 09-10 is 32 and fails. 2027-10-13 is 366 ahead and passes;
     # 10-14 is 367 and fails. On the model route an out-of-window date is an error (a retry can re-read).
@@ -219,7 +219,7 @@ def test_a_feb_29_that_the_year_rule_leaves_alone_is_caught_by_the_window() -> N
 
 
 def test_an_end_time_earlier_than_the_start_is_the_next_morning_and_raises_nothing() -> None:
-    # Proves (A3-Gap-C): White Squirrel lists "Nona ... 9:00 pm - 12:00 am", which extracts correctly as
+    # Proves (A3-K3): White Squirrel lists "Nona ... 9:00 pm - 12:00 am", which extracts correctly as
     # start 21:00, end 00:00 (requirements, Show: "an end time earlier than its start is the next
     # morning"). A naive `end <= start` check would flag or repair a correct record.
     result, kept = validate(page(show(time="21:00", end="00:00")), source="jsonld")
@@ -425,7 +425,7 @@ def test_a_json_ld_page_whose_every_event_is_out_of_window_passes_with_each_excl
     # `empty_but_dated` error, so no route fallback is triggered. Aug 1-3 2026 against a 2026-10-12 fetch
     # are more than 31 days back, so `upcoming_dates` places them in 2027 and they COUNT as dated text:
     # the guard has to subtract the shows' own dates, not rely on "past dates are ignored".
-    # (A3-Gap-C: the window.)
+    # (A3-K3: the window.)
     stale = [show(datetime.date(2026, 8, d), f"Band {d}") for d in (1, 2, 3)]
     result, kept = validate(page(*stale), source="jsonld", text="Band 1 Aug 1 8 pm Band 2 Aug 2 8 pm Band 3 Aug 3 8 pm")
     assert kept == [] and result.excluded == [0, 1, 2]
