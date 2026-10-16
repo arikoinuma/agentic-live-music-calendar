@@ -81,6 +81,6 @@ def test_infer_year_leaves_an_impossible_leap_day_alone() -> None:
 )
 def test_fold_text_makes_spelling_variants_equal(raw: str, folded: str) -> None:
     # Proves: the variants that appear between a page, its JSON-LD and a model's echo all
-    # fold to one form (plan review #5: NFKC alone leaves "Dan’s" != "Dan's"). Case is
+    # fold to one form (A2.1-PR1-5: NFKC alone leaves "Dan’s" != "Dan's"). Case is
     # folded too, because act names are compared, not displayed, after folding.
     assert fold_text(raw) == folded

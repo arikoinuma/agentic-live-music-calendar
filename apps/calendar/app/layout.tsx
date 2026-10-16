@@ -26,7 +26,7 @@ const SITE_NAME = "Agentic Live Music Calendar";
 // when a page sets no title. Placeholder name — no product name exists yet.
 //
 // The description names the metro, which comes from the API
-// (`GET /metro`, G24). `getMetroOrNull` never throws on an API outage —
+// (`GET /metro`, v0.1-G24). `getMetroOrNull` never throws on an API outage —
 // it returns null and `siteDescription` falls back to a generic sentence —
 // so a down API costs the description its metro name, not the whole site.
 // The metro call is shared with <MetroName> below through React's

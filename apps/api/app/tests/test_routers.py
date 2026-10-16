@@ -135,7 +135,7 @@ def test_openapi_exposes_the_response_schemas() -> None:
 
 # --- GET /metro (B2) ------------------------------------------------------
 # The layout's footer and <meta description> read the metro name from here
-# (alpha-build-plan.md G24) instead of a hard-coded literal.
+# (alpha-build-plan.md v0.1-G24) instead of a hard-coded literal.
 
 
 def test_metro_returns_the_live_metro() -> None:
@@ -161,7 +161,7 @@ def test_openapi_exposes_the_metro_route() -> None:
     Deliberately not "add MetroSummary to the schema-name check above":
     MetroSummary is already in components.schemas, nested inside
     VenueDetail, so that assertion would pass before the route exists
-    (plan review #5). What the generated TypeScript needs is the *path*
+    (B2-PR1-5). What the generated TypeScript needs is the *path*
     with a typed response; this fails if the return annotation is dropped.
     """
     paths = app.openapi()["paths"]

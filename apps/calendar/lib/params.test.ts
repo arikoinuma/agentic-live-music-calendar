@@ -60,7 +60,7 @@ describe("parseIdParam", () => {
     // Proves: anything that isn't a canonical positive int4 is null, so
     // the page can answer 404 instead of sending the API a value it
     // would 422 on, or that Postgres would reject as out of range once
-    // the routers are DB-backed (plan review #9).
+    // the routers are DB-backed (B2-PR1-9).
     expect(parseIdParam(raw)).toBeNull();
   });
 });
@@ -94,7 +94,7 @@ describe("parseDateParam", () => {
     // the regex guard, /day/20261008 and /day/2026-10-08T… would be extra
     // URLs for the same page; without the year >= 1 check a year-0 URL
     // would reach the API and come back as an error page, not a 404
-    // (plan review #8).
+    // (B2-PR1-8).
     expect(parseDateParam(raw)).toBeNull();
   });
 });
@@ -127,7 +127,7 @@ describe("parseMonthParam", () => {
   });
 });
 
-// --- parseCalendarFilters (B2-Gap-A) -------------------------------------------
+// --- parseCalendarFilters (B2-K1) -------------------------------------------
 
 describe("parseCalendarFilters", () => {
   it("returns no filters for an empty query", () => {
@@ -183,7 +183,7 @@ describe("parseCalendarFilters", () => {
   });
 });
 
-// --- toShowsQuery (B2-Gap-B) ---------------------------------------------------
+// --- toShowsQuery (B2-K2) ---------------------------------------------------
 
 describe("toShowsQuery", () => {
   it("sends no start/end without a month, so the server picks its default window", () => {
@@ -256,7 +256,7 @@ describe("buildCalendarHref", () => {
 
   it("canonicalises messy input into the one canonical href", () => {
     // Proves: unsorted, duplicated and partly invalid input all collapse
-    // to a single URL (plan review #13).
+    // to a single URL (B2-PR1-13).
     const messy = searchParamsFrom("venue=3&venue=1&venue=3&venue=x");
     expect(buildCalendarHref(parseCalendarFilters(messy))).toBe(
       "/?venue=1&venue=3",

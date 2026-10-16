@@ -60,7 +60,7 @@ export function CalendarGrid({ rows }: { rows: CalendarRow[] }) {
               // wrapper is ever needed: `min-w-0` on it.) B3-K5.
               //
               // Deliberately NO `tabIndex`, `role="region"` or `aria-label`
-              // here (code review #4; Ari tried it and it was noise). A
+              // here (B3-CR1-4; Ari tried it and it was noise). A
               // scrollable area must be keyboard-reachable, but every venue
               // column already starts with a link, so Tab lands inside the row
               // and the browser scrolls the focused link into view. Making the

@@ -31,7 +31,7 @@ class FixtureReference:
     # returned `end_time` is invented.
     states_end_time: bool = False
     # True if the page states a start time for its listings. Where False, any returned
-    # show `time` is invented (the case G8 exists for).
+    # show `time` is invented (the case v0.1-G8 exists for).
     states_start_time: bool = True
     # True if listings carry a price. Where False, any admission price is invented.
     states_price: bool = False
@@ -67,7 +67,7 @@ REFERENCE: dict[str, FixtureReference] = {
     ),
     # Recurring header entries (OPEN MIC Mondays, DJ Night Wednesdays — no named DJ,
     # OPEN COMEDY Thursdays) are NOT shows; eight dated shows follow. The page states
-    # NO times and NO prices, so any `time` is invented — the case that exposes G8.
+    # NO times and NO prices, so any `time` is invented — the case that exposes v0.1-G8.
     "terminal_html": FixtureReference(
         non_music_terms=("open mic", "comedy", "dj night"),
         states_start_time=False, approx_shows=8,
@@ -93,7 +93,7 @@ REFERENCE: dict[str, FixtureReference] = {
 
 
 # A2.1's captures are named `<venue>-<YYYY-MM-DD>.html` (eval/capture.py); each venue maps to
-# the REFERENCE entry for its page type (plan review #12).
+# the REFERENCE entry for its page type (A2.1-PR1-12).
 _CAPTURE_KEYS = {
     "white_squirrel": "white_squirrel", "terminal": "terminal_html", "zhora": "zhora",
     "midway": "midway", "seventh_st_entry": "seventh_st_entry", "mortimers": "mortimers",

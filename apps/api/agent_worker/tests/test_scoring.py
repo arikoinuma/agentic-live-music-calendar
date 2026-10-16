@@ -6,7 +6,7 @@ other fields may be *missing* now and then but never *wrong*, and a non-music en
 about once a month per venue. These tests pin how each tier is counted, because a scorer that
 counts wrongly would pass or fail the gate for the wrong reason.
 
-How to read it: helpers build labels and returned shows by hand -> matching (A2.1-Gap-B)
+How to read it: helpers build labels and returned shows by hand -> matching (A2.1-K2)
 -> acts -> fields -> extras (leak vs fabricated) -> the gate. Every expected value is worked
 out by hand from the case and the standard, never read from the scorer.
 """
@@ -61,7 +61,7 @@ def score(lbl: PageLabel, *shows: dict[str, Any], page_html: str = "") -> scorin
 
 
 # ---------------------------------------------------------------------------
-# Matching (A2.1-Gap-B): date is identity, time is a field
+# Matching (A2.1-K2): date is identity, time is a field
 # ---------------------------------------------------------------------------
 
 
@@ -74,7 +74,7 @@ def test_a_perfect_extraction_passes_every_tier() -> None:
 def test_a_missed_time_is_a_missing_field_not_a_missed_show() -> None:
     # Proves: A2.1-D1 made time a field with its own tolerance. A found show whose stated time
     # came back null is *missing* a time (tolerated up to 1 in 10), not a missed show — the
-    # reason A2.1-Gap-B matches on date rather than (date, time).
+    # reason A2.1-K2 matches on date rather than (date, time).
     s = score(page_label(label(9, "Lent", time=T(21, 0))), returned(9, "Lent"))
     assert s.missed == 0 and s.fabricated == 0
     assert (s.fields["time"].missing, s.fields["time"].wrong) == (1, 0)
@@ -98,7 +98,7 @@ def test_a_time_the_page_never_states_is_wrong() -> None:
 
 def test_two_sets_on_one_night_pair_by_acts_not_by_order() -> None:
     # Proves: White Squirrel lists a 6 pm and a 9 pm show each night. Returned in the other
-    # order, each still pairs with its own label (A2.1-Gap-B prefers correct acts), so both times
+    # order, each still pairs with its own label (A2.1-K2 prefers correct acts), so both times
     # score correct. Taking the first same-date candidate would score two wrong times.
     lbl = page_label(label(9, "Early Band", time=T(18, 0)), label(9, "Late Band", time=T(21, 0)))
     s = score(lbl, returned(9, "Late Band", time=T(21, 0)), returned(9, "Early Band", time=T(18, 0)))
@@ -109,7 +109,7 @@ def test_two_sets_on_one_night_pair_by_acts_not_by_order() -> None:
 def test_two_untimed_shows_on_one_date_and_a_same_date_leak() -> None:
     # Proves: 7th St Entry's Oct 31 case (two untimed shows on one date) plus a returned
     # non-show on the same date: both shows correct, the extra is a tolerated leak, not a
-    # fabrication (round 2 #3).
+    # fabrication (A2.1-PR2-3).
     lbl = page_label(
         label(31, "MARIS"), label(31, "Internet Kids"),
         non_shows=(NonShow(title="Halloween Karaoke", date=D(2026, 10, 31), weekday=None, reason="karaoke"),),
@@ -119,7 +119,7 @@ def test_two_untimed_shows_on_one_date_and_a_same_date_leak() -> None:
 
 
 def test_a_duplicate_is_fabricated_not_counted_twice() -> None:
-    # Proves: each returned show is used once (A2.1-Gap-B's likeliest mistake is not removing a
+    # Proves: each returned show is used once (A2.1-K2's likeliest mistake is not removing a
     # hit). The second copy is a show that isn't on the page.
     s = score(page_label(label(9, "Lent")), returned(9, "Lent"), returned(9, "Lent"))
     assert (s.missed, s.fabricated) == (0, 1)
@@ -139,7 +139,7 @@ def test_a_wrong_date_is_a_missed_show_and_a_fabricated_one() -> None:
 
 def test_spelling_variants_of_an_act_are_correct() -> None:
     # Proves: case, HTML entities, typographic apostrophes, dashes and spacing don't make a
-    # correct act wrong (plan review #5).
+    # correct act wrong (A2.1-PR1-5).
     lbl = page_label(label(9, "The Dan's", "Martin Devaney & Friends", "Back-to-Back"))
     s = score(lbl, returned(9, "the dan’s", "Martin Devaney &#038; Friends", "Back–to–Back"))
     assert s.acts_wrong == 0
@@ -173,14 +173,14 @@ def test_an_alternative_reading_is_accepted() -> None:
 
 def test_a_show_with_no_acts_is_dropped_before_counting() -> None:
     # Proves: a rejected non-music entry kept with `acts: []` (both routes do this, for A3's
-    # completeness check) is neither a leak nor a fabrication (plan review #4).
+    # completeness check) is neither a leak nor a fabrication (A2.1-PR1-4).
     s = score(page_label(label(9, "Lent")), returned(9, "Lent"), returned(12))
     assert (s.fabricated, s.leaks, s.dropped_empty) == (0, 0, 1)
 
 
 def test_legacy_string_acts_and_a_missing_status_still_score() -> None:
     # Proves: A2's stored `baseline-32k` results (acts as plain strings, no `status`) can be
-    # rescored (plan review #13).
+    # rescored (A2.1-PR1-13).
     legacy = returned(9)
     legacy["acts"] = ["Lent", "Gills"]
     s = score(page_label(label(9, "Lent", "Gills")), legacy)
@@ -301,7 +301,7 @@ def test_a_run_that_raised_fails_the_gate() -> None:
 
 def test_the_gate_can_be_read_per_route() -> None:
     # Proves: a pass can't be read as "the model extracts this well" when some pages got
-    # their dates from JSON-LD (plan review #15): the gate filters by route.
+    # their dates from JSON-LD (A2.1-PR1-15): the gate filters by route.
     lbl = page_label(label(9, "Lent"))
     good = score(lbl, returned(9, "Lent"))
     good.route = "jsonld"
@@ -324,7 +324,7 @@ def test_a_gate_with_no_pages_does_not_pass() -> None:
 
 
 def test_an_invented_show_on_a_non_show_weekday_is_still_fabricated() -> None:
-    # Proves: code review #1 (blocker). A leak must RESEMBLE the non-show it is attributed
+    # Proves: A2.1-CR1-1 (blocker). A leak must RESEMBLE the non-show it is attributed
     # to — sharing a word of its title — not merely fall on its date or weekday. Otherwise a
     # made-up band on a Monday hides behind "OPEN MIC Every Monday" and the "no invented
     # shows, ever" tier passes. Reproduced by the reviewer on Terminal Bar's October page.
@@ -338,7 +338,7 @@ def test_an_invented_show_on_a_non_show_weekday_is_still_fabricated() -> None:
 
 
 def test_a_duplicate_on_a_non_show_date_is_fabricated() -> None:
-    # Proves: code review #1. White Squirrel's Oct 11 lists "Open Jam" (a non-show) and a real
+    # Proves: A2.1-CR1-1. White Squirrel's Oct 11 lists "Open Jam" (a non-show) and a real
     # show; a second copy of the real show that day is an invented show, not a leaked jam.
     lbl = page_label(
         label(11, "Nici Peper", "Doyle Turner"),
@@ -349,7 +349,7 @@ def test_a_duplicate_on_a_non_show_date_is_fabricated() -> None:
 
 
 def test_a_failed_page_counts_in_every_route_scope() -> None:
-    # Proves: code review #5. A page that raised can't be attributed to a route it never
+    # Proves: A2.1-CR1-5. A page that raised can't be attributed to a route it never
     # finished, so it fails every scope — `gate [jsonld]` can't print PASS for a label in
     # which a JSON-LD page crashed.
     lbl = page_label(label(9, "Lent"))

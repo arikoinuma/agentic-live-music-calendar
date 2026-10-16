@@ -3,7 +3,7 @@
 Why this exists: A2 changes the live schema (`agent_worker/schemas.py`) and prompt
 (`agent_worker/prompts.py`), and its measurement compares against what came *before*. Once
 the live files move on, that "before" is reachable only through git history — and a result
-you can't regenerate isn't a baseline. Decision #6 in docs/dev/implementations/a2-extraction-schema.md
+you can't regenerate isn't a baseline. A2-D6 in docs/dev/implementations/a2-extraction-schema.md
 (re-run the baseline under a fixed Ollama context window) needs exactly that. Run it with
 `--legacy`. Delete this file when A2's measurement is no longer needed.
 

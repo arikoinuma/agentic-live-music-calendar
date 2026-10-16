@@ -78,7 +78,7 @@ it is built.
   for the labelling, as in A2.1-D11.
 - [ ] **Per-act start times on the title-split route.** That route returns each listing's verbatim title and no act
   objects, so per-act start times are lost. Ari accepted this for the alpha on October 12, 2026 (A2.1 code review round 2,
-  #9); it departs from A2 Decision 8. Decide whether a larger page model can return acts directly again (dropping
+  #9); it departs from A2-D8. Decide whether a larger page model can return acts directly again (dropping
   title split), or add an optional verbatim set-times text to the listing.
 - [ ] **Throughput and cost (A2.1-E15, A2.1-E4).** Measure a page's duration and cost on hosted inference, with parallel
   requests, and with thinking on and off. `alpha-build-plan.md` §8 had the laptop at 1.5–7 minutes a page.

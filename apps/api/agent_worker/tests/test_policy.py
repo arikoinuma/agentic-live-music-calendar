@@ -147,7 +147,7 @@ def test_every_applicable_reason_is_kept_strongest_first() -> None:
 
 
 def test_an_empty_escalation_model_name_means_none_configured() -> None:
-    # Proves (A3-R1-3): `ESCALATION_MODEL_NAME=` left empty is read as "", which must not
+    # Proves (A3-CR1-3): `ESCALATION_MODEL_NAME=` left empty is read as "", which must not
     # make the audit record claim a larger model ran. Normalised to None when the policy is built.
     assert RetryPolicy(escalation_model="").escalation_model is None
     assert RetryPolicy(escalation_model="gemma-big").escalation_model == "gemma-big"
@@ -213,7 +213,7 @@ def test_routing_before_validation_has_run_is_an_error_not_a_route() -> None:
 
 
 def test_a_failed_json_ld_attempt_falls_back_unless_the_failure_was_only_about_acts() -> None:
-    # Proves (plan §2, A3-R2-3): on the JSON-LD route the page hint has no consumer, so only a failure
+    # Proves (plan §2, A3-PR2-3): on the JSON-LD route the page hint has no consumer, so only a failure
     # that is solely about acts (and reaches the splitter's hint) is worth retrying there. Anything else
     # repeats byte for byte, so the next attempt reads the page text with the model route.
     assert route_falls_back(record(route="jsonld", findings=(DATE,)))
@@ -236,20 +236,20 @@ def test_only_a_failed_json_ld_attempt_falls_back() -> None:
 
 
 def test_a_date_problem_reaches_the_page_model_and_not_the_splitter() -> None:
-    # Proves (A3-R1-5): each finding goes to the call that produces the field. A date sentence sent
+    # Proves (A3-PR1-5): each finding goes to the call that produces the field. A date sentence sent
     # to the act splitter can't help and perturbs the call A2.1 found most sensitive.
     page_hint, splitter_hint = retry_hint([record(findings=(DATE,))])
     assert "2026-03-01" in page_hint and splitter_hint == ""
 
 
 def test_a_dropped_listing_reaches_the_splitter_and_not_the_page_model() -> None:
-    # Proves (A3-R1-5): the reverse.
+    # Proves (A3-PR1-5): the reverse.
     page_hint, splitter_hint = retry_hint([record(findings=(DROPPED,))])
     assert "listing 3" in splitter_hint and page_hint == ""
 
 
 def test_the_hint_is_empty_with_no_history_and_carries_every_attempts_findings() -> None:
-    # Proves (A3-R2-6): no history leaves the request untouched, and tier 3's hint is the union of
+    # Proves (A3-PR2-6): no history leaves the request untouched, and tier 3's hint is the union of
     # earlier attempts' findings, so attempt 1's reason isn't lost when attempt 2 failed for another.
     assert retry_hint([]) == ("", "")
     page_hint, _ = retry_hint([record(1, findings=(DATE,)), record(2, findings=(CONSISTENCY,))])
@@ -303,7 +303,7 @@ def test_the_third_attempt_uses_the_larger_model_when_one_is_configured() -> Non
 
 
 def test_the_third_attempt_with_an_empty_larger_model_name_says_it_did_not_escalate() -> None:
-    # Proves (A3-K5; A3-R1-3): an empty name is "no larger model", so the record says
+    # Proves (A3-K5; A3-CR1-3): an empty name is "no larger model", so the record says
     # `larger_model_used` is False and the base model runs.
     third = plan(3, [record(1, findings=(DATE,)), record(2, findings=(DATE,))], RetryPolicy(escalation_model=""))
     assert not third.larger_model_used and third.options.model == BASE_OPTIONS.model
@@ -341,7 +341,7 @@ def test_the_final_sentence_is_added_only_when_asked_for() -> None:
 
 
 def test_a_failed_json_ld_attempt_sends_the_next_attempt_to_the_model_route() -> None:
-    # Proves (A3-K5, A3-R1-2): the route changes along with the hint when the JSON-LD route can't help.
+    # Proves (A3-K5, A3-PR1-2): the route changes along with the hint when the JSON-LD route can't help.
     second = plan(2, [record(route="jsonld", findings=(DATE,))])
     assert second.config.route == "model"
 
@@ -352,7 +352,7 @@ def test_a_failed_model_route_attempt_keeps_the_configured_route() -> None:
 
 
 def test_the_route_fallback_is_sticky_across_later_failures() -> None:
-    # Proves (A3-K5, A3-R1-1): attempt 1 failed on the JSON-LD route, attempt 2 (on the model route)
+    # Proves (A3-K5, A3-PR1-1): attempt 1 failed on the JSON-LD route, attempt 2 (on the model route)
     # failed for a different reason; attempt 3 must stay on the model route. Decided from the previous
     # attempt only, it would go back to the JSON-LD route that already under-reported.
     history = [

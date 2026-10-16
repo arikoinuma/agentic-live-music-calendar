@@ -115,7 +115,7 @@ class Repair:
 
 
 class PageOutcome(StrEnum):
-    """What the page turned out to be (G3: three outcomes, not two)."""
+    """What the page turned out to be (v0.1-G3: three outcomes, not two)."""
 
     HAS_SHOWS = "has_shows"
     CONFIRMED_EMPTY = "confirmed_empty"
@@ -181,7 +181,7 @@ class PlausibilityFlags:
 
 
 # ---------------------------------------------------------------------------
-# Page outcome (A3-Gap-B)
+# Page outcome (A3-K2)
 # ---------------------------------------------------------------------------
 
 
@@ -192,7 +192,7 @@ def classify_page(extraction: VenuePageExtraction) -> PageOutcome:
     # worth a retry; see the comment on it in schemas.py). So readability is asked FIRST. An
     # unreadable page that also returned a stray show is still unreadable: a model that says "I
     # couldn't read this" shouldn't be trusted on what it then returned (arch-initial.md §7; build
-    # plan G3).
+    # plan v0.1-G3).
     if not extraction.page_readable:
         return PageOutcome.UNREADABLE
     return PageOutcome.HAS_SHOWS if extraction.shows else PageOutcome.CONFIRMED_EMPTY
@@ -428,7 +428,7 @@ def check_empty_but_dated(
     that is empty and also posts dated news; one human look.
 
     `shown` is the (month, day) of EVERY extracted show, excluded ones included, exactly as in
-    `check_under_reported` (code review round 1, #1): a JSON-LD page whose events were all left out
+    `check_under_reported` (A3-CR1-1): a JSON-LD page whose events were all left out
     for an out-of-window date has its dates in the text, but they are accounted for. Without the
     subtraction the guard fired on them, sent the page to the model route, and that route's year
     rule re-dated the shows into a plausible, wrong year (A2.1-D13 exists to stop exactly that)."""
