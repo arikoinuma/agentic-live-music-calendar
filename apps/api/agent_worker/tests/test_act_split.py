@@ -3,7 +3,7 @@
 On the JSON-LD route, dates and times come from the venue's structured data; the model is
 asked only the question JSON-LD doesn't answer — which performing acts a title names, and
 whether it is a music show at all (A2.1-D4, A2.1-D5, A2.1-D12 of the A2.1 plan). The narrow instruction is
-`_act_split_instruction` (A2.1-Gap-D); everything around it — numbering the titles, aligning the answer back to
+`_act_split_instruction` (A2.1-K4); everything around it — numbering the titles, aligning the answer back to
 them — is written, and these tests pin that the alignment can't silently put one show's acts
 on another.
 
@@ -37,7 +37,7 @@ def split(client: SimpleNamespace, titles: list[str] = TITLES) -> act_split.Spli
 
 def test_the_instruction_carries_the_conventions_and_the_exclusion_rule() -> None:
     # Proves: the splitter is told A2.1-D5's conventions (one shared text with the model route,
-    # round 2 #2) and the non-music rule — JSON-LD lists every event on the calendar,
+    # A2.1-PR2-2) and the non-music rule — JSON-LD lists every event on the calendar,
     # karaoke included, so the exclusion must still run on this route.
     text = act_split._act_split_instruction()
     assert prompts._act_conventions() in text
@@ -67,7 +67,7 @@ def test_answers_align_by_id_not_position() -> None:
 
 
 def test_a_requoted_echo_is_not_a_mismatch_but_a_different_title_is() -> None:
-    # Proves: the echoed title is only a cross-check (plan review #10). A model that re-quotes
+    # Proves: the echoed title is only a cross-check (A2.1-PR1-10). A model that re-quotes
     # an apostrophe hasn't changed the title; one that echoes different words has, and that
     # is recorded rather than trusted silently.
     titles = ["Aaron James w. Bury ‘Em Deep", "Nona"]

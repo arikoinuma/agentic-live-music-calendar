@@ -77,7 +77,7 @@ TIME_FIELDS = [
 
 def test_required_fields_are_exactly_the_five_the_requirements_demand() -> None:
     # Proves: the JSON schema `instructor` sends lists exactly these as required — the
-    # strongest single guard for G8 (a required `time` forces the model to invent one
+    # strongest single guard for v0.1-G8 (a required `time` forces the model to invent one
     # when a page states none). Catches the Pydantic v2 trap where `X | None` with no
     # `= None` is *still required*.
     required = set(ShowExtraction.model_json_schema()["required"])
@@ -238,7 +238,7 @@ def test_every_time_field_asks_for_24_hour_hh_mm(model: type[BaseModel], name: s
 @pytest.mark.parametrize(("model", "name"), TIME_FIELDS)
 def test_every_time_field_tells_the_model_to_assume_pm(model: type[BaseModel], name: str) -> None:
     # Proves: the "no AM/PM means PM" rule (Ari, October 10, 2026; a2-extraction-schema.md
-    # Decisions for Ari #2) reaches the model, not just the normalizer. The model is asked
+    # A2-D2) reaches the model, not just the normalizer. The model is asked
     # for 24-hour HH:MM, so it does the 12-to-24 conversion itself: a page's bare "10:30"
     # comes back as "10:30" or "22:30" depending on what the model assumed, and the
     # normalizer can't tell which (two-digit HH:MM is the format we asked for). Only the
@@ -289,7 +289,7 @@ def test_show_time_means_when_the_music_starts_not_doors() -> None:
         ("19:30:00.500", datetime.time(19, 30, 0, 500000)),
         # No AM/PM and not zero-padded: assume PM (Ari, October 10, 2026 — live music is
         # overwhelmingly afternoon/evening, and a listing that really is in the morning
-        # says AM). Decisions for Ari #2 in the A2 plan; this reverses the original
+        # says AM). A2-D2 in the A2 plan; this reverses the original
         # "reject and re-ask" choice.
         ("7:30", datetime.time(19, 30)),
         ("7", datetime.time(19, 0)),

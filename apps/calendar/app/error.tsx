@@ -13,7 +13,7 @@
 // route's server data and re-renders, which is what recovering from "the
 // API was down" needs. `reset()` only clears the error state and re-renders
 // the SAME failed payload, so it would show the same error again. (The
-// style guide used to say `error`/`reset`; code review round 1, #1.)
+// style guide used to say `error`/`reset`; B2-CR1-1.)
 //
 // What it deliberately does NOT render: `error.message`. In a Server
 // Component failure, Next replaces the real message with a generic one in

@@ -216,7 +216,7 @@ export function createApiClient(opts: {
       // tell Next "this route is dynamic". Wrapping it in an ApiError
       // would turn that signal into a build failure, whether or not the
       // API is up — and no unit test can see it, because Vitest has no
-      // patched `fetch` (plan review #1; pinned by api.test.ts). So give
+      // patched `fetch` (B2-PR1-1; pinned by api.test.ts). So give
       // Next its control-flow errors back untouched, then handle the
       // errors that are really ours.
       unstable_rethrow(err);
@@ -346,7 +346,7 @@ const live = () =>
 // option: it is switched off whenever a `signal` is passed.)
 // Measured in B2: one /metro request per page that renders, but TWO when a
 // page calls `notFound()` — Next renders the not-found tree as a second
-// render, and `cache()` is scoped to one render (B2 code review #5). The
+// render, and `cache()` is scoped to one render (B2-CR1-5). The
 // same applies to a detail page's record.
 export const getMetro = cache(() => live().getMetro());
 

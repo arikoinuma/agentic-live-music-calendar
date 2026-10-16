@@ -4,12 +4,13 @@ How this repo writes things down. `AGENTS.md` holds the rules agents must follow
 explains the reasoning and the details, for anyone reading code or docs. Language style
 lives in `docs/references/`; this file covers what applies across the whole repo.
 
-## Designations: every ID carries its scope
+## Designations: bare inside the defining document, scoped everywhere else
 
 A designation is a short ID that points at a decision, a finding, a gap, or a review item.
-`D5` alone is ambiguous: act conventions in one plan, the larger-model tier in another, and
-sample rows in a third. So every designation is written as `<scope>-<ID>`, and the scope is
-always the document that defines the ID.
+The same ID can mean different things in different documents: `D5` is act conventions in A2.1,
+the larger-model tier in A3, and sample rows in B3. So the rule is one line: inside the document
+that defines an ID it is written bare, and from any other document, or in code and tests, it
+carries that defining document's scope.
 
 ### Scopes
 
@@ -34,7 +35,8 @@ Future milestones use their own IDs (`A4`, `H1`, …) the same way.
 | `<scope>-F<n>` | a failure found in an eval | `A2-F9` | that plan's failure table |
 | `<scope>-S<n>` | a sampling or design lever | `A2-S6` | that plan's lever list |
 | `<scope>-K<n>` | a fill-in step's key point | `A3-K2` | that plan's `[fill-in]` steps |
-| `<scope>-R<round>-<n>` | a review item | `A2.1-R2-3` | that plan's review sections |
+| `<scope>-PR<round>-<n>` | a plan-review item | `A3-PR1-3` | that plan's Plan review rounds |
+| `<scope>-CR<round>-<n>` | a code-review item | `A3-CR1-3` | that plan's Code review rounds |
 | `v0.1-G<n>` | a known gap in the catalogue | `v0.1-G6` | `alpha-build-plan.md` §1.3 |
 
 ### Why `K` and `v0.1-G`
@@ -44,7 +46,7 @@ Future milestones use their own IDs (`A4`, `H1`, …) the same way.
 - **`v0.1-G` ties the catalogue to a version.** The catalogue lives in the alpha plan, so its
   gaps belong to v0.1. A later version can keep its own catalogue without renumbering.
 - Together they separate the two kinds of "gap". The catalogue is `v0.1-G…`, and fill-in
-  steps are `…-K…`. Neither is a bare letter any more.
+  steps are `…-K…`. Neither is a bare letter any more. Inside its own plan, K1 is written bare, like any other ID the plan defines.
 
 ### Mapping from the old gap letters
 
@@ -70,8 +72,10 @@ So `A3-Gap-B` (`classify_page`) is now `A3-K2`.
    always scope, since they cite plans rather than define them.
 3. **Write the token form:** `A2.1-D5`, with no space and no comma. It is one token, so it
    can be searched for, and a reader sees it as one thing.
-4. **Review items carry their round:** `A2.1-R2-3` means round 2, item 3. Items with no
-   round number get one assigned in their plan before they are cited.
+4. **Review items say which review they belong to.** A plan has two kinds of review round,
+   `PR` for plan review and `CR` for code review, and each numbers its rounds from 1. So
+   `A3-PR1-3` is A3's plan-review round 1, item 3, and `A3-CR1-3` is its code-review round 1,
+   item 3. Items with no round number get one assigned in their plan before they are cited.
 5. **The catalogue is versioned.** Outside `alpha-build-plan.md`, write `v0.1-G6`, never `G6`.
    Inside the build plan, the catalogue is its own, so a bare `G6` stays.
 

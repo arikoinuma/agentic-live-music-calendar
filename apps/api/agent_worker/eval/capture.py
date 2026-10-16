@@ -43,7 +43,7 @@ def default_venues() -> list[str]:
 def capture(venue: str, today: datetime.date, force: bool = False) -> None:
     """Fetch one venue's calendar (and feed, if any) and save it under FIXTURES_DIR. An existing
     fixture is never replaced unless `force`: a label describes that exact page, and
-    re-capturing means re-labelling (code review #10)."""
+    re-capturing means re-labelling (A2.1-CR1-10)."""
     facts = VENUE_FACTS[venue]
     targets = [(facts.url, "html")] + ([(facts.feed_url, "ics")] if facts.feed_url else [])
     for url, suffix in targets:

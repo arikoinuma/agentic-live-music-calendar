@@ -5,7 +5,7 @@
  * metro name makes the whole site depend on one more API call. This file
  * is what keeps that dependency from being fatal: if the call fails, the
  * layout falls back to a generic description and a plain footer instead of
- * failing every route (G24, alpha-build-plan.md B2).
+ * failing every route (v0.1-G24, alpha-build-plan.md B2).
  *
  * The fetcher is a parameter (defaulting to the real client's `getMetro`,
  * like `getApiHealth` takes `fetch`), so tests pass a fake and never touch
@@ -20,7 +20,7 @@ import type { MetroSummary } from "./types";
 // grep the built HTML for it: a static page with this text baked in would
 // mean the metro fetch got cached at build time, which is exactly what
 // decision B2-D1 (no persistent caching in B2) exists to prevent
-// (plan Verification 3, review #7).
+// (plan Verification 3, B2-PR1-7).
 export const FALLBACK_DESCRIPTION =
   "Live music, gathered from venue calendars.";
 

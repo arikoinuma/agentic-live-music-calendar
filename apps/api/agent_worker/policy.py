@@ -65,7 +65,7 @@ class RetryPolicy:
     def __post_init__(self) -> None:
         # `ESCALATION_MODEL_NAME=` (uncommented, left empty) is read as "" and not None, which would
         # make A3-K5 record `larger_model_used=True` while the same model runs — the misreport A3-D5
-        # exists to stop (A3-R1-3). An empty name means "none configured".
+        # exists to stop (A3-CR1-3). An empty name means "none configured".
         if not self.escalation_model:
             object.__setattr__(self, "escalation_model", None)
 

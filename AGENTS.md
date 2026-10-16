@@ -37,7 +37,7 @@ approach — most "what should we do about X" questions have an answer with reas
 | How was the environment set up? | `docs/dev/env-setup.md` |
 | What non-obvious thing bit us before? | `docs/dev/notes.md` |
 | How is a given milestone being implemented? | `docs/dev/implementations/` |
-| What does a designation like `A2.1-D5` or `G6` mean, and how do I write one? | `docs/dev/conventions.md` |
+| What does a designation like `A2.1-D5` or `v0.1-G6` mean, and how do I write one? | `docs/dev/conventions.md` |
 
 When a real debugging session turns up something non-obvious, add it to `docs/dev/notes.md`.
 When a design decision gets made, record it where the surrounding reasoning lives.
@@ -96,7 +96,7 @@ mypy, pytest) and is not in the pipeline.
   Keep that standard: run it before saying it works.
 - **Cross-references carry a scope.** When a document cites an item from another document,
   the ID carries that document's scope: `A2.1-D5` (decision), `A2-F9` (eval failure), `A3-K2`
-  (fill-in key point), `A2.1-R2-3` (review item), `v0.1-G6` (catalogue gap). Inside the
+  (fill-in key point), `A3-PR1-3` (plan-review item), `A3-CR1-3` (code-review item), `v0.1-G6` (catalogue gap). Inside the
   defining document, a bare ID is fine. The build-plan catalogue is written `v0.1-G<n>` in
   every other document. The full forms, the mapping from the old gap letters, and the check
   command are in `docs/dev/conventions.md`.

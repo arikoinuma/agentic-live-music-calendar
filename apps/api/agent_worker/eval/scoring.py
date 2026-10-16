@@ -13,10 +13,10 @@ tiered, and this module counts exactly its tiers:
   non-show entry) at most 1 per page.
 
 How to read it: `ReturnedShow` normalises one returned show (including A2's legacy
-string-acts form); `match_shows` pairs labelled and returned shows (A2.1-Gap-B);
+string-acts form); `match_shows` pairs labelled and returned shows (A2.1-K2);
 `score_page` counts one page; `gate` applies the standard to every run of a label. A returned
 show with `acts: []` is dropped before anything is counted — both routes keep rejected
-non-music entries that way for A3's completeness check to drop (plan review #4).
+non-music entries that way for A3's completeness check to drop (A2.1-PR1-4).
 """
 
 import datetime
@@ -71,7 +71,7 @@ class ReturnedShow:
     @classmethod
     def from_dump(cls, show: dict[str, Any]) -> "ReturnedShow":
         """From an extraction dump (`model_dump(mode="json")`). A2's `baseline-32k` stored acts
-        as plain strings and has no `status`; both are accepted (plan review #13)."""
+        as plain strings and has no `status`; both are accepted (A2.1-PR1-13)."""
         acts = tuple(
             (a if isinstance(a, str) else str(a.get("name", ""))).strip()
             for a in show.get("acts") or []
@@ -100,7 +100,7 @@ def acts_correct(label: LabelledShow, acts: tuple[str, ...]) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Matching (A2.1-Gap-B)
+# Matching (A2.1-K2)
 # ---------------------------------------------------------------------------
 
 
@@ -153,13 +153,13 @@ class FieldTally:
 @dataclass
 class PageScore:
     """One page's counts against the standard. `route` is set by the harness from the
-    extraction result, so the gate can be read per route (plan review #15)."""
+    extraction result, so the gate can be read per route (A2.1-PR1-15)."""
 
     fixture: str = ""
     route: str = "model"
     labelled: int = 0
     returned: int = 0
-    dropped_empty: int = 0  # returned with acts: [] — not counted (plan review #4)
+    dropped_empty: int = 0  # returned with acts: [] — not counted (A2.1-PR1-4)
     missed: int = 0
     acts_wrong: int = 0
     fabricated: int = 0
@@ -180,7 +180,7 @@ class PageScore:
 class PageFailure:
     """A page whose extraction raised. It fails the gate: a crash can't be skipped. A page that
     never finished took no route, so by default it counts in every route's scope ("any") —
-    `gate [jsonld]` can't pass a label in which a JSON-LD page crashed (code review #5)."""
+    `gate [jsonld]` can't pass a label in which a JSON-LD page crashed (A2.1-CR1-5)."""
 
     fixture: str
     error: str
@@ -222,7 +222,7 @@ def _is_leak(show: ReturnedShow, non_shows: tuple[NonShow, ...]) -> bool:
     entry's date (or, for a recurring header such as "OPEN MIC Every Monday", its weekday)
     AND sharing an identifying word with its title. Date or weekday alone would let an
     invented band on a Monday, or a duplicate on a night that also lists "Open Jam", pass the
-    "no invented shows, ever" tier (code review #1)."""
+    "no invented shows, ever" tier (A2.1-CR1-1)."""
     if show.date is None:
         return False
     returned_words = _title_words(" ".join(show.acts))

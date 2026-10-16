@@ -91,7 +91,7 @@ export function parseIdParam(raw: string): number | null {
  *      "2026-02-29") for string input regardless of its `overflow` option.
  *   3. Year >= 1. "0000-01-01" passes both of the above, but the API
  *      rejects year 0 with a 422, which would surface as the error page
- *      instead of a 404 (plan review #8). "0001-01-01" the API accepts.
+ *      instead of a 404 (B2-PR1-8). "0001-01-01" the API accepts.
  */
 export function parseDateParam(raw: string): Temporal.PlainDate | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;

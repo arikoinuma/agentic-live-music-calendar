@@ -65,28 +65,28 @@ def codes(result: validation.ValidationResult, severity: Severity | None = None)
 
 
 # ---------------------------------------------------------------------------
-# Page outcome (A3-Gap-B)
+# Page outcome (A3-K2)
 # ---------------------------------------------------------------------------
 
 
 def test_page_outcome_has_shows() -> None:
-    # Proves (A3-Gap-B): a readable page with shows is the normal case.
+    # Proves (A3-K2): a readable page with shows is the normal case.
     assert validation.classify_page(page(show())) is PageOutcome.HAS_SHOWS
 
 
 def test_page_outcome_confirmed_empty() -> None:
-    # Proves (A3-Gap-B): `page_readable` true with no shows is a *confirmed empty* calendar — a
-    # legitimate pass, the field's whole reason for existing (G3).
+    # Proves (A3-K2): `page_readable` true with no shows is a *confirmed empty* calendar — a
+    # legitimate pass, the field's whole reason for existing (v0.1-G3).
     assert validation.classify_page(page()) is PageOutcome.CONFIRMED_EMPTY
 
 
 def test_page_outcome_unreadable() -> None:
-    # Proves (A3-Gap-B): an unreadable page with no shows is a failure, not an empty calendar.
+    # Proves (A3-K2): an unreadable page with no shows is a failure, not an empty calendar.
     assert validation.classify_page(page(readable=False)) is PageOutcome.UNREADABLE
 
 
 def test_page_outcome_unreadable_wins_over_returned_shows() -> None:
-    # Proves (A3-Gap-B): readability is asked first. A model that says "I couldn't read this" and then
+    # Proves (A3-K2): readability is asked first. A model that says "I couldn't read this" and then
     # returns a show anyway is not trusted on the show; testing `shows` first would read it as normal.
     assert validation.classify_page(page(show(), readable=False)) is PageOutcome.UNREADABLE
 
@@ -124,7 +124,7 @@ def test_a_blank_act_name_is_an_error() -> None:
 def test_a_listing_the_splitter_left_out_is_an_error_not_an_exclusion() -> None:
     # Proves: `missing_ids` (a title the splitter's answer skipped) is told apart from a genuine
     # exclusion — act_split.split_titles gives both acts: [], so without this a dropped real show
-    # looks like a karaoke night. Source: act_split.py `missing_ids`; plan round 1 #8.
+    # looks like a karaoke night. Source: act_split.py `missing_ids`; A3-PR1-8.
     result, _ = validate(page(show()), notes={"missing_ids": [0]})
     [finding] = [f for f in result.errors if f.code is CheckCode.SPLITTER_DROPPED]
     assert finding.target is Target.SPLITTER and finding.show_index == 0
@@ -156,7 +156,7 @@ def test_the_title_checks_are_skipped_when_titles_and_shows_do_not_line_up() -> 
 
 
 def test_when_every_show_is_excluded_a_dated_page_is_not_a_confirmed_empty_pass() -> None:
-    # Proves (round 1 #4): the empty-page guard keys on *kept* shows, so a dated page whose every
+    # Proves (A3-PR1-4): the empty-page guard keys on *kept* shows, so a dated page whose every
     # show was excluded can't slip past the guard that exists for an empty list.
     extraction = page(ShowExtraction.model_validate({
         "venue": "V", "date": datetime.date(2026, 10, 20), "acts": [], "is_ambiguous": False, "confidence": 0.9,
@@ -180,12 +180,12 @@ def test_when_every_show_is_excluded_an_undated_page_passes_with_no_confidence()
 
 
 # ---------------------------------------------------------------------------
-# Plausibility (A3-Gap-C)
+# Plausibility (A3-K3)
 # ---------------------------------------------------------------------------
 
 
 def test_the_date_window_boundaries_on_the_model_route() -> None:
-    # Proves (A3-Gap-C): the window is 31 days back to 366 days ahead of the FETCH date (plan A3-D2, from
+    # Proves (A3-K3): the window is 31 days back to 366 days ahead of the FETCH date (plan A3-D2, from
     # the year rule's lookback and the build plan's "a month past, a year out"). 2026-09-11 is 31
     # days before 2026-10-12 and passes; 09-10 is 32 and fails. 2027-10-13 is 366 ahead and passes;
     # 10-14 is 367 and fails. On the model route an out-of-window date is an error (a retry can re-read).
@@ -219,7 +219,7 @@ def test_a_feb_29_that_the_year_rule_leaves_alone_is_caught_by_the_window() -> N
 
 
 def test_an_end_time_earlier_than_the_start_is_the_next_morning_and_raises_nothing() -> None:
-    # Proves (A3-Gap-C): White Squirrel lists "Nona ... 9:00 pm - 12:00 am", which extracts correctly as
+    # Proves (A3-K3): White Squirrel lists "Nona ... 9:00 pm - 12:00 am", which extracts correctly as
     # start 21:00, end 00:00 (requirements, Show: "an end time earlier than its start is the next
     # morning"). A naive `end <= start` check would flag or repair a correct record.
     result, kept = validate(page(show(time="21:00", end="00:00")), source="jsonld")
@@ -229,7 +229,7 @@ def test_an_end_time_earlier_than_the_start_is_the_next_morning_and_raises_nothi
 
 @pytest.mark.parametrize("source", ["jsonld", "model", "image"])
 def test_an_end_time_equal_to_the_start_is_dropped_as_a_repair_never_a_failure(source: validation.Source) -> None:
-    # Proves (round 2 #4): a zero-length show is repaired on every source, not failed and not a reason
+    # Proves (A3-PR2-4): a zero-length show is repaired on every source, not failed and not a reason
     # to change route. jsonld._end_time accepts it and end_time_is_stated is satisfied by the stated
     # *start*, so a plugin that writes endDate == startDate would otherwise fail on every run.
     result, kept = validate(page(show(time="20:00", end="20:00")), source=source)
@@ -271,7 +271,7 @@ def test_free_together_with_a_price_is_an_error(price: dict[str, float]) -> None
     result, _ = validate(page(show(free_admission=True, **price)))
     assert CheckCode.FREE_WITH_PRICE in codes(result, Severity.ERROR)
     # The message is sent to the model as a retry hint, and the model was never shown a "show 0": it
-    # names the show by its date (code review round 1, #5a).
+    # names the show by its date (A3-CR1-5a).
     assert "2026-10-20" in next(f for f in result.errors if f.code is CheckCode.FREE_WITH_PRICE).message
 
 
@@ -327,7 +327,7 @@ def test_a_model_route_end_time_the_page_does_not_state_is_dropped() -> None:
 
 
 def test_the_end_time_check_is_scoped_to_the_listings_own_title_when_titles_line_up() -> None:
-    # Proves (round 1 #14): A2.1's own docstring says page-wide lets "another listing's '11:00 pm'
+    # Proves (A3-PR1-14): A2.1's own docstring says page-wide lets "another listing's '11:00 pm'
     # vouch for a default end". With titles aligned to shows, Alpha's end of 23:00 is checked only in
     # Alpha's slice of the text (up to Beta's title), where nothing states it; Beta's own is stated.
     text = "Alpha Band Oct 15 8:00 pm Beta Group Oct 16 8:00 pm - 11:00 pm"
@@ -342,7 +342,7 @@ def test_the_end_time_check_is_scoped_to_the_listings_own_title_when_titles_line
 
 
 def test_a_poster_run_keeps_its_end_time_when_it_has_a_start() -> None:
-    # Proves (round 1 #6): the image route has no page text, so the page-reading repairs must not run
+    # Proves (A3-PR1-6): the image route has no page text, so the page-reading repairs must not run
     # on it — an `source != "jsonld"` implementation would drop every poster's valid end time.
     result, kept = validate(page(show(time="20:00", end="23:00")), source="image")
     assert result.repairs == [] and kept[0].end_time is not None
@@ -361,7 +361,7 @@ def test_upcoming_dates_are_found_in_the_spellings_pages_use() -> None:
 
 
 def test_only_the_past_31_days_are_ignored_so_an_older_archive_still_counts() -> None:
-    # Proves (round 2 #2): "ignored if before the fetch date" is applied after `infer_year` places each
+    # Proves (A3-PR2-2): "ignored if before the fetch date" is applied after `infer_year` places each
     # pair, which drops only the past 31 days. Aug 1 is more than 31 days before 2026-10-12, so it is
     # placed in 2027 and counts as an upcoming date — accepted, and stated in the module docstring.
     assert validation.upcoming_dates("Sep 20", FETCHED) == set()
@@ -393,7 +393,7 @@ def test_a_json_ld_page_whose_dates_all_have_shows_is_not_under_reported() -> No
 
 
 def test_an_archive_of_recent_past_dates_is_not_counted_as_under_reporting() -> None:
-    # Proves (round 1 #20, round 2 #2): 7th St Entry's text lists Oct 1-9 against an Oct 10 capture.
+    # Proves (A3-PR1-20, A3-PR2-2): 7th St Entry's text lists Oct 1-9 against an Oct 10 capture.
     # Dates in the 31 days before the fetch aren't upcoming events, so they can't make a page look
     # under-reported.
     text = "Oct 1 Oct 2 Oct 3 Oct 4 Oct 5"
@@ -409,7 +409,7 @@ def test_an_empty_list_on_a_page_that_names_dates_is_an_error() -> None:
 
 
 def test_dates_that_extracted_shows_already_sit_on_do_not_make_a_page_empty_but_dated() -> None:
-    # Proves (code review round 1, #1): the empty-page guard compares against every extracted show's
+    # Proves (A3-CR1-1): the empty-page guard compares against every extracted show's
     # date, excluded ones included — exactly as the under-report guard does. A JSON-LD page whose
     # events are all out of window has all of them excluded; their dates are in the text, but the page
     # isn't "empty with dates it ignored", and the guard must not fire on them (it sent such a page to
@@ -421,11 +421,11 @@ def test_dates_that_extracted_shows_already_sit_on_do_not_make_a_page_empty_but_
 
 
 def test_a_json_ld_page_whose_every_event_is_out_of_window_passes_with_each_exclusion_reported() -> None:
-    # Proves (code review round 1, #1; A3-D13): all events stale -> all excluded with a warning each, no
+    # Proves (A3-CR1-1; A3-D13): all events stale -> all excluded with a warning each, no
     # `empty_but_dated` error, so no route fallback is triggered. Aug 1-3 2026 against a 2026-10-12 fetch
     # are more than 31 days back, so `upcoming_dates` places them in 2027 and they COUNT as dated text:
     # the guard has to subtract the shows' own dates, not rely on "past dates are ignored".
-    # (A3-Gap-C: the window.)
+    # (A3-K3: the window.)
     stale = [show(datetime.date(2026, 8, d), f"Band {d}") for d in (1, 2, 3)]
     result, kept = validate(page(*stale), source="jsonld", text="Band 1 Aug 1 8 pm Band 2 Aug 2 8 pm Band 3 Aug 3 8 pm")
     assert kept == [] and result.excluded == [0, 1, 2]
@@ -467,14 +467,14 @@ def test_confidence_is_the_minimum_over_the_kept_shows_a_model_judged() -> None:
 
 
 def test_json_ld_confidence_is_none_because_its_one_point_zero_is_a_placeholder() -> None:
-    # Proves (A3-D9, A2.1 plan review #15): the JSON-LD route stamps `confidence=1.0` on every show,
+    # Proves (A3-D9, A2.1-PR1-15): the JSON-LD route stamps `confidence=1.0` on every show,
     # claiming a certainty about acts the splitter doesn't have. It must not read as evidence.
     result, _ = validate(page(show(confidence=1.0)), source="jsonld")
     assert result.confidence is None
 
 
 def test_shows_the_status_merge_added_are_left_out_of_the_confidence() -> None:
-    # Proves (round 2 #11): the merge adds shows with a placeholder confidence of 1.0 that no model
+    # Proves (A3-PR2-11): the merge adds shows with a placeholder confidence of 1.0 that no model
     # judged; they are listed in notes["added_indices"] and must not raise the minimum.
     extraction = page(show(datetime.date(2026, 10, 20), confidence=0.6), show(datetime.date(2026, 10, 21), confidence=1.0))
     result, _ = validate(extraction, notes={"added_indices": [1]})

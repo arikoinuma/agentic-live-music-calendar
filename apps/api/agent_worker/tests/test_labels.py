@@ -37,7 +37,7 @@ def test_every_show_says_where_it_came_from() -> None:
 def test_no_page_lists_the_same_show_twice() -> None:
     # Proves: (date, time, normalised acts) is unique per page. Two shows MAY share a date
     # and time — 7th St Entry lists two untimed shows on Oct 31 — which is why the scorer
-    # tie-breaks on acts (round 2 #3).
+    # tie-breaks on acts (A2.1-PR2-3).
     from agent_worker.normalize import fold_text
 
     for name, page in labels.PAGE_LABELS.items():
@@ -54,7 +54,7 @@ def test_gated_pages_are_the_reachable_venues() -> None:
 
 def test_every_labelled_venue_has_its_facts() -> None:
     # Proves: the harness can hand `extract_page` a venue name and metro zone for every
-    # labelled page (plan review #16), and capture can find each gated venue's URL.
+    # labelled page (A2.1-PR1-16), and capture can find each gated venue's URL.
     for page in labels.PAGE_LABELS.values():
         facts = labels.VENUE_FACTS[page.venue]
         assert facts.name and facts.metro_timezone == "America/Chicago"
@@ -63,7 +63,7 @@ def test_every_labelled_venue_has_its_facts() -> None:
 
 
 def test_every_non_show_can_match_something() -> None:
-    # Proves: code review #11. A non-show with neither a date nor a weekday (or "Sunday = 7")
+    # Proves: A2.1-CR1-11. A non-show with neither a date nor a weekday (or "Sunday = 7")
     # never matches, so every leak on its page would silently become a fabrication — the
     # check that makes Ari's Mortimer's fill-in safe to write.
     for name, page in labels.PAGE_LABELS.items():

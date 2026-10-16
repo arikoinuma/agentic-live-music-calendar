@@ -1,6 +1,6 @@
 """The validation, replayed over real extractions — local only, skipped when the data is absent.
 
-Milestone A3 (docs/dev/implementations/a3-validation-and-retry.md, test approach §5; plan review round 1 #10).
+Milestone A3 (docs/dev/implementations/a3-validation-and-retry.md, test approach §5; A3-PR1-10).
 The eval harness calls `extract_page`, not the graph, so nothing else would notice a check that
 misfires on a real page (an error that escalates White Squirrel every day, or a repair that drops a
 correct value) until `local_test` or production did. The stored extractions in
@@ -14,11 +14,11 @@ CI layer.
 Where the expected values come from: they are literals read from the stored results during the
 A3 build (run 0 of each page in `a21-confirm`, replayed with the page's labelled capture date and the
 source the run recorded), not recomputed by the code under test. One rule is NOT exercised on real
-data here, so a green run isn't evidence for it (plan round 2 #9): the title-scoped end-time repair
+data here, so a green run isn't evidence for it (A3-PR2-9): the title-scoped end-time repair
 (no model-route show in run 0 has an `end_time`); it is covered by the synthetic tests only.
 `act_not_in_title` IS exercised, but only by `a3-confirm` (below): `a21-confirm`'s 7th St Entry titles
 don't line up with its shows (29 titles, 30 shows), while the current pipeline's do, and there the rule
-catches a real wrong act (code review round 1, #9)
+catches a real wrong act (A3-CR1-9)
 """
 
 import datetime
@@ -111,7 +111,7 @@ def test_a_real_extraction_validates_clean(fixture: str) -> None:
 
 @needs_data
 def test_every_excluded_show_on_a_real_page_is_reported_with_a_warning() -> None:
-    # Proves (round 1 #7): Mortimer's 13 no-act listings are each a warning naming the listing, so the
+    # Proves (A3-PR1-7): Mortimer's 13 no-act listings are each a warning naming the listing, so the
     # two real shows the splitter misses are findable instead of vanishing.
     result, _ = replay(run_zero_per_fixture()["mortimers-2026-10-10.html"])
     warned = [f for f in result.findings if f.code is CheckCode.EXCLUDED_NO_ACTS]
@@ -137,7 +137,7 @@ def test_the_json_ld_under_report_guard_does_not_fire_on_the_real_white_squirrel
 
 @needs_data
 def test_act_not_in_title_catches_a_real_wrong_act_in_the_current_pipelines_run() -> None:
-    # Proves (code review round 1, #9): A2.1-E3 guard has real evidence. In `a3-confirm` (the gated run
+    # Proves (A3-CR1-9): A2.1-E3 guard has real evidence. In `a3-confirm` (the gated run
     # after A3, 56 of 60) 7th St Entry's 30 titles line up with its 30 shows, and the model route's act
     # splitter wrote "Devilsoundguy" for a title that says "Evilsoundguy": the one act name it got wrong
     # that is a typo and not a convention call. The warning names it; no error is raised.

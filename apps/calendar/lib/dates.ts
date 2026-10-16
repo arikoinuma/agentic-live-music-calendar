@@ -63,7 +63,7 @@ export function metroToday(
  * the page. The metro's timezone is free text in the database, and
  * `toZonedDateTimeISO` throws a RangeError for an id it doesn't know;
  * "Today" is cosmetic, so a typo in a metro row shouldn't be a 500
- * (B3 plan review #9). Only RangeError is caught — anything else
+ * (B3-PR1-9). Only RangeError is caught — anything else
  * is a real bug and passes through.
  */
 export function metroTodayOrNull(
