@@ -45,7 +45,7 @@ export function windowHref(path: string, from: string | null): string {
  * survive `parseFromParam`. The URL parser is the single bound rule (years
  * 1..9998): a link whose date it would reject would silently land on the
  * DEFAULT window instead of paging, so such a link is simply not shown
- * (plan review #5). Practically unreachable, and cheap to get right.
+ * (B4-PR1-5). Practically unreachable, and cheap to get right.
  */
 export function windowNavLinks(
   path: string,

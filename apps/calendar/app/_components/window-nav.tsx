@@ -14,7 +14,7 @@ import { formatDayHeadingWithYear } from "@/lib/dates";
  * (api-contract.md §3, "the server owns now").
  *
  * The range is printed WITH its years: a window that crosses New Year must
- * not be ambiguous (plan review #4). `rel="nofollow"` on Earlier/Later
+ * not be ambiguous (B4-PR1-4). `rel="nofollow"` on Earlier/Later
  * keeps crawlers from walking an unbounded chain of ever-emptier windows.
  * "Back to upcoming dates" names no length, since the length is the
  * server's to decide.

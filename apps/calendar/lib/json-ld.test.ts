@@ -102,7 +102,7 @@ describe("eventEndDateTime", () => {
     // extraction slip, not a show. The contract prefers "not stated" to a
     // wrong answer someone acts on (api-contract.md §4). Contrast the
     // 01:00 to 06:00 row above: the end is not after midnight, so it is
-    // the same morning and stays a real end time. (B4 code review #3.)
+    // the same morning and stays a real end time. (B4-CR1-3.)
     expect(eventEndDateTime("2026-10-07", start, end, CHICAGO)).toBeNull();
   });
 
@@ -148,7 +148,7 @@ describe("showJsonLd", () => {
 
   it("falls back to the show's own venue name, with no address, when the venue detail is missing", () => {
     // Proves: the show page renders without an address when the venue
-    // lookup misses (plan review #1c), and the JSON-LD says the same.
+    // lookup misses (B4-PR1-1c), and the JSON-LD says the same.
     const ld = showJsonLd(show, { venue: null, timeZone: null });
     expect(ld.location).toEqual({ "@type": "MusicVenue", name: "Zhora Darling" });
   });
@@ -180,7 +180,7 @@ describe("showJsonLd", () => {
 
     it("is one 'Advance' offer for a lone advance price", () => {
       // Proves: the JSON-LD says what formatAdmission says on the page
-      // ("$15 adv") — plan review #1a.
+      // ("$15 adv") — B4-PR1-1a.
       expect(showJsonLd(priced({ admission_advance: "15.00" }), noZone).offers).toEqual([
         { "@type": "Offer", name: "Advance", price: "15.00", priceCurrency: "USD" },
       ]);

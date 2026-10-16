@@ -76,7 +76,7 @@ describe("windowNavLinks", () => {
 
   it("drops only the link whose date parseFromParam would reject", () => {
     // Proves: a pager link that would silently land on the DEFAULT window
-    // is not shown (plan review #5), and the other direction still works.
+    // is not shown (B4-PR1-5), and the other direction still works.
     // The parser is the one bound rule: years 1..9998 (the API's `start +
     // 27 days` overflows in 9999; year 0 is refused by the API). Worked
     // out by hand, both windows 28 days long:

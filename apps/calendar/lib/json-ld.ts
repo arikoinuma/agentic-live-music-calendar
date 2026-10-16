@@ -135,7 +135,7 @@ export function eventEndDateTime(
   // A start AND an end both before 5:00 AM, the end earlier than the start
   // (01:00 to 00:30): the listing contradicts itself. Obeying "an earlier end
   // is the next morning" would publish a ~23-hour show, so publish no end
-  // (B4 code review #3; pinned in json-ld.test.ts).
+  // (B4-CR1-3; pinned in json-ld.test.ts).
   if (
     start &&
     isAfterMidnight(Temporal.PlainTime.from(start)) &&

@@ -23,6 +23,7 @@ carries that defining document's scope.
 | `A3` | `docs/dev/implementations/a3-validation-and-retry.md` |
 | `B2` | `docs/dev/implementations/b2-routes-and-data-loading.md` |
 | `B3` | `docs/dev/implementations/b3-the-calendar.md` |
+| `B4` | `docs/dev/implementations/b4-detail-pages.md` |
 
 Future milestones use their own IDs (`A4`, `H1`, …) the same way.
 

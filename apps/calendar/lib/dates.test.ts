@@ -203,7 +203,7 @@ describe("formatDayHeadingWithYear", () => {
   ])("formats %s as %s", (date, expected) => {
     // Proves: the detail pages' unambiguous date ("Mon, Oct 12, 2026"). A
     // paged or upcoming list can cross a year boundary, where a heading
-    // without the year is ambiguous (B4 plan review #4). Weekdays worked
+    // without the year is ambiguous (B4-PR1-4). Weekdays worked
     // out from a calendar: 2026-10-12 is a Monday, 2028-02-29 a Tuesday,
     // 2026-12-31 a Thursday. The year is the PlainDate's own, so no zone
     // can shift it (the same property formatDayHeading is tested for).

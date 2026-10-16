@@ -17,7 +17,7 @@ import type { ShowSummary } from "@/lib/types";
  * the time is the one line that is about the show itself. A show with no
  * start time has no time to link, so its line stays plain text and a
  * separate "Details" link follows it — "Time not listed, show details" is a
- * statement, not a destination (plan review #6).
+ * statement, not a destination (B4-PR1-6).
  *
  * Deliberately NOT here:
  *  - The poster (`image_url`). The block's focus is names, and 25 remote

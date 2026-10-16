@@ -204,14 +204,14 @@ decisions is not the approval gate.
   so `cache()` keys correctly — B2 left them unwrapped only because nothing called them twice). *Alternative:* keep the
   static titles.
 - **D8 — One line of the [written] JSON-LD item becomes a gap: `eventDateTime` is K1. Decided: approved (changed
-  after plan review #2).** The build plan marks JSON-LD [written], and the rest of it stays so. But its date line is the most
+  after PR1-2).** The build plan marks JSON-LD [written], and the rest of it stays so. But its date line is the most
   lesson-shaped Temporal line in B4 — the second and last place the metro's zone matters, and the after-midnight rule
   meeting a real instant — while the plan's original K1 (`Promise.all` on the venue page) repeats what B3's
   `CalendarBody` already teaches and has a Check that passes whichever way it's written. So the venue page's loading is
   written complete and the gap moves here. Changing a marking is Ari's call, hence a decision. *Alternative:* keep the
   marking — JSON-LD fully [written], and B4 has three gaps (K2–K4).
 
-- **D9 — Open (raised by code review #2): how wide is K1? Recommended: keep it as built.** D8 approved a gap with
+- **D9 — Settled in effect (raised by CR1-2): how wide is K1? Recommended: keep it as built.** *Ari filled K1 as scaffolded (the narrow gap), so "keep" is what happened; see Implementation log round 3.*  D8 approved a gap with
   *two* ideas: the after-midnight date shift and the zone/offset. While building I made the shift a written helper
   (`instantDay`, `lib/json-ld.ts`) because the unknown-zone fallback needs it too, which left K1 (`withOffset`) as one
   line carrying one idea (attach the zone; the offset depends on the date). That narrowing was my call, not yours (Implementation
@@ -310,7 +310,7 @@ shows come out 2026-09-28, 2026-10-07, 2026-10-08, 2026-10-20 whatever the input
 
 `windowHref(path, from)` (written): `("/venue/3", "2026-10-26")` → `/venue/3?from=2026-10-26`; `("/venue/3", null)` →
 `/venue/3` (the server's default window).
-`windowNavLinks(path, start, end)` (written, around K2; review #5): the hrefs `WindowNav` renders, each direction
+`windowNavLinks(path, start, end)` (written, around K2; PR1-5): the hrefs `WindowNav` renders, each direction
 `null` when its date would not survive `parseFromParam` — so the URL parser is the single bound rule, and a link that
 would silently reset to the default window is simply not shown. `("/venue/3", "9999-12-01", "9999-12-28")` →
 `later: null`; `("/venue/3", "0001-01-01", "0001-01-28")` → `earlier: null`; the sample window → both hrefs.
@@ -325,14 +325,14 @@ valid; `"9999-12-20"` → `null` and `"9998-12-31"` → valid — the API overfl
 
 `eventDateTime(date, time, timeZone)` — **K1** (D8): every row of the "JSON-LD dates" table above, offsets worked
 out from US DST rules (2026: CDT until 2:00 AM Sunday November 1, then CST −06:00; 2027 spring-forward is March 14),
-not from the code. Plus the **spring-forward gap** (review #1d): listed 2027-03-13 at 02:30 → after midnight, so
+not from the code. Plus the **spring-forward gap** (PR1-1d): listed 2027-03-13 at 02:30 → after midnight, so
 2027-03-14 02:30, a wall time that doesn't exist in Chicago; Temporal's default `compatible` moves it forward an hour →
 `2027-03-14T03:30:00-05:00` (checked with the polyfill). Accepted and pinned: a show listed at a nonexistent time starts
 when the clocks allow, and nothing throws.
 `eventEndDateTime(date, start, end, timeZone)`: `22:00`–`00:30` on 2026-10-07 → `2026-10-08T00:30:00-05:00`;
 `18:00`–`23:00` → same day; `21:00`–`06:00` (end before start, not after midnight) → next day; `01:00`–`03:00` →
 both next day (`2026-10-08T03:00:00-05:00`); end null → `null` (the key is omitted). **Start null, end present**
-(review #1b): there is no start to compare against, so only the after-midnight rule applies — `00:30` → next day,
+(PR1-1b): there is no start to compare against, so only the after-midnight rule applies — `00:30` → next day,
 `23:00` → same day; never a throw or an `"undefined"` in the string.
 `showJsonLd(show, { venue, timeZone })`:
 - `@context` `https://schema.org`, `@type` `MusicEvent`, `eventStatus` `https://schema.org/EventScheduled`,
@@ -340,14 +340,14 @@ both next day (`2026-10-08T03:00:00-05:00`); end null → `null` (the key is omi
 - `name`: the lineup names in performance order, joined with ", " (`show-detail.json`: "Nooky Jones, Beasthead"); an
   empty lineup → "Live music at <venue name>".
 - `performer`: one `{ "@type": "MusicGroup", name }` per act. `location`: `{ "@type": "MusicVenue", name }`, plus
-  `address` only when the venue detail has one (`VenueDetail` id 3's address). **`venue: null`** (review #1c — the show
+  `address` only when the venue detail has one (`VenueDetail` id 3's address). **`venue: null`** (PR1-1c — the show
   page allows it when the venue lookup misses): `location.name` falls back to `show.venue.name`, no `address` key.
 - **`offers`, the contract's rule:** `free_admission: true` → one offer with `price: "0"`, `priceCurrency: "USD"`;
   `"18.00"` / `"22.00"` → two offers carrying those **strings** (no `parseFloat`), named "Advance" and "Door"; a lone
-  day price → one offer with no name; **a lone advance price** (review #1a) → one offer named "Advance", matching
+  day price → one offer with no name; **a lone advance price** (PR1-1a) → one offer named "Advance", matching
   `formatAdmission`'s "$15 adv" so the page and the JSON-LD say the same thing; **all three null → no `offers` key at all** (asserted with `not.toHaveProperty`),
   never a price of 0.
-- `image` present only when `image_url` is an http(s) URL (`httpUrlOrNull`, §5 — review #3); `javascript:…` or
+- `image` present only when `image_url` is an http(s) URL (`httpUrlOrNull`, §5 — PR1-3); `javascript:…` or
   `data:…` → no `image` key.
 `jsonLdScriptContent(data)`: a name containing `</script><script>alert(1)</script>` serialises with **no `<`
 character** in the output, and `JSON.parse` of the output gives the original name back (the escape is lossless).
@@ -359,7 +359,7 @@ text Next's JSON-LD guide warns about.
 `mapsUrl(address)`: `"1010 Washington Ave N, Minneapolis, MN 55401"` →
 `https://www.google.com/maps/search/?api=1&query=1010%20Washington%20Ave%20N%2C%20Minneapolis%2C%20MN%2055401`
 (`arch-initial.md` §4's format; `&` and `#` in an address are encoded, so they can't end the parameter).
-`httpUrlOrNull(url)` (review #3): `https://x.example/a` and `http://x.example` → unchanged; `javascript:alert(1)`,
+`httpUrlOrNull(url)` (PR1-3): `https://x.example/a` and `http://x.example` → unchanged; `javascript:alert(1)`,
 `data:image/png;base64,AAAA`, `file:///etc/passwd`, `""`, `"garbage"`, `null`, `undefined` → `null`. Every external
 link the detail pages render from data (website, calendar URL, Source), every image (`RemoteImage`: poster, venue and
 artist photos) and the JSON-LD `image` go through it; a rejected URL renders no link or image. React 19 already blocks `javascript:` in `href`, but not `data:` or
@@ -416,7 +416,7 @@ be filled in any order; suggested **K1, K2, K3, K4**. The pages render errors wh
 `/venue/[id]` need A for JSON-LD, `/venue/[id]` needs B for paging, `/day` needs C and D), so the
 browser check comes after all four.
 
-*Replaced after plan review #2:* the original K1 (`Promise.all` on the venue page) repeated B3's `CalendarBody`
+*Replaced after PR1-2:* the original K1 (`Promise.all` on the venue page) repeated B3's `CalendarBody`
 lesson and had a Check that couldn't fail. The venue page's loading is now written complete (step 5).
 
 - **K1 — `eventDateTime`, `lib/json-ld.ts`** (step 1; the JSON-LD item, D8).
@@ -514,7 +514,7 @@ Lands **first and on its own** (see "Contract changes land first"): green under 
 - Tests first (§3, §4, §5).
 - `parseFromParam` in `lib/params.ts`, next to `parseMonthParam` (same "first valid of a repeated key" rule, calls
   `parseDateParam`, adds the year ≤ 9998 check with a comment naming the API overflow).
-- `lib/detail-format.ts`: `httpUrlOrNull` (review #3); `mapsUrl`; `Record<Enum, string>` label maps for age restriction, setting, seating, venue
+- `lib/detail-format.ts`: `httpUrlOrNull` (PR1-3); `mapsUrl`; `Record<Enum, string>` label maps for age restriction, setting, seating, venue
   type, artist format and repertoire (from `app/enums.py`); `alcoholLabel(bool)`. Module docstring: why the maps are
   `Record`s (exhaustive by type).
 - `lib/json-ld.ts`: `eventDateTime` (its core line is **K1**, D8), `eventEndDateTime`, `showJsonLd`,
@@ -530,9 +530,9 @@ Lands **first and on its own** (see "Contract changes land first"): green under 
 - Tests first (§2). `windowLinks` (K2) and `windowHref` (written).
 - `WindowNav({ path, start, end, isDefault })` — a Server Component: "← Earlier" and "Later →" links from
   `windowNavLinks` (each omitted when `null`), the range they sit between **with years** ("Mon, Sep 28, 2026 – Sun,
-  Oct 25, 2026", `formatDayHeading` plus the year, as `/day/[date]` already prints it — review #4: a December-to-January
+  Oct 25, 2026", `formatDayHeading` plus the year, as `/day/[date]` already prints it — PR1-4: a December-to-January
   window must not be ambiguous), and, when the page isn't on the default window, "Back to upcoming dates"
-  (`windowHref(path, null)`; the text names no length, since the length is the server's — review #4). Plain links, no
+  (`windowHref(path, null)`; the text names no length, since the length is the server's — PR1-4). Plain links, no
   JavaScript. `rel="nofollow"` on earlier/later, so crawlers don't walk an unbounded chain of empty windows.
 
 ### 3. The day view's orderings (fill-in: K3, K4) — `lib/show-order.ts`
@@ -559,7 +559,7 @@ Lands **first and on its own** (see "Contract changes land first"): green under 
 - `VenuePage(props)` awaits `params` **and** `searchParams`; `parseIdParam` → `notFound()`; `parseFromParam`; then one
   `Promise.all` over `getVenue`, `getShows({ venueIds: [id], start: from ?? undefined })` and `getMetroOrNull`, and the
   404 check **after** it (a missing venue costs one harmless empty shows request). Written complete; the comment points
-  at B3's `CalendarBody` for the no-waterfall reasoning rather than repeating it (plan review #2). No `<Suspense>`, so
+  at B3's `CalendarBody` for the no-waterfall reasoning rather than repeating it (PR1-2). No `<Suspense>`, so
   `notFound()` keeps its real 404 (B3-D4).
 - Above the calendar: name; the photo as a `RemoteImage` (D4, step 9; nothing when there is no photo or the URL is rejected); metadata as today's `<dl>`, now through the label maps, with the
   address as a link to `mapsUrl(address)`; phones as `tel:` links and emails as `mailto:` links; website and calendar
@@ -634,8 +634,8 @@ Lands **first and on its own** (see "Contract changes land first"): green under 
   `--` reason on the same line). Verification 2 greps that there is exactly one.
 - `app/_components/show-block.tsx`: when the show has a time, the time line becomes `<Link href={`/show/${show.id}`}>`
   with `<span className="sr-only">, show details</span>` (D3). When it has none, "Time not listed" stays plain text and
-  a separate "Details" link follows it (review #6: "Time not listed, show details" is a statement, not a destination).
-  The link gets `inline-block py-1` (a taller tap target without moving the layout much — review #6). Update its docstring's "Deliberately NOT here" list: the
+  a separate "Details" link follows it (PR1-6: "Time not listed, show details" is a statement, not a destination).
+  The link gets `inline-block py-1` (a taller tap target without moving the layout much — PR1-6). Update its docstring's "Deliberately NOT here" list: the
   `/show/[id]` bullet goes; the poster bullet stays true (the block shows no image) and now points at D4 ("the show page
   renders the poster").
 
@@ -708,12 +708,11 @@ Lands **first and on its own** (see "Contract changes land first"): green under 
    - The JSON-LD checks extract the `<script type="application/ld+json">` body from `curl` output and `JSON.parse` it in
      Node; recorded as measured.
    - **De-duplication (D7):** one `[api] GET /venues/1` line per load of `/venue/1` (not two), and likewise for
-     `/artist/1` and `/show/2` — except the 404 pages, which render twice (B2 code review #5).
+     `/artist/1` and `/show/2` — except the 404 pages, which render twice (B2-CR1-5).
 5. **JSON-LD validity** — Ari, locally: paste `/show/2`'s, `/venue/3`'s **and `/show/23`'s** JSON-LD into
    validator.schema.org (or the Rich Results Test's code tab). `/show/23` is at The White Squirrel Bar, which has no
    address in the sample data, so its `location` has no `address`: Google may treat the address as required for a physical
-   location, and this is the only way to find out whether events at address-less venues lose rich results (code review
-   #8). The cloud sandbox can't reach either validator.
+   location, and this is the only way to find out whether events at address-less venues lose rich results (CR1-8). The cloud sandbox can't reach either validator.
 6. **API down at runtime:** `/venue/1`, `/artist/1`, `/show/2`, `/day/2026-10-07` give B2's bare 500, with no error
    text, URL or stack in the body; `/` keeps B3's 200 with the skeleton; `/health` 200. Recorded as measured.
 7. **Layout** (headless Chromium, `/opt/pw-browsers`, snippets applied): page `scrollWidth === clientWidth` at 375 and
@@ -721,7 +720,7 @@ Lands **first and on its own** (see "Contract changes land first"): green under 
    scroll-container rule must still hold inside a new parent). The sample images 404, so this measures the
    broken-image case (alt text, the `max-h-80` cap); a real image is checked by pointing one sample `image_url` at a
    local file served for the test and reverting it.
-8. **Browser check by Ari** (include phone width and an untimed show's block — review #6; expect `alt` text where
+8. **Browser check by Ari** (include phone width and an untimed show's block — PR1-6; expect `alt` text where
    the sample's `example.com` images 404, D4): each page; the day view's
    mode switch and Back; earlier/later on the venue page; a show
    block's time line → the show page; screen-reader name of that link; the tab titles.
@@ -776,7 +775,7 @@ tests (B5); Playwright; caching.
 | 5 | nit | `windowLinks` is unvalidated at the year bounds while `parseFromParam` rejects years above 9998 and below 1. From a window ending in year 9999, or starting in year 1, the "Later"/"Earlier" link silently lands on the default window. Practically unreachable, but the K2 and `parseFromParam` tests don't mention the interaction. | Plan "One edge, handled in the parser"; K2 *Code*. PLAUSIBLE. | A pager link that quietly resets to "now" instead of being absent. Cheap fix: say it is accepted and note it, or return `null` for that direction. |  **Fixed.** A written `windowNavLinks` wraps K2 and drops any link whose date `parseFromParam` would reject, so the parser is the single bound rule (tests in §2). K2's code is unchanged. |
 | 6 | nit | D3 makes the show block's time line the link, including the "Time not listed" / "Start time not listed" variants, whose accessible name becomes "Time not listed, show details" and whose link text is a statement, not an action. The link is also a small touch target (one line of `text-sm`) on 25 blocks per page. | `show-block.tsx` current time line; D3 text. PLAUSIBLE. | Awkward link text for untimed shows; fiddly tap target on phones. The Verification 8 browser check should include untimed shows and a phone width. |  **Fixed.** Untimed blocks keep "Time not listed" as text and get a separate "Details" link; the time link gets `inline-block py-1`. Verification 8 now includes phone width and an untimed show. |
 
-Rejected: none. Every finding was fixed in the plan body. **Round 2 isn't warranted in my view**: the fixes are additive, and the one structural change (#2, the gap swap) is put to Ari as D8.
+Rejected: none. Every finding was fixed in the plan body. **Round 2 isn't warranted in my view**: the fixes are additive, and the one structural change (PR1-2, the gap swap) is put to Ari as D8.
 
 ### Changes after Ari's decisions — October 14, 2026 (not reviewed)
 
@@ -845,17 +844,36 @@ Tests: `pnpm --filter calendar test json-ld calendar-window show-order`. Suggest
 
 ### Round 2 — Claude Sonnet 5.5, October 14, 2026 (the fixes for code review round 1)
 
-**Scope.** Only the fixes, on top of the committed scaffold `6b1cb39`: `apps/calendar/lib/json-ld.ts` and `json-ld.test.ts` (#1, #3), `apps/calendar/app/venue/[id]/page.tsx` (#7), `apps/api/app/tests/test_routers.py` (#6), `apps/calendar/AGENTS.md`, `docs/dev/{alpha-build-plan,notes}.md` and this file (#2, #4, #5, #8). The log's round 1 said "nothing else is committed" and "everything after it is uncommitted": that was true when written; **the scaffold was committed as `6b1cb39` (and pushed) during the review**, at the repository stop hook's request, with the plan file left out because the reviewer was writing into it. Reviewers' scope was unaffected (`git diff 2231f5e` shows the same changes either way).
+**Scope.** Only the fixes, on top of the committed scaffold `6b1cb39`: `apps/calendar/lib/json-ld.ts` and `json-ld.test.ts` (CR1-1, CR1-3), `apps/calendar/app/venue/[id]/page.tsx` (CR1-7), `apps/api/app/tests/test_routers.py` (CR1-6), `apps/calendar/AGENTS.md`, `docs/dev/{alpha-build-plan,notes}.md` and this file (CR1-2, CR1-4, CR1-5, CR1-8). The log's round 1 said "nothing else is committed" and "everything after it is uncommitted": that was true when written; **the scaffold was committed as `6b1cb39` (and pushed) during the review**, at the repository stop hook's request, with the plan file left out because the reviewer was writing into it. Reviewers' scope was unaffected (`git diff 2231f5e` shows the same changes either way).
 
 **Departures.**
-10. **The day view's active mode is a `<span aria-current="page">`, not a `<Link>`** (plan D6 said three links with `aria-current` on the active one). A link to the page you are on is noise. (Missed in round 1's list; found by code review #4.)
-11. **`eventEndDateTime` returns `null` for a contradictory both-before-5:00 AM listing** (#3). The plan specified only the cases in its test table; this is the rule for the one the review found.
+10. **The day view's active mode is a `<span aria-current="page">`, not a `<Link>`** (plan D6 said three links with `aria-current` on the active one). A link to the page you are on is noise. (Missed in round 1's list; found by CR1-4.)
+11. **`eventEndDateTime` returns `null` for a contradictory both-before-5:00 AM listing** (CR1-3). The plan specified only the cases in its test table; this is the rule for the one the review found.
 
 **`TODO(Ari)` gaps (all four still open).** K1 [lib/json-ld.ts:77](apps/calendar/lib/json-ld.ts#L77), K2 [lib/calendar-window.ts:24](apps/calendar/lib/calendar-window.ts#L24), K4 [lib/show-order.ts:46](apps/calendar/lib/show-order.ts#L46), K3 [lib/show-order.ts:74](apps/calendar/lib/show-order.ts#L74) (line numbers re-checked after the edits). **D9 is open**: whether K1 should be widened back to the two ideas D8 approved.
 
-**Verification.** See the end of code review round 1 for the suite results. Process notes: #3's two tests were written and run against the committed code first (failing), then the fix; #1's strengthened assertion and the comment fix were written together. The four snippets were re-applied (each asserted to appear in its gap comment) and the scaffold restored by SHA-256, because `json-ld.ts` changed.
+**Verification.** See the end of code review round 1 for the suite results. Process notes: CR1-3's two tests were written and run against the committed code first (failing), then the fix; CR1-1's strengthened assertion and the comment fix were written together. The four snippets were re-applied (each asserted to appear in its gap comment) and the scaffold restored by SHA-256, because `json-ld.ts` changed.
 
 **Where to look hardest.** The `null` rule in `eventEndDateTime` (is "omit" the right answer, or should the listing be flagged upstream in validation?) and D9.
+
+### Round 3 — Claude Sonnet 5.5, October 15–16, 2026 (the closed gaps and the designation convention)
+
+Not a fix round: Ari filled the four gaps, and `main` gained `docs/dev/conventions.md`, so the branch needed the cleanup pass `AGENTS.md` describes and a conversion to the new forms. No behaviour changed.
+
+**Scope.** Ari's gap commits through `24cb88c` and the merge of `main` (`00d2203`) on top of it: the B4-authored files under `apps/calendar` and `apps/api`, `AGENTS.md` (step 4 of the [fill-in] section), `docs/dev/{alpha-build-plan,notes,api-contract,conventions}.md` and this file.
+
+**What was done.**
+1. **Gaps closed.** K1–K4 were filled by Ari (D9 is moot: K1 stayed the narrow `withOffset` line). The scaffold came out of the source: `TODO(Ari)` blocks became plain why-comments that keep the reasoning and cite the plan by K-form (`B4-K1`…), `lib/todo.ts` was deleted, and the "stay red until Ari fills" notes left the test docstrings.
+2. **Designation convention.** Gap letters A–D became K1–K4; cross-plan references are scoped (`B2-D1`, `B3-K2`, `A2.1-D5`); review items are `B4-PR1-<n>` / `B4-CR1-<n>` in code and tests and bare `PR1-<n>` / `CR1-<n>` in this file (`#n` shorthand and "review #n" had been ambiguous between the two reviews).
+3. **`AGENTS.md` step 4** now says the cleanup keeps the K-form references and drops only the scaffolding, so the next milestone's pass does this in one step.
+
+**Departures.** Process: the scaffold and the step-0 commit were committed during the session rather than left uncommitted (the container is ephemeral); noted in round 1's review preamble.
+
+**`TODO(Ari)` gaps.** All four filled by Ari; no `TODO(Ari)` remains in `apps/` (`grep -rn "TODO(Ari)" apps` finds nothing in B4's files).
+
+**Verification.** Comment-only passes were checked as the Conventions require: the Python syntax trees (minus docstrings) and the TypeScript transpiles (comments removed) match the commit before each pass, for every file touched. `make check` after the pass: ruff, mypy, eslint, tsc clean; pytest **575 passed**, 14 skipped; Vitest **283 passed**; `make contract-check` current.
+
+**Where to look hardest.** The `PR1`/`CR1` forms in the older rounds' prose ("round 1's list", "(#3)") were converted only where a reader could mistake the review; the round tables keep their own row numbers, which are the IDs.
 
 ## Code review
 
@@ -905,8 +923,8 @@ Tests: `pnpm --filter calendar test json-ld calendar-window show-order`. Suggest
 | 7 | nit | The venue page keys its phone and email spans by value (`key={phone}`, `key={email}`). Both lists are scraped, and a site that lists the same number twice gives React duplicate keys. | `app/venue/[id]/page.tsx:114,126`. PLAUSIBLE (no sample venue has a duplicate). | A duplicate-key warning, and possibly a wrong reconciliation, from ordinary dirty data. `key={i}` (the list is static) or de-duplicating fixes it. |  **Fixed.** The phone and email spans are keyed `${i}:${value}`, so a duplicated scraped value can't produce duplicate keys (the lists are static, so the index is stable). |
 | 8 | nit | Shows at a venue with no address get JSON-LD with no `location.address`. Google's Event rich result treats the address as required for a physical location, but Verification 5 validates only `/show/2` and `/venue/3`, which both have addresses. Venue 1 (The White Squirrel Bar) has none in the sample: `/show/23`'s served JSON-LD has no `address`. | Served JSON-LD of `/show/23` (CONFIRMED). Google's requirement: PLAUSIBLE (the sandbox can't reach Google's docs or the validator). | Without that check, nobody learns whether a third of the venues' events lose rich results. Fix: add `/show/23` to Ari's V5 paste. Any real fix is data (the A track filling addresses), not an invented address. |  **Fixed.** `/show/23` added to Verification 5 (Ari's validator paste), with the reason: its venue has no address, so its `location` has none. No address is invented; filling addresses is the data's job (A track). |
 
-Rejected: part of #4 only (the canonical-link concern, reason above). Everything else was fixed in the code or the docs; #2 is put to Ari as D9 rather than decided here.
+Rejected: part of CR1-4 only (the canonical-link concern, reason above). Everything else was fixed in the code or the docs; CR1-2 is put to Ari as D9 rather than decided here.
 
 **Test-suite result after the fixes.** Handoff state (scaffold with the four gaps open): ruff, mypy (29 files), eslint, `next typegen` + tsc and pytest (**575 passed**, 14 skipped) clean; `make contract-check` current; Vitest **252 passed, 31 failed** — exactly the open gaps (json-ld 14, calendar-window 6, show-order 11), the same 31 as before. With the four `Code:` snippets applied from their comments (scaffold restored by checksum afterwards): `make check` fully green, **575 Python and 283 Vitest**.
 
-**Round 2 is not warranted.** The one behaviour change (#3) is a small, test-pinned `null` case; the rest is comments, docs and a key. The open question for Ari is D9, which is a design choice, not a defect.
+**Round 2 is not warranted.** The one behaviour change (CR1-3) is a small, test-pinned `null` case; the rest is comments, docs and a key. The open question for Ari is D9, which is a design choice, not a defect.
