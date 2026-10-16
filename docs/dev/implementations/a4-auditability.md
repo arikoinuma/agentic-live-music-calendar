@@ -364,12 +364,12 @@ turns `test_run_venue.py` and `test_audit_queries.py` red as well.
   - `mongodb_database: str = "calendar"`;
   - `log_format: Literal["auto", "console", "json"] = "auto"`.
 - `.env.example` moves Mongo from "not yet required" to required for worker runs, with the local URL.
-- `docker-compose.yml` gets a `mongo:8` service on 27017 with a named volume.
+- `docker-compose.yml` gets a `mongo` service on 27017 with a named volume (`mongo:8` as planned, `mongo:7.0` as built; see the D3 departure).
 - In the `Makefile`:
   - `db-wait` also waits on `mongosh --eval 'db.runCommand({ping:1})'`;
   - `db-reset` drops both volumes;
   - a `worker` target is added (`cd apps/api && uv run python -m agent_worker.main $(if $(VENUE),--venue $(VENUE))`).
-- `ci.yml`'s Python job gets a `mongo:8` service and `MONGODB_TEST_URI`.
+- `ci.yml`'s Python job gets a `mongo` service (`mongo:7.0`, matching compose) and `MONGODB_TEST_URI`.
 
 ### 3. `app/log_config.py` (written)
 
@@ -482,8 +482,10 @@ Each query sits under a `-- name:` header and a one-line comment saying the ques
 4. **`unfinished_runs`**: runs that ended without reaching commit or escalate, which means they crashed
    (D8), plus runs with no `finished_at` at all.
 
-The file's header shows how to run it: `make db-shell`, then `\set run_id 3`, then `\i docs/dev/audit-queries.sql`
-(or paste one query).
+The file's header shows how to run it. As built, the file is piped in from the host
+(`cat docs/dev/audit-queries.sql | docker compose exec -T postgres psql … -v run_id=3 -v show_id=12 -f -`), because
+`psql` runs inside the container and `\i` cannot see the repo; the original `\i` recipe is superseded (see
+Verification 5).
 
 ### 11. Docs and bookkeeping (written)
 
