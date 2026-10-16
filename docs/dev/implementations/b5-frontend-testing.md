@@ -1,9 +1,9 @@
 # B5 — frontend testing
 
-**Status:** Plan review
+**Status:** Awaiting approval
 **Date:** October 16, 2026
 **Author model:** Claude Sonnet 5.5
-**Reviewer model:** Claude Opus 5.5 (plan review round 1: pending)
+**Reviewer model:** Claude Opus 5.5 (plan review round 1)
 **Spec:** `docs/dev/alpha-build-plan.md` §6 B5 and §3 ("ALWAYS write tests first"); `docs/references/nextjs-style-guide.md` ("Testing" and the
 Anti-patterns table); `docs/arch/arch-initial.md` §4 (libraries table: `vitest`, `@testing-library/react`; filter and view
 state in the URL); `docs/arch/requirements-initial.md` ("Calendar": the filter header, "No matches found" with a reset
@@ -22,7 +22,7 @@ What exists, what the build plan asks for, and what B5 does about it:
 
 | Build-plan item | Today | B5 |
 |---|---|---|
-| `vitest` + `@testing-library/react` set up **[written]** | Vitest runs in the node environment; no Testing Library, no jsdom; a `.test.tsx` file **cannot even be parsed** (Checked, fact 1) | Four dev dependencies, a JSX setting, two Vitest projects and a setup file (step 1) |
+| `vitest` + `@testing-library/react` set up **[written]** | Vitest runs in the node environment; no Testing Library, no jsdom; a `.test.tsx` file **cannot even be parsed** (Checked, fact 1) | Five dev dependencies, a JSX setting, two Vitest projects and a setup file (step 1) |
 | Component tests: **the filter header** **[fill-in]** | `app/_components/filter-header.tsx`, a Client Component; no test | `filter-header.test.tsx` (steps 3–4; gaps K1, K2) |
 | Component tests: **the empty state** | Two inline messages inside `CalendarBody`, an **async** Server Component that the style guide says not to unit-test | Pull the sync part out as `CalendarResults` (D1), then test it (step 5; gap K3) |
 | Component tests: **the date grouping** | `groupCalendar` is a pure function with 14 tests already (`lib/calendar.test.ts`); what is untested is how `CalendarGrid` *renders* a row | `calendar-grid.test.tsx` and one integration test through `groupCalendar` and the 25-show fixture (step 5) |
@@ -57,7 +57,7 @@ working tree was never touched. CONFIRMED means the command was run and the outp
 | # | Fact | Evidence | Consequence |
 |---|---|---|---|
 | 1 | **The current config cannot run a component test.** A `.test.tsx` file fails at parse time: `Unexpected JSX expression` | CONFIRMED. `packages/typescript-config/nextjs.json` sets `"jsx": "preserve"` (Next compiles JSX itself); Vite 8 transforms with Oxc, which honours it and leaves JSX untransformed | `vitest.config.ts` needs `oxc: { jsx: { runtime: "automatic" } }`. This is also step 1's red state |
-| 2 | **jsdom's newest major (30.1.3) needs Node ≥ 22.22.2**; the sandbox has 22.22.0. jsdom 29.1.1 needs `^22.13.0`, CI runs Node 24 | `npm view jsdom@30 engines`; jsdom 29 ran every test on this Node | Pin `jsdom@^29`. The repo's floor is already ≥ 22.12 through Vitest 5 itself (`^22.12.0 \|\| ^24 \|\| >=26`), so no `engines` change. A Dependabot bump to 30 will pass CI and fail a cloud session; recorded in `notes.md` |
+| 2 | **jsdom's newest major (30.1.3) needs Node `^22.22.2 \|\| ^24.15.0 \|\| >=26.0.0`**; the sandbox has 22.22.0, which is below the first. jsdom 29.1.1 needs `^20.19.0 \|\| ^22.13.0 \|\| >=24.0.0`; CI's `node-version: 24` resolves to the newest 24.x | `npm view jsdom@30 engines`; jsdom 29 ran every test on this Node | Pin `jsdom@^29`. The repo's floor is already ≥ 22.12 through Vitest 5 itself (`^22.12.0 \|\| ^24 \|\| >=26`), so no `engines` change. A Dependabot bump to 30 will very likely pass CI and fail a cloud session or a laptop on an older 24.x; the full range goes in `notes.md` |
 | 3 | `@testing-library/dom` is a **peer** of `@testing-library/react` 16.3.3, so it must be installed explicitly | `npm view @testing-library/react peerDependencies` | Five packages, not four: `jsdom`, `@testing-library/{react,dom,user-event,jest-dom}` |
 | 4 | **Two Vitest projects work side by side.** `*.test.ts` stays in the node environment (`typeof document === "undefined"` is true inside it), `*.test.tsx` runs in jsdom; the `@` and `server-only` aliases carry over with `extends: true` | CONFIRMED: all 14 existing files (283 tests) passed in the `unit` project beside a jsdom project | The file extension picks the environment. No docblock to forget |
 | 5 | Testing Library's **automatic cleanup needs `afterEach` as a global**, and this repo does not enable Vitest globals | CONFIRMED: two tests each rendering `<p>one</p>` pass only with a setup file calling `cleanup()` | `test/setup-dom.ts` does `afterEach(() => cleanup())` and loads jest-dom's matchers |
@@ -128,7 +128,9 @@ alternative is cheap to switch to (noted per decision).
 2. **`userEvent`, not `fireEvent`** (fact 7). `const user = userEvent.setup()` per test.
 3. **Mock only the framework's edge**: `useRouter` from `next/navigation`. Nothing else is faked: not Base UI, not
    `next/link`, not the date library.
-4. **Assert the outcome, whole**: the entire pushed URL, the entire accessible name. Never `toHaveBeenCalled()` alone.
+4. **Assert the outcome, whole**: the entire pushed URL, the entire accessible name, and the call count. Use
+   `toHaveBeenCalledExactlyOnceWith(url, { scroll: false })`, never `toHaveBeenCalled()` or `toHaveBeenCalledWith` alone: a pick
+   that navigated twice would add a history entry and break Back (B3-D8) while every `toHaveBeenCalledWith` stayed green (PR1-3).
 5. **Absence is asserted with `queryBy*`** (returns `null`); `getBy*` throws.
 6. **No snapshot tests.** They would pin Tailwind class strings, which change every session, and say nothing about what
    they prove.
@@ -236,9 +238,15 @@ a bug in the other.
   **no** `<img>` (the list `httpUrlOrNull` already pins in `detail-format.test.ts`; this proves the component honours
   it); an `https:` URL renders one with the given `alt`, `loading="lazy"`, `decoding="async"` and
   `referrerpolicy="no-referrer"`; a passed `className` is added to the defaults.
-- `app/_components/json-ld.test.tsx`: renders exactly one `<script type="application/ld+json">`; a name containing
-  `</script><script>alert(1)</script>` parses back (`JSON.parse(textContent)`) to the original and leaves the container
-  with one script; an array renders as one script. Pairs with `json-ld.test.ts`, which pins that the *string* never has a `<`.
+- `app/_components/json-ld.test.tsx`: **tests the server's markup, not a client render** (PR1-1). Render with
+  `renderToStaticMarkup(<JsonLd data={evil} />)` from `react-dom/server` and parse the result as a document:
+  `` new DOMParser().parseFromString(`<!doctype html><body>${html}</body>`, "text/html") ``. For a name containing
+  `</script><script>alert(1)</script>` the parsed body must hold exactly **one** `<script type="application/ld+json">`
+  whose `JSON.parse(textContent)` equals the original; an array renders as one script. *Proves (and the file says so):*
+  `render()` goes through React DOM on the client, which sets the script's text with `innerHTML`, and that path never
+  treats `</script>` as an end tag, so a Testing Library render is green even for an unescaped `JSON.stringify`. The
+  breakout only happens when the server's HTML goes through the document parser, which is what search engines do. Pairs
+  with `json-ld.test.ts`, which pins that the *string* never has a `<`.
 
 ### What is *not* covered, stated plainly
 
@@ -293,8 +301,11 @@ concept lives, not where the typing is: none of these is a JSX or import line.
   const { push } = vi.hoisted(() => ({ push: vi.fn() }));
   vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
   ```
-  *Check:* `pnpm --filter calendar test filter-header`. While open, every test in the file fails with `TODO(Ari)`; filled,
-  all of them run. Likeliest mistakes: a top-level `const push = vi.fn()` read eagerly inside the factory (`Cannot access
+  *Scaffold shape (PR1-2):* the gap is left as `const { push } = vi.hoisted((): { push: Mock } => { throw new Error("TODO(Ari)"); });`
+  with **no** `vi.mock` line (`Mock` imported from `vitest`). The annotation keeps `push` typed for the tests that use it, so
+  `pnpm check-types` and `pnpm lint` stay green; Ari replaces the body and adds the `vi.mock` line.
+  *Check:* `pnpm --filter calendar test filter-header`. While open, the file does not load: Vitest reports one failed suite,
+  `Error: TODO(Ari)`, with **zero tests** run (no individual test fails); filled, all of them run. Likeliest mistakes: a top-level `const push = vi.fn()` read eagerly inside the factory (`Cannot access
   'push' before initialization`), or mocking more than the router (a faked combobox passes while proving nothing about it).
 - **K2 — Drive the combobox like a person and assert the whole URL, same file, the first "Navigation" test** (step 3).
   *Lesson:* three habits in four lines. Locate by **role and accessible name**, the way a screen-reader user perceives the
@@ -309,12 +320,13 @@ concept lives, not where the typing is: none of these is a JSX or import line.
   renderHeader({ venueIds: [3], artistIds: [7], month: "2026-10" });
   await user.click(screen.getByLabelText("Venues"));
   await user.click(await screen.findByRole("option", { name: "The White Squirrel Bar" }));
-  expect(push).toHaveBeenCalledWith("/?venue=1&venue=3&artist=7&month=2026-10", { scroll: false });
+  expect(push).toHaveBeenCalledExactlyOnceWith("/?venue=1&venue=3&artist=7&month=2026-10", { scroll: false });
   ```
   *Check:* the test goes green on the real header, and goes **red** when `filter-header.tsx` is mutated by M2 (a venue pick
   drops the other filters) or M1 (`{ scroll: false }` removed): the second is what makes the options argument matter.
   Likeliest mistakes: `fireEvent.click` (times out waiting for the option), the expected URL built with
-  `buildCalendarHref`, or `expect(push).toHaveBeenCalled()` with no argument (passes under both mutations).
+  `buildCalendarHref`, or `expect(push).toHaveBeenCalled()` with no argument (passes under both mutations). `toHaveBeenCalledWith`
+  is a weaker miss: it ignores a second navigation, which `toHaveBeenCalledExactlyOnceWith` catches (PR1-3).
 - **K3 — The empty state's second half: assert absence, `calendar-results.test.tsx`** (step 5).
   *Lesson:* the requirement ("No matches found" with a link to reset) has a quieter half: with **nothing** filtered there is
   nothing to reset, so the page must neither say "No matches" nor offer a reset (telling an unfiltered visitor to reset
@@ -412,7 +424,7 @@ Run every mutation in the table, record the red test, restore, and show `git dif
 1. **Tests first.** The infrastructure red states are recorded (Tests-first caveat); each new test file was run with its
    stubs or missing config and failed for the stated reason before the fix.
 2. **`make check` green**, except that at handoff the tests behind the open gaps fail and the log lists exactly which:
-   every test in `filter-header.test.tsx` (K1 makes the whole file fail to load), plus the two K3 tests in
+   `filter-header.test.tsx` as one failed suite with zero tests run (K1 makes the whole file fail to load), plus the two K3 tests in
    `calendar-results.test.tsx`. Baseline: 14 files / 283 tests; the log records the new totals (roughly fifty tests
    added, about twenty of them D2's). `pnpm lint` and `pnpm check-types` report nothing.
 3. **Mutation pass.** Each mutation is applied to the component alone, the suite run, and the named test must go red.
@@ -432,7 +444,7 @@ Run every mutation in the table, record the red test, restore, and show `git dif
    | M10 | `ShowBlock`: per-act times shown on single-act bills | show-block test 6 |
    | M11 | `ErrorPage` renders `error.message` | error test 1 |
    | M12 | `RemoteImage` uses `src` directly, skipping `httpUrlOrNull` | remote-image `javascript:` row |
-   | M13 | `JsonLd` uses `JSON.stringify(data)` instead of `jsonLdScriptContent` | json-ld `</script>` test |
+   | M13 | `JsonLd` uses `JSON.stringify(data)` instead of `jsonLdScriptContent` | the json-ld server-markup `</script>` test (PR1-1: the client-render version stays green, so it is not the one that counts) |
 
    `git diff` after the pass must show none of them left behind.
 4. **The extraction is invisible** (D1; fact 13). Same six URLs, API up (`uv run uvicorn app.main:app` from `apps/api`,
@@ -460,7 +472,56 @@ page; visual regression; any change to the API, its types or the fixtures.
 
 - **Playwright (the deferred item):** the list under "What is not covered" is its starting backlog: the async pages, the
   real-router flow behind the header, `Updating…`/`aria-busy`, and the empty window.
-- **Hosted phase / Dependabot:** a `jsdom` 30 PR will need Node ≥ 22.22.2; CI's Node 24 satisfies it, a cloud session on 22.22.0
-  will not (fact 2).
+- **Hosted phase / Dependabot:** a `jsdom` 30 PR needs Node `^22.22.2 || ^24.15.0 || >=26.0.0`; CI's newest-24.x resolution very
+  likely satisfies it, a cloud session on 22.22.0 or a laptop on an older 24.x will not (fact 2).
 - **Other unlabeled controls:** B5 found one by testing; a second look at the remaining Base UI wrappers (select items, the
   combobox clear) belongs to the first accessibility pass, not here.
+
+## Plan review
+
+### Round 1 — Claude Opus 5.5, October 16, 2026
+
+**Scope:** the plan as committed in `01de543` (no code yet). **Read:** `AGENTS.md` ("[fill-in] tasks", "Implementation
+plans"), `apps/calendar/AGENTS.md`, `docs/references/nextjs-style-guide.md` (Testing, Anti-patterns),
+`alpha-build-plan.md` §6 B5, `arch-initial.md` §4 libraries table, `requirements-initial.md` ("Calendar" empty state),
+`conventions.md` (scope table), the B3 plan's handoff pattern, and the code the plan touches or tests:
+`app/page.tsx`, `app/_components/{filter-header,calendar-grid,show-block,remote-image,json-ld}.tsx`, `app/error.tsx`,
+`lib/calendar-href.ts`, `packages/ui/src/components/combobox.tsx`, `vitest.config.ts`, `turbo.json`, `Makefile`, CI,
+`.github/dependabot.yml`, and `lib/fixtures/{shows,venues,artists}.json`.
+
+**Run, in a throwaway `git worktree` at `4286333` (removed afterwards; the real tree was not touched):**
+`pnpm install --frozen-lockfile`, then the plan's five dev dependencies (resolved to jsdom 29.1.1, RTL 16.3.3, dom 10.4.2,
+user-event 14.6.8, jest-dom 7.0.1; lockfile +495 lines), the plan's two-project `vitest.config.ts` with the Oxc JSX
+setting, and `test/setup-dom.ts`. Results:
+- Baseline is **14 files / 283 tests**, all green in the `unit` project beside the jsdom project (facts 4–5). CONFIRMED.
+- A prototype `filter-header.test.tsx` with K1 and K2 as written: K2's test, the "Next four weeks" pick (`/?venue=1`),
+  the Month trigger's `toHaveTextContent("October 2026")`, typing `mid` / `zzz`, and "Clear filters" with a month alone
+  all pass on the real header (facts 6–7). CONFIRMED. With two chips the only two buttons have `aria-label` null and
+  empty text (fact 10). CONFIRMED.
+- `pnpm check-types` and `pnpm lint` pass with the `.test.tsx` files present (jest-dom's types through the setup file,
+  fact 9). CONFIRMED.
+- Mutation M12 (`RemoteImage` skips `httpUrlOrNull`): five of the six "no `<img>`" rows go red. CONFIRMED.
+- Mutation M13 (`JsonLd` uses `JSON.stringify`): the test **as section 5 describes it stays green**; see #1. CONFIRMED.
+- Fixture facts: 28 dates `2026-09-28`–`2026-10-25`, 25 shows on 20 dates; 2026-10-07 holds ids 8, 22, 23, 24, 25 at four
+  venues; show 2 is 21:00–23:30 with acts at 21:00 / 22:30 and $18/$22; show 22 has a start time (18:00) and no price, so
+  the plan's overrides for tests 3 and 6 are needed and stated; show 25 is 01:00 and free; venue ids 1 White Squirrel,
+  2 Midway, 3 Zhora, 4 Terminal; artist 7 is Humbird. All as the plan says. CONFIRMED.
+- `npm view jsdom@30 engines` → `^22.22.2 || ^24.15.0 || >=26.0.0`; jsdom 29.1.1 → `^20.19.0 || ^22.13.0 || >=24.0.0`;
+  jest-dom 7 → `node >=22`. CONFIRMED.
+
+Not run: Verification 4 (the browser `<main>` comparison) and 5 (`next build`); both need the API and a build, and the
+method is sound as written. The test approach is tests-first throughout, and the three gaps sit where the testing
+concepts live (the mock at the framework's edge, user-like driving with a whole-URL assertion, asserting absence);
+none is markup or imports.
+
+**Counts:** 0 blocker, 1 should-fix, 4 nit. **Verdict: proceed after fixes.**
+
+| # | Sev | Finding | Evidence | What goes wrong | Resolution |
+|---|---|---|---|---|---|
+| 1 | should-fix | **The planned `JsonLd` test cannot catch the bug it is for (M13).** Section 5 renders `<JsonLd>` with Testing Library and checks that `JSON.parse(textContent)` round-trips and that the container holds one `<script>`. `render()` goes through React DOM on the client, which sets the script's content via `innerHTML`, and fragment parsing in a `<script>` context never treats the text `</script>` as an end tag. So the unescaped `JSON.stringify` output also round-trips and also leaves one script. The `</script>` breakout only happens when the **server's HTML** goes through the document parser. A version that does go red: `renderToStaticMarkup(<JsonLd data={evil} />)` from `react-dom/server`, parsed with `` new DOMParser().parseFromString(`<!doctype html><body>${html}</body>`, "text/html") ``, then assert one `<script>` and the `JSON.parse` round-trip. This works in the jsdom project as-is. | CONFIRMED in the worktree: with `JSON.stringify(data)` in place of `jsonLdScriptContent(data)`, the client-render test passed, and the `renderToStaticMarkup` + `DOMParser` test failed with `expected <script …(1)></script><script></script> to have a length of 1 but got 2`. Both pass on the real component. | The pin is green whatever `JsonLd` does, which is the failure `AGENTS.md` warns about ("tests that … can't catch that code being wrong"). The Verification 3 mutation pass would probably expose this during implementation, but the plan's test description and M13's "Must go red" row are written for the version that can't fail. Change section 5's json-ld bullet to the server-markup form and say in its `Proves:` why a client render is not enough. | **Fixed.** Section 5's json-ld bullet now renders with `renderToStaticMarkup` and parses the HTML with `DOMParser`, asserts one script plus the `JSON.parse` round-trip, and states in its `Proves:` why a client render stays green; the M13 row in Verification 3 names that test as the one that must go red. Accepted on the reviewer's reproduction (green client render, red server-markup test under `JSON.stringify`); I did not re-run it, and Verification 3's mutation pass re-confirms it at build time. |
+| 2 | nit | **K1's scaffold shape is unspecified, and its Check contradicts Verification 2.** K1's Check says "every test in the file fails with `TODO(Ari)`". Verification 2 says "K1 makes the whole file fail to load". The second is what happens: a throw while the module is being evaluated is reported as `FAIL … [ filter-header.test.tsx ]  Error: TODO(Ari)`, `(0 test)`, under "Failed Suites", and no test fails individually. The plan also doesn't say how the scaffold declares `push`, which every written test uses. Leave it undeclared and `check-types` fails as well, which breaks "`pnpm lint` and `pnpm check-types` report nothing". One shape that keeps both green: `const { push } = vi.hoisted((): { push: Mock } => { throw new Error("TODO(Ari)"); });` with no `vi.mock` line (`Mock` imported from `vitest`). Ari then replaces the body and adds the `vi.mock` line. | CONFIRMED in the worktree: that scaffold gives the load failure above, and `pnpm check-types` and `pnpm lint` both pass with it. | The handoff tells Ari to expect red tests and he sees a red *suite* with zero tests. Or the implementer picks a shape that breaks typecheck, and `make check` at handoff fails for a reason the log doesn't list. State the scaffold shape in K1 and make the two descriptions agree. | **Fixed.** K1 now has a "Scaffold shape" line (`vi.hoisted((): { push: Mock } => { throw … })`, no `vi.mock` line, typed so `check-types` and `lint` stay green), and its Check says the file fails to load as one failed suite with zero tests; Verification 2 says the same. |
+| 3 | nit | **`toHaveBeenCalledWith` doesn't check that a pick navigates exactly once.** K2's Code and tests 5–9 use `expect(push).toHaveBeenCalledWith(url, { scroll: false })`, which passes when `push` was called with that URL *among other calls*. Under B3-D8 (`push`, not `replace`, so Back undoes a filter change), a second push per pick would add an extra history entry, and these assertions would not notice. Vitest 5 has `toHaveBeenCalledExactlyOnceWith(url, { scroll: false })`, which checks both the arguments and the count. That is ground rule 4 ("assert the outcome, whole") applied to the call count. | CONFIRMED: the K2 test and the "Next four weeks" test both pass with `toHaveBeenCalledExactlyOnceWith` on the real header (`beforeEach(() => push.mockClear())` already resets the count). | A double navigation per pick (for example a future `onValueChange` + `onInputValueChange` wiring) breaks Back and passes every header test. Cheap to close now, and it fits K2's lesson. | **Fixed.** K2's Code uses `toHaveBeenCalledExactlyOnceWith`, ground rule 4 requires it for every push assertion (the call count is part of "assert the outcome, whole"), and K2's likeliest-mistakes note says why `toHaveBeenCalledWith` alone is a weaker miss. |
+| 4 | nit | **The jsdom 30 floor is incomplete.** Fact 2 and the "Hosted phase / Dependabot" follow-up say jsdom 30 needs Node ≥ 22.22.2 and that "CI's Node 24 satisfies it". The actual range is `^22.22.2 \|\| ^24.15.0 \|\| >=26.0.0`, so Node 24 before 24.15 is excluded too. CI's `node-version: 24` resolves to the newest 24.x, so CI is very likely fine, but a laptop on an older 24 is not. | CONFIRMED: `npm view jsdom@30 engines`. CI: `.github/workflows/ci.yml:94`. | The `notes.md` entry and the follow-up would give the wrong floor to whoever hits it on a 24.x laptop. Quote the whole range. | **Fixed.** Fact 2, its consequence cell and the Dependabot follow-up quote `^22.22.2 \|\| ^24.15.0 \|\| >=26.0.0`, and the `notes.md` entry in step 9 will carry the same range. |
+| 5 | nit | **"Four dev dependencies" vs five.** The first row of the Context table says "Four dev dependencies". Fact 3, departure 1 and step 1 say five (and five is correct). | Plan, Context table row 1 vs. fact 3 and step 1. | Small inconsistency. It would get copied into the build-plan departure text in step 9. | **Fixed.** The Context table's first row now says "Five dev dependencies". |
+
+**Rejected:** none. All five findings were accepted. #1 rests on the reviewer's reproduction rather than a re-run of mine; Verification 3 (M13) re-checks it when the test is built.
