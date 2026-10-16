@@ -114,3 +114,52 @@ def text_page(*lines: str) -> str:
 
 
 FETCHED = datetime.date(2026, 10, 12)
+
+
+# ---------------------------------------------------------------------------
+# A4: the stores the graph writes to, recorded instead of written
+# ---------------------------------------------------------------------------
+#
+# The graph writes its audit trail through `WorkerContext.audit` and its raw staging record through
+# `WorkerContext.stager` (agent_worker/context.py). These two stand in for Postgres and MongoDB so the
+# graph tests need neither; the tests against the real stores are test_audit_writer.py and
+# test_staging_mongo.py. They are typed loosely (`Any`) so this module does not import `agent_worker.audit`
+# and stay loadable for tests that only need the model fakes above.
+
+
+class RecordingAudit:
+    """An `AuditWriter` that keeps what it was asked to write, in order, in memory."""
+
+    def __init__(self) -> None:
+        self.runs: list[tuple[int, Any]] = []  # (venue_id, trigger) per start_run
+        self.entries: list[Any] = []  # AuditEntry, in the order written
+        self.finished: list[int] = []
+
+    async def start_run(self, venue_id: int, trigger: Any) -> int:
+        self.runs.append((venue_id, trigger))
+        return len(self.runs)
+
+    async def record(self, entry: Any) -> int:
+        self.entries.append(entry)
+        return len(self.entries)
+
+    async def finish_run(self, run_id: int) -> None:
+        self.finished.append(run_id)
+
+    def steps(self) -> list[tuple[str, int]]:
+        """(step, attempt) per row, the shape most graph tests assert on."""
+        return [(e.step_type.value, e.attempt_number) for e in self.entries]
+
+
+class RecordingStager:
+    """A `Stager` that keeps the documents it was given; `fail=True` makes every write raise."""
+
+    def __init__(self, *, fail: bool = False) -> None:
+        self.documents: list[dict[str, Any]] = []
+        self.fail = fail
+
+    async def stage(self, document: dict[str, Any]) -> str:
+        if self.fail:
+            raise RuntimeError("the staging store is down")
+        self.documents.append(document)
+        return f"doc-{len(self.documents)}"

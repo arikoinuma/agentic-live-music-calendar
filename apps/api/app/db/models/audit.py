@@ -29,6 +29,7 @@ docs/dev/implementations/a1-data-layer.md:
   `finished_at` are its lifecycle timestamps.
 * `audit_log.confidence` is `Numeric(4, 3)` (0.000–1.000). The worker holds a
   float; A4 converts at the write.
+* `audit_log.detail` (JSONB, nullable) is added by A4 — see the column's comment.
 """
 
 import datetime
@@ -102,6 +103,14 @@ class AuditLog(Base):
     # R2 object key for the page snapshot, on `fetch` rows. R2 is deferred,
     # so this stays NULL until it lands.
     snapshot_key: Mapped[str | None]
+    # The evidence behind this step: the *why* that the typed columns above
+    # have no place for. Validate's verdict and failure reasons, fetch's error,
+    # extract's route and tier and the id of its MongoDB staging document,
+    # escalate's reason. A4 departure from data-model-initial.md section 3
+    # (docs/dev/implementations/a4-auditability.md, A4-D2). Deliberately not
+    # `new_value`: that column is what a future revert restores, and mixing
+    # evidence into it would make revert guess which keys are the row.
+    detail: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

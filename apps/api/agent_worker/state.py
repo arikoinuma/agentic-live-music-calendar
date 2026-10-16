@@ -148,3 +148,19 @@ class VenueGraphState(BaseModel):
 
     # escalation_reason — a plain-English reason, composed by escalate_node. A6 writes it.
     escalation_reason: str | None = None
+
+    # ---------------------------------------------------------------------
+    # A4: auditability (docs/dev/implementations/a4-auditability.md)
+    # ---------------------------------------------------------------------
+
+    # run_id — the `agent_run.id` of this venue's processing cycle: the `parent_run_id` of
+    # arch-initial.md §7. Set by `main.run_venue` before the graph starts and carried here, not in a module
+    # global, so every node's audit row points at the run that produced it. None when a caller runs the
+    # graph without a run (a test of one node); the rows then have a NULL run_id.
+    run_id: int | None = None
+
+    # extraction_sent_text — what the model was actually given as the page on the attempt that just ran
+    # (PageExtractionResult.sent_text), kept so the raw-staging document can record it (A2.1-E17). Assigned
+    # on EVERY attempt, None where the call failed before returning it, for the same reason as the A3
+    # per-attempt fields above.
+    extraction_sent_text: str | None = None

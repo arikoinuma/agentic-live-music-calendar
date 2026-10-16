@@ -13,7 +13,7 @@ API_DIR := apps/api
 WEB := calendar
 
 .DEFAULT_GOAL := help
-.PHONY: help setup dev api web db db-up db-down db-reset db-shell db-wait \
+.PHONY: help setup dev api web db db-up db-down db-reset db-shell db-wait worker \
         migrate migration seed fixtures types contract-check test lint typecheck \
         check clean
 
@@ -72,17 +72,17 @@ web: ## Run Next.js alone
 
 db: db-up db-wait ## Start Postgres and wait for it to accept connections
 
-db-up: ## Start the Postgres container
+db-up: ## Start the Postgres and MongoDB containers
 	@docker info > /dev/null 2>&1 || { \
 		echo "Docker isn't running. Start Docker Desktop and try again."; \
 		exit 1; \
 	}
 	docker compose up -d
 
-db-down: ## Stop the Postgres container (keeps data)
+db-down: ## Stop the Postgres and MongoDB containers (keeps data)
 	docker compose down
 
-db-reset: ## Destroy the database volume and rebuild it from migrations
+db-reset: ## Destroy the database volumes (Postgres and MongoDB) and rebuild from migrations
 	@echo "This deletes all local database data."
 	@read -p "Continue? [y/N] " ok; [ "$$ok" = "y" ] || exit 1
 	docker compose down -v
@@ -91,10 +91,14 @@ db-reset: ## Destroy the database volume and rebuild it from migrations
 db-shell: ## Open psql against the local database
 	docker compose exec postgres psql -U postgres -d calendar_dev
 
-db-wait: ## Block until Postgres accepts connections
-	@echo -n "Waiting for Postgres"
+worker: ## Run the agent worker once: all venues, or VENUE=<id> (needs make db-up and Ollama)
+	cd $(API_DIR) && uv run python -m agent_worker.main $(if $(VENUE),--venue $(VENUE))
+
+db-wait: ## Block until Postgres and MongoDB accept connections
+	@echo -n "Waiting for Postgres and MongoDB"
 	@for i in $$(seq 1 30); do \
-		if docker compose exec -T postgres pg_isready -U postgres -q 2>/dev/null; then \
+		if docker compose exec -T postgres pg_isready -U postgres -q 2>/dev/null \
+			&& docker compose exec -T mongo mongosh --quiet --eval 'db.runCommand({ping:1}).ok' > /dev/null 2>&1; then \
 			echo " ready."; exit 0; \
 		fi; \
 		echo -n "."; sleep 1; \
