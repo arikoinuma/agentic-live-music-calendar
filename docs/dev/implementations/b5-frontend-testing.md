@@ -1,9 +1,9 @@
 # B5 — frontend testing
 
-**Status:** Awaiting approval
+**Status:** Code review
 **Date:** October 16, 2026
 **Author model:** Claude Sonnet 5.5
-**Reviewer model:** Claude Opus 5.5 (plan review round 1)
+**Reviewer model:** Claude Opus 5.5 (plan review round 1; code review round 1 pending)
 **Spec:** `docs/dev/alpha-build-plan.md` §6 B5 and §3 ("ALWAYS write tests first"); `docs/references/nextjs-style-guide.md` ("Testing" and the
 Anti-patterns table); `docs/arch/arch-initial.md` §4 (libraries table: `vitest`, `@testing-library/react`; filter and view
 state in the URL); `docs/arch/requirements-initial.md` ("Calendar": the filter header, "No matches found" with a reset
@@ -85,10 +85,9 @@ working tree was never touched. CONFIRMED means the command was run and the outp
 
 ## Decisions for Ari
 
-**Open. None of these has been decided.** Each has a recommendation; the plan is written to the recommendation, and the
-alternative is cheap to switch to (noted per decision).
+**Settled by Ari, October 16, 2026: D1–D4 are accepted as recommended, and the plan is approved for implementation.** Each decision below keeps its recommendation and its alternative on record.
 
-- **D1 — Extract `CalendarResults` (a sync component) and `hasActiveFilters` (a pure helper). Recommended: yes.**
+- **D1 — Extract `CalendarResults` (a sync component) and `hasActiveFilters` (a pure helper). Decided: yes (recommended).**
   The empty state is the build plan's second named test target, and it cannot be tested where it lives: both messages
   sit inside `CalendarBody`, which `await`s five API calls. The extraction moves the `shows.length === 0 ? … : <grid>`
   branch into `app/_components/calendar-results.tsx` (props `start`, `end`, `shows`, `today`, `filters`; no fetching),
@@ -98,21 +97,21 @@ alternative is cheap to switch to (noted per decision).
   Evidence the move is safe: fact 13 (identical rendered `<main>` for six URLs). Cost: one new component and one helper;
   `page.tsx` gets shorter. *Alternative:* leave the page alone, test only `CalendarGrid`, and leave the empty state to
   Playwright (the build plan's named item is then not met, and "No matches found" has no check until then).
-- **D2 — Scope beyond the three named targets. Recommended: add `ShowBlock` and three "pin" tests.**
+- **D2 — Scope beyond the three named targets. Decided: add `ShowBlock` and three "pin" tests (recommended).**
   `ShowBlock` is the grid's cell and holds the render layer's densest logic (seven branches: time link vs. "Details"
   link, an end time with no start, `withVenue`, per-act times only on multi-act bills, and "price not stated is *not* free").
   The pins each guard a property whose loss would be silent: `ErrorPage` never prints `error.message` (B2's server-log
   reasoning), `RemoteImage` renders nothing for a non-http(s) URL and sets `no-referrer` (B4-D4), and `JsonLd` cannot be
   closed early by a `</script>` in scraped text (B4). Together about twenty tests, kept in their own steps (6 and 7) so
   dropping either is a deletion. *Alternative:* only the three named targets, and the rest stay in "Not covered".
-- **D3 — Give the chip-remove buttons an accessible name now. Recommended: fix, test first.**
+- **D3 — Give the chip-remove buttons an accessible name now. Decided: fix, test first (recommended).**
   Fact 10 is a real defect in the shipped UI that this milestone's own tooling found: the primary way to un-pick a
   filter is a button a screen reader calls "button". The fix is 3 lines in the shared `combobox.tsx` (an optional
   `removeLabel`) and 1 in `FilterHeader` (fact 11), written as a failing test first. It also lets the test suite cover
   chip removal by role and name instead of by position or `data-slot`. It touches `packages/ui`, which is the cost.
   *Alternative:* leave the UI alone, record the gap in `notes.md`, and mark the test `it.todo("names each chip's remove
   button")` so it shows in every run; chip removal is then tested only through the option list (which works: it is test 5).
-- **D4 — Include `@testing-library/jest-dom`. Recommended: yes.** It gives `toBeInTheDocument()`, `toHaveAttribute()` and
+- **D4 — Include `@testing-library/jest-dom`. Decided: yes (recommended).** It gives `toBeInTheDocument()`, `toHaveAttribute()` and
   `toHaveTextContent()` with failure messages that print the element (`expected element to have attribute href="/"`,
   received the actual attributes), and it is what Testing Library's own docs assume. Cost: one more dev dependency and a
   type augmentation through the setup file (fact 9 shows it type-checks). *Alternative:* plain DOM assertions
@@ -525,3 +524,52 @@ none is markup or imports.
 | 5 | nit | **"Four dev dependencies" vs five.** The first row of the Context table says "Four dev dependencies". Fact 3, departure 1 and step 1 say five (and five is correct). | Plan, Context table row 1 vs. fact 3 and step 1. | Small inconsistency. It would get copied into the build-plan departure text in step 9. | **Fixed.** The Context table's first row now says "Five dev dependencies". |
 
 **Rejected:** none. All five findings were accepted. #1 rests on the reviewer's reproduction rather than a re-run of mine; Verification 3 (M13) re-checks it when the test is built.
+
+## Implementation log
+
+### Round 1 — Claude Sonnet 5.5, October 16, 2026 (the build)
+
+**Approval:** Ari approved the plan on October 16, 2026 and accepted D1–D4 as recommended (recorded in "Decisions for Ari"). Status went `Awaiting approval` → `Approved` → `Code review`.
+
+**Scope:** the commit range **`b601c5a..HEAD`** on `claude/busy-carson-tyjbix` (the build is the commit after `b601c5a`; the commit is pushed with the tests for the open gaps red, per `AGENTS.md` "Branches and PRs", item 5). Files:
+- New: `apps/calendar/test/setup-dom.ts`; `apps/calendar/app/_components/calendar-results.tsx`; tests `app/_components/{calendar-grid,calendar-results,filter-header,show-block,remote-image,json-ld}.test.tsx` and `app/error.test.tsx`.
+- Modified: `apps/calendar/vitest.config.ts`, `package.json`, `pnpm-lock.yaml` (generated by `pnpm add`, +497 lines); `app/page.tsx`, `app/_components/filter-header.tsx`; `lib/calendar-href.ts` and `.test.ts`; `packages/ui/src/components/combobox.tsx` (D3).
+- Docs: `alpha-build-plan.md` (B5 section), `apps/calendar/AGENTS.md`, `docs/references/nextjs-style-guide.md` (one stale sentence), `docs/dev/conventions.md` (`B5` scope, `<scope>-M<n>` form), `docs/dev/notes.md` (one new entry), this plan (decisions recorded, this log).
+- Not touched: `apps/api`, `lib/api-types.ts`, any fixture.
+
+**What was built, by step:** (1) five dev dependencies and a two-project config; (2) `hasActiveFilters` and `CalendarResults` extracted (D1); (3) the filter header's tests, with K1 and K2 scaffolded; (4) the chip-remove accessible name (D3), test first; (5) grid and results tests, K3 scaffolded; (6) `ShowBlock` tests; (7) the three pins; (8) the mutation pass; (9) docs.
+
+**Tests-first record.** Infrastructure: with the old config the first `calendar-grid.test.tsx` run failed with `Unexpected JSX expression`; after the Oxc setting alone, with `document is not defined` in all 7 tests; after the two projects and the setup file, it passed and the 283 existing tests stayed green and unmodified. `hasActiveFilters` and `CalendarResults` were throwing stubs first (9 red, `not implemented`) and then implemented. D3: with K1/K2 filled in scratch, exactly one test failed, `Unable to find an accessible element with the role "button" and name "Remove Zhora Darling"`, the other 14 passed, and the 3-line fix turned it green.
+
+**Departures from the plan, each with its reason:**
+1. **Verification 5's second bundle grep is narrowed.** The plan's `grep -rl "testing-library\|jsdom" .next/static` hits one chunk, but the match is Base UI's own runtime check (`/jsdom|happydom/.test(userAgent)`), already shipped before B5. Checked: `testing-library` and `user-event` have **0** hits. The recorded check is `testing-library|user-event`; the `jsdom` note is in `notes.md`.
+2. **The json-ld test asserts the `type` with `getAttribute`, not `toHaveAttribute`.** Elements of a `DOMParser` document have no `defaultView`, and jest-dom rejects them ("received value must be an HTMLElement"). Commented in the file and in `notes.md`.
+3. **Mutation labels are scoped in code (`B5-M4`) and the `M` form is registered** in `docs/dev/conventions.md` (`<scope>-M<n>`), because the repo's rule is that code and tests always scope designations. The plan itself still writes them bare, as the defining document.
+4. **`include` globs are by extension** (`**/*.test.ts` node, `**/*.test.tsx` jsdom), not by directory as in my first prototype. `exclude` is repeated per project because `extends: true` doesn't merge it.
+5. **Test counts differ from the plan's estimates.** Filter header: 15 tests (the plan listed 12 items; the `it.each` is 3 cases and the chip test was added). Totals below.
+6. **A small import reformat.** `filter-header.tsx`'s `@/lib/calendar-href` import was reformatted from its odd multi-line shape while adding `hasActiveFilters`; no other line of that import changed meaning.
+
+**`TODO(Ari)` gaps (all open, none filled):**
+- **K1**, the router mock: `apps/calendar/app/_components/filter-header.test.tsx:36` (placeholder at `:53`). Lesson: mock exactly the framework edge (`useRouter`) with `vi.hoisted`; the pushed URL is the behaviour.
+- **K2**, drive the combobox and assert the whole URL: `app/_components/filter-header.test.tsx:128` (placeholder at `:149`). Lesson: role/name queries, `userEvent` not `fireEvent`, one exact `push` with the other filters preserved, expected URL written by hand.
+- **K3**, the empty state's two halves: `app/_components/calendar-results.test.tsx:118` (`:130`) and `:151` (`:163`). Lesson: the reset must be a real link to `/`, and absence is asserted with `queryBy*`.
+- Command: `pnpm --filter calendar test filter-header calendar-results`. **Fill K1 first**; while it is open the filter-header file fails to load (one failed suite, zero tests).
+- Handoff state is exactly that: K1 = 1 failed suite, K3 = 2 failed tests, everything else green.
+
+**Verification (commands run, results):**
+- Scaffold state, `make check`: ruff clean; mypy `no issues found in 31 source files`; eslint (`--max-warnings 0`) and `next typegen && tsc` clean in all packages; **pytest 669 passed, 15 skipped**; Vitest **21 files, 321 tests visible: 319 passed, 2 failed (K3), plus `filter-header.test.tsx` (15 tests) not loading (K1)**. Make stops at the first failing target, so `make contract-check` was run on its own: `Generated contract output is current.`
+- **Snippets applied in a scratch copy** (K1, K2 and K3's `Code:` lines in place): **21 files, 336 tests, all passing**; `pnpm check-types` and `pnpm lint` clean. The scaffold was then restored and checked against checksums taken before the fill (identical), and `git status` shows no `*.orig` or stray files. (A later whitespace-only fix to the K2 block's indentation changed the file's checksum; the filled snippet is unaffected.)
+- **Mutation pass, M1–M13, all RED**, each caught by the test the plan names, with the files restored afterwards: M1 6 tests, M2 1, M3 1, M4 3, M5 1, M6 2, M7 1, M8 3, M9 1, M10 1, M11 1, M12 4 (the empty-string and the three scheme rows; `null` and `undefined` still render nothing under that mutation, as expected), M13 2 (the server-markup test; the client-render version the plan rejected was not re-run).
+- **D1 equivalence (Verification 4), in headless Chromium against `next start` with the API up:** `<main>` of `/`, `/?venue=1`, `/?venue=2&artist=7`, `/?month=2027-01`, `/?venue=abc`, `/?month=2026-10` **byte-identical before and after**, with sanity counts articles 25 / 8 / 1 / 0 / 25 / 23 and skeletons 0 in both. The baseline was captured on the unmodified tree before `page.tsx` was touched; I confirmed the rebuilt `.next` postdates the edit and references the new component.
+- **Build (Verification 5):** `API_BASE_URL=http://127.0.0.1:9 pnpm build` succeeds; the same nine routes, all `ƒ`; `grep -rl "Do not use built-in arithmetic operators with" .next/static` finds nothing.
+- Baseline for comparison: 14 files / 283 tests; with the work: 21 files / 336 tests when the gaps are filled (53 added, of which D2's `ShowBlock` + pins are 22).
+
+**Not verified:** Node 24 (CI) and Ari's laptop (this sandbox is Node 22.22.0); the D3 name in a real screen reader or the browser's accessibility pane (that is Ari's check, Verification 8); that a Dependabot jsdom 30 bump behaves as `notes.md` predicts.
+
+**Where to look hardest:**
+1. **K1's scaffold shape** (`vi.hoisted((): { push: Mock } => { throw … })`): written so `check-types` and `lint` stay green; confirm it reads clearly for Ari.
+2. **The D3 change lives in a shared package** (`packages/ui/src/components/combobox.tsx`, 7 lines including a comment). `aria-label={removeLabel}` is `undefined` when no label is passed, so other callers are unchanged; confirm nothing else uses `ComboboxChip`.
+3. **`CalendarResults`'s props** (`start`, `end`, `shows`, `today`, `filters`): it takes `filters` and derives "filtered" itself, rather than a boolean, so the page can't pass a stale one.
+4. **The `components` project's setup** (`vitest.config.ts`): `extends: true` carrying `resolve.alias` and `oxc` into both projects, and the extension-based `include`.
+5. **The json-ld test's reliance on `DOMParser`** and `renderToStaticMarkup`: it is the one test whose value depends on a subtle fact (client render stays green under the bug).
+6. **Whether any test would still pass under a mutation I did not think of**; the pass covered the 13 in the plan.

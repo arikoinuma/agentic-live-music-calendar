@@ -604,7 +604,7 @@ pnpm format        # prettier --write "**/*.{ts,tsx,md}"
 ## Testing
 
 Next.js's own docs recommend **Vitest** for unit tests and **Playwright** for E2E —
-neither app has a test setup yet, so this is the default to reach for, not a rip-and-replace.
+`apps/calendar` has this setup (Vitest in two environments plus Testing Library; see its `AGENTS.md`), so it is the default to reach for, not a rip-and-replace.
 
 | Layer                                             | Tool                          |
 |-----------------------------------------------------|---------------------------------|

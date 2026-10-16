@@ -1,10 +1,9 @@
-import Link from "next/link";
 import { Suspense } from "react";
-import { CalendarGrid } from "@/app/_components/calendar-grid";
+import { CalendarResults } from "@/app/_components/calendar-results";
 import { CalendarSkeleton } from "@/app/_components/calendar-skeleton";
 import { FilterHeader } from "@/app/_components/filter-header";
 import { getArtists, getCalendarMonths, getShows, getVenues } from "@/lib/api";
-import { groupCalendar, monthOptions } from "@/lib/calendar";
+import { monthOptions } from "@/lib/calendar";
 import { formatDayHeading, metroTodayOrNull } from "@/lib/dates";
 import { getMetroOrNull } from "@/lib/metro";
 import { parseCalendarFilters, toShowsQuery, type CalendarFilters } from "@/lib/params";
@@ -68,9 +67,6 @@ async function CalendarBody({ filters }: { filters: CalendarFilters }) {
   // than guessing a zone.
   const today = (metro && metroTodayOrNull(metro.timezone)?.toString()) ?? null;
 
-  const isFiltered =
-    filters.venueIds.length > 0 || filters.artistIds.length > 0 || filters.month !== null;
-
   return (
     <>
       <FilterHeader
@@ -90,23 +86,9 @@ async function CalendarBody({ filters }: { filters: CalendarFilters }) {
         Showing {formatDayHeading(start)} – {formatDayHeading(end)}
       </p>
 
-      {shows.length === 0 ? (
-        isFiltered ? (
-          // The empty state the requirements call for: filters matched
-          // nothing, so say so and offer the way out.
-          <p className="mt-6">
-            No matches found.{" "}
-            <Link className="underline" href="/">
-              Reset filters
-            </Link>
-          </p>
-        ) : (
-          // Nothing to reset: the window itself is empty.
-          <p className="mt-6">No shows listed for these dates.</p>
-        )
-      ) : (
-        <CalendarGrid rows={groupCalendar({ start, end, shows, today })} />
-      )}
+      {/* The calendar, or one of two empty-state messages. Its own synchronous
+          component so it can be tested (B5-D1); this async body only fetches. */}
+      <CalendarResults start={start} end={end} shows={shows} today={today} filters={filters} />
     </>
   );
 }

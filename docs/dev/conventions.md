@@ -24,6 +24,7 @@ carries that defining document's scope.
 | `B2` | `docs/dev/implementations/b2-routes-and-data-loading.md` |
 | `B3` | `docs/dev/implementations/b3-the-calendar.md` |
 | `B4` | `docs/dev/implementations/b4-detail-pages.md` |
+| `B5` | `docs/dev/implementations/b5-frontend-testing.md` |
 
 Future milestones use their own IDs (`A4`, `H1`, …) the same way.
 
@@ -36,6 +37,7 @@ Future milestones use their own IDs (`A4`, `H1`, …) the same way.
 | `<scope>-F<n>` | a failure found in an eval | `A2-F9` | that plan's failure table |
 | `<scope>-S<n>` | a sampling or design lever | `A2-S6` | that plan's lever list |
 | `<scope>-K<n>` | a fill-in step's key point | `A3-K2` | that plan's `[fill-in]` steps |
+| `<scope>-M<n>` | a mutation check: a deliberate break of the code under test that a named test must catch | `B5-M4` | that plan's mutation table (Verification) |
 | `<scope>-PR<round>-<n>` | a plan-review item | `A3-PR1-3` | that plan's Plan review rounds |
 | `<scope>-CR<round>-<n>` | a code-review item | `A3-CR1-3` | that plan's Code review rounds |
 | `v0.1-G<n>` | a known gap in the catalogue | `v0.1-G6` | `alpha-build-plan.md` §1.3 |

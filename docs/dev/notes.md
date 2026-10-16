@@ -459,3 +459,39 @@ guard. `docker compose ps -a` and `docker compose logs mongo` show it; the timeo
 gets `mongo:8.0` past the guard and it then answers ping, but it bypasses a check MongoDB added for a real
 incompatibility, so it was not used. Revisit the pin when Docker Desktop's kernel or a MongoDB 8.x patch
 changes.
+
+---
+
+## Component tests: five things that cost time, found while setting up B5
+
+All verified, not assumed (`docs/dev/implementations/b5-frontend-testing.md`, "Checked").
+
+**A `.test.tsx` file fails to parse: `Unexpected JSX expression`.** The app's tsconfig sets `"jsx": "preserve"`
+(Next compiles JSX itself), Vite 8 transforms with Oxc and honours that, so JSX reaches Node untouched.
+`vitest.config.ts` needs `oxc: { jsx: { runtime: "automatic" } }`. The next error, `document is not defined`,
+just means the file is still in the node environment (the extension picks it: `.tsx` is jsdom).
+
+**jsdom 30 needs a newer Node than the cloud sandbox has.** Its range is `^22.22.2 || ^24.15.0 || >=26.0.0`;
+the sandbox runs 22.22.0. `jsdom@^29` (`^20.19.0 || ^22.13.0 || >=24.0.0`) runs everywhere we do. A
+Dependabot bump to 30 will probably pass CI (`node-version: 24` takes the newest 24.x) and fail a cloud
+session or a laptop on an older 24.x. `@testing-library/dom` is a *peer* of `@testing-library/react` 16 and
+must be installed explicitly.
+
+**`fireEvent.click` never opens Base UI's combobox.** No option appears, even after waiting. `userEvent` does,
+and after an awaited `user.click` the option is already in the DOM. Mock `useRouter` with `vi.hoisted`: a
+`vi.mock` factory that reads a top-level `const` eagerly fails with `Cannot access 'push' before
+initialization`; with no mock at all the component dies with `invariant expected app router to be mounted`.
+
+**jest-dom's matchers refuse elements from a `DOMParser` document.** `toHaveAttribute` on a script parsed with
+`new DOMParser().parseFromString(...)` fails with `received value must be an HTMLElement`, because that
+document has no `defaultView`. Use `getAttribute` there. (That parse is needed to test JSON-LD: a Testing
+Library `render` sets the script text through `innerHTML`, which never treats `</script>` as an end tag, so
+a client-render test stays green even for an unescaped `JSON.stringify`.)
+
+**To compare a streamed page before/after a refactor, use a real browser.** Raw server HTML differs between
+runs even when the page is identical (Suspense chunks arrive in whatever order the parallel API calls
+return), and jsdom with scripts enabled never runs Next's `$RC` swap, so it "agrees" on two skeletons. Dump
+`<main>` from headless Chromium instead (`--headless=new --no-sandbox --virtual-time-budget=8000 --dump-dom`),
+strip `<script>`, and print the article and skeleton counts beside the verdict so a pair of skeletons can't
+pass. Also: a bundle grep for `jsdom` always hits Base UI's own user-agent sniffing; grep for
+`testing-library` and `user-event` instead.
