@@ -3,9 +3,12 @@
 Each is a plain function of `VenueGraphState` (state.py); graph.py wires them. A3 made the first three
 real: fetch records a failure instead of raising, extract records a failed model call as an attempt
 instead of crashing the graph (v0.1-G2), and validate reads the evidence from validation.py and the
-policy from policy.py to produce a verdict. Reconcile, commit and escalate's writes are still
-stubs (A5, A6), and nothing here writes an audit row yet (A4): the state carries what A4 will log
-(`extraction_source`, `extraction_notes`, `validation`, `attempt_history`, `escalation_reason`).
+policy from policy.py to produce a verdict. Reconcile and commit are still stubs (A5, A6).
+
+A4 writes the audit trail around these functions, not inside them: `graph.py` registers each through
+`trace.audited`, which runs the node and then appends its `audit_log` row (what each step records is
+`audit.entry_for`). So a node here only has to leave the evidence in the state (`extraction_source`,
+`extraction_notes`, `validation`, `attempt_history`, `escalation_reason`, `extraction_sent_text`).
 """
 
 import base64
@@ -14,6 +17,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import httpx
+import structlog
 from instructor.core.exceptions import InstructorError
 from openai import OpenAIError
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
@@ -44,6 +48,8 @@ from agent_worker.validation import ValidationResult, Verdict, validate_extracti
 # which the eval harness calls too, so the eval measures exactly what this pipeline sends
 # (docs/dev/implementations/a2.1-extraction-reliability.md, Design §1). `instructor_client`
 # is imported by name so a test can swap it for a fake.
+
+log = structlog.get_logger()
 
 IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp")
 
@@ -130,7 +136,8 @@ def fetch_node(state: VenueGraphState) -> VenueGraphState:
     page like terminalbarmn.com, where the actual show info is inside images embedded in the HTML,
     needs its own detection-and-download logic (arch-initial.md §11), and Playwright waits for a
     venue that needs click-driven pagination. The R2 snapshot write the architecture doc calls
-    for ("each page traversed gets its own R2 snapshot") waits for the graph to run cleanly (A4).
+    for ("each page traversed gets its own R2 snapshot") is deferred (alpha-deployment-plan.md H3);
+    `audit_log.snapshot_key` stays NULL until then.
     """
     state.fetch_error = None
     # The raw HTML is kept in `page_html` (the JSON-LD route needs the <script> blocks that cleaning
@@ -189,9 +196,9 @@ def extract_node(state: VenueGraphState) -> VenueGraphState:
     LangGraph keeps a field's old value when a node leaves it alone, so without the reset an
     attempt-2 success would still carry attempt 1's error.
 
-    Not yet handled here, deliberately deferred to A4: the MongoDB raw-staging write the
-    architecture doc calls for ("Extract --> Staging[('MongoDB — raw staging doc')]") and this
-    node's own audit row.
+    The MongoDB raw-staging write the architecture doc calls for ("Extract --> Staging[('MongoDB —
+    raw staging doc')]") and this node's audit row are written by `trace.audited` after this function
+    returns (A4-D1), from what it leaves in the state; nothing here touches a store.
     """
     plan = plan_for_attempt(
         state.attempt_count + 1, state.policy, state.attempt_history, PIPELINE_CONFIG, PIPELINE_OPTIONS,
@@ -201,6 +208,7 @@ def extract_node(state: VenueGraphState) -> VenueGraphState:
     state.extraction = None
     state.extraction_source = None
     state.extraction_notes = {}
+    state.extraction_sent_text = None
     state.extract_error = None
 
     # A failed model call is an OUTCOME, not a crash. The retry loop exists for exactly this failure
@@ -216,6 +224,7 @@ def extract_node(state: VenueGraphState) -> VenueGraphState:
         state.extraction = result.extraction
         state.extraction_source = result.source
         state.extraction_notes = result.notes
+        state.extraction_sent_text = result.sent_text
     except EXTRACTION_ERRORS as err:
         state.extract_error = f"{type(err).__name__}: {err}"
     return state
@@ -233,7 +242,7 @@ def validate_node(state: VenueGraphState) -> VenueGraphState:
     `state.extraction` stays the model's raw answer (the audit record); `validated_extraction` holds
     the shows to commit, repairs applied and excluded shows removed.
 
-    Not yet handled here, deliberately deferred to A4: this node's audit trail write.
+    This node's audit row is written by `trace.audited` after it returns (A4).
     """
     if state.extraction is None:
         result = ValidationResult.for_failed_extraction()
@@ -291,7 +300,7 @@ def reconcile_node(state: VenueGraphState) -> VenueGraphState:
     all six nodes and can run end to end; it always decides "insert",
     which is only correct the very first time a show is ever seen.
     """
-    print(f"[reconcile_node] PLACEHOLDER — would reconcile venue_id={state.venue_id}")
+    log.info("reconcile is a placeholder until A5", venue_id=state.venue_id)
     state.reconcile_decision = "insert"
     return state
 
@@ -309,10 +318,7 @@ def commit_node(state: VenueGraphState) -> VenueGraphState:
     This stub just logs what it would have written, so the graph's
     shape is provable end to end without the DB work being done first.
     """
-    print(
-        f"[commit_node] PLACEHOLDER — would commit decision="
-        f"{state.reconcile_decision!r} for venue_id={state.venue_id}"
-    )
+    log.info("commit is a placeholder until A6", venue_id=state.venue_id, decision=state.reconcile_decision)
     return state
 
 
@@ -340,13 +346,10 @@ def escalate_node(state: VenueGraphState) -> VenueGraphState:
     """Reached when a fetch fails or validate_node's retry cap is exhausted (3 attempts, per the
     architecture doc) — flags the run for human review rather than looping indefinitely.
 
-    A3 composes `state.escalation_reason`; the audit trail entry marking the run for human review
-    is still a placeholder (A6). No retry, no further LLM calls here either way — this node's
+    A3 composes `state.escalation_reason`; A4's `trace.audited` writes the audit row marking the run for
+    human review (`outcome='escalated'`) from it. No retry, no further LLM calls here either way — this node's
     entire job is recording that the pipeline gave up, not trying again itself.
     """
     state.escalation_reason = escalation_reason(state)
-    print(
-        f"[escalate_node] PLACEHOLDER — venue_id={state.venue_id} flagged for human review: "
-        f"{state.escalation_reason}"
-    )
+    log.warning("venue flagged for human review", venue_id=state.venue_id, reason=state.escalation_reason)
     return state

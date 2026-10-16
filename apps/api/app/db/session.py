@@ -5,12 +5,14 @@ seed CLI, and — from A4 — by the worker. There is deliberately no `get_db`
 FastAPI dependency yet: nothing consumes one until the read routes move off
 `app/sample_data.py`, and this repo doesn't scaffold what has no consumer.
 
-Known consequence for A4 (docs/dev/alpha-build-plan.md, A4): this engine is
-pooled and async, created at import. The worker's nodes are synchronous, and
-asyncpg connections are bound to the event loop that created them — so
-calling `asyncio.run()` once per node against *this* engine fails on the
-second node. The worker must either use `async def` nodes or build its own
-NullPool engine per `asyncio.run`.
+Resolved in A4 (docs/dev/implementations/a4-auditability.md, A4-D1): this engine
+is pooled and async, and asyncpg connections are bound to the event loop that
+created them, so calling `asyncio.run()` once per node against it would fail
+on the second node. The worker therefore runs ONE event loop per process
+(`asyncio.run(main())` in agent_worker/main.py) and the graph is `ainvoke`-only:
+each node is wrapped by `agent_worker/trace.audited`, which awaits the audit
+write on that loop and runs the synchronous node body in a thread. This
+engine is shared by every node's audit write; no second engine is needed.
 """
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine

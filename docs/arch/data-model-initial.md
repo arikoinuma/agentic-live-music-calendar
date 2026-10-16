@@ -326,6 +326,11 @@ the two review rounds are in `docs/dev/implementations/a1-data-layer.md`.
 - **`created_at` / `updated_at`** are on `metro`, `venue`, `event`, `show` and `artist`, but not on
   `show_artist` (pure join), `audit_log` (append-only; `created_at` only) or `agent_run` (its own
   `started_at` / `finished_at`). `updated_at`'s refresh-on-update is SQLAlchemy-side only; no trigger.
+- **`audit_log.detail` (JSONB, nullable) is added by A4** (`a4-auditability.md`, A4-D2; migration `67609c405218`).
+  The typed columns say who and what kind; `detail` carries the evidence behind a step: validate's verdict and
+  reasons, fetch's error, extract's route/tier and MongoDB staging-document id, escalate's reason. It is not
+  `new_value`, which is what a future revert restores. The keys per step are listed in
+  `agent_worker/audit.py` and read by `docs/dev/audit-queries.sql`.
 - **Precisions:** `show.admission_advance` / `admission_day` are `Numeric(10, 2)`;
   `audit_log.confidence` is `Numeric(4, 3)`.
 - **Extra indexes:** `show (venue_id, date)` and `audit_log (run_id)`, plus the GIN indexes on
