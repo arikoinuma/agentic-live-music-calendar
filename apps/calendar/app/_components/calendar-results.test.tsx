@@ -124,9 +124,12 @@ describe("CalendarResults with no shows", () => {
     // Code:
     //   expect(screen.getByRole("link", { name: "Reset filters" })).toHaveAttribute("href", "/");
     // Check: `pnpm --filter calendar test calendar-results` — green on the real
-    //   component, RED under mutation B5-M4 (hasActiveFilters forgets `month`, so
-    //   this month-only empty result gets the other message). Likeliest mistake:
-    //   asserting the text only, which passes even if the reset is plain text.
+    //   component, and RED under mutation B5-M14 (the reset link's `href` changed to
+    //   "/?x=1") or if the reset were a <span>: only THIS line catches those. (The
+    //   already-written "No matches" line above catches B5-M4, hasActiveFilters
+    //   forgetting `month`, whether or not this line exists, so it cannot tell you
+    //   your line is right.) Likeliest mistake: asserting the text only, which
+    //   passes even if the reset is plain text.
     throw new Error("TODO(Ari)");
   });
 

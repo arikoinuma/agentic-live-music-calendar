@@ -488,6 +488,11 @@ document has no `defaultView`. Use `getAttribute` there. (That parse is needed t
 Library `render` sets the script text through `innerHTML`, which never treats `</script>` as an end tag, so
 a client-render test stays green even for an unescaped `JSON.stringify`.)
 
+**jsdom is not a browser, and Base UI knows it.** Base UI sets `env.jsdom` from the user agent and takes
+different paths under it (it returns early around `getBoundingClientRect`, and skips part of its virtual-click
+detection). Tests of the filter header therefore prove URLs, names and presence, not positioning or pointer
+behaviour; a test that depends on those belongs in a real browser (Playwright).
+
 **To compare a streamed page before/after a refactor, use a real browser.** Raw server HTML differs between
 runs even when the page is identical (Suspense chunks arrive in whatever order the parallel API calls
 return), and jsdom with scripts enabled never runs Next's `$RC` swap, so it "agrees" on two skeletons. Dump

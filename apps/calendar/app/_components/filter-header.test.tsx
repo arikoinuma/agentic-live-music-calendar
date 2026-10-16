@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CalendarFilters } from "@/lib/calendar-href";
 import artistsFixture from "@/lib/fixtures/artists.json";
 import venuesFixture from "@/lib/fixtures/venues.json";
@@ -44,12 +44,14 @@ import { FilterHeader } from "./filter-header";
 // Code:
 //   const { push } = vi.hoisted(() => ({ push: vi.fn() }));
 //   vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+// (The placeholder below is typed only so `tsc` accepts `push` in the other tests while
+//   it is open; replace the WHOLE statement with the Code: lines and nothing is left over.)
 // Check: `pnpm --filter calendar test filter-header` — while this is open the whole
 //   file fails to load (one failed suite, zero tests); filled, every test runs.
 //   Likeliest mistakes: a top-level `const push = vi.fn()` read eagerly inside the
 //   factory ("Cannot access 'push' before initialization"), or mocking more than the
 //   router (a faked combobox passes while proving nothing about it).
-const { push } = vi.hoisted((): { push: Mock } => {
+const { push } = vi.hoisted((): { push: ReturnType<typeof vi.fn> } => {
   throw new Error("TODO(Ari)");
 });
 
@@ -162,17 +164,23 @@ describe("FilterHeader navigation", () => {
     expect(push).toHaveBeenCalledExactlyOnceWith("/?venue=1", { scroll: false });
   });
 
-  it("the Artists box writes artist=, not venue=", async () => {
-    // Proves: the two pickers are not wired to each other's key. Charlie
-    // Parr is artist 1; a header that sent it as a venue would write
-    // `/?venue=1`, which is a different, valid-looking filter.
+  it("the Artists box writes artist= and keeps the other filters", async () => {
+    // Proves: the two pickers are not wired to each other's key (Charlie Parr
+    // is artist 1; a header that sent it as a venue would write another
+    // `venue=1`), AND the artist picker, like the venue one, keeps what was
+    // already chosen. A venue and a month are preselected so an `onChange`
+    // that rebuilt the filters from scratch (mutation B5-M15) loses them and
+    // fails: a calendar that forgets your venue when you add an artist is not
+    // shareable as intended.
     const user = userEvent.setup();
-    renderHeader(noFilters);
+    renderHeader({ venueIds: [2], artistIds: [], month: "2026-10" });
 
     await user.click(screen.getByLabelText("Artists"));
     await user.click(await screen.findByRole("option", { name: "Charlie Parr" }));
 
-    expect(push).toHaveBeenCalledExactlyOnceWith("/?artist=1", { scroll: false });
+    expect(push).toHaveBeenCalledExactlyOnceWith("/?venue=2&artist=1&month=2026-10", {
+      scroll: false,
+    });
   });
 
   it("choosing a month writes month=YYYY-MM", async () => {

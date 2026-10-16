@@ -1,9 +1,9 @@
 # B5 — frontend testing
 
-**Status:** Code review
+**Status:** Awaiting sign-off
 **Date:** October 16, 2026
 **Author model:** Claude Sonnet 5.5
-**Reviewer model:** Claude Opus 5.5 (plan review round 1; code review round 1 pending)
+**Reviewer model:** Claude Opus 5.5 (plan review round 1; code review round 1)
 **Spec:** `docs/dev/alpha-build-plan.md` §6 B5 and §3 ("ALWAYS write tests first"); `docs/references/nextjs-style-guide.md` ("Testing" and the
 Anti-patterns table); `docs/arch/arch-initial.md` §4 (libraries table: `vitest`, `@testing-library/react`; filter and view
 state in the URL); `docs/arch/requirements-initial.md` ("Calendar": the filter header, "No matches found" with a reset
@@ -173,8 +173,9 @@ Props mirror what the page passes; the file says so.
    `/?venue=1&venue=3&artist=7&month=2026-10` with `{ scroll: false }`. *Proves:* a pick keeps the other filters and
    writes the one canonical URL (ascending ids, fixed key order). Red under M1 and M2.
 5. Clicking an already-selected option removes it: `[1, 3]`, click Zhora Darling → `/?venue=1`.
-6. The Artists box writes `artist=`, not `venue=`: pick one artist → `/?artist=<id>`. *Proves:* the two pickers are not
-   wired to each other's key.
+6. The Artists box writes `artist=` and keeps the other filters: with venue 2 and month `2026-10` chosen, picking Charlie Parr
+   pushes `/?venue=2&artist=1&month=2026-10`. *Proves:* the two pickers are not wired to each other's key, and the artist picker,
+   like the venue one (test 4), keeps what was already chosen (M15; CR1-3).
 7. Choosing a month pushes `/?month=2026-11`.
 8. Choosing "Next four weeks" with a venue and a month set pushes `/?venue=1`. *Proves:* only the month clears, and the
    sentinel value `next-four-weeks` never reaches a URL (M3).
@@ -200,7 +201,8 @@ a bug in the other.
 3. A row with no venues shows "Nothing listed" and no venue heading (B3-D2).
 4. A venue column is a heading link to `/venue/<id>` with its shows under it, in the order **given**: grouping and
    sorting are `groupCalendar`'s job, and the grid must not re-order or hide anything.
-5. Three shows at one venue render three blocks (no cap of two, B3-D7).
+5. Shows inside a column keep the order given: two shows with distinct times (6:00 PM, 10:00 PM) read in that order (M16; CR1-4).
+6. Three shows at one venue render three blocks (no cap of two, B3-D7).
 
 ### 3. `app/_components/calendar-results.test.tsx` (new, jsdom) — the empty state and the grouping, rendered (D1)
 
@@ -256,6 +258,9 @@ a bug in the other.
 - The unfiltered-empty message against a real empty window (fact 14).
 - Layout: the sideways scroll, `sticky` headings and the `sr-only` containment bugs (B3-CR1-4, `notes.md`) depend on a
   real layout engine; jsdom has none. These stay a headless-Chrome measurement.
+- Anything that depends on how a real browser lays out or points: Base UI sets `env.jsdom` from the user agent and branches on it
+  (positioning, part of its virtual-click detection), so the combobox and select under test do not run quite the code a browser
+  runs. Fine for URLs, names and presence; positioning and pointer behaviour are Playwright's (CR1-7).
 - `WindowNav`, `DetailRow`, `CalendarSkeleton`, `NotFound`: links and static markup; their logic is in tested `lib/` modules.
 - The shadcn combobox and select as primitives: only as exercised through the filter header.
 - Node 24 (CI) and Ari's laptop: verified on Node 22.22.0 only (Verification 7).
@@ -300,9 +305,10 @@ concept lives, not where the typing is: none of these is a JSX or import line.
   const { push } = vi.hoisted(() => ({ push: vi.fn() }));
   vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
   ```
-  *Scaffold shape (PR1-2):* the gap is left as `const { push } = vi.hoisted((): { push: Mock } => { throw new Error("TODO(Ari)"); });`
-  with **no** `vi.mock` line (`Mock` imported from `vitest`). The annotation keeps `push` typed for the tests that use it, so
-  `pnpm check-types` and `pnpm lint` stay green; Ari replaces the body and adds the `vi.mock` line.
+  *Scaffold shape (PR1-2, CR1-1):* the gap is left as `const { push } = vi.hoisted((): { push: ReturnType<typeof vi.fn> } => { throw new Error("TODO(Ari)"); });`
+  with **no** `vi.mock` line. The annotation keeps `push` typed for the tests that use it, so `pnpm check-types` and `pnpm lint`
+  stay green, and it needs **no extra import**, so pasting the `Code:` lines over the whole statement leaves nothing unused (the
+  first version imported `type Mock`, which became an unused import, and a lint failure, the moment K1 was filled as written).
   *Check:* `pnpm --filter calendar test filter-header`. While open, the file does not load: Vitest reports one failed suite,
   `Error: TODO(Ari)`, with **zero tests** run (no individual test fails); filled, all of them run. Likeliest mistakes: a top-level `const push = vi.fn()` read eagerly inside the factory (`Cannot access
   'push' before initialization`), or mocking more than the router (a faked combobox passes while proving nothing about it).
@@ -341,8 +347,9 @@ concept lives, not where the typing is: none of these is a JSX or import line.
   expect(screen.queryByText(/No matches found/)).not.toBeInTheDocument();
   ```
   *Check:* `pnpm --filter calendar test calendar-results`: green on the real component, **red** under M5 (the reset link
-  shown even when nothing is filtered) and M4 (`hasActiveFilters` forgets `month`, so a month-only empty result offers no
-  reset). Likeliest mistakes: `getByRole(…)` followed by `.not.…` (throws instead of asserting absence), or asserting the
+  shown even when nothing is filtered) and, for the filtered half, under M14 (the reset link's `href` changed to `/?x=1`, or
+  the reset rendered as a `<span>`): only the gap's own line catches those. (M4, `hasActiveFilters` forgetting `month`, is caught
+  by the already-written "No matches found" line whether or not the gap is filled, so it is not K3's Check: CR1-2.) Likeliest mistakes: `getByRole(…)` followed by `.not.…` (throws instead of asserting absence), or asserting the
   message text but not that the way out is a link.
 
 ### 1. Tooling (written) — Checked facts 1–5
@@ -444,6 +451,9 @@ Run every mutation in the table, record the red test, restore, and show `git dif
    | M11 | `ErrorPage` renders `error.message` | error test 1 |
    | M12 | `RemoteImage` uses `src` directly, skipping `httpUrlOrNull` | remote-image `javascript:` row |
    | M13 | `JsonLd` uses `JSON.stringify(data)` instead of `jsonLdScriptContent` | the json-ld server-markup `</script>` test (PR1-1: the client-render version stays green, so it is not the one that counts) |
+   | M14 | `CalendarResults`: the reset link's `href` becomes `/?x=1` (or the link becomes a `<span>`) | K3's filtered-half line, and nothing else (CR1-2) |
+   | M15 | The Artists box rebuilds the filters from scratch (`withIds({ venueIds: [], artistIds: [], month: null }, "artistIds", ids)`) | header test 6 (CR1-3) |
+   | M16 | `calendar-grid.tsx` renders `[...column.shows].reverse()` | grid test 5 (CR1-4) |
 
    `git diff` after the pass must show none of them left behind.
 4. **The extraction is invisible** (D1; fact 13). Same six URLs, API up (`uv run uvicorn app.main:app` from `apps/api`,
@@ -573,3 +583,77 @@ none is markup or imports.
 4. **The `components` project's setup** (`vitest.config.ts`): `extends: true` carrying `resolve.alias` and `oxc` into both projects, and the extension-based `include`.
 5. **The json-ld test's reliance on `DOMParser`** and `renderToStaticMarkup`: it is the one test whose value depends on a subtle fact (client render stays green under the bug).
 6. **Whether any test would still pass under a mutation I did not think of**; the pass covered the 13 in the plan.
+
+### Round 2 — Claude Sonnet 5.5, October 16, 2026 (the fixes for code review round 1)
+
+**Scope:** the working tree against `437f962` (the fixes are uncommitted until the commit that carries this log). Files: `apps/calendar/app/_components/{filter-header,calendar-results,calendar-grid}.test.tsx`; docs: `alpha-build-plan.md`, `docs/references/nextjs-style-guide.md`, `docs/dev/notes.md`, this plan. No production code changed.
+
+**Departures from the plan:** none beyond what the Code review resolutions say. One correction to round 1's record: it said lint was clean "with the snippets applied". That was true of how I applied them (annotation kept) and false of how the K1 block told Ari to apply them; CR1-1 fixes the scaffold so both are the same.
+
+**`TODO(Ari)` gaps (all still open, none filled)**, with their current locations:
+- **K1** `apps/calendar/app/_components/filter-header.test.tsx:36` (placeholder `:55`), the router mock.
+- **K2** `app/_components/filter-header.test.tsx:130` (placeholder `:151`), driving the combobox and asserting the whole URL.
+- **K3** `app/_components/calendar-results.test.tsx:118` (`:133`) and `:154` (`:166`), the empty state's two halves.
+- Command: `pnpm --filter calendar test filter-header calendar-results`. **Fill K1 first.** The `Code:` lines can now be pasted over the whole statement or block exactly as written.
+
+**Verification:** see the end of the Code review round (`make -k check` at the handoff state; 337 tests green with the `Code:` blocks pasted verbatim; lint and `check-types` clean; M14–M16 red). Not re-run in this round: the headless-Chromium comparison and the build, since no production file changed after round 1.
+
+**Where to look hardest:** the rewritten K3 Check (does the mutation it names really need Ari's line?), and the new tests' expected strings (`/?venue=2&artist=1&month=2026-10`; `6:00 PM, show details` / `10:00 PM, show details`), which were written by hand from `buildCalendarHref`'s documented order and the formatter's pinned strings.
+
+## Code review
+
+### Round 1 — Claude Opus 5.5, October 16, 2026
+
+**Scope:** Implementation log round 1, commit range `b601c5a..437f962` (one commit, `437f962`, on
+`claude/busy-carson-tyjbix`; 23 files, +1758/−69). Open `TODO(Ari)` gaps K1–K3 are not findings, but whether their
+`Code:` and `Check:` lines do what they say is in scope.
+
+**Read:** `AGENTS.md` ("[fill-in] tasks", "Implementation plans", Conventions), `apps/calendar/AGENTS.md`,
+`docs/references/nextjs-style-guide.md` (Testing, Anti-patterns), this plan in full, and every file in the diff:
+`vitest.config.ts`, `test/setup-dom.ts`, `package.json`, `calendar-results.tsx`, `page.tsx`, `filter-header.tsx`,
+`calendar-href.ts` and its test, `packages/ui/src/components/combobox.tsx`, the seven new `.test.tsx` files, and
+the doc edits (`alpha-build-plan.md`, `conventions.md`, `notes.md`, the style guide, `apps/calendar/AGENTS.md`). Also
+the unchanged components under test (`calendar-grid`, `show-block`, `remote-image`, `json-ld`, `error`).
+
+**Run, in a throwaway `git worktree` at `437f962` (gitignored `.env` / `.env.local` copied in; removed afterwards; the
+real tree was not touched):**
+- `make -k check`: ruff clean; mypy `no issues found in 31 source files`; turbo lint and check-types 3/3 successful;
+  pytest **669 passed, 15 skipped**; Vitest **21 files, 2 failed | 19 passed**: `filter-header.test.tsx` as one failed
+  suite with `(0 test)` and `Error: TODO(Ari)` at `:53`, plus the two K3 tests in `calendar-results.test.tsx`;
+  `contract-check`: `Generated contract output is current.` Matches the log's handoff state exactly. CONFIRMED.
+- **K1–K3 `Code:` snippets pasted as written** into the scaffold: Vitest **21 files, 336 tests, all passing**;
+  `pnpm check-types` clean; **`pnpm lint` fails** (see #1). CONFIRMED.
+- Mutations on the filled suite: M3 and the D3 label removal each turn exactly their named test red; M4 and M5
+  red (see #2 for *which line* catches M4); two mutations outside the plan's table **survive with 336 green** (#3, #4).
+  Every file restored. CONFIRMED.
+- Verification 5: `API_BASE_URL=http://127.0.0.1:9 pnpm build` succeeds, nine routes all `ƒ`; Temporal grep 0 hits;
+  `testing-library|user-event` 0 hits; `jsdom` 1 hit, which is Base UI's own `/jsdom|happydom/.test(userAgent)`
+  (departure 1 is right; see #7). CONFIRMED.
+- Fixture facts the tests rely on (artist 1 Charlie Parr, 2 Nooky Jones, 9 Beasthead; show 22's single act Lanue;
+  2026-10-04 empty; venue 1 has 8 shows; `ComboboxChip` has no caller besides `FilterHeader`). CONFIRMED.
+
+Not run: Verification 4 (the headless-Chromium `<main>` comparison). Read instead: the D1 diff moves the branch
+verbatim (same markup, same `Link`, same `groupCalendar` call and props), so I have no reason to doubt the log's
+byte-identical result.
+
+**Assessment.** The scaffold is in good shape: the tooling matches the plan, `CalendarResults` and `hasActiveFilters`
+are clean extractions with why-comments and citations, D3 is minimal and backwards-compatible, every test opens
+with `Proves:` and says where its expected values come from, queries are by role and name, and the Anti-patterns
+table has nothing to say about this diff (no new Client Component, no `useEffect` fetch, no `useSearchParams`). The
+findings are about the gaps' instructions and two mutations the suite doesn't catch.
+
+**Counts:** 0 blocker, 2 should-fix, 5 nit. **Verdict: proceed after fixes.**
+
+| # | Sev | Finding | Evidence | What goes wrong | Resolution |
+|---|---|---|---|---|---|
+| 1 | should-fix | **K1's `Code:` as written breaks `pnpm lint`.** The block shows the whole statement `const { push } = vi.hoisted(() => ({ push: vi.fn() }));`, which drops the `(): { push: Mock }` annotation, so the scaffold's `type Mock` import in `filter-header.test.tsx:3` becomes unused. The log says lint was clean with the snippets applied; that may hold only if the body alone was swapped in and the annotation kept, which is what the plan's "Scaffold shape" sentence says but not what the in-file `Code:` shows. Fix: have the K1 block say to drop `type Mock` from the `vitest` import (or show the annotated form), and make the plan's K1 text and the log say the same. | CONFIRMED: K1–K3 pasted as written, `pnpm lint` gives `3:53 warning 'Mock' is defined but never used @typescript-eslint/no-unused-vars` and `ESLint found too many warnings (maximum: 0)`. Tests 336/336 green, check-types clean. | Ari fills K1 exactly as told, his tests go green, and the push fails CI's lint job. That's a confusing red for a test-only change, and the step-4 cleanup (which removes scaffold imports) only comes after his commit. | **Fixed.** Reproduced first: K1's `Code:` pasted as written gave `'Mock' is defined but never used` and a failing `--max-warnings 0`. The scaffold no longer imports `Mock`: the placeholder is typed `{ push: ReturnType<typeof vi.fn> }`, so replacing the whole statement with the `Code:` lines leaves nothing unused (`filter-header.test.tsx:36–55`, with a note in the block saying why it is typed). Re-checked by pasting all three `Code:` blocks verbatim with a script that lifts them out of the comments: lint clean, `check-types` clean, 337/337 green. The plan's K1 "Scaffold shape" sentence says the same. My earlier log line ("lint clean with the snippets") was true of how I had applied them, not of how the block told Ari to; the log round below corrects the record. |
+| 2 | should-fix | **K3's filtered-half `Check:` names a mutation the gap line doesn't catch.** The block at `calendar-results.test.tsx:118–129` says the test is "RED under mutation B5-M4". It is, but the already-written line `:114` (`getByText(/No matches found/)`) is the one that fails, so M4 goes red with K3 left empty or filled wrong. No mutation in Verification 3 targets what K3's line adds (the reset is a *link* to `/`). Fix: name a mutation only the gap catches, for example the reset `Link` given `href="/?x=1"`, or rendered as a `<span>`, and add it to the mutation table. (The unfiltered half is fine: under M5 the failure is K3's own `queryByRole("link", …)` line.) | CONFIRMED: M4 on the filled suite fails at `calendar-results.test.tsx:114:19` (`Unable to find an element with the text: /No matches found/`). With `href="/?x=1"` the failure is at the K3 line (`:130:65`); with a `<span>` it is also the K3 line (`:130:19`). M5, with the link inline or as a sibling, fails at the K3 unfiltered line (`:163`). | The Check is how Ari confirms his line is right. As written it goes red whether or not his line exists, so it can't tell a correct fill from the "asserting the text only" mistake the same block warns about. | **Fixed.** K3's filtered-half `Check:` now names B5-M14 (the reset link's `href` changed to `/?x=1`, or the link rendered as a `<span>`) as the mutation only the gap's line catches, and says that B5-M4 is caught by the already-written "No matches" line regardless. M14 (both variants) is in Verification 3's table and was run: each goes red at the gap's own assertion only when the gap is filled (with the placeholder open the test is red anyway). Plan K3 text updated to match. |
+| 3 | nit | **An artist pick that drops the other filters passes every test.** K2 proves a *venue* pick keeps the others. The Artists test (`filter-header.test.tsx:165`) starts from `noFilters`, and nothing else picks an artist, so an `onChange` for artists that rebuilt the filters from scratch would go unnoticed. One more preselected case fixes it, e.g. `{ venueIds: [1], artistIds: [], month: "2026-10" }`, pick Charlie Parr → `/?venue=1&artist=1&month=2026-10`. | CONFIRMED: replacing the Artists `onChange` with `navigate(withIds({ venueIds: [], artistIds: [], month: null }, "artistIds", ids))` leaves **336/336 green**. | This is the same bug as M2 on the other picker: a filtered calendar loses its venue when an artist is added, and the URL stops being shareable as intended. | **Fixed.** Test 6 now preselects venue 2 and month `2026-10`, picks Charlie Parr and expects `/?venue=2&artist=1&month=2026-10` (`filter-header.test.tsx`, test renamed "the Artists box writes artist= and keeps the other filters"). Mutation B5-M15 (the Artists `onChange` rebuilding from scratch) added to the table and run: 1 test red, which was green on all 336 before. Plan section 1 test 6 updated. |
+| 4 | nit | **Show order inside a venue column isn't pinned.** Plan section 2, test 4 says the column shows its shows "in the order **given**: … the grid must not re-order or hide anything". `calendar-grid.test.tsx:114` checks column order and `:135` checks per-column counts, but no test checks the order of the shows inside a column (`groupCalendar` sorts by time, B3). Fix: give the two-show column distinct times or ids and assert the order of their time links. | CONFIRMED: `[...column.shows].reverse().map(…)` in `calendar-grid.tsx` leaves **336/336 green**. | An early show listed under a later one inside a busy column would pass, and that's the order a reader scans. | **Fixed.** New `calendar-grid.test.tsx` test "keeps the shows inside a column in the order given" (6:00 PM then 10:00 PM, asserted through the time links' text); the `show` helper takes an optional start time. Mutation B5-M16 (`[...column.shows].reverse()`) added and run: 1 test red, green before. Plan section 2 gains the test (as 5; the no-cap test is 6). |
+| 5 | nit | **The build plan repeats the jsdom 30 floor that PR1-4 corrected.** `alpha-build-plan.md` (B5, first bullet) says jsdom stays on 29 "because 30 needs Node ≥ 22.22.2". `notes.md` and this plan quote the full range, `^22.22.2 \|\| ^24.15.0 \|\| >=26.0.0`. | CONFIRMED: `git diff b601c5a..HEAD -- docs/dev/alpha-build-plan.md`. | Someone on Node 24.0–24.14 reads the build plan, concludes 30 is fine for them, and gets an engines failure. Quote the range or point to `notes.md`. | **Fixed.** `alpha-build-plan.md` now quotes `^22.22.2 || ^24.15.0 || >=26.0.0` and points to `notes.md`. |
+| 6 | nit | **The style guide's Testing sentence now implies Playwright is set up.** It reads "recommend **Vitest** for unit tests and **Playwright** for E2E — `apps/calendar` has this setup (Vitest in two environments plus Testing Library…)". Playwright is still deferred. | CONFIRMED: `docs/references/nextjs-style-guide.md:606–607`. | A reader of a guide written to correct stale assumptions takes away a new wrong one. Say "has the Vitest half; Playwright is deferred (`alpha-build-plan.md` B5)". | **Fixed.** The style guide sentence now says `apps/calendar` "has the Vitest half of this set up … Playwright is still deferred (`alpha-build-plan.md`, B5)". |
+| 7 | nit | **Base UI takes jsdom-specific code paths, and the docs treat the `jsdom` hit only as a grep false positive.** The bundle's Base UI code sets `env.jsdom` from the user agent and branches on it (`if(eD.env.jsdom)return t` around `getBoundingClientRect`, and `!eD.env.jsdom&&…` in its virtual-click detection). So the combobox and select under test don't run quite the code a browser runs. That's fine for what B5 asserts (URLs, names, presence), but it belongs in "What is *not* covered" and in the `notes.md` sentence, beside the layout bullet. | Branches CONFIRMED in `.next/static` after the build (`grep -rhoE ".{60}jsdom.{40}"`). Effect on any current test: PLAUSIBLE that there is none. | A later test of positioning or pointer behaviour passes in jsdom because Base UI short-circuited there, and the gap isn't written down where Playwright's backlog is. | **Fixed.** Added to the plan's "What is not covered" (anything depending on real layout or pointing, since Base UI branches on `env.jsdom`; positioning and pointer behaviour are Playwright's) and as a short entry in `notes.md`. No test depends on those paths today, as the reviewer found. |
+
+**Rejected:** none. All seven findings were accepted. Finding 1 was reproduced before fixing; 3 and 4 are new tests proven by their mutations (M15, M16, red under the mutation and green before); 2 is a rewritten Check proven by M14.
+
+**Test-suite result after the fixes** (the handoff state, K1 and K3 still open): `make -k check`: ruff clean; mypy `no issues found in 31 source files`; eslint and `next typegen && tsc` clean; **pytest 669 passed, 15 skipped**; Vitest **21 files, 322 tests visible: 320 passed, 2 failed (K3's two), plus `filter-header.test.tsx` (15 tests) not loading (K1)**; `contract-check`: current. With the three `Code:` blocks pasted verbatim: **337 tests, all passing**, lint and `check-types` clean. Mutations B5-M14 (both variants), M15 and M16 red as described above; the scaffold was restored and its checksums checked; no `*.orig` files.

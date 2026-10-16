@@ -28,10 +28,15 @@ const zhora: VenueSummary = { id: 3, name: "Zhora Darling" };
 
 // A show with only the fields the grid and the show block read. An empty
 // lineup is fine: this file is about the grid, not about lineups.
-const show = (id: number, venue: VenueSummary, date = "2026-10-07"): ShowSummary => ({
+const show = (
+  id: number,
+  venue: VenueSummary,
+  date = "2026-10-07",
+  start_time = "20:00:00",
+): ShowSummary => ({
   id,
   date,
-  start_time: "20:00:00",
+  start_time,
   venue,
   lineup: [],
 });
@@ -150,6 +155,32 @@ describe("CalendarGrid venue columns", () => {
     const columns = screen.getAllByRole("heading", { level: 3 }).map((h) => h.closest("section")!);
     expect(within(columns[0]!).getAllByRole("article")).toHaveLength(2);
     expect(within(columns[1]!).getAllByRole("article")).toHaveLength(1);
+  });
+
+  it("keeps the shows inside a column in the order given", () => {
+    // Proves: the grid lists a venue's shows exactly as handed to it. Putting
+    // them in time order is `groupCalendar`'s job (B3); a grid that reversed or
+    // re-sorted them (mutation B5-M16) would show a late show above an early
+    // one, and that is the order a reader scans. Distinct times make the order
+    // visible: 6:00 PM first, then 10:00 PM.
+    render(
+      <CalendarGrid
+        rows={[
+          row("2026-10-07", [
+            column(squirrel, [
+              show(22, squirrel, "2026-10-07", "18:00:00"),
+              show(23, squirrel, "2026-10-07", "22:00:00"),
+            ]),
+          ]),
+        ]}
+      />,
+    );
+
+    const times = screen.getAllByRole("link", { name: /show details/ });
+    expect(times.map((t) => t.textContent)).toEqual([
+      "6:00 PM, show details",
+      "10:00 PM, show details",
+    ]);
   });
 
   it("renders every show at a venue, with no cap at two", () => {
