@@ -405,6 +405,33 @@ structured source's URL never appears in visible text; it now skips `jsonld` and
 
 ---
 
+## Two ways a calendar page scrolls sideways that no unit test can see, and the measuring trap that hid one
+
+Found in B4 by measuring `document.documentElement.scrollWidth` against `clientWidth` in headless Chromium at 375px.
+Both are the same family as B3-K5 (what the scroll container actually contains):
+
+1. **`.sr-only` inside a scroll container widens the page.** `sr-only` is `position: absolute`, and an `overflow-x: auto`
+   container does not clip an absolutely positioned descendant whose containing block lies *outside* it. B4 put a
+   visually hidden ", show details" in the show block's link; the block lives in the calendar's per-date scroller, so on
+   the four-venue row the hidden text sat far to the right and `/` measured **889px wide on a 375px phone** with no
+   visible element out of place. The fix is `relative` on the link, so the link is the containing block and the text
+   scrolls and clips with its row. Any `sr-only` inside the grid needs the same.
+2. **A long unbreakable value in a `grid-cols-[auto_1fr]` list widens it.** A grid item's automatic minimum width is its
+   longest unbreakable word, and the detail pages print URLs and emails scraped from the web: a calendar URL pushed
+   `/venue/3` 9px past a 375px screen. `min-w-0 [overflow-wrap:anywhere]` on the `<dd>` (`DetailRow`).
+
+**The measuring trap:** `/` streams (B3-D4), so `waitUntil: "load"` can fire before the Suspense body arrives, and the
+page measures as the skeleton: `/` read "fine" at 375px until the check waited for `networkidle`. Measure a streamed
+page after its body is in.
+
+## `pkill -f next start` kills the shell that runs it
+
+The pattern matches the shell's own command line (it contains "next start"), so the shell dies with exit 144 and the
+rest of the command never runs. Find the server's pid with `ps -eo pid,args | grep "[n]ext-server"` (the bracket keeps
+grep from matching itself) and kill that.
+
+---
+
 ## A graph node wrapper must not use `functools.wraps`, and BSON cannot store a `date`
 
 Two things found while building A4's audit wrapper (`agent_worker/trace.py`), both verified, not assumed.

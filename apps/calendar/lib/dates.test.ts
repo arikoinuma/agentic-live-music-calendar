@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   formatClockTime,
   formatDayHeading,
+  formatDayHeadingWithYear,
   formatMonthLabel,
   formatShowTime,
   isAfterMidnight,
@@ -191,5 +192,21 @@ describe("formatMonthLabel", () => {
     // PlainYearMonth.toLocaleString("en-US") throws — see notes.md.)
     expect(formatMonthLabel(2026, 10)).toBe("October 2026");
     expect(formatMonthLabel(2027, 1)).toBe("January 2027");
+  });
+});
+
+describe("formatDayHeadingWithYear", () => {
+  it.each([
+    ["2026-10-12", "Mon, Oct 12, 2026"],
+    ["2028-02-29", "Tue, Feb 29, 2028"],
+    ["2026-12-31", "Thu, Dec 31, 2026"],
+  ])("formats %s as %s", (date, expected) => {
+    // Proves: the detail pages' unambiguous date ("Mon, Oct 12, 2026"). A
+    // paged or upcoming list can cross a year boundary, where a heading
+    // without the year is ambiguous (B4-PR1-4). Weekdays worked
+    // out from a calendar: 2026-10-12 is a Monday, 2028-02-29 a Tuesday,
+    // 2026-12-31 a Thursday. The year is the PlainDate's own, so no zone
+    // can shift it (the same property formatDayHeading is tested for).
+    expect(formatDayHeadingWithYear(date)).toBe(expected);
   });
 });

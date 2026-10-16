@@ -64,7 +64,7 @@ export function metroToday(
  * `toZonedDateTimeISO` throws a RangeError for an id it doesn't know;
  * "Today" is cosmetic, so a typo in a metro row shouldn't be a 500
  * (B3-PR1-9). Only RangeError is caught — anything else
- * (including an open gap's TODO error) is a real bug and passes through.
+ * is a real bug and passes through.
  */
 export function metroTodayOrNull(
   timeZone: string,
@@ -122,6 +122,11 @@ export function formatDayHeading(date: string): string {
     month: "short",
     day: "numeric",
   });
+}
+
+/** "2026-10-12" -> "Mon, Oct 12, 2026": the heading plus its year, for lists that can cross a year. */
+export function formatDayHeadingWithYear(date: string): string {
+  return `${formatDayHeading(date)}, ${Temporal.PlainDate.from(date).year}`;
 }
 
 /**

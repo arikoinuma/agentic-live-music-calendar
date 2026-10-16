@@ -43,12 +43,18 @@ export type { CalendarFilters } from "./calendar-href";
 export type SearchParams = { [key: string]: string | string[] | undefined };
 
 // What `getShows` (lib/api.ts) is called with. `start` / `end` are
-// inclusive ISO dates and are either both present or both absent.
+// inclusive ISO dates. The home calendar sends both together (a month) or
+// neither (the server's default window); the venue page's paging sends a
+// `start` ALONE on purpose, and the server fills in `end` so the window
+// length stays its decision. `upcoming` (the artist page) means "every
+// show from the server's today"; it is exclusive with `start`/`end`, which
+// the SERVER enforces with a 422 — this type doesn't try to repeat the rule.
 export type ShowsQuery = {
   start?: string;
   end?: string;
   venueIds: number[];
   artistIds: number[];
+  upcoming?: boolean;
 };
 
 // --- path params ---------------------------------------------------------------
@@ -185,4 +191,26 @@ export function toShowsQuery(filters: CalendarFilters): ShowsQuery {
     Object.assign(query, monthRange(filters.month));
   }
   return query;
+}
+
+/**
+ * The venue page's `?from=YYYY-MM-DD` (B4): where its embedded calendar
+ * starts. A valid date -> that string (it goes straight into the API's
+ * `start`); anything else -> `null`, meaning "the server's default
+ * window". A repeated key takes the first VALID value, like
+ * `parseMonthParam`.
+ *
+ * Same strictness as `parseDateParam` (which it calls), plus one more
+ * bound: year <= 9998. The API fills `end = start + 27 days`, and
+ * `9999-12-20 + 27 days` overflows Python's `date` (max 9999-12-31) and
+ * answers 500. A search param must never cause a 500 (see this file's
+ * docstring), so such a value is ignored here instead.
+ */
+export function parseFromParam(raw: string | string[] | undefined): string | null {
+  const candidates = raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];
+  for (const candidate of candidates) {
+    const date = parseDateParam(candidate);
+    if (date !== null && date.year <= 9998) return candidate;
+  }
+  return null;
 }

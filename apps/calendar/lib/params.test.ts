@@ -3,6 +3,7 @@ import {
   buildCalendarHref,
   parseCalendarFilters,
   parseDateParam,
+  parseFromParam,
   parseIdParam,
   parseMonthParam,
   toShowsQuery,
@@ -261,5 +262,46 @@ describe("buildCalendarHref", () => {
     expect(buildCalendarHref(parseCalendarFilters(messy))).toBe(
       "/?venue=1&venue=3",
     );
+  });
+});
+
+// --- parseFromParam (B4) ------------------------------------------------------
+
+describe("parseFromParam", () => {
+  it.each([
+    ["2026-10-26", "2026-10-26"],
+    ["9998-12-31", "9998-12-31"],
+    ["0001-01-01", "0001-01-01"],
+  ])("accepts %s", (raw, expected) => {
+    // Proves: the venue page's `?from=` takes a canonical date and hands
+    // the same string back (it goes straight into the API's `start`).
+    expect(parseFromParam(raw)).toBe(expected);
+  });
+
+  it.each([
+    [undefined],
+    [""],
+    ["garbage"],
+    ["20261026"],
+    ["2026-10-26T00:00"],
+    ["2026-02-30"],
+    ["0000-01-01"],
+    ["9999-12-20"],
+  ])("rejects %j", (raw) => {
+    // Proves: a bad search param is IGNORED (-> null -> the default
+    // window), never a 404 and never a 500. Same strictness as
+    // parseDateParam, which it calls. 9999-12-20 passes that parser but
+    // the API's `start + 27 days` overflows Python's date (max 9999-12-31)
+    // and answers 500 — a search param must never cause that, so the year
+    // is capped at 9998 here (checked: date(9999,12,20)+27 days raises).
+    expect(parseFromParam(raw)).toBeNull();
+  });
+
+  it("takes the first valid value of a repeated key", () => {
+    // Proves: `?from=garbage&from=2026-10-26` isn't an error (same rule as
+    // parseMonthParam).
+    expect(parseFromParam(["2026-10-26", "x"])).toBe("2026-10-26");
+    expect(parseFromParam(["garbage", "2026-10-26"])).toBe("2026-10-26");
+    expect(parseFromParam([])).toBeNull();
   });
 });

@@ -88,7 +88,8 @@ mypy, pytest) and is not in the pipeline.
   under test can't catch that code being wrong, so say where the expected values come from.
 - **Comment-only passes must not change code.** When adding or revising comments across
   files, snapshot the files first and compare syntax trees (ignoring comments and
-  docstrings) afterwards, then run `make check`. See A1's comment pass for the pattern.
+  docstrings) afterwards, then run `make check`. See A1's comment pass for the pattern. Taking the
+  scaffold out of filled `TODO(Ari)` blocks is one of these passes.
 - **Cite the source of a decision.** When code implements something a doc specifies, name
   the doc and section. When it deliberately departs, say so and why.
 - **Verify, don't assume.** Claims in this repo's docs were checked against real behavior.
@@ -135,7 +136,29 @@ code.**
    sense for the line of code to have tests against them. But it is not a firm requirement that
    every `TODO(Ari)` be testable. Prioritize learning higher. 
 3. **Stop and hand off**: list each `TODO(Ari)` as a file:line link with its one-line lesson,
-   plus the command that runs its tests. Don't fill them in.
+   plus the command that runs its tests. Don't fill them in. Tell Ari the cleanup in step 4 follows
+   once the gaps are closed.
+4. **After a gap is filled, take the scaffold out.** The lesson blocks are teaching aids, not
+   documentation: once the code is real they come out, and the code keeps only ordinary comments.
+   The lesson, the code and the check stay on record in the implementation plan (its `TODO(Ari)`
+   gaps section and the Implementation log), so the source doesn't need to carry them. Whoever
+   fills a block does this in the same change; when Ari fills them himself, a Claude pass follows
+   his commit and comes before sign-off ("clean up the closed gaps in `<milestone>`"). The pass:
+   - Rewrite each block as a plain why-comment in the style of its neighbours: drop `TODO(Ari)`,
+     the `Lesson:` / `Code:` / `Check:` labels, test-command pointers, the "likeliest mistake"
+     list and any "replace the `todo` line" instructions. **Keep the reasoning** (why it is done
+     this way here, the doc that decided it, what goes wrong otherwise) as sentences of rationale.
+   - Keep the plan-level references, written as K-forms (`A3-K4`; see `docs/dev/conventions.md`).
+     A key point the plan names stays where it helps a reader follow the plan: a test section
+     header, a `Proves (…)` line, a module docstring's reading order. The old letter becomes its
+     K number, and what goes is the scaffolding: `TODO(Ari)` markers and "stay red until Ari fills
+     …" notes in test docstrings.
+   - Delete the placeholder helper (`lib/todo.ts`) once no gap calls it, along with any import or
+     `noqa` the scaffold left for the gap.
+   - It is a comment-only pass, so verify it as one (see Conventions): compare syntax trees before
+     and after, then `make check`.
+
+A scaffolded block (step 2) looks like this:
 
 ```python
 # TODO(Ari) — Lesson: the soft delete only considers shows inside the window this fetch covered
@@ -151,8 +174,7 @@ raise NotImplementedError("TODO(Ari)")
 **"Go ahead", "implement B2", "proceed with the plan" mean: carry out the plan, and for
 [fill-in] steps the plan is the scaffold.** They don't give permission to fill `TODO(Ari)`
 blocks. Fill a block only when Ari asks for that block (or file) by name — "fill in the TODOs in
-`reconcile.py`", "complete it for me". When you do, keep the Lesson comment as an ordinary
-comment.
+`reconcile.py`", "complete it for me". When you do, clean up the block as step 4 below says.
 
 **Picking the gaps:** choose lines where the concept lives, not where most of the typing is.
 Good gaps: the `searchParams` → API-query mapping, the composite-key match that decides insert
