@@ -59,7 +59,7 @@ jobs:
       MODEL_NAME: ci-placeholder
       MONGODB_TEST_URI: mongodb://localhost:27017
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: astral-sh/setup-uv@v7
         with:
@@ -85,7 +85,7 @@ jobs:
     name: JS (turbo lint + check-types + test)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v4
 
@@ -107,7 +107,7 @@ jobs:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/ci
       MODEL_NAME: ci-placeholder
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: astral-sh/setup-uv@v7
         with:
