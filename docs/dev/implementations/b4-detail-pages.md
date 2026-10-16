@@ -1,6 +1,6 @@
 # B4 — detail pages
 
-**Status:** Awaiting sign-off
+**Status:** Done (Ari sign off) - Oct 16, 2026
 **Date:** October 14, 2026
 **Author model:** Claude Opus 5.5 (plan, plan-review resolution); Claude Sonnet 5.5 (revisions after Ari's D2 and D4 decisions, October 14, 2026)
 **Reviewer model:** Claude Sonnet 5.5 (plan review round 1); Claude Opus 5.5 (code review round 1)
