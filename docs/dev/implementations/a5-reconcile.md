@@ -124,16 +124,16 @@ were split and renumbered. **Plan review round 1 cites the old numbers**; this t
 |---|---|---|---|---|
 | D1 | How far does the page "reach" for deciding a show is gone? | ★ | A: the latest date it lists | **Decided A** (Ari, Oct 17) |
 | D2 | What if the page is empty? | ★ | A: remove nothing | **Decided A** (Ari, Oct 17) |
-| D3 | Is an untimed show the same show as a stored one? | ★ | A: yes when unambiguous | Open |
-| D4 | If the new listing leaves a field blank, do we erase what we stored? | ★ | A: keep the stored value | Open |
-| D5 | How do the three price fields update? | ★ | A: as one unit | Open |
-| D6 | How is a cancelled or postponed show stored? | ★ | A: reuse `removed` | Open |
-| D7 | If a removed show is listed again, what happens? | ★ | A: bring the same row back | Open |
-| D8 | When are two artist names "exactly the same"? | ★ | A: after tidying case, accents, "The", "&" | Open |
-| D9 | If the model is unsure about an artist, what do we do? | ★ | A: create a new artist | Open |
-| D10 | Do we guard against one run removing most of a venue's shows? | ★ | A: yes | Open |
-| D11 | What does reconcile write to the audit trail? | technical | A: a summary row plus one row per model decision | Open |
-| D12 | How do we measure "similar" artist names? | technical | A: Python `difflib`, no new dependency | Open |
+| D3 | Is an untimed show the same show as a stored one? | ★ | A: yes when unambiguous | **Decided A** (Ari, Oct 17) |
+| D4 | If the new listing leaves a field blank, do we erase what we stored? | ★ | A: keep the stored value | **Decided A** (Ari, Oct 17) |
+| D5 | How do the three price fields update? | ★ | A: as one unit | **Decided A** (Ari, Oct 17) |
+| D6 | How is a cancelled or postponed show stored? | ★ | A: reuse `removed` | **Decided A** (Ari, Oct 17) |
+| D7 | If a removed show is listed again, what happens? | ★ | A: bring the same row back | **Decided A** (Ari, Oct 17) |
+| D8 | When are two artist names "exactly the same"? | ★ | A: after tidying case, accents, "The", "&" | **Decided A** (Ari, Oct 17) |
+| D9 | If the model is unsure about an artist, what do we do? | ★ | A: create a new artist | **Decided A** (Ari, Oct 17) |
+| D10 | Do we guard against one run removing most of a venue's shows? | ★ | A: yes | **Decided A** (Ari, Oct 17) |
+| D11 | What does reconcile write to the audit trail? | technical | A: a summary row plus one row per model decision | **Decided A** (Ari, Oct 17) |
+| D12 | How do we measure "similar" artist names? | technical | A: Python `difflib`, no new dependency | **Decided A** (Ari, Oct 17) |
 | D13 | Where does the database read happen? | technical | A: in the `trace.audited` wrapper | Open |
 
 ---
@@ -164,7 +164,7 @@ were split and renumbered. **Plan review round 1 cites the old numbers**; this t
 - Why A is the safer side: your requirements call an empty list "the most dangerous output", because reconcile would
   remove every stored show.
 
-### D3 — Is an untimed show the same show as a stored one? ★
+### D3 — Is an untimed show the same show as a stored one? ★ **Decided A (Ari, October 17, 2026)**
 
 - **Scenario.** Terminal Bar's page lists shows with no times at all. Monday's run stores "Band X, Oct 24, no time".
   Tuesday's page lists "Band X, Oct 24, no time" again. Matching on (venue, date, time) with a blank time never
@@ -183,7 +183,7 @@ were split and renumbered. **Plan review round 1 cites the old numbers**; this t
   already treat a lineup change at the same key as an update, so this is consistent.
 - This was the build plan's open decision, which asked for your confirmation here.
 
-### D4 — If the new listing leaves a field blank, do we erase what we stored? ★
+### D4 — If the new listing leaves a field blank, do we erase what we stored? ★ **Decided A (Ari, October 17, 2026)**
 
 - **Scenario.** Monday's page said the show ends at 11 PM and had a poster. Tuesday's extraction has no end time and
   no poster, either because the model missed them or because the venue removed them. Does the stored show lose its end
@@ -197,7 +197,7 @@ were split and renumbered. **Plan review round 1 cites the old numbers**; this t
 - **Cost of A:** when a venue really removes an end time, the pipeline can't clear it. A human edit can, once edits exist.
 - Prices are handled by D5, not here.
 
-### D5 — How do the three price fields update? ★
+### D5 — How do the three price fields update? ★ **Decided A (Ari, October 17, 2026)**
 
 - **Scenario 1.** A show is stored with a $20 door price. The venue now says "FREE". The listing has
   `free_admission = true` and no prices. If we kept each field separately (D4's rule), the row would be free *and* $20,
@@ -212,7 +212,7 @@ were split and renumbered. **Plan review round 1 cites the old numbers**; this t
   advance price the venue stopped offering, and it is harder to explain.
 - The reviewer found this as the plan's one blocker, which is why it is its own decision.
 
-### D6 — How is a cancelled or postponed show stored? ★
+### D6 — How is a cancelled or postponed show stored? ★ **Decided A (Ari, October 17, 2026)**
 
 - **Scenario.** Last week we stored "Band Y, Oct 22". This week Mortimer's page shows "CANCELLED, Band Y, Oct 22".
   What does the database say?
@@ -224,7 +224,7 @@ were split and renumbered. **Plan review round 1 cites the old numbers**; this t
 - **Cost of A:** the app can't distinguish "cancelled" from "dropped" without reading the audit trail. Nothing planned
   needs it.
 
-### D7 — If a removed show is listed again, what happens? ★
+### D7 — If a removed show is listed again, what happens? ★ **Decided A (Ari, October 17, 2026)**
 
 - **Scenario.** Band Y's Oct 22 show was marked removed when Mortimer's cancelled it. A week later the venue un-cancels
   it and lists it as scheduled for the same date and time.
@@ -234,7 +234,7 @@ were split and renumbered. **Plan review round 1 cites the old numbers**; this t
 - **Cost of A:** a different show at the same date and time could reactivate an old row. Matching only considers a
   removed show after every active one has been paired, which limits that.
 
-### D8 — When are two artist names "exactly the same"? ★
+### D8 — When are two artist names "exactly the same"? ★ **Decided A (Ari, October 17, 2026)**
 
 - **Scenario.** The page says "The Hold Steady" and we have "Hold Steady". Or "Poliça" against "Polica". Or
   "Jenny Lake & Friends" against "Jenny Lake and Friends". Same artist, with no review?
@@ -246,7 +246,7 @@ were split and renumbered. **Plan review round 1 cites the old numbers**; this t
   called "Wild" and another called "The Wild"). Cost of B: more model calls, and more rows in the audit trail, for names
   that are plainly the same.
 
-### D9 — If the model is unsure about an artist match, what do we do? ★
+### D9 — If the model is unsure about an artist match, what do we do? ★ **Decided A (Ari, October 17, 2026)**
 
 - **Scenario.** The page lists "Zhora Band". We have an artist "Zhora". They are similar but not equal, so reconcile
   asks the model: same act? The model answers "probably, 0.6", or declines to choose, or the call fails.
@@ -258,7 +258,7 @@ were split and renumbered. **Plan review round 1 cites the old numbers**; this t
   artist page.
 - **Cost of A:** more duplicate artists until merge exists.
 
-### D10 — Do we guard against one run removing most of a venue's shows? ★
+### D10 — Do we guard against one run removing most of a venue's shows? ★ **Decided A (Ari, October 17, 2026)**
 
 - **Scenario.** A venue's site glitches and returns half its calendar: of 8 shows in the window, 5 are missing. It
   passes validation, because half a calendar is still a calendar.
@@ -268,7 +268,7 @@ were split and renumbered. **Plan review round 1 cites the old numbers**; this t
 - **Option B — no guard.** Trust validation.
 - **Cost of A:** a real mass removal (a venue closing for renovation) waits for a person.
 
-### D11 — What does reconcile write to the audit trail? (technical)
+### D11 — What does reconcile write to the audit trail? (technical) **Decided A (Ari, October 17, 2026)**
 
 - **Scenario.** Months from now you ask: "why did the app think 'Zhora Band' was 'Zhora'?" Where is the answer?
 - **Option A — one summary row per run, plus one row per model decision.** The summary row (entity = the venue) has the
@@ -277,7 +277,7 @@ were split and renumbered. **Plan review round 1 cites the old numbers**; this t
   with before/after snapshots stay in A6's commit, because they record what was written.
 - **Option B — also one row per show decision from reconcile.** More rows, and they overlap with commit's.
 
-### D12 — How do we measure "similar" artist names? (technical)
+### D12 — How do we measure "similar" artist names? (technical) **Decided A (Ari, October 17, 2026)**
 
 - **Scenario.** "Dessa" and "Desa" score 0.889 on Python's `difflib`; "Zhora" and "Zhora Band" score 0.667, which a
   ratio alone would miss.
@@ -854,9 +854,9 @@ rows with `entity_type = 'artist'`, joined to the run's venue. It uses `CAST(...
 
 ## Approval
 
-**Ari, October 17, 2026:** decided D1 (window end = the latest date the page lists) and D2 (an empty page removes nothing), both as recommended (option A). D3–D13 are open.
+**Ari, October 17, 2026:** decided D1 (window end = the latest date the page lists) and D2 (an empty page removes nothing), both as recommended (option A). **Ari, October 17, 2026 (later):** decided D3 through D12, all as recommended (option A). **D13 is open** (Ari asked for a plainer explanation).
 
-*(Awaiting Ari on D3–D13. After the plan review round and its resolution, the status becomes `Awaiting approval`. Ari sets
+*(Awaiting Ari on D13. After the plan review round and its resolution, the status becomes `Awaiting approval`. Ari sets
 `Approved` and may re-mark any [written] item [fill-in] or the reverse; `/build-milestone` records the approval.)*
 
 ## Plan review
