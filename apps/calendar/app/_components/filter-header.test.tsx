@@ -33,7 +33,7 @@ import { FilterHeader } from "./filter-header";
 
 // --- the router, mocked at the framework's edge (B5-K1) ---------------------
 
-// TODO(Ari) — Lesson: FilterHeader's only contact with Next is `useRouter().push`
+//   FilterHeader's only contact with Next is `useRouter().push`
 //   (B3-K4: a pick changes the URL and the server page re-renders). Outside a running
 //   Next app there is no app router, so the unmocked component throws
 //   `invariant expected app router to be mounted`. Replace exactly that edge, not
@@ -41,19 +41,8 @@ import { FilterHeader } from "./filter-header";
 //   filter state (arch-initial.md §4), so the pushed URL is the behaviour.
 //   `vi.mock` is hoisted above the imports, so anything its factory reads must come
 //   from `vi.hoisted`.
-// Code:
-//   const { push } = vi.hoisted(() => ({ push: vi.fn() }));
-//   vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
-// (The placeholder below is typed only so `tsc` accepts `push` in the other tests while
-//   it is open; replace the WHOLE statement with the Code: lines and nothing is left over.)
-// Check: `pnpm --filter calendar test filter-header` — while this is open the whole
-//   file fails to load (one failed suite, zero tests); filled, every test runs.
-//   Likeliest mistakes: a top-level `const push = vi.fn()` read eagerly inside the
-//   factory ("Cannot access 'push' before initialization"), or mocking more than the
-//   router (a faked combobox passes while proving nothing about it).
-const { push } = vi.hoisted((): { push: ReturnType<typeof vi.fn> } => {
-  throw new Error("TODO(Ari)");
-});
+  const { push } = vi.hoisted(() => ({ push: vi.fn() }));
+  vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
 // --- fixtures and helpers ---------------------------------------------------
 
@@ -127,7 +116,7 @@ describe("FilterHeader navigation", () => {
     // forgot them (mutation B5-M2) or dropped `{ scroll: false }` (B5-M1) fails.
     // This is what makes a filtered calendar shareable and bookmarkable.
 
-    // TODO(Ari) — Lesson: drive the combobox the way a person does, and assert the
+    //   Drive the combobox the way a person does, and assert the
     //   WHOLE outcome. (1) Find things by role and accessible name, not by class or
     //   data-slot. (2) Use `userEvent`: the combobox opens on the pointer-and-focus
     //   sequence a real click produces, and `fireEvent.click` sends one bare event
@@ -135,20 +124,11 @@ describe("FilterHeader navigation", () => {
     //   other filters preselected so a header that forgets them fails, and write the
     //   expected string BY HAND from buildCalendarHref's documented key order rather
     //   than calling buildCalendarHref (it would agree with itself whatever it did).
-    // Code:
-    //   const user = userEvent.setup();
-    //   renderHeader({ venueIds: [3], artistIds: [7], month: "2026-10" });
-    //   await user.click(screen.getByLabelText("Venues"));
-    //   await user.click(await screen.findByRole("option", { name: "The White Squirrel Bar" }));
-    //   expect(push).toHaveBeenCalledExactlyOnceWith("/?venue=1&venue=3&artist=7&month=2026-10", { scroll: false });
-    // Check: `pnpm --filter calendar test filter-header` — green on the real header,
-    //   RED when filter-header.tsx is mutated so a pick drops the other filters (B5-M2)
-    //   or loses `{ scroll: false }` (B5-M1). Likeliest mistakes: `fireEvent.click`
-    //   (waits forever for the option), building the expected URL with
-    //   buildCalendarHref, or `expect(push).toHaveBeenCalled()` with no argument
-    //   (passes under both mutations). `toHaveBeenCalledWith` alone is a weaker miss:
-    //   it ignores a second navigation, which `toHaveBeenCalledExactlyOnceWith` catches.
-    throw new Error("TODO(Ari)");
+    const user = userEvent.setup();
+      renderHeader({ venueIds: [3], artistIds: [7], month: "2026-10" });
+      await user.click(screen.getByLabelText("Venues"));
+      await user.click(await screen.findByRole("option", { name: "The White Squirrel Bar" }));
+      expect(push).toHaveBeenCalledExactlyOnceWith("/?venue=1&venue=3&artist=7&month=2026-10", { scroll: false });
   });
 
   it("clicking an already-selected venue removes it", async () => {

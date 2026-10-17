@@ -115,22 +115,13 @@ describe("CalendarResults with no shows", () => {
     // Nothing to lay out: no calendar rows, no skeleton.
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
 
-    // TODO(Ari) — Lesson: the way out must be a real LINK to "/", not just words.
+    //   The way out must be a real LINK to "/", not just words.
     //   The page is server-rendered, so a plain <a href="/"> works before any
     //   JavaScript has loaded, and `getByRole("link", { name })` plus
     //   `toHaveAttribute("href", "/")` proves it is one (the same reasoning
     //   as "Clear filters" in filter-header.tsx; requirements-initial.md,
     //   "Calendar").
-    // Code:
-    //   expect(screen.getByRole("link", { name: "Reset filters" })).toHaveAttribute("href", "/");
-    // Check: `pnpm --filter calendar test calendar-results` — green on the real
-    //   component, and RED under mutation B5-M14 (the reset link's `href` changed to
-    //   "/?x=1") or if the reset were a <span>: only THIS line catches those. (The
-    //   already-written "No matches" line above catches B5-M4, hasActiveFilters
-    //   forgetting `month`, whether or not this line exists, so it cannot tell you
-    //   your line is right.) Likeliest mistake: asserting the text only, which
-    //   passes even if the reset is plain text.
-    throw new Error("TODO(Ari)");
+    expect(screen.getByRole("link", { name: "Reset filters" })).toHaveAttribute("href", "/");
   });
 
   it("unfiltered and empty: says nothing is listed and offers no reset", () => {
@@ -151,18 +142,12 @@ describe("CalendarResults with no shows", () => {
 
     expect(screen.getByText("No shows listed for these dates.")).toBeInTheDocument();
 
-    // TODO(Ari) — Lesson: asserting that something is ABSENT. `getBy*` throws
+    //   Asserting that something is ABSENT. `getBy*` throws
     //   when it finds nothing, so it can't express "must not be there"; the
     //   `queryBy*` family returns `null` instead, which `.not.toBeInTheDocument()`
     //   accepts. One component, two behaviours, and the bug to catch is the
     //   wrong one showing.
-    // Code:
-    //   expect(screen.queryByRole("link", { name: "Reset filters" })).not.toBeInTheDocument();
-    //   expect(screen.queryByText(/No matches found/)).not.toBeInTheDocument();
-    // Check: `pnpm --filter calendar test calendar-results` — green on the real
-    //   component, RED under mutation B5-M5 (the reset link is shown even when
-    //   nothing is filtered). Likeliest mistake: `getByRole(...)` followed by
-    //   `.not...`, which throws before it can assert anything.
-    throw new Error("TODO(Ari)");
+    expect(screen.queryByRole("link", { name: "Reset filters" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/No matches found/)).not.toBeInTheDocument();
   });
 });
