@@ -21,6 +21,7 @@ import pytest
 from agent_worker import extraction
 from agent_worker.audit import AuditEntry, audit_confidence, entry_for
 from agent_worker.policy import AttemptPlan, AttemptRecord
+from agent_worker.reconcile import Action, Coverage, ReconcilePlan, ShowDecision
 from agent_worker.state import VenueGraphState
 from agent_worker.validation import (
     CheckCode,
@@ -34,6 +35,13 @@ from agent_worker.validation import (
 from app.enums import AuditOutcome, AuditSource, EntityType, StepType
 
 PLAN = AttemptPlan(tier="initial", config=extraction.PIPELINE_CONFIG, options=extraction.PIPELINE_OPTIONS)
+
+
+# A plan with a dated, timed decision and a coverage window, so the JSON check below has dates and enums to convert.
+A_PLAN = ReconcilePlan(
+    coverage=Coverage(datetime.date(2026, 10, 12), datetime.date(2026, 10, 31)),
+    shows=(ShowDecision(Action.INSERT, datetime.date(2026, 10, 20), datetime.time(20, 0), "new show", needs_review=True),),
+)
 
 
 def base_state(**changes: object) -> VenueGraphState:
@@ -72,19 +80,21 @@ def test_every_step_is_an_agent_row_for_the_run_in_the_state(step: StepType) -> 
     assert entry.step_type is step and entry.source is AuditSource.AGENT and entry.run_id == 9
 
 
-@pytest.mark.parametrize("step", [StepType.FETCH, StepType.EXTRACT, StepType.VALIDATE, StepType.ESCALATE])
-def test_the_four_venue_level_steps_act_on_the_venue(step: StepType) -> None:
-    # Proves: fetch, extract, validate and escalate name the venue as the entity they acted on
+@pytest.mark.parametrize(
+    "step", [StepType.FETCH, StepType.EXTRACT, StepType.VALIDATE, StepType.RECONCILE, StepType.ESCALATE]
+)
+def test_the_venue_level_steps_act_on_the_venue(step: StepType) -> None:
+    # Proves: fetch, extract, validate, reconcile (A5's summary row) and escalate name the venue as the entity they
+    # acted on
     # (`entity_type=venue`, `entity_id=venue_id`; data-model-initial.md §3).
     entry = entry_for(step, base_state(attempt_count=1))
     assert (entry.entity_type, entry.entity_id) == (EntityType.VENUE, 4)
 
 
-@pytest.mark.parametrize("step", [StepType.RECONCILE, StepType.COMMIT])
-def test_the_stub_steps_name_no_entity_yet(step: StepType) -> None:
-    # Proves: reconcile and commit act on no row until A5/A6 write per-show rows, so their A4 placeholder
-    # rows carry no entity rather than a venue they did not change.
-    entry = entry_for(step, base_state(attempt_count=1, reconcile_decision="insert"))
+def test_the_commit_stub_names_no_entity_yet() -> None:
+    # Proves: commit acts on no row until A6 writes per-show rows, so its placeholder row carries no entity
+    # rather than a venue it did not change.
+    entry = entry_for(StepType.COMMIT, base_state(attempt_count=1))
     assert entry.entity_type is None and entry.entity_id is None and entry.outcome is None
 
 
@@ -235,12 +245,10 @@ def test_validate_detail_records_verdict_reasons_messages_and_counts() -> None:
     assert (detail["warnings"], detail["repairs"], detail["excluded"]) == (1, 1, 1)
 
 
-def test_the_stub_steps_say_they_are_stubs() -> None:
-    # Proves (A4-D5): until A5/A6, reconcile and commit rows are explicit placeholders, so nobody reads one as
-    # a real decision. The decision string the stub set is carried.
-    for step in (StepType.RECONCILE, StepType.COMMIT):
-        detail = entry_for(step, base_state(attempt_count=1, reconcile_decision="insert")).detail
-        assert detail == {"stub": True, "decision": "insert"}
+def test_the_commit_stub_says_it_is_a_stub() -> None:
+    # Proves (A4-D5): until A6, the commit row is an explicit placeholder, so nobody reads it as a real write.
+    # (Reconcile stopped being a stub in A5: its row is tested in test_reconcile_audit.py.)
+    assert entry_for(StepType.COMMIT, base_state(attempt_count=1)).detail == {"stub": True}
 
 
 def test_escalate_is_a_real_row_with_the_reason_and_the_escalated_outcome() -> None:
@@ -268,7 +276,7 @@ def test_every_entrys_detail_is_json_serializable(step: StepType) -> None:
     )
     state = base_state(
         attempt_count=1, last_plan=PLAN, route_attempted="model", validation=passed_validation(),
-        attempt_history=[record], escalation_reason="why", reconcile_decision="insert", confidence=0.9,
+        attempt_history=[record], escalation_reason="why", reconcile_plan=A_PLAN, confidence=0.9,
     )
     entry = entry_for(step, state, staging_id="doc-1")
     assert isinstance(entry, AuditEntry)

@@ -37,6 +37,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agent_worker.audit import PostgresAuditWriter
+from agent_worker.calendar_reader import PostgresCalendarReader
 from agent_worker.context import WorkerContext
 from agent_worker.graph import (
     compiled_graph,
@@ -176,6 +177,7 @@ async def main(argv: list[str] | None = None) -> int:
         ctx = WorkerContext(
             audit=PostgresAuditWriter(SessionFactory),
             stager=MongoStager(mongo[settings.mongodb_database][COLLECTION]),
+            reader=PostgresCalendarReader(SessionFactory),
         )
         failed = await run_all(SessionFactory, ctx, venue_id=args.venue, trigger=args.trigger)
     finally:

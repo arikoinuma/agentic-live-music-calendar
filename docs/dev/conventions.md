@@ -21,11 +21,13 @@ carries that defining document's scope.
 | `A2` | `docs/dev/implementations/a2-extraction-schema.md` |
 | `A2.1` | `docs/dev/implementations/a2.1-extraction-reliability.md` |
 | `A3` | `docs/dev/implementations/a3-validation-and-retry.md` |
+| `A4` | `docs/dev/implementations/a4-auditability.md` |
+| `A5` | `docs/dev/implementations/a5-reconcile.md` |
 | `B2` | `docs/dev/implementations/b2-routes-and-data-loading.md` |
 | `B3` | `docs/dev/implementations/b3-the-calendar.md` |
 | `B4` | `docs/dev/implementations/b4-detail-pages.md` |
 
-Future milestones use their own IDs (`A4`, `H1`, …) the same way.
+Future milestones use their own IDs (`A6`, `H1`, …) the same way.
 
 ### Forms
 

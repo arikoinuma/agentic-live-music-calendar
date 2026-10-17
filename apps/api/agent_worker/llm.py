@@ -15,7 +15,8 @@ from typing import Any
 
 import instructor
 from instructor import Mode
-from openai import OpenAI
+from instructor.core.exceptions import InstructorError
+from openai import OpenAI, OpenAIError
 
 # Ollama's OpenAI-compatible endpoint. Mode.JSON, not Mode.TOOLS: Phase 5 found this model
 # never reliably completed a tool call but does emit valid JSON (docs/dev/env-setup.md,
@@ -71,3 +72,17 @@ def request_kwargs(options: RequestOptions, seed: int | None = None) -> dict[str
     if seed is not None:
         kwargs["seed"] = seed
     return kwargs
+
+
+# What a failed model call is allowed to be (A3, v0.1-G2; moved here from nodes.py in A5). A named tuple, never a bare `Exception`: a
+# KeyError or AttributeError in OUR code is a bug and should crash, not be recorded as a "failed
+# attempt". Each member and why:
+#   InstructorError   instructor re-asked and the answer still wouldn't validate (its
+#                     InstructorRetryException subclass), or the response was cut off;
+#   OpenAIError       the model server couldn't be reached, timed out, or answered with an error status;
+#   ValueError        covers pydantic's ValidationError (which subclasses it) and a malformed JSON-LD
+#                     date (`jsonld.local_wall_clock`'s fromisoformat). It is the broad member: a
+#                     ValueError from our own code (a `zip(strict=True)` mismatch) is also recorded as
+#                     a failed attempt. Accepted on purpose: it ends in an escalation with the error
+#                     text kept, rather than a crash.
+EXTRACTION_ERRORS = (InstructorError, OpenAIError, ValueError)

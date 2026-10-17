@@ -3,7 +3,8 @@
 Each is a plain function of `VenueGraphState` (state.py); graph.py wires them. A3 made the first three
 real: fetch records a failure instead of raising, extract records a failed model call as an attempt
 instead of crashing the graph (v0.1-G2), and validate reads the evidence from validation.py and the
-policy from policy.py to produce a verdict. Reconcile and commit are still stubs (A5, A6).
+policy from policy.py to produce a verdict. A5 made reconcile real (its rules are in reconcile.py and
+artist_match.py; this file's node only wires them to the state); commit is still a stub (A6).
 
 A4 writes the audit trail around these functions, not inside them: `graph.py` registers each through
 `trace.audited`, which runs the node and then appends its `audit_log` row (what each step records is
@@ -18,8 +19,6 @@ from zoneinfo import ZoneInfo
 
 import httpx
 import structlog
-from instructor.core.exceptions import InstructorError
-from openai import OpenAIError
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from agent_worker.extraction import (
@@ -31,7 +30,7 @@ from agent_worker.extraction import (
     extract_page,
     usable_events,
 )
-from agent_worker.llm import instructor_client
+from agent_worker.llm import EXTRACTION_ERRORS, instructor_client
 from agent_worker.policy import (
     AttemptPlan,
     AttemptRecord,
@@ -39,6 +38,7 @@ from agent_worker.policy import (
     combine,
     plan_for_attempt,
 )
+from agent_worker.reconcile import build_plan, prepare_inputs
 from agent_worker.schemas import ShowExtraction
 from agent_worker.state import VenueGraphState
 from agent_worker.validation import ValidationResult, Verdict, validate_extraction
@@ -53,18 +53,8 @@ log = structlog.get_logger()
 
 IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp")
 
-# What a failed model call is allowed to be (A3, v0.1-G2). A named tuple, never a bare `Exception`: a
-# KeyError or AttributeError in OUR code is a bug and should crash, not be recorded as a "failed
-# attempt". Each member and why:
-#   InstructorError   instructor re-asked and the answer still wouldn't validate (its
-#                     InstructorRetryException subclass), or the response was cut off;
-#   OpenAIError       the model server couldn't be reached, timed out, or answered with an error status;
-#   ValueError        covers pydantic's ValidationError (which subclasses it) and a malformed JSON-LD
-#                     date (`jsonld.local_wall_clock`'s fromisoformat). It is the broad member: a
-#                     ValueError from our own code (a `zip(strict=True)` mismatch) is also recorded as
-#                     a failed attempt. Accepted on purpose: it ends in an escalation with the error
-#                     text kept, rather than a crash.
-EXTRACTION_ERRORS = (InstructorError, OpenAIError, ValueError)
+# `EXTRACTION_ERRORS` (what a failed model call is allowed to be) lives in llm.py since A5, because
+# artist_match.py needs it too and sits below state.py in the import order (a5-reconcile.md, Design).
 
 # What a failed fetch is allowed to be: any HTTP error (transport failure or an error status), a
 # file that can't be read, or a page with nothing on it.
@@ -281,44 +271,41 @@ def validate_node(state: VenueGraphState) -> VenueGraphState:
 
 
 def reconcile_node(state: VenueGraphState) -> VenueGraphState:
-    """Decides the CRUD outcome (no-op / delete / insert / update /
-    ambiguous-match, per the architecture doc's table) and sets
-    state.reconcile_decision. Does NOT write to Postgres — that's
-    commit_node's job, kept separate deliberately (see the "Reconcile"
-    section of docs/arch/arch-initial.md Section 7 for why).
+    """Decides what should happen to the calendar and sets `state.reconcile_plan`. Writes nothing: `commit_node`
+    executes the plan, and the two are kept apart so a bad decision and a failed write are different failures in
+    the audit trail (arch-initial.md §7).
 
-    The ambiguous-artist-match case is a conditional branch inside this
-    function, not its own graph node — it still ends with
-    reconcile_node setting state.reconcile_decision, just with an LLM
-    call involved in reaching that decision for that one case.
-
-    PLACEHOLDER: the real version needs to match state.extraction's
-    shows against existing Postgres records (composite key: venue,
-    date, time, for shows; fuzzy name match for artists) — deferred
-    because there's no `show` table or ORM models to query yet (see
-    docs/arch/data-model-initial.md). This stub exists so the graph has
-    all six nodes and can run end to end; it always decides "insert",
-    which is only correct the very first time a show is ever seen.
+    The stored calendar arrives in `state.stored_shows` / `state.known_artists`, put there by `trace.audited`
+    before this runs (it awaits the database; this body stays a plain function, A4-D1). The ambiguous-artist
+    question is a branch inside `reconcile.build_plan`, not a node: it is still reconcile deciding, with a model
+    involved for that one case. The rules are in reconcile.py and artist_match.py.
     """
-    log.info("reconcile is a placeholder until A5", venue_id=state.venue_id)
-    state.reconcile_decision = "insert"
+    inputs = prepare_inputs(
+        state.extraction, state.validated_extraction, state.validation,
+        state.fetched_on or metro_today(state.metro_timezone),
+    )
+    state.reconcile_plan = build_plan(
+        inputs, state.stored_shows, state.known_artists,
+        original_url=state.calendar_url, client=instructor_client, options=PIPELINE_OPTIONS,
+    )
+    log.info(
+        "reconcile decided", venue_id=state.venue_id, counts=state.reconcile_plan.counts(),
+        withheld=len(state.reconcile_plan.withheld),
+    )
     return state
 
 
 def commit_node(state: VenueGraphState) -> VenueGraphState:
-    """Writes reconcile_node's decision to Postgres. Kept separate from
-    reconcile_node because "decide what should happen" and "make it
-    happen" are different failure modes worth attributing separately in
-    the audit trail — a bad reconcile decision is a logic bug, a failed
-    commit is a database/connectivity problem.
+    """Writes reconcile_node's plan to Postgres. Kept separate from reconcile_node because "decide what should
+    happen" and "make it happen" are different failure modes worth attributing separately in the audit trail —
+    a bad reconcile decision is a logic bug, a failed commit is a database/connectivity problem.
 
-    PLACEHOLDER: the real version needs SQLAlchemy (async, matching
-    app/main.py's engine pattern) writing to the `show` table — deferred
-    for the same reason as reconcile_node, that table doesn't exist yet.
-    This stub just logs what it would have written, so the graph's
-    shape is provable end to end without the DB work being done first.
+    PLACEHOLDER (A6): the real version executes `state.reconcile_plan` against `show`, `show_artist` and `artist`,
+    one transaction per decision, with a per-show audit row carrying `previous_value` / `new_value`. This stub
+    just logs what it would have written, so the graph's shape is provable end to end.
     """
-    log.info("commit is a placeholder until A6", venue_id=state.venue_id, decision=state.reconcile_decision)
+    plan = state.reconcile_plan
+    log.info("commit is a placeholder until A6", venue_id=state.venue_id, counts=plan.counts() if plan else None)
     return state
 
 

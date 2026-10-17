@@ -1,6 +1,6 @@
 # A5 — reconcile
 
-**Status:** Awaiting approval
+**Status:** Code review
 **Date:** October 16, 2026
 **Author model:** Claude Sonnet 5.5 (plan, October 16, 2026)
 **Reviewer model:** Claude Opus 5.5 (plan review round 1, October 16, 2026)
@@ -897,3 +897,87 @@ rows with `entity_type = 'artist'`, joined to the run's venue. It uses `CAST(...
 | 16 | nit | `ArtistMatchAnswer.confidence` should carry `Field(ge=0, le=1)`, as the other schemas the model fills do, so an out-of-range value is a validation error and not a "match" at 1.7. Also say which request options the artist question uses (`PIPELINE_OPTIONS`, temperature 0, seed) and that `model_used` comes from them. | CONFIRMED by reading `schemas.ShowExtraction.confidence` (`ge=0, le=1`) and the D5/K5 text. | An unbounded confidence passes the `min_confidence` gate, and the audit row's `model_used` source is left to the implementer. | **Fixed.** D5: `ArtistMatchAnswer.confidence` is `Field(ge=0, le=1)` (test: 1.7 is a validation error), the question uses `PIPELINE_OPTIONS` (temperature 0, base model), and `model_used` comes from those options. |
 
 **Rejected:** none. Round 1 resolved by the author (Claude Sonnet 5.5), October 16, 2026: 16 of 16 fixed in the plan. The blocker (row 1) changed a decision Ari is asked to confirm (★ D3), and rows 3 to 6 changed the matching rules (D2) and the `build_plan` order; no round 2 was run, but Ari may want one given that. Review rows 1, 3, 4 and 5 are the ones to read first.
+
+## Implementation log
+
+### Round 1 — Claude Sonnet 5.5, October 17, 2026
+
+**Scope.** `git diff 886e04e` (the last plan commit) plus the new untracked files: the working tree, uncommitted at the
+time the reviewer is spawned. Branch `claude/vigilant-keller-858dzn` (assigned by the session; `AGENTS.md` names
+`a5-reconcile`).
+
+*New:* `agent_worker/reconcile.py`, `artist_match.py`, `calendar_reader.py`; tests `reconcile_support.py` (helpers),
+`test_reconcile_shows.py`, `test_reconcile_removal.py`, `test_artist_match.py`, `test_graph_reconcile.py`,
+`test_reconcile_audit.py`, `test_calendar_reader.py`, `test_reconcile_db.py`.
+*Changed:* `llm.py` (`EXTRACTION_ERRORS` moved here), `nodes.py` (`reconcile_node` real, `commit_node` stub logs counts),
+`state.py` (`stored_shows`, `known_artists`, `reconcile_plan`; `reconcile_decision` removed), `context.py` (`reader`),
+`trace.py` (`read_calendar`, the model-decision rows), `audit.py` (reconcile detail, `model_decision_entries`, reconcile
+venue-level), `prompts.py` (`artist_match_instruction`), `main.py`, `local_test.py`; tests `fakes.py` (`FakeReader`,
+`ARTIST_MATCH`), `test_audit_entries.py`, `test_audit_queries.py`, `test_graph.py`, `test_graph_audit.py`,
+`test_run_venue.py`; docs `audit-queries.sql` (header keys, the fifth query), `alpha-build-plan.md`, `arch-initial.md`
+§7, `data-model-initial.md`, `conventions.md`, `apps/api/AGENTS.md`, `notes.md`. No migration, no schema change.
+
+**Departures from the plan, each with its reason.**
+
+1. **The tests were not all written before the code.** I wrote the logic with the five gaps filled first, then the tests,
+   to get a known-good version to derive the scaffold from; the "watched fail" step is the scaffold itself (226 failures,
+   all `NotImplementedError: TODO(Ari)`). The tests' expected values were still written from the requirements and
+   decisions, not read from the code; the reviewer should check that, since I can't show the red-before-green order.
+2. **`Listing` is a plain dataclass of the fields reconcile reads** (`ListedAct`, `time`, `end_time`, prices, `status`),
+   not a wrapper around the pydantic `ShowExtraction` the plan's type list showed. The extraction schema has variants
+   (with and without `status`) and reconcile should depend on neither; it also keeps the plan free of pydantic subclass
+   quirks when LangGraph passes the state.
+3. **`prepare_inputs(extraction, validated, validation, fetched_on)` and `excluded_listing_dates` are new functions**
+   (the plan named `listings_from`, `covered_window`, `load_request`). They gather the plain arguments in one place,
+   used by both the node and the wrapper.
+4. **K3's gap is only the non-scheduled branch,** as plan review finding 13 resolved; K1's gap is `_null_time_pairs`,
+   the whole null-time pass, with `_assign_by_acts` written around it.
+5. **The `commit` stub's audit `detail` is `{"stub": true}`;** the `decision` key went with `reconcile_decision`.
+6. **`Action.outcome`** (maps to `AuditOutcome`) is an addition, for A6's per-show rows; tested.
+7. **`trace.read_calendar` uses `nodes.metro_today`** when `fetched_on` is unset, so the wrapper and the node agree on
+   "today" (both fall back the same way; `fetch_node` always sets it in a real run).
+8. **`local_test.py` prints the plan** (counts, window, one line per decision), the plan's Verification step 4.
+
+**`TODO(Ari)` gaps** (all open; review the code as it stands, they are not findings):
+
+| Key | Where | Lesson |
+|---|---|---|
+| A5-K1 | `reconcile.py` `_null_time_pairs` | What a null time does in the composite key |
+| A5-K2 | `reconcile.py` `removed_by_absence` | Absent from the page, inside the reached range |
+| A5-K3 | `reconcile.py` `plan_for_listing` (non-scheduled branch) | A cancelled listing is evidence about a stored show |
+| A5-K4 | `artist_match.py` `classify_artist` | Exact, ambiguous or new: a three-way answer |
+| A5-K5 | `artist_match.py` `decide_ambiguous` | The model's failure direction is "new artist" |
+
+Fill order K4, K1, K3, K2, K5. Every graph-running and plan-running test is red until all five are filled (K4 is on
+every path that has a scheduled listing).
+
+**Verification.**
+
+- **Baseline** before A5, measured October 16: 669 passed, 15 skipped.
+- **As delivered (gaps open):** `REQUIRE_DB=1 uv run pytest`: **666 passed, 108 failed, 10 errors, 15 skipped**. All 226
+  red results are `NotImplementedError: TODO(Ari)` (checked by grepping every failure message; none is anything else).
+  Red by file: `test_reconcile_shows.py` 41, `test_artist_match.py` 24, `test_reconcile_removal.py` 15,
+  `test_graph.py` 13, `test_graph_audit.py` 6, `test_audit_queries.py` 6, `test_graph_reconcile.py` 5,
+  `test_reconcile_db.py` 4, `test_calendar_reader.py` 2, `test_run_venue.py` 2 (failures and fixture errors together).
+- **Gaps filled on a scratch copy** (a temporary directory outside the repo, removed afterwards): **784 passed, 15
+  skipped**, ruff clean. That is the 669 baseline plus 115 new tests.
+- `uv run ruff check .` clean. `uv run mypy app/` clean (the CI scope); the three new modules also pass `mypy`
+  (`reconcile.py`, `artist_match.py`, `calendar_reader.py`); widening mypy to `agent_worker/` is A7.
+- `make lint`, `make typecheck` and `make contract-check` pass; `pnpm turbo run test` passes (the JS suite is untouched).
+- `make check` as a whole stops at its Python test stage, red by design; nothing else in it is skipped.
+- **Not run here:** `make worker` and `local_test` (no Ollama, no Docker, no Mongo in the cloud sandbox), and so the
+  live model's answers to the artist question (unmeasured; plan, "What is not covered"). Ari runs Verification 4-6 locally.
+
+**Where to look hardest.**
+
+1. **`match_shows` and `_assign_by_acts`** (`reconcile.py`): the two-round (active then removed), two-pass structure; whether
+   the tie flag (`tied`) and the `needs_review` rules mean what D3 says; and whether the global assignment can give a
+   wrong pair that the tests don't pin.
+2. **The window and the excluded dates** (`excluded_listing_dates`, `covered_window`): the index trap (raw list, not the
+   validated one) is easy to get wrong silently, and one test excludes a show in the middle of the list.
+3. **`show_changes` + `merge_lineup`** and the no-op/update boundary, because a false update every night is a silent
+   churn: the admission unit, the lineup comparison with new artists (id `None`), and `original_url`.
+4. **`trace.audited`'s reconcile branch** (`read_calendar`, the order of the rows) and that a failed read leaves no
+   partial state.
+5. **`build_plan`'s `plan.artists`** (only the artists some decision uses) and that cancelled listings cost no model call.
+6. Anything in the tests whose expected value I may have taken from the code instead of the requirements.

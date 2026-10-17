@@ -22,17 +22,23 @@ from sqlalchemy import insert, text
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession, async_sessionmaker
 
 from agent_worker import nodes
+from agent_worker.artist_match import KnownArtist
 from agent_worker.audit import PostgresAuditWriter
 from agent_worker.context import WorkerContext
 from agent_worker.main import VenueFacts, load_venues, run_venue
 from agent_worker.state import VenueGraphState
 from agent_worker.tests import fakes
 from agent_worker.tests.fakes import (
+    ARTIST_MATCH,
     PAGE,
     SPLITTER,
+    FakeReader,
     RecordingStager,
+    event,
+    jsonld_page,
     listings_answer,
     scripted_client,
+    split_answer,
 )
 from agent_worker.tests.test_graph import GOOD_LISTING, GOOD_PAGE, NONA
 from app.db.models import AuditLog
@@ -81,7 +87,7 @@ async def two_runs(
         await seed(session)
         await session.commit()
         venues = await load_venues(session)
-    ctx = WorkerContext(audit=PostgresAuditWriter(factory), stager=RecordingStager())
+    ctx = WorkerContext(audit=PostgresAuditWriter(factory), stager=RecordingStager(), reader=FakeReader())
     page = tmp_path / "page.html"
     page.write_text(GOOD_PAGE)
 
@@ -102,9 +108,12 @@ async def run(conn: AsyncConnection, sql: str, **params: Any) -> list[Any]:
     return list(result.mappings())
 
 
-def test_the_file_has_the_four_named_queries(queries: dict[str, str]) -> None:
-    # Proves: the plan's four questions are all present under the names the plan gives them.
-    assert set(queries) == {"run_history", "escalated_runs", "show_history", "unfinished_runs"}
+def test_the_file_has_the_five_named_queries(queries: dict[str, str]) -> None:
+    # Proves: the plan's four questions (A4) and A5's fifth, about the model's artist decisions, are all present
+    # under the names the plans give them.
+    assert set(queries) == {
+        "run_history", "escalated_runs", "show_history", "unfinished_runs", "artist_match_decisions",
+    }
 
 
 async def test_run_history_lists_a_runs_steps_in_order_with_the_retry(
@@ -182,3 +191,31 @@ async def test_unfinished_runs_finds_open_runs_and_closed_runs_that_never_ended_
     rows = await run(db_conn, queries["unfinished_runs"])
     assert {r["run_id"]: r["furthest_step"] for r in rows} == {open_id: None, crashed_id: "fetch"}
     assert passed.run_id not in {r["run_id"] for r in rows}
+
+
+async def test_artist_match_decisions_lists_what_the_model_decided_and_nothing_else(
+    db_conn: AsyncConnection, factory: async_sessionmaker[AsyncSession], queries: dict[str, str], two_runs: Any,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Proves (A5-D11): after a run in which the model decided one artist ("Zhora Band" is the stored "Zhora", 0.9),
+    # the query returns exactly that decision, with the venue, the artist it linked, the model, the confidence and the
+    # reason, and none of the rows from the two earlier runs (which asked the model nothing). The expected row is the
+    # script: what the fake model was told to say.
+    async with factory() as session:
+        venues = await load_venues(session)
+    ctx = WorkerContext(
+        audit=PostgresAuditWriter(factory), stager=RecordingStager(),
+        reader=FakeReader(artists=[KnownArtist(8, "Zhora")]),
+    )
+    page = tmp_path / "zhora.html"
+    page.write_text(jsonld_page(event("Zhora Band", "2026-10-20T20:00:00-05:00")))
+    monkeypatch.setattr(nodes, "instructor_client", scripted_client({
+        SPLITTER: [split_answer(("Zhora Band", ["Zhora Band"]))],
+        ARTIST_MATCH: [{"matched_artist_id": 8, "confidence": 0.9, "reason": "same band, longer name"}],
+    }))
+    state = await run_venue(venues[2], ctx, calendar_url=str(page), fetched_on=fakes.FETCHED)
+    [row] = await run(db_conn, queries["artist_match_decisions"])
+    assert (row["run_id"], row["venue"], row["artist_id"]) == (state.run_id, venues[2].name, 8)
+    assert (row["incoming_name"], row["outcome"], row["reason"]) == ("Zhora Band", "matched_by_model", "same band, longer name")
+    assert row["model_used"] and float(row["confidence"]) == pytest.approx(0.9)
+    assert "Zhora" in row["candidates"]

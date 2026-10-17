@@ -28,6 +28,7 @@ from agent_worker.state import VenueGraphState
 from agent_worker.tests import fakes
 from agent_worker.tests.fakes import (
     SPLITTER,
+    FakeReader,
     RecordingStager,
     event,
     jsonld_page,
@@ -56,7 +57,7 @@ def factory(db_conn: AsyncConnection) -> async_sessionmaker[AsyncSession]:
 def ctx(factory: async_sessionmaker[AsyncSession]) -> WorkerContext:
     """What the worker hands every node: the real Postgres audit writer (on the test connection) and a
     recording stager standing in for MongoDB."""
-    return WorkerContext(audit=PostgresAuditWriter(factory), stager=RecordingStager())
+    return WorkerContext(audit=PostgresAuditWriter(factory), stager=RecordingStager(), reader=FakeReader())
 
 
 @pytest_asyncio.fixture(loop_scope="session")
