@@ -1,6 +1,6 @@
 # B5 — frontend testing
 
-**Status:** Awaiting sign-off
+**Status:** Done — signed off by Ari, October 17, 2026. K1–K3 were filled by Ari (commit `e8bd025`) and the scaffold was then cleaned out by Claude.
 **Date:** October 16, 2026
 **Author model:** Claude Sonnet 5.5
 **Reviewer model:** Claude Opus 5.5 (plan review round 1; code review round 1)
@@ -599,6 +599,18 @@ none is markup or imports.
 **Verification:** see the end of the Code review round (`make -k check` at the handoff state; 337 tests green with the `Code:` blocks pasted verbatim; lint and `check-types` clean; M14–M16 red). Not re-run in this round: the headless-Chromium comparison and the build, since no production file changed after round 1.
 
 **Where to look hardest:** the rewritten K3 Check (does the mutation it names really need Ari's line?), and the new tests' expected strings (`/?venue=2&artist=1&month=2026-10`; `6:00 PM, show details` / `10:00 PM, show details`), which were written by hand from `buildCalendarHref`'s documented order and the formatter's pinned strings.
+
+### Round 3 — Claude Sonnet 5.5, October 17, 2026 (the closed gaps and the scaffold cleanup)
+
+**Scope:** Ari's commit `e8bd025` ("B5: Key points in this scope were inspected") filled all three gaps; this round is the cleanup commit on top of it. Files: `apps/calendar/app/_components/{filter-header,calendar-results}.test.tsx`, comments and whitespace only; docs: this plan, `alpha-build-plan.md`.
+
+**`TODO(Ari)` gaps:** all three **filled by Ari** — K1 (the `vi.hoisted` + `vi.mock("next/navigation")` pair), K2 (the combobox interaction and the exact-once, whole-URL assertion) and K3 (the reset link's `href`, and the two `queryBy*` absence checks). His code matches the plan's `Code:` lines.
+
+**What the cleanup did**, per `AGENTS.md` step 4: each `TODO(Ari)` block became a plain why-comment in the style of its neighbours, with the reasoning kept (why the router is the only mock and why `vi.hoisted` is needed; why `userEvent`, role queries and a hand-written URL; why the reset is a real link and absence needs `queryBy*`) and the `B5-K1`/`B5-K2`/`B5-K3` references kept as the test-section anchors. Removed: the `TODO(Ari)` markers, the `Lesson:` / `Code:` / `Check:` labels, the "likeliest mistakes" lists, the placeholder-typing note, and the indentation Ari's paste left behind. No placeholder helper (`lib/todo.ts`) was ever created, and the scaffold left no import or `noqa` to remove. The lesson, the code and the check stay on record in this plan's "TODO(Ari) gaps" section.
+
+**Verified as a comment-only pass:** a formatting-blind comparison of the two files' syntax trees (node kinds plus identifier and literal text, via the TypeScript compiler) against `e8bd025` is **identical for both**; the same comparator reports a difference when a single string literal is changed, so "identical" is meaningful. `grep` finds no `TODO(Ari)`, `Lesson:`, `Code:` or `Check:` anywhere under `apps/calendar`.
+
+**Verification:** Ari ran `make check` locally on the filled state: green. On this sandbox (Node 22.22.0), after the cleanup, `make check` exits 0: ruff clean; mypy `no issues found in 31 source files`; eslint and `next typegen && tsc` clean; **pytest 669 passed, 15 skipped**; **Vitest 21 files, 337 tests, all passing**; `contract-check` current.
 
 ## Code review
 

@@ -115,12 +115,13 @@ describe("CalendarResults with no shows", () => {
     // Nothing to lay out: no calendar rows, no skeleton.
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
 
-    //   The way out must be a real LINK to "/", not just words.
-    //   The page is server-rendered, so a plain <a href="/"> works before any
-    //   JavaScript has loaded, and `getByRole("link", { name })` plus
-    //   `toHaveAttribute("href", "/")` proves it is one (the same reasoning
-    //   as "Clear filters" in filter-header.tsx; requirements-initial.md,
-    //   "Calendar").
+    // The way out has to be a real LINK to "/", not just words (B5-K3). The
+    // page is server-rendered, so a plain <a href="/"> works before any
+    // JavaScript has loaded, and `getByRole("link", { name })` plus
+    // `toHaveAttribute("href", "/")` proves it is one (the same reasoning as
+    // "Clear filters" in filter-header.tsx; requirements-initial.md,
+    // "Calendar"). A text-only check would pass even if the reset were
+    // plain text or pointed elsewhere (mutation B5-M14).
     expect(screen.getByRole("link", { name: "Reset filters" })).toHaveAttribute("href", "/");
   });
 
@@ -142,11 +143,11 @@ describe("CalendarResults with no shows", () => {
 
     expect(screen.getByText("No shows listed for these dates.")).toBeInTheDocument();
 
-    //   Asserting that something is ABSENT. `getBy*` throws
-    //   when it finds nothing, so it can't express "must not be there"; the
-    //   `queryBy*` family returns `null` instead, which `.not.toBeInTheDocument()`
-    //   accepts. One component, two behaviours, and the bug to catch is the
-    //   wrong one showing.
+    // Absence is asserted with `queryBy*` (B5-K3). `getBy*` throws when it
+    // finds nothing, so it can't express "must not be there"; the `queryBy*`
+    // family returns `null` instead, which `.not.toBeInTheDocument()` accepts.
+    // One component, two behaviours, and the bug to catch is the wrong one
+    // showing (mutation B5-M5).
     expect(screen.queryByRole("link", { name: "Reset filters" })).not.toBeInTheDocument();
     expect(screen.queryByText(/No matches found/)).not.toBeInTheDocument();
   });

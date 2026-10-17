@@ -33,16 +33,17 @@ import { FilterHeader } from "./filter-header";
 
 // --- the router, mocked at the framework's edge (B5-K1) ---------------------
 
-//   FilterHeader's only contact with Next is `useRouter().push`
-//   (B3-K4: a pick changes the URL and the server page re-renders). Outside a running
-//   Next app there is no app router, so the unmocked component throws
-//   `invariant expected app router to be mounted`. Replace exactly that edge, not
-//   Base UI and not `next/link`, and assert on what `push` received: the URL IS the
-//   filter state (arch-initial.md §4), so the pushed URL is the behaviour.
-//   `vi.mock` is hoisted above the imports, so anything its factory reads must come
-//   from `vi.hoisted`.
-  const { push } = vi.hoisted(() => ({ push: vi.fn() }));
-  vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+// FilterHeader's only contact with Next is `useRouter().push` (B3-K4: a pick
+// changes the URL and the server page re-renders). Outside a running Next app
+// there is no app router, so the unmocked component throws `invariant expected
+// app router to be mounted`. The test replaces exactly that edge, not Base UI
+// and not `next/link`, and asserts on what `push` received: the URL IS the
+// filter state (arch-initial.md §4), so the pushed URL is the behaviour.
+// `vi.mock` is hoisted above the imports, so anything its factory reads has to
+// come from `vi.hoisted`; a plain top-level `const push` would not exist yet
+// when the factory runs.
+const { push } = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
 // --- fixtures and helpers ---------------------------------------------------
 
@@ -116,19 +117,22 @@ describe("FilterHeader navigation", () => {
     // forgot them (mutation B5-M2) or dropped `{ scroll: false }` (B5-M1) fails.
     // This is what makes a filtered calendar shareable and bookmarkable.
 
-    //   Drive the combobox the way a person does, and assert the
-    //   WHOLE outcome. (1) Find things by role and accessible name, not by class or
-    //   data-slot. (2) Use `userEvent`: the combobox opens on the pointer-and-focus
-    //   sequence a real click produces, and `fireEvent.click` sends one bare event
-    //   after which the list never opens. (3) Assert the entire pushed URL, with the
-    //   other filters preselected so a header that forgets them fails, and write the
-    //   expected string BY HAND from buildCalendarHref's documented key order rather
-    //   than calling buildCalendarHref (it would agree with itself whatever it did).
+    // The combobox is driven the way a person does it, and the WHOLE outcome
+    // is asserted (B5-K2). Things are found by role and accessible name, not by
+    // class or data-slot. `userEvent` is required: the combobox opens on the
+    // pointer-and-focus sequence a real click produces, while `fireEvent.click`
+    // sends one bare event after which the list never opens. The assertion is
+    // the entire pushed URL, with the other filters preselected so a header
+    // that forgets them fails, and the expected string is written by hand from
+    // buildCalendarHref's documented key order rather than produced by calling
+    // it, which would agree with itself whatever it did.
     const user = userEvent.setup();
-      renderHeader({ venueIds: [3], artistIds: [7], month: "2026-10" });
-      await user.click(screen.getByLabelText("Venues"));
-      await user.click(await screen.findByRole("option", { name: "The White Squirrel Bar" }));
-      expect(push).toHaveBeenCalledExactlyOnceWith("/?venue=1&venue=3&artist=7&month=2026-10", { scroll: false });
+    renderHeader({ venueIds: [3], artistIds: [7], month: "2026-10" });
+    await user.click(screen.getByLabelText("Venues"));
+    await user.click(await screen.findByRole("option", { name: "The White Squirrel Bar" }));
+    expect(push).toHaveBeenCalledExactlyOnceWith("/?venue=1&venue=3&artist=7&month=2026-10", {
+      scroll: false,
+    });
   });
 
   it("clicking an already-selected venue removes it", async () => {
