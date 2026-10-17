@@ -327,8 +327,41 @@ Plan and review: `docs/dev/implementations/b5-frontend-testing.md` (decisions B5
 
 - [x] **[written]** `vitest` + `@testing-library/react` set up in `apps/calendar`. *Departure:* five dev dependencies, not two (`jsdom@^29`, `@testing-library/{react,dom,user-event,jest-dom}`; `dom` is a peer of `react`, and `jsdom` stays on 29 because 30 needs Node `^22.22.2 || ^24.15.0 || >=26.0.0`, see `docs/dev/notes.md`), plus Oxc's automatic JSX runtime (the app's `"jsx": "preserve"` otherwise leaves a `.test.tsx` unparseable) and two Vitest projects where **the file extension picks the environment** (`*.test.ts` node, `*.test.tsx` jsdom).
 - [x] **[fill-in]** Component tests for the pieces with real logic — the filter header, the empty state, the date grouping. *Built (`app/_components/*.test.tsx`); B5-K1 (the router mock), B5-K2 (driving the combobox and asserting the whole URL) and B5-K3 (asserting the empty state's absences) filled by Ari.* *Departures:* the empty state was inline in an async Server Component, so it is extracted as the synchronous `CalendarResults` (B5-D1, with a shared `hasActiveFilters`; the rendered page is byte-identical before and after, checked in headless Chromium); "date grouping" was already a unit-tested pure function (`groupCalendar`), so the tests cover what `CalendarGrid` does with rows and one integration through the fixture. *Added (B5-D2):* `ShowBlock` and three pins (`ErrorPage` never prints `error.message`, `RemoteImage` renders only http(s), `JsonLd` can't be closed early by `</script>`). *Added (B5-D3):* the filter chips' remove buttons had no accessible name (found while planning), now `Remove <venue>`
-- [ ] **Deferred:** Playwright end-to-end tests. Worth doing, but after the UI stops changing shape every session
+- [x] **Deferred to B6:** Playwright end-to-end tests. Moved to B6 on October 17, 2026, when the UI reached the stopping point this line named
 - [x] Sign-off — Ari, October 17, 2026
+
+### B6. Accessibility and end-to-end tests
+
+Scope agreed with Ari on October 17, 2026. Two things come out of it: the accessibility requirement (WCAG 2.2 AA, `requirements-initial.md` Global Requirements; `arch-initial.md` Section 4), and the Playwright suite that B5 deferred, which also runs the automated accessibility checks. Built in its own thread. Its implementation plan, `docs/dev/implementations/b6-accessibility-and-e2e.md`, is written first under the usual cycle (`AGENTS.md`, "Implementation plans"). Nothing below is built yet.
+
+- [x] **[written]** WCAG 2.2 AA recorded as the accessibility requirement. *Done October 17, 2026.*
+- [x] **[written]** Scope and implementation strategy (below) approved by Ari, October 17, 2026.
+- [ ] **[written]** Playwright and `@axe-core/playwright` added to `apps/calendar` (Step 1). *Dependencies approved October 17, 2026.*
+- [ ] Steps 1–5 below, built and reviewed in the B6 thread.
+
+**Implementation strategy.** One test first, green, then the rest. Each step ends with its own green result before the next starts.
+
+1. **One end-to-end test, green first.** A single Chromium project at the desktop viewport. One test: the home page loads and shows at least one show. The test config starts the stack. Done when it passes three runs in a row locally and in CI. Nothing else is added until it does. Two notes for the plan: browser-side mocking (`page.route`) can't stand in for the API, because Server Components fetch from the Next.js server, not the browser; and how the stack is started (real API with a seeded database, or a stub serving `lib/fixtures`) is the largest decision in this step.
+2. **Add the accessibility scan to that test.** Run `@axe-core/playwright` on the same page with tags `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`, `wcag22aa`. Report-only at first. Record the baseline, and measure the two colour values that were hand-calculated and not rendered: the focus ring on white, and muted text on muted backgrounds. Once the baseline is clean, the build fails on a new violation (decided October 17). Fixes go in their own commits.
+3. **Add the remaining journeys, one test each, green before the next.** These are the B5 Playwright backlog plus the rest of the user flows:
+
+   | # | Journey | Why it needs a browser |
+   |---|---|---|
+   | 2 | Filter by venue through the combobox; the URL updates | Real router, `aria-busy`, the optimistic chip (B5 backlog) |
+   | 3 | A filter with no matches shows the empty state; the reset link restores the calendar | The empty branch, which B5 found unreachable from sample data |
+   | 4 | The day view switches sort modes | `/day/[date]`, links-driven sorting |
+   | 5 | Venue, artist and show pages are reached through links | Routes and `notFound()` across navigations |
+   | 6 | An unknown URL shows the 404 page | `not-found.tsx` through a real request |
+   | 7 | The Suspense skeleton is replaced by content | Streaming, which jsdom can't show (B5 backlog) |
+
+4. **Layout and modes.** Reflow at 320px and 375px: no page-level horizontal scroll. Axe in dark mode. A keyboard-only journey through the filter header and a show block.
+5. **Manual passes.** A keyboard and screen-reader pass (VoiceOver or NVDA), recorded in the B6 implementation log, done by Ari. The automated suite doesn't replace it.
+
+**Not in B6:** visual snapshots (until the UI settles), a browser matrix beyond Chromium, and API or agent tests (those stay in pytest). Open for the B6 plan, not this document: where the Playwright job runs in CI, and the stack option in Step 1.
+
+**Standing rule: the test clock.** The default home window is "today plus 27 days" (`apps/api/app/routers/shows.py`, `DEFAULT_WINDOW`). The sample data is fixed to a `START` date in `apps/api/app/sample_data.py`, and the fixtures are generated from it. So a test on the real clock finds an empty page once the window moves past the sample's last show. The suite pins the clock to a date inside the sample window, held as a single constant. **Every time the sample data generation changes, move the pinned date in the same change** (a new `START` means a new pin inside the new window), and check the suite still finds at least one show. The mechanism (a fake-clock wrapper for the test servers, or an override read by the app) is chosen in the B6 plan.
+
+**Known date cliff (outside B6).** With the current sample, `START` is September 28, 2026, so the last sample show falls on October 25 (`START` plus 27 days). The live home page's default window will hold very little from about **October 26, 2026** unless the sample is regenerated. This is a sample-data decision for Ari, and the clock rule above is what keeps tests from inheriting it.
 
 ---
 

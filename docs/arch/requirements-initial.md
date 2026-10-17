@@ -6,6 +6,8 @@ These are the screen-by-screen requirements of the initial version of Agentic Li
 
 The UI will be responsive design and work across phone, tablet and desktop browsers. 
 
+**Accessibility: WCAG 2.2 Level AA.** Every screen meets the W3C Web Content Accessibility Guidelines 2.2 at Level AA: keyboard use, screen-reader names and structure, text and non-text color contrast, visible focus (not covered by sticky headers), and reflow at phone width. Decided October 17, 2026 (added after the initial requirements were written; see `arch-initial.md` Section 4 and `alpha-build-plan.md` B6 for how it is checked).
+
 ### Main Views & URL Scheme
 
 Home page is a 4-week calendar, focused on today and next 4 weeks. (more on this below)
