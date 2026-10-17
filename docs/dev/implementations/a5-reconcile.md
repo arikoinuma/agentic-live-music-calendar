@@ -10,7 +10,7 @@ delete / no-op)" and its outcome table); `docs/arch/requirements-initial.md` ("A
 Creation & Matching", "Show", "Times after midnight", "Cancelled or postponed listings"); `docs/arch/data-model-initial.md`
 §2 (`show`, `show_artist`, `artist`) and §3 (`audit_log`); `docs/references/fastapi-style-guide.md`; `apps/api/AGENTS.md`
 
-**Designations.** Inside this plan the decisions are `D1`–`D13` and the fill-in key points `K1`–`K5`; elsewhere they
+**Designations.** Inside this plan the decisions are `D1`–`D12` and the fill-in key points `K1`–`K5`; elsewhere they
 are written `A5-D1`, `A5-K1` and so on (`docs/dev/conventions.md`). Review items are `A5-PR<round>-<n>` (plan
 review) and `A5-CR<round>-<n>` (code review). Other plans' IDs carry their scope (`A4-D1`, `A3-D9`, `A2.1-D12`,
 `v0.1-G6`).
@@ -116,7 +116,7 @@ were split and renumbered. **Plan review round 1 cites the old numbers**; this t
 | D4 (cancelled and postponed) | D6 and D7 |
 | D5 (artist matching) | D8, D9 and D12 |
 | D6 (removal guard) | D10 |
-| D7 (where the database read lives) | D13 |
+| D7 (where the database read lives) | "Settled details" (Ari, October 17: not a decision) |
 | D8 (audit rows) | D11 |
 | D9 (`reconcile_decision` removed) | "Settled details" |
 
@@ -134,7 +134,6 @@ were split and renumbered. **Plan review round 1 cites the old numbers**; this t
 | D10 | Do we guard against one run removing most of a venue's shows? | ★ | A: yes | **Decided A** (Ari, Oct 17) |
 | D11 | What does reconcile write to the audit trail? | technical | A: a summary row plus one row per model decision | **Decided A** (Ari, Oct 17) |
 | D12 | How do we measure "similar" artist names? | technical | A: Python `difflib`, no new dependency | **Decided A** (Ari, Oct 17) |
-| D13 | Where does the database read happen? | technical | A: in the `trace.audited` wrapper | Open |
 
 ---
 
@@ -287,15 +286,6 @@ were split and renumbered. **Plan review round 1 cites the old numbers**; this t
 - **Option B — `rapidfuzz`** (a new dependency, same ratio). **Option C — Postgres `pg_trgm`** (a migration).
 - **Cost of A:** loading every artist per run doesn't scale past a large table. Fine at alpha size.
 
-### D13 — Where does the database read happen? (technical)
-
-- **Scenario.** Reconcile has to read the stored calendar. If the database is down at 4 AM, the run must stop. It must
-  not conclude the calendar is empty and insert a duplicate of everything.
-- **Option A — in the `trace.audited` wrapper, before the node runs,** through a `CalendarReader` on `WorkerContext`
-  (the same pattern as the audit writer and the staging store). The node stays a plain function and is tested without
-  a database. A reader error propagates and stops the run.
-- **Option B — make `reconcile_node` async and read inside it.** A4-D1 rejected async node bodies for the same reasons.
-
 ---
 
 ### Settled details (veto only)
@@ -323,6 +313,13 @@ These follow from your requirements or from the decisions above. I'm listing the
 - **`reconcile_decision` leaves `VenueGraphState`, replaced by `reconcile_plan`.** The old field is a single value and
   can't describe a run that inserts three shows, updates two and removes one. It touches the audit stub,
   `commit_node`'s log line and the tests that read it.
+- **The calendar read happens in the `trace.audited` wrapper, before the reconcile node runs,** through a
+  `CalendarReader` on `WorkerContext`: the same pattern as the audit writer and the staging store, and the one A4-D1
+  already chose (async database work is awaited in the wrapper; node bodies stay plain functions). The node is then
+  tested with a hand-written list of stored shows, no database. **If the read fails, the run stops with an error**;
+  reconcile never treats an unreadable calendar as an empty one, because that would insert a duplicate of every show.
+  (Was D13; Ari removed it as a decision on October 17, 2026. The alternative, an async reconcile node that reads for
+  itself, was already rejected in A4-D1.)
 
 ## Design
 
@@ -542,7 +539,7 @@ assumed).
   - A cancelled listing for a stored show: one `remove`, reason `cancelled`.
   - One ambiguous artist with a scripted "same" answer: **two** reconcile rows, the summary and one artist-decision
     row carrying `entity_type = artist`, `model_used`, `confidence`; `RecordingAudit` shows them in that order.
-  - **A reader that raises propagates out of `ainvoke` and no reconcile row is written** (D13: an unreadable calendar
+  - **A reader that raises propagates out of `ainvoke` and no reconcile row is written** ("Settled details": an unreadable calendar
     must not look empty).
   - The existing context-injection test (`test_the_context_reaches_the_audited_nodes`) still passes with the new
     `reader` field.
@@ -854,9 +851,9 @@ rows with `entity_type = 'artist'`, joined to the run's venue. It uses `CAST(...
 
 ## Approval
 
-**Ari, October 17, 2026:** decided D1 (window end = the latest date the page lists) and D2 (an empty page removes nothing), both as recommended (option A). **Ari, October 17, 2026 (later):** decided D3 through D12, all as recommended (option A). **D13 is open** (Ari asked for a plainer explanation).
+**Ari, October 17, 2026:** decided D1 (window end = the latest date the page lists) and D2 (an empty page removes nothing), both as recommended (option A). **Ari, October 17, 2026 (later):** decided D3 through D12, all as recommended (option A). D13 (where the database read lives) was removed as a decision at Ari's request and listed under "Settled details". **All twelve decisions are closed.**
 
-*(Awaiting Ari on D13. After the plan review round and its resolution, the status becomes `Awaiting approval`. Ari sets
+*(Awaiting Ari's approval of the plan. After the plan review round and its resolution, the status becomes `Awaiting approval`. Ari sets
 `Approved` and may re-mark any [written] item [fill-in] or the reverse; `/build-milestone` records the approval.)*
 
 ## Plan review
