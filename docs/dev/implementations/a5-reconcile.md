@@ -10,7 +10,7 @@ delete / no-op)" and its outcome table); `docs/arch/requirements-initial.md` ("A
 Creation & Matching", "Show", "Times after midnight", "Cancelled or postponed listings"); `docs/arch/data-model-initial.md`
 §2 (`show`, `show_artist`, `artist`) and §3 (`audit_log`); `docs/references/fastapi-style-guide.md`; `apps/api/AGENTS.md`
 
-**Designations.** Inside this plan the decisions are `D1`–`D9` and the fill-in key points `K1`–`K5`; elsewhere they
+**Designations.** Inside this plan the decisions are `D1`–`D13` and the fill-in key points `K1`–`K5`; elsewhere they
 are written `A5-D1`, `A5-K1` and so on (`docs/dev/conventions.md`). Review items are `A5-PR<round>-<n>` (plan
 review) and `A5-CR<round>-<n>` (code review). Other plans' IDs carry their scope (`A4-D1`, `A3-D9`, `A2.1-D12`,
 `v0.1-G6`).
@@ -51,7 +51,7 @@ before-and-after calendar. That is stated again under "What is not covered".
 | Item (build plan A5) | Marking | Where it lands |
 |---|---|---|
 | Show matching on (venue, date, time) → insert / update / no-op | [fill-in] | `reconcile.match_shows` — **K1** |
-| A show may have no `time`; what the composite key does with a null (the open decision) | [fill-in] | The same function, its null-time branch — **K1**; decision **D2** |
+| A show may have no `time`; what the composite key does with a null (the open decision) | [fill-in] | The same function, its null-time branch — **K1**; decision **D3** |
 | A multi-listing day coming back as one show with per-act times (A2's eval) | [written] *(re-marked, see "Departures")* | Reconcile never assumes `time`; pinned by tests. A3's `possible_merge` finding already flags it |
 | Set-diff soft delete within the covered date range | [fill-in] | `reconcile.removed_by_absence` — **K2**; the window is **D1** |
 | Artist matching by name: exact, none, ambiguous | [fill-in] | `artist_match.classify_artist` — **K4** |
@@ -96,151 +96,233 @@ before-and-after calendar. That is stated again under "What is not covered".
 
 ## Decisions for Ari
 
-Each decision has a recommendation, and the plan below is written to that recommendation. **Decisions marked ★
-change the calendar's behaviour and are yours to confirm**; the rest are mechanics I'd settle myself but am listing
-because a different choice changes what gets built.
+**How to read this section.** Each decision is **one question** with two options. Each opens with a real-life
+scenario, then names the fields and functions involved, then says what each option costs. The plan below is written
+to the recommended option (A). **★ = it changes how the calendar behaves** and is yours to decide; **technical** =
+it changes how the code is built, and I'd settle it myself, but a different answer changes what gets built.
 
-- **★ D1 — The "covered range" is `[fetched_on, the latest date the page evidences]`, derived in reconcile.**
-  The build plan says the graph state must carry how far the run reached, "which it currently doesn't". Today fetch
-  is one plain GET with no pagination, so the honest answer to "how far did we get" is "as far as the page's own
-  listings go". So:
-  - **start** = `state.fetched_on` (the metro's today). A show dated before today is never removed: past shows fall
-    off venue pages naturally, and that is not a removal. Shows up to 31 days back can still be *matched*, since
-    pages keep last week's listings (`A3`'s plausibility window).
-  - **end** = the latest date among the kept shows **and** the shows excluded for naming no act. A listing the page
-    shows, even one we left out, proves the page reached that date. Shows excluded for an implausible date
-    (`DATE_OUT_OF_WINDOW`) are *not* evidence of reach: a year-2028 JSON-LD entry would otherwise stretch the window
-    over every stored show.
-  - **Absence is judged against the page, not the validated list.** A stored show is not removed when an excluded
-    listing (no act found by the splitter) sits on its date: the splitter drops real shows (Mortimer's, two on every
-    run — `validation.py` says so), and "the validated list lacks it" would delete the very show the splitter missed.
-  - **A confirmed-empty page has no end date, so no window, so nothing is removed.** It is recorded in the audit
-    row (`coverage: null`). The cost: a venue that really cancels every show keeps stale rows until a human looks.
-    Chosen because "an empty list is the most dangerous output" (`requirements-initial.md`, Agent Validation).
-  - **The cost of "latest listed date" as the end:** a show stored for a date *beyond* the page's last listing is
-    never removed by that run, even if the venue dropped it. That under-removes (a stale show lingers until the page
-    reaches it) rather than over-removes. When fetch learns to paginate (Playwright, H-phase), it will record how
-    deep it got and the window becomes the smaller of the two; that field doesn't exist yet and isn't added now
-    ("don't build what has nothing to consume it").
-  - *Alternative:* a fixed horizon (for example, fetched_on + 28 days) regardless of the page. It removes more, and
-    wrongly, on any venue that lists fewer weeks.
-- **★ D2 — Null-time matching (the build plan's open decision, "Ari confirms in A5's plan").**
-  Per date, matching runs over the listings and the stored shows. **Active stored shows are matched first; removed
-  ones are offered only to the listings still unpaired** (so a returning show is found, but a removed twin never
-  outranks an active one, and a cancelled show from weeks ago doesn't change whether an untimed pair is "the only
-  one on the date"). Within each of those rounds, two passes:
-  1. **Timed exact.** A listing with a time matches a stored show with the same `start_time`.
-  2. **Null-time pairing, on what is left.** A listing and a stored show pair only if **at least one of the two
-     times is null**; two different non-null times never pair (that is the requirements' "time change = cancelled +
-     new"). If exactly one listing and one stored show are left on that date, they pair. If there are several, they
-     are assigned by **shared act names**: highest overlap first, ties broken by listing order and then the stored
-     show's `night_sort_key` and id, so the same input always pairs the same way. A pair in the several-case needs at
-     least one shared act. A **cancelled or postponed listing pairs only on shared acts**, never by date alone
-     (status is evidence about a specific show).
-  - Both passes use the same global assignment (highest overlap first), not "each listing takes the first
-    candidate", so two shows at one time (two rooms) can't swap their lineups.
-  - A time appearing later (null → 20:00) is an **update**, not remove + insert. This is the recommendation in the
-    build plan.
-  - **`needs_review`** is set only where a guess was involved: a null-time listing or stored show left unpaired while
-    the other side has an unpaired show on that date, or a pair made by the order tie-break. An ordinary new timed
-    show or an ordinary removal is not flagged (otherwise the flag would list every show and mean nothing).
-  - The case that exists today: 7th St Entry lists two untimed shows on October 31. They pair with their stored
-    twins by shared acts. Two untimed shows by the *same* act (an early and a late show) tie, are paired by the order
-    tie-break and flagged, and **keep pairing the same way every night**, so nothing churns. If the lineups changed
-    completely, the result is two inserts and two removals, both flagged. Wrong-looking, but visible, safe and
-    revertable.
-  - *Alternative:* never pair a null time; always insert + remove. Simpler, and it churns every untimed venue every
-    night (Terminal Bar has no times at all).
-- **★ D3 — An unstated field never erases a stored one, with admission treated as one unit.** If the new extraction
-  has `end_time` or `image_url` as null and the stored show has a value, that field is left as stored; only a
-  *different non-null value* is a change. Reason: the project's rule is "missing is tolerated, wrong is not" (A3-D4);
-  a model that fails to read an end time on Tuesday must not erase Monday's.
-  - **`admission_advance`, `admission_day` and `free_admission` are one unit** (round 1, finding 1). The table's
-    CHECK forbids `free_admission` together with a price, so field-by-field keeping could merge a stored price with a
-    newly stated "free" (or a stored "free" with a newly stated price) into a row A6 cannot write. So: if the listing
-    states **any** admission value, it replaces **all three** stored values (the unstated ones become null in the
-    result); if it states none, all three are left as stored. The listing passed A3's own consistency check, so the
-    replacement can't violate the CHECK. The cost: a listing that states only the day price clears a stored advance
-    price. Accepted: stating an admission value is a restatement of admission.
-  - **The lineup compares artist identity and order**; a lineup change is an update (the requirements). Each act's own
-    `start_time` follows the same unstated-never-erases rule: a lineup that has lost a per-act time (a route that
-    stopped stating them) is *not* a change and keeps the stored time; a different non-null time is.
-  - The cost: a venue that genuinely removes an end time or image can't clear it through the pipeline (a human edit
-    can; edits are deferred). `start_time` follows the same rule (a null time never clears a time), and is the field
-    D2's null → time update fills.
-- **★ D4 — Cancelled and postponed reuse `removed`; no new enum value.**
-  - The data model's `show_status` is `active | removed`; the read API hides `removed`; the requirements say a
-    cancelled listing is "not a show to display". So a cancelled or postponed listing that matches a stored
-    **active** show → `remove` (reason `cancelled` or `postponed` in the audit detail). It matches a stored
-    **removed** show → no-op. It matches nothing → `skip` (never inserted; only a first scan can ignore it, but it is
-    never worth an insert either).
-  - A **scheduled** listing that matches a stored **removed** show → `update` back to `active` ("reactivate", reason
-    `reappeared`). Without this, a show wrongly removed (or un-cancelled) is re-inserted as a duplicate.
-  - *Alternative:* add `cancelled` to `show_status`: a migration, an `api-contract.md` change and a regenerated
-    `api-types.ts`, for a state the UI would hide anyway. The audit detail keeps the distinction a person needs.
-  - A cancelled or postponed listing is matched to a stored show **by a timed key or by shared acts only** (D2); a
-    pair made by date alone could remove an unrelated show on the strength of another show's cancellation.
-- **D5 — Ambiguous artist matching: stdlib `difflib`, all artists loaded per run, a model asked about at most three
-  candidates, and a conservative fallback.**
-  - **Normalised key** (`artist_key`): `fold_text`, accents stripped, `&` read as `and`, punctuation dropped, a
-    leading "the " dropped. Two names with equal keys are an **exact** match (`Poliça` = `Polica`, `The Hold Steady`
-    = `Hold Steady`, `Jenny Lake & Friends` = `Jenny Lake and Friends`).
-  - **Ambiguous** = not exact, and either `difflib.SequenceMatcher` ratio of the keys ≥ 0.85, or the shorter key's
-    words are all in the longer key's words (containment: `Zhora` ⊂ `Zhora Band`). **None** otherwise. Ratios
-    measured on October 16, 2026 with `difflib` (so the examples in the tests are not guesses): `Dessa`/`Desa` 0.889,
-    `Low`/`Lowe` 0.857, `Cats`/`Cat` 0.857 — ambiguous. `Zhora`/`Zhora Band` 0.667 and `Prince`/`Prince Rogers`
-    0.632 — below any usable ratio threshold, which is why containment is a separate rule. The numbers are **a
-    starting point** in a named `ArtistMatchPolicy`, to be calibrated against labelled data in A8, exactly as A3's
-    confidence threshold was.
-  - **All artists are loaded per run** as `(id, name)` pairs and compared in Python. Hundreds to low thousands of
-    rows at alpha scale; no `pg_trgm` extension or migration. Revisit when the table is large (noted in "Not doing").
-  - **The model answers one question per ambiguous name:** given the incoming name and up to three candidate
-    artists, is it the same act as one of them (which)? A confidence is requested.
-  - **Fallback is the conservative direction:** an answer below `min_confidence` (0.8), a refusal to choose, or a
-    failed model call (`EXTRACTION_ERRORS`) means **create a new artist**. A duplicate artist is a known, revertable
-    annoyance (merging is deferred: `data-model-initial.md` §5); a wrong merge corrupts two acts' pages silently.
-    The fallback is written to the audit row so it is visible.
-  - **Resolution is per run, per distinct key.** The same new name on three shows is one new artist, not three
-    (reconcile runs before commit, so the database can't tell commit "already created"). Within one show, two acts
-    that resolve to the same artist collapse to one lineup entry (`show_artist` is keyed by (show, artist)).
-  - *Alternatives:* `rapidfuzz` (a new dependency, for the same ratio) or `pg_trgm` (a migration). Neither is needed
-    for alpha.
-  - **An empty key falls back.** Dropping punctuation can empty a name (`!!!`, a real touring band); `artist_key`
-    then returns `fold_text(name)`, so two all-punctuation names don't match each other, and an empty word set never
-    reaches the containment rule.
-  - **The answer is bounded and the options are named.** `ArtistMatchAnswer.confidence` is `Field(ge=0, le=1)`, like
-    every schema the model fills, so an out-of-range value is a validation error, not a "match" at 1.7. The question
-    uses `PIPELINE_OPTIONS` (temperature 0, the base model), and a resolution's `model_used` is `options.model` from
-    those, which is what the audit row records.
-- **★ D6 — A removal guard.** If absence would remove **three or more** stored shows **and more than half** of the
-  active stored shows inside the window, those removals are **withheld**: nothing is removed by absence in that run,
-  and the audit row says so (`removals_withheld`, with the shows). Explicit cancellations are not withheld (they are
-  evidence, not absence). Reason: A3's checks catch the empty page and the under-reported JSON-LD page, but a page
-  that is merely truncated (a venue's site returning half a calendar) passes them and would silently wipe half the
-  calendar. The guard turns the silent case into a visible one. The cost: a legitimate mass removal waits for a
-  person. Both numbers live in `ReconcilePolicy`. *Alternative:* no guard, trusting A3. I'd rather pay the small
-  code (about ten lines, pure, tested) than find out on a real venue.
-- **D7 — The database read lives in the `trace.audited` wrapper, before the thread, behind a `CalendarReader` on
-  `WorkerContext`.** Same pattern as the `AuditWriter` and `Stager` (a protocol, a Postgres implementation, a
-  recording fake for graph tests). For the reconcile step the wrapper computes the load request (a pure function of
-  the state), `await`s `reader.stored_shows(...)` and `reader.artists()`, puts the results on the state, then runs
-  the sync `reconcile_node` in the thread as before. The node body stays a pure state → state function, tested
-  without a database; the model call inside it stays a synchronous client call like extract's. **A reader that raises
-  stops the run** (the exception propagates, the run is closed by `run_venue`'s `finally`): guessing an empty
-  calendar would insert duplicates of everything. *Alternative:* make `reconcile_node` `async` and read inside it;
-  rejected for the reason A4-D1 rejected async node bodies.
-- **D8 — What reconcile writes to the audit trail: one summary row, plus one row per model decision.** The
-  `reconcile` row is venue-level (entity = the venue) with `detail` carrying the counts per action, the coverage,
-  the `needs_review` list, withheld removals, artist counts and which decisions the model made. **Each ambiguous-artist
-  model decision gets its own `reconcile` row** with `entity_type = artist`, `entity_id` = the matched artist (null
-  when the answer was "new"), `model_used`, `confidence`, and in `detail` the incoming name, the candidates offered,
-  the answer, the reason and whether the fallback applied: "the one place a model makes a database decision is the
-  one that most needs auditing". **Per-show rows with `previous_value` / `new_value` stay A6's** (they record what was
-  *written*). A new saved query (`audit-queries.sql`) lists the model's artist decisions.
-- **D9 — `reconcile_decision` leaves `VenueGraphState`, replaced by `reconcile_plan`.** The old field is a single
-  `Literal["no_op", "delete", "insert", "update", "ambiguous_match"]`, which can't describe a run that inserts three
-  shows, updates two and removes one. `ReconcilePlan` carries the per-show decisions A6 executes. Touches the audit
-  stub, `commit_node`'s log line and the tests that read the old field (listed in "Critical files").
+**Words used here.** *The page* is the venue's calendar page (its `calendar_url`) as fetched in this run. A *listing*
+is one entry on that page. A *stored show* is a row already in our `show` table from an earlier run. Reconcile
+compares the two.
+
+**Renumbered on October 17, 2026.** Ari asked that each decision hold exactly one decision, so the original D1–D9
+were split and renumbered. **Plan review round 1 cites the old numbers**; this table maps them.
+
+| Old (cited in review round 1) | Now |
+|---|---|
+| D1 (covered range) | D1 (window end) and D2 (empty page) |
+| D2 (null-time matching) | D3; the rest are in "Settled details" |
+| D3 (unstated field, admission) | D4 and D5 |
+| D4 (cancelled and postponed) | D6 and D7 |
+| D5 (artist matching) | D8, D9 and D12 |
+| D6 (removal guard) | D10 |
+| D7 (where the database read lives) | D13 |
+| D8 (audit rows) | D11 |
+| D9 (`reconcile_decision` removed) | "Settled details" |
+
+| # | Question | Kind | Recommendation | Status |
+|---|---|---|---|---|
+| D1 | How far does the page "reach" for deciding a show is gone? | ★ | A: the latest date it lists | **Decided A** (Ari, Oct 17) |
+| D2 | What if the page is empty? | ★ | A: remove nothing | **Decided A** (Ari, Oct 17) |
+| D3 | Is an untimed show the same show as a stored one? | ★ | A: yes when unambiguous | Open |
+| D4 | If the new listing leaves a field blank, do we erase what we stored? | ★ | A: keep the stored value | Open |
+| D5 | How do the three price fields update? | ★ | A: as one unit | Open |
+| D6 | How is a cancelled or postponed show stored? | ★ | A: reuse `removed` | Open |
+| D7 | If a removed show is listed again, what happens? | ★ | A: bring the same row back | Open |
+| D8 | When are two artist names "exactly the same"? | ★ | A: after tidying case, accents, "The", "&" | Open |
+| D9 | If the model is unsure about an artist, what do we do? | ★ | A: create a new artist | Open |
+| D10 | Do we guard against one run removing most of a venue's shows? | ★ | A: yes | Open |
+| D11 | What does reconcile write to the audit trail? | technical | A: a summary row plus one row per model decision | Open |
+| D12 | How do we measure "similar" artist names? | technical | A: Python `difflib`, no new dependency | Open |
+| D13 | Where does the database read happen? | technical | A: in the `trace.audited` wrapper | Open |
+
+---
+
+### D1 — How far does the page "reach" for deciding a show is gone? ★ **Decided A (Ari, October 17, 2026)**
+
+- **Scenario.** Today is Oct 17. The venue's page lists shows through Oct 31. We have a show stored for Nov 14 from
+  an earlier run, when the page happened to list further. Is the Nov 14 show gone?
+- **Option A — the window ends at the latest date the page lists.** The page says nothing about Nov 14, so the show
+  is left alone. A stored Oct 20 show that is missing *is* removed, because the page reached Oct 20 and it isn't there.
+  Technically: `reconcile.covered_window` returns `[fetched_on, latest date among the kept listings and the listings
+  excluded for naming no act]`.
+- **Option B — a fixed horizon, say 28 days.** Nov 14 would be removed even though the page never showed that far.
+  A shallow fetch deletes good shows, and a deeper fetch the next day re-adds them as new rows.
+- **Cost of A:** a show stored *beyond* the page's last listing, which the venue then drops, lingers until the page
+  reaches that date again. A stale show up too long is the safe direction.
+- *Later:* when fetch paginates, the window becomes the smaller of how deep fetch got and the last listing. That depth
+  field doesn't exist yet and isn't added now.
+
+### D2 — What if the page is empty? ★ **Decided A (Ari, October 17, 2026)**
+
+- **Scenario.** The venue's calendar plugin breaks and the page loads with no events, or says "no upcoming events".
+  Validation lets it through as `confirmed_empty`. We have 12 future shows stored for this venue. Do they go?
+- **Option A — remove nothing.** An empty page names no date, so there is no window to remove inside. The audit row
+  records `coverage: null`.
+- **Option B — treat it as "the venue has no shows" and remove every stored show from today on.**
+- **Cost of A:** a venue that truly cancels everything keeps stale rows until a person looks.
+- Why A is the safer side: your requirements call an empty list "the most dangerous output", because reconcile would
+  remove every stored show.
+
+### D3 — Is an untimed show the same show as a stored one? ★
+
+- **Scenario.** Terminal Bar's page lists shows with no times at all. Monday's run stores "Band X, Oct 24, no time".
+  Tuesday's page lists "Band X, Oct 24, no time" again. Matching on (venue, date, time) with a blank time never
+  finds the stored row (in SQL, blank is not equal to blank), so every night would add a fresh copy of Band X and
+  remove yesterday's. A related case: on Wednesday the venue adds "8:00 PM" to that show. Same show, or a new one?
+- **Option A — pair them when it is unambiguous.** Per date, if exactly one listing and one stored show are left
+  unmatched and either has no time, they are the same show. If several are left, pair by shared act names, with a
+  fixed tie-break order so the same input always pairs the same way. A time that appears later (blank → 8:00 PM) is
+  an **update**, not remove + insert. Two *different* times (8 PM stored, 9 PM listed) never pair: the requirements
+  already say that is a cancelled show plus a new one.
+  Technically: `show.start_time` against the extraction's `time`, in `reconcile.match_shows` (**K1**).
+- **Option B — never pair a blank time.** Always insert the new listing and remove the stored one. Simple, and it
+  churns every untimed venue every night.
+- **Cost of A:** one wrong pairing is possible. If a venue replaces an untimed show with a different band, untimed,
+  and nothing else is left on that date, we call it the same show with a changed lineup (an update). The requirements
+  already treat a lineup change at the same key as an update, so this is consistent.
+- This was the build plan's open decision, which asked for your confirmation here.
+
+### D4 — If the new listing leaves a field blank, do we erase what we stored? ★
+
+- **Scenario.** Monday's page said the show ends at 11 PM and had a poster. Tuesday's extraction has no end time and
+  no poster, either because the model missed them or because the venue removed them. Does the stored show lose its end
+  time and poster?
+- **Option A — keep the stored value.** Only a *different, non-blank* value counts as a change. The same rule covers
+  `start_time` (a blank time never clears a time) and a lineup's per-act set times. It follows the project's rule
+  "missing is tolerated, wrong is not" (A3-D4).
+  Technically: `reconcile.show_changes` over `end_time`, `image_url`, `start_time` and each act's `start_time`.
+- **Option B — overwrite, so the database mirrors the latest page exactly.** A model hiccup on Tuesday erases
+  Monday's good data, and the show flips between versions.
+- **Cost of A:** when a venue really removes an end time, the pipeline can't clear it. A human edit can, once edits exist.
+- Prices are handled by D5, not here.
+
+### D5 — How do the three price fields update? ★
+
+- **Scenario 1.** A show is stored with a $20 door price. The venue now says "FREE". The listing has
+  `free_admission = true` and no prices. If we kept each field separately (D4's rule), the row would be free *and* $20,
+  which the table refuses (the `show_free_admission_check` constraint). The write in A6 would fail every night.
+- **Scenario 2.** Stored: advance $20, door $25. Tuesday's page says only "$25 at the door". Is the advance price gone?
+- **Option A — `admission_advance`, `admission_day` and `free_admission` update as one unit.** If the listing states
+  *any* of them, it replaces all three (what it doesn't state becomes blank). If it states none, all three stay as
+  stored. Scenario 1 becomes free with no prices. Scenario 2 clears the advance price.
+- **Option B — fix only the conflict.** "Free" clears the prices, and a price clears "free", but a stored advance price
+  stays when the listing mentions only the door price. Scenario 2 keeps the $20 advance price.
+- **Cost of A:** a listing that mentions only the door price erases a real advance price. **Cost of B:** it can keep an
+  advance price the venue stopped offering, and it is harder to explain.
+- The reviewer found this as the plan's one blocker, which is why it is its own decision.
+
+### D6 — How is a cancelled or postponed show stored? ★
+
+- **Scenario.** Last week we stored "Band Y, Oct 22". This week Mortimer's page shows "CANCELLED, Band Y, Oct 22".
+  What does the database say?
+- **Option A — reuse `removed`.** `show.status` today is `active` or `removed`, and the read API hides `removed`
+  (your requirements: a cancelled listing is "not a show to display"). The reason, `cancelled` or `postponed`, is kept
+  in the audit row. No migration. A cancelled listing that matches nothing stored is skipped, never inserted.
+- **Option B — add a `cancelled` status.** A migration, an `api-contract.md` change and regenerated
+  `api-types.ts`, so the app could later show a "Cancelled" badge.
+- **Cost of A:** the app can't distinguish "cancelled" from "dropped" without reading the audit trail. Nothing planned
+  needs it.
+
+### D7 — If a removed show is listed again, what happens? ★
+
+- **Scenario.** Band Y's Oct 22 show was marked removed when Mortimer's cancelled it. A week later the venue un-cancels
+  it and lists it as scheduled for the same date and time.
+- **Option A — bring the same row back.** `status` goes from `removed` to `active`, the reason is `reappeared`, and the
+  lineup updates if it changed. One row carries the show's whole history.
+- **Option B — leave the removed row and insert a new one.** Two rows for one real show.
+- **Cost of A:** a different show at the same date and time could reactivate an old row. Matching only considers a
+  removed show after every active one has been paired, which limits that.
+
+### D8 — When are two artist names "exactly the same"? ★
+
+- **Scenario.** The page says "The Hold Steady" and we have "Hold Steady". Or "Poliça" against "Polica". Or
+  "Jenny Lake & Friends" against "Jenny Lake and Friends". Same artist, with no review?
+- **Option A — yes, after tidying.** Names are compared after lower-casing, removing accents, reading `&` as `and`,
+  dropping punctuation and dropping a leading "the". Equal tidied names are one artist, with no model call.
+  Technically: `artist_match.artist_key`, used by `classify_artist` (**K4**).
+- **Option B — only case and spacing.** Anything else goes to the model.
+- **Cost of A:** two different acts that differ only by those details would merge (a hypothetical: a local band
+  called "Wild" and another called "The Wild"). Cost of B: more model calls, and more rows in the audit trail, for names
+  that are plainly the same.
+
+### D9 — If the model is unsure about an artist match, what do we do? ★
+
+- **Scenario.** The page lists "Zhora Band". We have an artist "Zhora". They are similar but not equal, so reconcile
+  asks the model: same act? The model answers "probably, 0.6", or declines to choose, or the call fails.
+- **Option A — create a new artist.** The same applies when the model names an artist we didn't offer it. Below a
+  confidence of 0.8 we don't link. Worst case is a duplicate artist, which is visible and revertable (merging is a
+  deferred feature, `data-model-initial.md` §5). The fallback is written to the audit row.
+  Technically: `artist_match.decide_ambiguous` (**K5**).
+- **Option B — link to the best candidate anyway.** Fewer duplicates, but a wrong guess silently puts two acts on one
+  artist page.
+- **Cost of A:** more duplicate artists until merge exists.
+
+### D10 — Do we guard against one run removing most of a venue's shows? ★
+
+- **Scenario.** A venue's site glitches and returns half its calendar: of 8 shows in the window, 5 are missing. It
+  passes validation, because half a calendar is still a calendar.
+- **Option A — guard.** If absence would remove **3 or more** stored shows **and more than half** of the active stored
+  shows in the window, those removals are withheld and the audit row says so. A cancellation the page states is
+  evidence, not absence, and is never withheld. Both numbers live in `ReconcilePolicy`.
+- **Option B — no guard.** Trust validation.
+- **Cost of A:** a real mass removal (a venue closing for renovation) waits for a person.
+
+### D11 — What does reconcile write to the audit trail? (technical)
+
+- **Scenario.** Months from now you ask: "why did the app think 'Zhora Band' was 'Zhora'?" Where is the answer?
+- **Option A — one summary row per run, plus one row per model decision.** The summary row (entity = the venue) has the
+  counts per action, the window, review flags and withheld removals. Each model decision gets its own row with
+  `entity_type = artist`, `model_used`, `confidence` and the reason. A new saved query lists them. The per-show rows
+  with before/after snapshots stay in A6's commit, because they record what was written.
+- **Option B — also one row per show decision from reconcile.** More rows, and they overlap with commit's.
+
+### D12 — How do we measure "similar" artist names? (technical)
+
+- **Scenario.** "Dessa" and "Desa" score 0.889 on Python's `difflib`; "Zhora" and "Zhora Band" score 0.667, which a
+  ratio alone would miss.
+- **Option A — `difflib` plus a word-containment rule, in Python, over all artists loaded per run.** No new dependency
+  and no migration. Starting values, in a named `ArtistMatchPolicy`: ratio 0.85, up to three candidates shown to the
+  model. A8 calibrates them against labelled data.
+- **Option B — `rapidfuzz`** (a new dependency, same ratio). **Option C — Postgres `pg_trgm`** (a migration).
+- **Cost of A:** loading every artist per run doesn't scale past a large table. Fine at alpha size.
+
+### D13 — Where does the database read happen? (technical)
+
+- **Scenario.** Reconcile has to read the stored calendar. If the database is down at 4 AM, the run must stop. It must
+  not conclude the calendar is empty and insert a duplicate of everything.
+- **Option A — in the `trace.audited` wrapper, before the node runs,** through a `CalendarReader` on `WorkerContext`
+  (the same pattern as the audit writer and the staging store). The node stays a plain function and is tested without
+  a database. A reader error propagates and stops the run.
+- **Option B — make `reconcile_node` async and read inside it.** A4-D1 rejected async node bodies for the same reasons.
+
+---
+
+### Settled details (veto only)
+
+These follow from your requirements or from the decisions above. I'm listing them so nothing is hidden; object to any.
+
+- **The window starts today.** Past shows are never removed (they fall off pages naturally). Shows up to 31 days back
+  can still be *matched*.
+- **A listing we left out still protects a stored show on its date.** The act splitter drops real shows, so "the
+  validated list lacks it" is not "the page lacks it".
+- **An implausible date can't stretch the window.** A year-2028 entry in a venue's structured data isn't evidence of
+  reach.
+- **Different non-blank times never pair** (8 PM stored, 9 PM listed). Your requirements: that is a cancelled show plus
+  a new one.
+- **A cancelled or postponed listing is never inserted,** and it pairs only on a timed key or shared acts, never on
+  date alone.
+- **Active stored shows are matched before removed ones.**
+- **Ties between untimed shows break by listing order, then stored order,** and the pair is flagged for review so
+  nothing churns.
+- **`needs_review` is set only where a guess was involved,** and lives in the audit row only. No review queue yet.
+- **Artists resolve once per distinct name per run,** and only for scheduled listings. The same artist twice in one
+  show collapses to one lineup entry.
+- **Artist model settings:** the question uses temperature 0 and the base model; confidence is bounded 0 to 1; an
+  empty name key falls back to the plain folded name.
+- **`reconcile_decision` leaves `VenueGraphState`, replaced by `reconcile_plan`.** The old field is a single value and
+  can't describe a run that inserts three shows, updates two and removes one. It touches the audit stub,
+  `commit_node`'s log line and the tests that read it.
 
 ## Design
 
@@ -262,7 +344,7 @@ ShowDecision     action, listing | None, stored_id | None, changes: dict[str, tu
                  lineup: tuple[LineupEntry, ...], reason, needs_review
 ReconcilePlan    coverage | None, shows: tuple[ShowDecision, ...], artists: tuple[ArtistResolution, ...],
                  withheld: tuple[ShowDecision, ...]
-ReconcilePolicy  max_removal_share = 0.5, min_removals_to_guard = 3     # D6; one named place, as RetryPolicy
+ReconcilePolicy  max_removal_share = 0.5, min_removals_to_guard = 3     # D10; one named place, as RetryPolicy
 ```
 
 The functions, in the order a reader should take them:
@@ -271,14 +353,14 @@ The functions, in the order a reader should take them:
 |---|---|---|
 | `night_sort_key(date, time)` | Orders by listed night, with times before `NIGHT_CUTOFF` after the evening's, and **an untimed show last** (as the frontend's `nightSortKey` and the API do). Used wherever reconcile needs a deterministic order | [written] |
 | `listings_from(extraction, validated)` | The kept shows as `Listing`s, with `status` read by `getattr(show, "status", "scheduled")` | [written] |
-| `covered_window(kept, excluded_no_act_dates, fetched_on)` | D1: `Coverage`, or `None` for a confirmed-empty page **or when every listed date is before `fetched_on`** (then `end < start`: no evidence of reach, so no window) | [written] |
+| `covered_window(kept, excluded_no_act_dates, fetched_on)` | D1, D2: `Coverage`, or `None` for a confirmed-empty page **or when every listed date is before `fetched_on`** (then `end < start`: no evidence of reach, so no window) | [written] |
 | `load_request(kept, window, fetched_on)` | The range the reader loads (below) | [written] |
 | `lineup_for(show, resolutions)` | Resolved lineup with sequence numbers: stated numbers are kept only if every act has one, otherwise all are renumbered by list position; the same artist twice collapses to the first | [written] |
-| `match_shows(listings, stored)` | D2: active first, then removed for the leftovers; each round a timed pass and a null-time pass; returns pairs, the unpaired sides and which pairs/leftovers need review | **K1** |
+| `match_shows(listings, stored)` | D3: active first, then removed for the leftovers; each round a timed pass and a null-time pass; returns pairs, the unpaired sides and which pairs/leftovers need review | **K1** |
 | `plan_for_listing(listing, stored)` | What a listing means given its matched stored show (or none): insert, update, no-op, remove, skip, reactivate — the A2.1-D12 status rules | **K3** |
-| `show_changes(stored, listing, lineup, original_url)` | D3: comparison, `{field: (old, new)}`, empty = no-op. Prices compared as `Decimal(str(v)).quantize(0.01)`; admission as one unit | [written] |
+| `show_changes(stored, listing, lineup, original_url)` | D4, D5: comparison, `{field: (old, new)}`, empty = no-op. Prices compared as `Decimal(str(v)).quantize(0.01)`; admission as one unit | [written] |
 | `removed_by_absence(stored, matched_ids, coverage, excluded_dates)` | D1: the soft delete | **K2** |
-| `withhold_if_mass_removal(removals, in_window_active, policy)` | D6 | [written] |
+| `withhold_if_mass_removal(removals, in_window_active, policy)` | D10 | [written] |
 | `build_plan(...)` | Orders the steps below and assembles the plan | [written] |
 
 All of these take **plain arguments** (the extraction, the validation result, dates), not `VenueGraphState`:
@@ -297,9 +379,9 @@ in a fresh interpreter and asserts `agent_worker.state` is not in `sys.modules`.
 2. Resolve artists once per distinct `artist_key`, **only for scheduled listings** (cancelled and postponed listings
    never insert or update a lineup, so their acts cost no model call, create no artist and write no decision row):
    exact → none → ambiguous → model (`artist_match.py`).
-3. Decide each listing's action (K3) and compute its changes (D3).
+3. Decide each listing's action (K3) and compute its changes (D4, D5).
 4. Soft-delete stored shows absent from the page, inside the window (K2).
-5. Apply the guard (D6).
+5. Apply the guard (D10).
 6. Sort the decisions by `night_sort_key`, so the plan, and the audit row, read in calendar order.
    `plan.artists` contains only resolutions some decision references.
 
@@ -334,13 +416,13 @@ stored twin and be inserted again every night, and those duplicates sit outside 
 
 - `context.py`: `WorkerContext` gains `reader: CalendarReader`.
 - `state.py`: `stored_shows`, `known_artists` (loaded by the wrapper), `reconcile_plan` (set by the node);
-  `reconcile_decision` removed (D9).
+  `reconcile_decision` removed (see "Settled details").
 - `trace.audited`: for `StepType.RECONCILE`, before the thread, compute `reconcile.load_request(...)` (from the state's validated extraction, validation result and fetch date, passed in as plain arguments), `await` the
   reader, put the results on the state; after the thread, write the summary row, then one row per model decision
   (`audit.model_decision_entries(state)`).
 - `nodes.reconcile_node`: calls `build_plan` with the model client; sets `state.reconcile_plan`; logs a summary.
 - `nodes.commit_node`: still a stub, now logging the plan's counts instead of the removed field.
-- `audit.py`: `_detail` for `RECONCILE` (D8); `RECONCILE` joins `_VENUE_LEVEL`; `COMMIT` stays a stub row.
+- `audit.py`: `_detail` for `RECONCILE` (D11); `RECONCILE` joins `_VENUE_LEVEL`; `COMMIT` stays a stub row.
 - `main.py` and `local_test.py`: build `PostgresCalendarReader(SessionFactory)`.
 
 ## Test approach (written first, watched fail, then made green)
@@ -353,7 +435,7 @@ Four layers.
 ### 1. Pure show decisions (`agent_worker/tests/test_reconcile_shows.py`)
 
 Hand-built `StoredShow`s and `Listing`s; no database, no model. Sources: `requirements-initial.md` "Agent
-Reconciliation", `arch-initial.md` §7's outcome table, D2–D4.
+Reconciliation", `arch-initial.md` §7's outcome table, D3–D7.
 
 - **Section: the composite key (K1)**
   - same date and time, same details → pair, `no_op`;
@@ -361,7 +443,7 @@ Reconciliation", `arch-initial.md` §7's outcome table, D2–D4.
   - 8 pm stored, 9 pm listed, same date → **no pair**: one `remove` and one `insert` (the requirements' own example);
   - null → 20:00 (stored untimed, listing timed) → `update` filling `start_time`, one pair;
   - 20:00 → null (stored timed, listing untimed), one of each on the date → pair, and `start_time` is **not**
-    cleared (D3);
+    cleared (D4);
   - two untimed shows on one date, both stored: pair by shared acts (the 7th St Entry, October 31 case), even when
     the listings come in the opposite order;
   - two untimed, lineups changed completely: no pair, two inserts and two removal candidates, all `needs_review`;
@@ -369,7 +451,7 @@ Reconciliation", `arch-initial.md` §7's outcome table, D2–D4.
   - a returning show: stored `removed`, listed `scheduled` → pair, `update` to `active`;
   - **a show with no `time` and per-act times** (A2's White Squirrel seed 2) reconciles without error and without
     inventing a show time.
-- **Section: preferences and ties (D2)**
+- **Section: preferences and ties (D3)**
   - a stored `removed` twin and a stored `active` twin at the same key: the listing pairs with the **active** one;
   - a long-ago `removed` show on a date plus one active untimed show: an untimed listing with changed acts still pairs
     with the active one (an `update`, not remove + insert);
@@ -379,10 +461,10 @@ Reconciliation", `arch-initial.md` §7's outcome table, D2–D4.
     stored #2) gets #2 even though #1 is the lower id;
   - `needs_review` is **false** for an ordinary new timed show and an ordinary removal, **true** for the null-time and
     tie-break cases.
-- **Section: cancelled and postponed (K3)**: the matrix from D4 — cancelled × {stored active → `remove`, stored
+- **Section: cancelled and postponed (K3)**: the matrix from D6 and D7 — cancelled × {stored active → `remove`, stored
   removed → `no_op`, no stored → `skip`}, postponed the same, scheduled × {stored removed → reactivate}. The audit
   reason distinguishes `cancelled` from `postponed`. A `skip` creates no insert and no artist, and a cancelled listing naming an unknown artist makes **zero** model calls and no resolution. A cancelled listing with a null time and an unrelated stored show on its date does **not** pair (round 1, finding 3).
-- **Section: what counts as a change (D3)**
+- **Section: what counts as a change (D4)**
   - a different price, end time or image → `update` with that field in `changes`; a null in any of them → unchanged;
   - prices compare as money: stored `Decimal("20.00")` equals extracted `20.0`; `19.99` differs;
   - `original_url` differing alone → `update` (the doc: "overwritten on each successful reconcile");
@@ -390,7 +472,7 @@ Reconciliation", `arch-initial.md` §7's outcome table, D2–D4.
   - **idempotency:** feeding a plan's own result back in as the stored shows (a test-only simulator that mirrors what
     commit will do) gives all `no_op`s. This is the property that stops a show flipping nightly; A6 later replaces
     the simulator with a real round trip.
-- **Section: admission is one unit (D3)**
+- **Section: admission is one unit (D5)**
   - stored `admission_day = 20`, listing `free_admission = True` with no prices → `update` to free with both prices
     null (never free-with-a-price);
   - stored `free_admission = True`, listing a day price with `free_admission` null → `update` to the price, free
@@ -408,7 +490,7 @@ Reconciliation", `arch-initial.md` §7's outcome table, D2–D4.
 
 ### 2. Pure soft delete and the guard (`agent_worker/tests/test_reconcile_removal.py`)
 
-Sources: `requirements-initial.md` ("falling within the date range that fetch actually covered"), D1, D6.
+Sources: `requirements-initial.md` ("falling within the date range that fetch actually covered"), D1, D2, D10.
 
 - **Section: the window (K2)**
   - a stored active show on a covered date and absent from the page → removed;
@@ -426,13 +508,13 @@ Sources: `requirements-initial.md` ("falling within the date range that fetch ac
     this runs in `test_reconcile_db.py`).
 - **Section: the empty page**: `covered_window` is `None` for a confirmed-empty page, so nothing is removed, the plan
   says `coverage: None`, and stored shows are untouched. A page with only cancelled listings still has a window.
-- **Section: the guard (D6)**: 3 of 4 in-window active shows missing → all three withheld and none removed; 2 of 4
+- **Section: the guard (D10)**: 3 of 4 in-window active shows missing → all three withheld and none removed; 2 of 4
   missing → removed (below the minimum); 3 of 8 missing → removed (not more than half); a cancelled listing's removal
   is never withheld; the plan lists what was withheld.
 
 ### 3. Artists (`agent_worker/tests/test_artist_match.py`)
 
-Sources: `requirements-initial.md` "Agent Artist Creation & Matching"; D5; the difflib ratios in D5 (measured, not
+Sources: `requirements-initial.md` "Agent Artist Creation & Matching"; D8, D9, D12; the difflib ratios in D12 (measured, not
 assumed).
 
 - **Section: classification (K4)**: exact on case, accents, a leading "The", `&` vs `and`, spacing; ambiguous on
@@ -460,11 +542,11 @@ assumed).
   - A cancelled listing for a stored show: one `remove`, reason `cancelled`.
   - One ambiguous artist with a scripted "same" answer: **two** reconcile rows, the summary and one artist-decision
     row carrying `entity_type = artist`, `model_used`, `confidence`; `RecordingAudit` shows them in that order.
-  - **A reader that raises propagates out of `ainvoke` and no reconcile row is written** (D7: an unreadable calendar
+  - **A reader that raises propagates out of `ainvoke` and no reconcile row is written** (D13: an unreadable calendar
     must not look empty).
   - The existing context-injection test (`test_the_context_reaches_the_audited_nodes`) still passes with the new
     `reader` field.
-- **`tests/test_audit_entries.py` (updated):** reconcile now names the venue as its entity; its `detail` is the D8
+- **`tests/test_audit_entries.py` (updated):** reconcile now names the venue as its entity; its `detail` is the D11
   shape (keys listed in the test); `model_decision_entries` builds the artist rows: `entity_type = artist`,
   `model_used` from the resolution, `confidence` through `audit_confidence` (a `None` stays `NULL`, A3-D9), and the
   JSON-serializable check from A4 extends to them.
@@ -477,14 +559,14 @@ assumed).
 - **`tests/test_audit_queries.py` (extended):** the new saved query `artist_match_decisions` runs against a scripted
   run that made one model decision, and returns exactly that row (and none from a run that made none).
 - **Existing tests:** every `WorkerContext(...)` call site gains `reader=` (listed in "Critical files");
-  `test_graph.py`'s `reconcile_ran` helper currently reads `state.reconcile_decision`, which D9 removes, so it reads
+  `test_graph.py`'s `reconcile_ran` helper currently reads `state.reconcile_decision`, which the plan removes ("Settled details"), so it reads
   `state.reconcile_plan is not None`.
 
 ### What is not covered, stated plainly
 
 - **The model on real data.** The cloud sandbox has no Ollama. The ambiguous-artist prompt is tested for what it
   sends and how its answer is handled, with a scripted client; whether the real model answers well is unmeasured. The
-  thresholds in D5 are starting values, to be calibrated in A8. Ari runs the live check locally (Verification §5).
+  thresholds in D12 are starting values, to be calibrated in A8. Ari runs the live check locally (Verification §5).
 - **A real before-and-after calendar.** Nothing writes until A6. The idempotency test uses a simulator of the write; a
   real database round trip is A6's test.
 - **Pagination.** Fetch is one page. The window is derived from the listings (D1); when fetch paginates, the
@@ -528,7 +610,7 @@ hand-built data. K2 needs K1's `matched_ids`. K5 needs K4. **`build_plan` calls 
 whole plan (the graph tests, the DB test, the idempotency test) is red until all five are filled**; the pure tests
 for each gap go green as that gap closes. The Implementation log will list the red tests by file.
 
-- **K1 — the composite-key match, in `reconcile.py` (`match_shows`).** *(Build plan items 1 and 3; D2.)*
+- **K1 — the composite-key match, in `reconcile.py` (`match_shows`).** *(Build plan items 1 and 3; D3.)*
   - *Lesson:* the key is (venue, date, time), exact, with no fuzzy matching on shows (`arch-initial.md` §7), and the
     whole subtlety is what a **null** does. In SQL `NULL = NULL` is not true, so a naive key never finds an untimed
     show: every night would insert a duplicate and remove the old one. The rule is: two different times never pair
@@ -553,7 +635,7 @@ for each gap go green as that gap closes. The Implementation log will list the r
     `True` for two nulls (`None == None` in Python, unlike SQL) but `False` for null-against-timed, so the
     **null → 20:00 and 20:00 → null** tests are the ones that go red.
 
-- **K2 — the soft delete, in `reconcile.py` (`removed_by_absence`).** *(Build plan item 4; D1.)*
+- **K2 — the soft delete, in `reconcile.py` (`removed_by_absence`).** *(Build plan item 4; D1, D2.)*
   - *Lesson:* a show is removed because the **page** no longer lists it, and only if the fetch **reached** its date
     (`data-model-initial.md`, `show.status`; `requirements-initial.md`, "falling within the date range that fetch
     actually covered"). "Absent from the validated list" is not "absent from the page": excluded listings are still on
@@ -576,7 +658,7 @@ for each gap go green as that gap closes. The Implementation log will list the r
     writes a pointless audit row.
 
 - **K3 — what a cancelled or postponed listing means, in `reconcile.py` (`plan_for_listing`).** *(Build plan item 8;
-  D4; `A2.1-D12`.)*
+  D6, D7; `A2.1-D12`.)*
   - *Lesson:* a cancelled or postponed listing is **evidence about a stored show, not a show**
     (`requirements-initial.md`: "the agent has to match it to that stored record and update it"). It must never be
     inserted. The status decides *what the match means*, which is why the answer depends on both the listing and the
@@ -597,7 +679,7 @@ for each gap go green as that gap closes. The Implementation log will list the r
   - *Check:* `uv run pytest agent_worker/tests/test_reconcile_shows.py -k "cancelled or postponed"`. The likeliest
     mistake is falling through to `INSERT` for a cancelled listing with no stored show; the `skip` test catches it.
 
-- **K4 — classify an artist name, in `artist_match.py` (`classify_artist`).** *(Build plan item 5; D5.)*
+- **K4 — classify an artist name, in `artist_match.py` (`classify_artist`).** *(Build plan item 5; D8, D12.)*
   - *Lesson:* "clear matches and clear non-matches resolve automatically; ambiguous matches go through a review step
     rather than a fixed rule" (`requirements-initial.md`). That is a **three-way** answer, not a similarity score with
     one cut-off, and the middle band is deliberately where the model is used. A two-way rule is wrong in one
@@ -620,7 +702,7 @@ for each gap go green as that gap closes. The Implementation log will list the r
     tests catch it.
 
 - **K5 — the model decides the ambiguous case, with the conservative fallback, in `artist_match.py`
-  (`decide_ambiguous`).** *(Build plan item 6; D5, D8.)*
+  (`decide_ambiguous`).** *(Build plan item 6; D9, D11.)*
   - *Lesson:* this is the one place in the pipeline where a model makes a database decision, so the failure direction
     is a design decision, not an accident. A wrong merge is silent and spreads (two acts share one page); a
     duplicate is visible and revertable. So low confidence, a refusal, a hallucinated id and a failed call **all**
@@ -642,7 +724,7 @@ for each gap go green as that gap closes. The Implementation log will list the r
 
 ### 1. Schema (written): none
 
-No migration. `show_status` keeps `active | removed` (D4), `audit_log.entity_type` already has `artist`, `show.original_url`
+No migration. `show_status` keeps `active | removed` (D6), `audit_log.entity_type` already has `artist`, `show.original_url`
 exists. `app/schemas.py` is untouched, so `make types` / `make fixtures` have nothing to regenerate and there is no
 B-track impact. Stated because the build plan's gate for schema changes is "their own early PR".
 
@@ -681,7 +763,7 @@ rows with `entity_type = 'artist'`, joined to the run's venue. It uses `CAST(...
 - `arch-initial.md` §7: a short "Built in A5" paragraph after A4's: the window rule, the null-time rule, the
   cancelled mapping, the guard, and the departure that reconcile's database read is in the wrapper.
 - `data-model-initial.md`: under `show.status`, one sentence: cancelled and postponed listings are stored as `removed`,
-  with the distinction in the audit trail (D4).
+  with the distinction in the audit trail (D6).
 - `conventions.md`: add `A4` and `A5` to the scope table (A4 was missing).
 - `apps/api/AGENTS.md`: the worker paragraph gets reconcile's module map and the "an unreadable calendar stops the
   run" rule.
@@ -701,9 +783,9 @@ rows with `entity_type = 'artist'`, joined to the run's venue. It uses `CAST(...
    far the run reached; with one-page fetch there is nothing to carry beyond the listings themselves.
 3. **A7's "unit tests for reconcile's decision logic against a seeded database" is done in A5**, tests-first, as the
    cycle requires. A7 keeps the fake-model-client and mypy items.
-4. **`reconcile_decision` is removed from the state** (D9).
+4. **`reconcile_decision` is removed from the state** ("Settled details").
 5. **The "deterministic or LLM" distinction in the audit trail** (`arch-initial.md` §7, "Audit trail extensions") is
-   carried by one row per model decision plus `decided_by` in the summary, not by a column (D8).
+   carried by one row per model decision plus `decided_by` in the summary, not by a column (D11).
 
 ## Critical files
 
@@ -760,7 +842,7 @@ rows with `entity_type = 'artist'`, joined to the run's venue. It uses `CAST(...
   the same pair). The cost is a model call per ambiguous name per run, deterministic at temperature 0, and
   rare. It is the same gap as artist merge/de-duplication (`data-model-initial.md` §5); the schema change belongs to
   that feature.
-- **`pg_trgm` / `rapidfuzz`** for artist similarity (D5), until the artist table is large enough for the Python scan
+- **`pg_trgm` / `rapidfuzz`** for artist similarity (D12), until the artist table is large enough for the Python scan
   to matter.
 - **Pagination-aware coverage** (D1), until fetch paginates.
 - **Concurrency control** between workers on one venue.
@@ -772,7 +854,9 @@ rows with `entity_type = 'artist'`, joined to the run's venue. It uses `CAST(...
 
 ## Approval
 
-*(Awaiting Ari. After the plan review round and its resolution, the status becomes `Awaiting approval`. Ari sets
+**Ari, October 17, 2026:** decided D1 (window end = the latest date the page lists) and D2 (an empty page removes nothing), both as recommended (option A). D3–D13 are open.
+
+*(Awaiting Ari on D3–D13. After the plan review round and its resolution, the status becomes `Awaiting approval`. Ari sets
 `Approved` and may re-mark any [written] item [fill-in] or the reverse; `/build-milestone` records the approval.)*
 
 ## Plan review
