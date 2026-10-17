@@ -43,9 +43,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@repo/ui/components/select";
-import { withIds,
-  buildCalendarHref, 
-  type CalendarFilters 
+import {
+  buildCalendarHref,
+  hasActiveFilters,
+  withIds,
+  type CalendarFilters,
 } from "@/lib/calendar-href";
 
 type Option = { id: number; name: string };
@@ -89,8 +91,7 @@ export function FilterHeader({
     });
   }
 
-  const isFiltered =
-    current.venueIds.length > 0 || current.artistIds.length > 0 || current.month !== null;
+  const isFiltered = hasActiveFilters(current);
 
   return (
     <div
@@ -197,7 +198,11 @@ function OptionPicker({
           {(values: Option[]) => (
             <>
               {values.map((o) => (
-                <ComboboxChip key={o.id}>{o.name}</ComboboxChip>
+                // `removeLabel` names the chip's icon-only remove button for
+                // screen readers ("Remove Zhora Darling"); see B5-D3.
+                <ComboboxChip key={o.id} removeLabel={`Remove ${o.name}`}>
+                  {o.name}
+                </ComboboxChip>
               ))}
               <ComboboxChipsInput
                 id={inputId}

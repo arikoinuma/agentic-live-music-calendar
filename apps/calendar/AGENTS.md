@@ -76,7 +76,7 @@ HTTP against the API for anything else — the routes exist and serve the same d
 - **The client never computes a date window.** The venue page sends only a `start`; the API fills `end` and echoes
   what it served, and `lib/calendar-window.ts` builds the Earlier/Later links from that echo. `upcoming` is exclusive
   with `start`/`end` and needs a `venue_id` or `artist_id` — the server answers 422 otherwise.
-- `lib/calendar-href.ts` holds `CalendarFilters`, `buildCalendarHref` and `withIds` — the
+- `lib/calendar-href.ts` holds `CalendarFilters`, `buildCalendarHref`, `withIds` and `hasActiveFilters` — the
   **Temporal-free** half of URL state, re-exported from `params.ts`. A Client Component
   must import from here, never `params.ts` or `lib/dates.ts`: both pull the ~36 KB gzipped
   Temporal polyfill into the browser bundle. (Check: `grep -rl "Do not use built-in
@@ -90,6 +90,9 @@ HTTP against the API for anything else — the routes exist and serve the same d
   `lib/calendar.ts` (shows → date rows → venue columns) and `lib/show-format.ts` (prices and
   admission) are the calendar's pure, tested core. A show's own date and time are wall-clock
   strings with **no timezone** — the metro's zone is needed only to ask what "today" is.
+- `app/_components/calendar-results.tsx` is the synchronous half of the home page: the calendar, or the
+  "No matches found" / "No shows listed" message. It exists so that branch is testable (B5-D1); `CalendarBody`
+  in `app/page.tsx` only fetches.
 - The calendar's one Client Component is `app/_components/filter-header.tsx`. It holds no
   results: a selection calls `router.push` with the new URL and the server page re-renders.
 - Every API call logs one line to the Next server's terminal from `send()` in `lib/api.ts`:
@@ -151,9 +154,17 @@ Maps link, its calendar with paging, JSON-LD), the artist page (every upcoming s
 orderings, and the new `/show/[id]` with Event JSON-LD; `/venues` and `/artists` stayed as B2 built them.
 `/health` is the diagnostics page.
 
-- Tests: `pnpm test` (Vitest, node environment). jsdom and Testing Library arrive with
-  the first component tests (B5). Don't unit-test async Server Components — see the
-  style guide's Testing section.
+- Tests: `pnpm test` (Vitest). **The file extension picks the environment** (B5): `*.test.ts` runs
+  in node (the pure `lib/` code), `*.test.tsx` runs in jsdom with Testing Library and jest-dom
+  (`vitest.config.ts`, `test/setup-dom.ts`). Component tests sit beside the component.
+  Conventions: query by role and accessible name (`getByRole`, `getByLabelText`), never a class or
+  `data-slot`; use `userEvent`, not `fireEvent` (Base UI's combobox doesn't open for a bare
+  `fireEvent.click`); mock only `useRouter` from `next/navigation` (with `vi.hoisted`) and assert the
+  whole pushed URL with `toHaveBeenCalledExactlyOnceWith`; assert absence with `queryBy*`; no
+  snapshot tests. **Don't unit-test async Server Components** (style guide, Testing): pull the
+  synchronous part out instead, as B5 did with `CalendarResults`, and test that. A JSON-LD-style test
+  that depends on how the SERVER's HTML is parsed must render with `react-dom/server` and parse the
+  result with `DOMParser`, not use Testing Library's client `render` (`json-ld.test.tsx`).
 - Shared-package imports go through `packages/ui/package.json` `exports`, not its
   tsconfig `paths` — a new folder of `.ts` files under `packages/ui/src` needs its own
   `exports` entry (`docs/dev/notes.md`).
