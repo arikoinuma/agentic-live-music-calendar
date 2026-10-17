@@ -1,9 +1,9 @@
 # A5 — reconcile
 
-**Status:** Code review
-**Date:** October 16, 2026
-**Author model:** Claude Sonnet 5.5 (plan, October 16, 2026)
-**Reviewer model:** Claude Opus 5.5 (plan review round 1, October 16, 2026)
+**Status:** Awaiting sign-off
+**Date:** October 16, 2026 (plan); October 17, 2026 (decisions, implementation)
+**Author model:** Claude Sonnet 5.5 (plan and plan-review resolution, October 16, 2026; implementation and code-review resolution, October 17, 2026)
+**Reviewer model:** Claude Opus 5.5 (plan review round 1, October 16, 2026); Claude Opus 5.5 (code review round 1, October 17, 2026)
 **Spec:** `docs/dev/alpha-build-plan.md` §5 A5 (and A2.1's carried items: after-midnight times, cancelled and
 postponed listings, two untimed shows on one date); `docs/arch/arch-initial.md` §7 ("Reconcile (insert / update /
 delete / no-op)" and its outcome table); `docs/arch/requirements-initial.md` ("Agent Reconciliation", "Agent Artist
@@ -310,6 +310,10 @@ These follow from your requirements or from the decisions above. I'm listing the
   show collapses to one lineup entry.
 - **Artist model settings:** the question uses temperature 0 and the base model; confidence is bounded 0 to 1; an
   empty name key falls back to the plain folded name.
+- **The resulting lineup is in performance order,** which is the order a stored lineup is read back in. Stated sequence numbers
+  are kept only when every act has one and they are all different; otherwise the acts are numbered by list position.
+- **On a tie, a scheduled listing takes the stored show before a cancelled or postponed one,** so a page carrying both for one
+  show settles the same way every night. A guessed pairing is flagged as a whole (both halves), not just its first pair.
 - **`reconcile_decision` leaves `VenueGraphState`, replaced by `reconcile_plan`.** The old field is a single value and
   can't describe a run that inserts three shows, updates two and removes one. It touches the audit stub,
   `commit_node`'s log line and the tests that read it.
@@ -853,8 +857,7 @@ rows with `entity_type = 'artist'`, joined to the run's venue. It uses `CAST(...
 
 **Ari, October 17, 2026:** decided D1 (window end = the latest date the page lists) and D2 (an empty page removes nothing), both as recommended (option A). **Ari, October 17, 2026 (later):** decided D3 through D12, all as recommended (option A). D13 (where the database read lives) was removed as a decision at Ari's request and listed under "Settled details". **All twelve decisions are closed.**
 
-*(Awaiting Ari's approval of the plan. After the plan review round and its resolution, the status becomes `Awaiting approval`. Ari sets
-`Approved` and may re-mark any [written] item [fill-in] or the reverse; `/build-milestone` records the approval.)*
+**Ari, October 17, 2026: approved the plan** ("The plan is approved. /build-milestone docs/dev/implementations/a5-reconcile.md"). The status was set to `Approved` by `/build-milestone` at step 0 and recorded here after code review round 1 found the approval was missing from the file (A5-CR1-4). No [written] item was re-marked [fill-in] or the reverse at approval.
 
 ## Plan review
 
@@ -920,8 +923,8 @@ venue-level), `prompts.py` (`artist_match_instruction`), `main.py`, `local_test.
 **Departures from the plan, each with its reason.**
 
 1. **The tests were not all written before the code.** I wrote the logic with the five gaps filled first, then the tests,
-   to get a known-good version to derive the scaffold from; the "watched fail" step is the scaffold itself (226 failures,
-   all `NotImplementedError: TODO(Ari)`). The tests' expected values were still written from the requirements and
+   to get a known-good version to derive the scaffold from; the "watched fail" step is the scaffold itself (118 red results: 108 failed plus 10 fixture errors, all
+   `NotImplementedError: TODO(Ari)`). The tests' expected values were still written from the requirements and
    decisions, not read from the code; the reviewer should check that, since I can't show the red-before-green order.
 2. **`Listing` is a plain dataclass of the fields reconcile reads** (`ListedAct`, `time`, `end_time`, prices, `status`),
    not a wrapper around the pydantic `ShowExtraction` the plan's type list showed. The extraction schema has variants
@@ -954,8 +957,9 @@ every path that has a scheduled listing).
 **Verification.**
 
 - **Baseline** before A5, measured October 16: 669 passed, 15 skipped.
-- **As delivered (gaps open):** `REQUIRE_DB=1 uv run pytest`: **666 passed, 108 failed, 10 errors, 15 skipped**. All 226
-  red results are `NotImplementedError: TODO(Ari)` (checked by grepping every failure message; none is anything else).
+- **As delivered (gaps open):** `REQUIRE_DB=1 uv run pytest`: **666 passed, 108 failed, 10 errors, 15 skipped**. All 118
+  red results are `NotImplementedError: TODO(Ari)` (checked by grepping every failure message; none is anything else;
+  an earlier draft of this log said 226, which counted traceback lines twice: A5-CR1-7).
   Red by file: `test_reconcile_shows.py` 41, `test_artist_match.py` 24, `test_reconcile_removal.py` 15,
   `test_graph.py` 13, `test_graph_audit.py` 6, `test_audit_queries.py` 6, `test_graph_reconcile.py` 5,
   `test_reconcile_db.py` 4, `test_calendar_reader.py` 2, `test_run_venue.py` 2 (failures and fixture errors together).
@@ -981,3 +985,83 @@ every path that has a scheduled listing).
    partial state.
 5. **`build_plan`'s `plan.artists`** (only the artists some decision uses) and that cancelled listings cost no model call.
 6. Anything in the tests whose expected value I may have taken from the code instead of the requirements.
+
+### Round 2 — Claude Sonnet 5.5, October 17, 2026 (fixes for code review round 1)
+
+**Scope.** The fixes for `A5-CR1-1` to `A5-CR1-9`, on top of `f0baae2`: `reconcile.py` (`excluded_listing_dates`,
+`prepare_inputs`, `_assign_by_acts`, `match_shows`, `lineup_for`), `artist_match.py` (`_new`, `_matched`, a shorter K5 gap),
+tests `reconcile_support.py` (`extracted`, `validated`), `test_reconcile_removal.py`, `test_reconcile_shows.py`, and docs
+(`a5-reconcile.md`, `alpha-build-plan.md`, `notes.md`). Each testable finding got a failing test first (7 failed before the
+fixes, which is the proof the tests catch what the findings describe); findings 3 and 4 and the nits 7 to 9 are tests or text.
+
+**Departures.** None from the plan. Two behaviours were added to "Settled details" (the lineup is in performance order and
+repeated stated numbers are renumbered; a scheduled listing outranks a cancelled one on a tie, and a guessed pairing is
+flagged whole), because the review showed the plan hadn't said them.
+
+**`TODO(Ari)` gaps.** All five still open (A5-K1 to A5-K5). K5's `Code:` block is now 7 lines.
+
+**Verification.**
+- **As delivered (gaps open):** `REQUIRE_DB=1 uv run pytest`: **668 passed, 112 failed, 10 errors, 15 skipped**. All 122
+  red results are `NotImplementedError: TODO(Ari)`.
+- **Gaps filled on a scratch copy** (outside the repo, removed afterwards): **790 passed, 15 skipped**, ruff clean, and the
+  three new modules pass `mypy`. That is the 669 baseline plus 121 new tests.
+- `uv run ruff check .`, `uv run mypy app/`, `make contract-check` and `pnpm turbo run test` pass; `make check` as a whole
+  still stops at its Python test stage, red by design.
+
+**Where to look hardest.** `excluded_listing_dates` (the plausibility test, because it now decides whether a page "reached"
+a date); `lineup_for` (the sort and the distinct-numbers rule, because a wrong order is a nightly update); the batch
+flagging in `match_shows`.
+
+## Code review
+
+### Round 1 — Claude Opus 5.5, October 17, 2026
+
+**Scope.** Implementation log round 1: `git diff 886e04e` on branch `claude/vigilant-keller-858dzn`. The log describes the
+work as an uncommitted working tree, but it is now committed as `f0baae2` ("A5: implement reconcile (scaffold with five
+TODO(Ari) gaps), tests, docs"). That is 34 files and the same file list the log gives. The five open `TODO(Ari)` gaps
+(A5-K1 to A5-K5) are not findings.
+
+**What was checked and how.**
+- **Docs read:** `AGENTS.md` ([fill-in] tasks, Implementation plans); `apps/api/AGENTS.md`;
+  `docs/references/fastapi-style-guide.md` (Anti-patterns table); this plan in full, including plan review round 1 and
+  Implementation log round 1; the doc diffs to `arch-initial.md` §7, `data-model-initial.md`, `alpha-build-plan.md`,
+  `conventions.md`, `notes.md` and `audit-queries.sql`.
+- **Code read:** `reconcile.py`, `artist_match.py` and `calendar_reader.py` in full; the diffs to `trace.py`, `audit.py`,
+  `nodes.py`, `state.py`, `context.py`, `llm.py`, `prompts.py`, `main.py` and `local_test.py`; `tests/reconcile_support.py`;
+  `test_reconcile_removal.py` in full; most of `test_reconcile_shows.py`; the test lists of the other new test files;
+  `validation.validate_extraction`; `status_check.apply`; `schemas.ActExtraction.sequence_number` and `free_admission`.
+- **`make check` on HEAD:** ruff, eslint, mypy (`app/`), tsc and contract-check all pass. The API suite gives
+  **666 passed, 108 failed, 10 errors, 15 skipped**, and every one of the 118 red results is
+  `NotImplementedError: TODO(Ari)` (I counted the `E` lines). This is red by design, as the log says (CONFIRMED).
+  `uv run mypy` on the three new modules is clean (CONFIRMED).
+- **Gaps filled in a throwaway `git worktree` of HEAD (removed afterwards):** I pasted each gap's own `Code:` lines
+  verbatim and removed the `noqa`. Result: **784 passed, 15 skipped**, ruff clean. This matches Verification step 2 and
+  the log (CONFIRMED). I also wrote probe tests in the same worktree for findings 1, 2, 5 and 6. Their output is quoted in
+  the Evidence column.
+- **Checked and found sound:** the import DAG (`reconcile`/`artist_match` never import `state`; a test enforces it).
+  Active-first matching. A cancelled listing never pairs by date alone. A failed read propagates and leaves no reconcile
+  row. `plan.artists` holds only resolutions some decision references. Cancelled listings make no model call.
+  `free_admission = False` cannot wipe prices under D5, because `false_to_none` turns it into null first. The real
+  `PostgresCalendarReader` returns `ShowStatus` members, so the `is ShowStatus.ACTIVE` comparisons hold (exercised by
+  `test_reconcile_db.py` with the gaps filled). No route, async or bare-`Exception` anti-patterns.
+
+**Counts:** 1 blocker, 3 should-fix, 5 nits.
+
+**Verdict:** *proceed after fixes.* The blocker is a silent wrong removal, which is the failure class this milestone
+exists to prevent. It contradicts a "Settled detail", and the test that claims to cover it can't fail. The fix is two
+lines in written code, not in a gap. The should-fix rows are a nightly-churn input that the test suite already builds,
+two promised tests that don't exist, and an approval the file doesn't record.
+
+| # | Sev | Finding | Evidence | What goes wrong | Resolution |
+|---|---|---|---|---|---|
+| 1 | blocker | **A listing left out for naming no act can stretch the removal window to any date, implausible ones included.** `validate_extraction` handles the no-act exclusion *before* the plausibility check, so a show with no acts and a 2028 date gets only an `EXCLUDED_NO_ACTS` finding, never `DATE_OUT_OF_WINDOW`. `excluded_listing_dates` keeps every `EXCLUDED_NO_ACTS` date, and `covered_window` takes the max over them. That breaks "Settled details": "An implausible date can't stretch the window. A year-2028 entry in a venue's structured data isn't evidence of reach." The test that claims to cover this (`test_a_listing_left_out_for_an_impossible_date_does_not_stretch_the_window`) calls `covered_window(..., [], ...)` with no excluded dates at all, so it cannot fail. Fix: in `excluded_listing_dates`, keep a no-act date only when it is inside the plausibility window (`validation.check_plausibility(show, fetched_on).date_out_of_window` is False, which means passing `fetched_on` in), or at least drop dates past `fetched_on + 366 days`. Replace the test with one that goes through `validate_extraction` → `prepare_inputs` with a no-act 2028 show. | CONFIRMED (worktree probe, gaps filled). A JSON-LD page has Nona on Oct 20, a no-act show on 2028-03-01 at index 1, and Zhora on Oct 25; stored shows exist on Oct 20, Oct 25, Dec 5 and Feb 5 2027. Output: `FINDINGS [(EXCLUDED_NO_ACTS, 1)]`, `COVERAGE Coverage(start=2026-10-12, end=2028-03-01)`, `PLAN [no_op 1, no_op 2, remove 3 'absent from the page', remove 4 'absent from the page'] withheld 0`. Code: `validation.py:487-496` (the `continue` comes before `check_plausibility`); `reconcile.py:267-294`; `test_reconcile_removal.py:101-107`. | Every stored show between the page's real horizon and the bogus date is soft-deleted on every run that sees the placeholder entry (a "Private event" or "Gift cards" item, the kind of entry the plan itself calls out). The D10 guard does not catch it: matched shows count toward `in_window_active`, so a venue with 20 listed shows loses up to 10 out-of-sight shows unguarded. `notes.md`'s new entry says such a date "is not evidence", so the docs claim protection the code doesn't give. | **Fixed.** `excluded_listing_dates` now takes `fetched_on` and keeps a no-act date only when `validation.check_plausibility` says it is inside the plausible window (the finding's own suggestion); `prepare_inputs` passes it. Failing test first: `test_a_no_act_listing_with_an_impossible_date_does_not_stretch_the_window` goes through real `validate_extraction` and `prepare_inputs` with the 2028 entry from the probe, and asserts the window ends October 25 and nothing between there and 2028 is removed; it failed before the fix. The old test that could not fail is replaced. Added the other half (`..._plausible_date_still_counts_as_reach`). `notes.md` and the Settled details already stated the intended behaviour. |
+| 2 | should-fix | **A stated performance order that differs from list order turns into an update every night.** `lineup_for` keeps the entries in list order and keeps the stated `sequence_number`s. `show_changes` compares that list-order tuple against `stored.ordered_lineup()`, which sorts by `sequence_number`. For acts listed `[Zhora (2), Nona (1)]`, the stored side reads `[Nona, Zhora]` and the new side reads `[Zhora, Nona]` on every run, forever. `test_stated_sequence_numbers_are_kept_when_every_act_has_one` builds exactly this input, but the idempotency test never feeds it back in. `ActExtraction.sequence_number` is filled whenever "the page explicitly states an order", so this is a real input. Fix: sort the resolved lineup by `sequence_number` before comparing (or compare `(artist_id, sequence_number, start_time)` as a set). Add this listing to `test_feeding_a_plans_result_back_in_gives_all_no_ops`. | CONFIRMED (worktree probe): `plan_for` → `apply_plan` → `plan_for`, twice, gives `SECOND [(update, {'lineup': (((7, None), (8, None)), ((8, None), (7, None)))})]` and the same `THIRD`. Code: `reconcile.py:98-100`, `480-500`, `544-547`; `test_reconcile_shows.py:399-402`; `schemas.py:67-79`. | Exactly the churn the idempotency property is meant to prevent: once A6 writes, every such show gets an UPDATE, a `show_artist` rewrite and an audit row per night, and the summary row's `update` count never settles. | **Fixed.** `lineup_for` returns the lineup sorted by sequence number, and treats stated numbers as stated only if every act has one and they are all different (otherwise renumbered by position). Failing tests first: `test_a_stated_order_that_differs_from_list_order_is_stable_run_to_run` (three runs through `apply_plan`), `test_stated_sequence_numbers_are_kept_and_the_lineup_is_in_that_order`, `test_repeated_stated_numbers_are_renumbered_by_position`; the stated-order input is also in `test_feeding_a_plans_result_back_in_gives_all_no_ops`. All failed before the fix. |
+| 3 | should-fix | **Two tests the plan names under "Known gotchas" don't exist, and the log says one of them does.** The plan says "A test excludes a show in the middle of the list" (the raw-vs-validated index trap) and "A test builds both kinds of show" (`status` read with `getattr`). No test calls `excluded_listing_dates`, `prepare_inputs` or `listings_from`. Every removal test passes `excluded=` dates directly through `reconcile_support.inputs_for`, which skips the index mapping. Implementation log "Where to look hardest" 2 says "one test excludes a show in the middle of the list". The code is right today (the finding 1 probe's exclusion at index 1 gave the right date), but nothing pins it, and `notes.md` calls this the trap that is "easy to get wrong silently". Add a unit test that builds a raw extraction plus a `ValidationResult` with an `EXCLUDED_NO_ACTS` finding at a middle index, and asserts the date. Add a `listings_from` test with a status-carrying show (`show_model(status=True, ...)`) and a plain `ShowExtraction`. | CONFIRMED: `grep -rn "excluded_listing_dates\|prepare_inputs\|listings_from" agent_worker/tests/` finds only a comment (`test_reconcile_removal.py:103`). Plan, "Known gotchas", bullets 1 and 2; log, "Where to look hardest" 2. | A refactor that indexes `validated_extraction.shows` protects the wrong dates, and no test goes red. The image route's status-less show likewise has no test. | **Fixed.** Added `test_excluded_dates_come_from_the_raw_list_not_the_validated_one` (a no-act show in the MIDDLE of three, through real validation and `prepare_inputs`; the validated list is [Oct 20, Oct 25] and the excluded date must be Oct 22) and `test_a_listing_carries_its_status_when_the_schema_has_one_and_is_scheduled_when_it_does_not` (the status-carrying variant against a plain `ShowExtraction`). Both pass on the existing code and now pin it; the log's claim that such a test existed was wrong when written and is true now. New helpers `extracted` and `validated` in `reconcile_support.py`. |
+| 4 | should-fix | **The file never records plan approval.** Per `AGENTS.md`, only Ari moves the status past step 4 (`Approved`). The header went from `Awaiting approval` (`886e04e`) straight to `Code review` (`f0baae2`). The "Approval" section still ends "*(Awaiting Ari's approval of the plan … `/build-milestone` records the approval.)*". The Implementation log doesn't mention approval either. `alpha-build-plan.md` meanwhile says "plan approved by Ari October 17, 2026". If Ari approved outside the file, `/build-milestone` should have recorded it. The header also has no author line for the implementation round, and its `Date` still reads October 16 (`AGENTS.md`: "The header records the status, the date, the author model, and the reviewer model for each round"). | CONFIRMED: `git show <c>:docs/dev/implementations/a5-reconcile.md` for `ff210cb`, `160405a` and `886e04e` all read `Status: Awaiting approval`; plan lines 852-857; the `alpha-build-plan.md` A5 paragraph. Whether Ari approved in chat is PLAUSIBLE but not visible. | The Ari gate isn't auditable from the file, which is the only channel between the models. A reader can't tell whether implementation began before approval. **Ari should confirm.** | **Fixed (recorded; Ari confirms).** The Approval section now records Ari's message approving the plan on October 17, 2026 ("The plan is approved. /build-milestone …") and that `/build-milestone` set `Approved` at step 0; the header gains an implementation author line and the dates. The status had gone from `Awaiting approval` to `Code review` without an `Approved` commit in between because the skill sets and advances it in one run; I did not record a separate commit for it. **Ari should check this reading of the approval.** |
+| 5 | nit | **When a cancelled and a scheduled listing tie for one stored show, the tie-break can make them swap every night.** `_assign_by_acts` breaks equal overlap by listing order, ignoring status. With "CANCELLED Nona 20:00" listed before "Nona 20:00", and one stored Nona at 20:00, the cancelled listing takes the active row (remove) and the scheduled one inserts a new row. On the next run the cancelled listing takes the new active row and the scheduled one reactivates the old row, and so on. Rank a scheduled listing ahead of a non-scheduled one on equal overlap (or let a cancelled listing take only what a scheduled one didn't). | CONFIRMED behaviour (worktree probe, three runs through `apply_plan`): `RUN 0 [insert, remove 1 'cancelled']`, `RUN 1 [update 1 'reappeared', remove 2 'cancelled']`, `RUN 2 [remove 1 'cancelled', update 2 'reappeared']`. How realistic the input is: PLAUSIBLE. `status_check.apply` adds only untimed listings, so it would take a JSON-LD page carrying both an `EventCancelled` and a scheduled event at one key. Code: `reconcile.py:360`. | Two rows for one show, alternating between removed and active nightly, each flip flagged. Rare, but it is the churn class D3 and D7 are written against. | **Fixed.** `_assign_by_acts` ranks a scheduled listing ahead of a cancelled/postponed one on equal overlap. Failing test first: `test_a_scheduled_listing_outranks_a_cancelled_one_for_the_same_stored_show` runs the probe's input for three runs through `apply_plan` and asserts the same `no_op` + `skip` each time; it failed before the fix. |
+| 6 | nit | **A tie-break flags only the first pair it settles.** With two untimed same-act shows on one date, `tied` is True for the first pair. The second pair is then settled by elimination and comes out False, because its alternatives are already taken. "Settled details" says "the pair is flagged for review", and the test asserts `any(d.needs_review …)`, so it doesn't pin which one. A person reviewing sees half of a swap. Flag every pair on a date where `_assign_by_acts` reported a tie, and assert `all(...)` over that date's decisions. | CONFIRMED (worktree probe): `TIE [(0, 1, True), (1, 2, False)]`. Code: `reconcile.py:370-375`; `test_reconcile_shows.py:138`. | The review list shows one listing of a guessed pairing and hides its partner. | **Fixed.** `match_shows` flags every pair of a batch in which `_assign_by_acts` reported a tie (both the timed and the null-time pass). `test_two_untimed_shows_by_the_same_act_pair_in_a_fixed_order_and_are_flagged` now asserts `all(...)` over the date's decisions instead of `any(...)`; it failed before the fix. |
+| 7 | nit | **The red-test count in the Implementation log is wrong.** Departure 1 and Verification both say "226" red results (failures). The real count is 118: 108 failed plus 10 errors, which also matches the log's own per-file list (41+24+15+13+6+6+5+4+2+2 = 118) and 784 − 666. | CONFIRMED: `make check` output `108 failed, 666 passed, 15 skipped, 1 warning, 10 errors`; 118 `E … NotImplementedError: TODO(Ari)` lines. | A reader checking the log against a run sees a mismatch and can't tell whether 108 failures have gone missing. | **Fixed.** The log said 226 (it counted traceback lines twice); the real count is 118 red results at the time, 122 after this round's six new tests (112 failed + 10 errors). Corrected in Round 1 with a note, and Round 2 gives the new figures. |
+| 8 | nit | **`alpha-build-plan.md`'s A7 tick says "done in A5, tests first … A5-D3 departure".** Both parts are wrong. Implementation log departure 1 says the tests were *not* written first. `A5-D3` is the null-time decision; pulling the A7 item forward is this plan's "Departures from the build plan" item 3, which has no scoped ID. Say "(done in A5: …; see a5-reconcile.md, Departures 3)" and drop "tests first". | CONFIRMED: the `docs/dev/alpha-build-plan.md` diff (the A7 bullet); `conventions.md` (a `D<n>` is a decision); Implementation log departure 1. | A wrong cross-reference, and a claim about test-first order that the plan's own log contradicts. | **Fixed.** The `alpha-build-plan.md` A7 tick now reads "done in A5 … see a5-reconcile.md, Departures 3" and no longer claims tests-first or cites the null-time decision. |
+| 9 | nit | **The A5-K5 `Code:` block is about 13 lines, against `AGENTS.md`'s "each a few lines at most".** Most of the length is repeated `_resolution(...)` keyword arguments. The plan's version used `_new(...)` / `_matched(...)` helpers and came to 7 lines. Write those two helpers outside the gap, so the lines Ari types are only the lesson (the try/except over `EXTRACTION_ERRORS`, the offered-id check and the confidence bar). | CONFIRMED by reading `artist_match.py:220-235` against the plan's K5 `Code:`. | The gap costs more typing than reasoning, which goes against the Oct 8 "minutes, not research" rule. | **Fixed.** `artist_match._new` and `_matched` are written outside the gap; K5's `Code:` block is now 7 lines (the try/except over `EXTRACTION_ERRORS`, the offered-id and confidence check, the fallback), as the plan's version was. Rebuilt the scaffold and re-verified the gap on a scratch copy. |
+
+**Rejected:** none. Round 1 resolved by the author (Claude Sonnet 5.5), October 17, 2026: 9 of 9 fixed. Test-suite result after the fixes: 668 passed, 112 failed, 10 errors, 15 skipped with the five gaps open (every red result is `NotImplementedError: TODO(Ari)`); 790 passed, 15 skipped with the gaps filled on a scratch copy. No round 2 review was run; the blocker was in written code and is covered by a test that goes through real validation, but Ari may want one given that `excluded_listing_dates` now decides what the page "reached".

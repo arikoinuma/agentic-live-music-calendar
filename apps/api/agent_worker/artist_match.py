@@ -207,6 +207,27 @@ def _resolution(name: str, outcome: Outcome, **fields: Any) -> ArtistResolution:
     return ArtistResolution(name=name, key=artist_key(name), outcome=outcome, **fields)
 
 
+def _new(
+    name: str, options: RequestOptions, candidates: tuple[KnownArtist, ...], *, reason: str,
+    answer: ArtistMatchAnswer | None = None,
+) -> ArtistResolution:
+    """The conservative outcome (D9): a new artist, decided by the model's step, with why."""
+    return _resolution(
+        name, "new_after_model", artist_id=None, decided_by="model", model_used=options.model,
+        confidence=answer.confidence if answer else None, candidates=candidates, reason=reason,
+    )
+
+
+def _matched(
+    name: str, options: RequestOptions, candidates: tuple[KnownArtist, ...], answer: ArtistMatchAnswer
+) -> ArtistResolution:
+    """The model's confident "same act": link the existing artist it named."""
+    return _resolution(
+        name, "matched_by_model", artist_id=answer.matched_artist_id, decided_by="model", model_used=options.model,
+        confidence=answer.confidence, candidates=candidates, reason=answer.reason,
+    )
+
+
 def decide_ambiguous(
     name: str, candidates: tuple[KnownArtist, ...], *, client: Any, options: RequestOptions,
     policy: ArtistMatchPolicy = DEFAULT_ARTIST_POLICY,
@@ -221,16 +242,10 @@ def decide_ambiguous(
     #   try:
     #       answer = ask(name, candidates, client=client, options=options)
     #   except EXTRACTION_ERRORS as err:
-    #       reason = f"model call failed: {type(err).__name__}: {err}"
-    #       return _resolution(name, "new_after_model", artist_id=None, decided_by="model",
-    #                          model_used=options.model, candidates=candidates, reason=reason)
-    #   offered = {c.id for c in candidates}
-    #   if answer.matched_artist_id in offered and answer.confidence >= policy.min_confidence:
-    #       return _resolution(name, "matched_by_model", artist_id=answer.matched_artist_id, decided_by="model",
-    #                          model_used=options.model, confidence=answer.confidence, candidates=candidates,
-    #                          reason=answer.reason)
-    #   return _resolution(name, "new_after_model", artist_id=None, decided_by="model", model_used=options.model,
-    #                      confidence=answer.confidence, candidates=candidates, reason=answer.reason)
+    #       return _new(name, options, candidates, reason=f"model call failed: {type(err).__name__}: {err}")
+    #   if answer.matched_artist_id in {c.id for c in candidates} and answer.confidence >= policy.min_confidence:
+    #       return _matched(name, options, candidates, answer)
+    #   return _new(name, options, candidates, reason=answer.reason, answer=answer)
     # Then: delete the noqa marker on the `EXTRACTION_ERRORS` import at the top of this file; it exists only while
     #   the gap is open, and ruff flags it (RUF100) once the name is used.
     # Check: `uv run pytest agent_worker/tests/test_artist_match.py -k "answer or failed or not_shown or bar or own_code"`.

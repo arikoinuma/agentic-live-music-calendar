@@ -26,6 +26,7 @@ from agent_worker.reconcile import (
     night_sort_key,
 )
 from agent_worker.tests.reconcile_support import (
+    KNOWN,
     URL,
     actions,
     apply_plan,
@@ -135,7 +136,7 @@ def test_two_untimed_shows_by_the_same_act_pair_in_a_fixed_order_and_are_flagged
         [stored(1, day(22), None, acts=[(7, "Nona")]), stored(2, day(22), None, acts=[(7, "Nona")])],
     )
     assert {d.listing.index: d.stored_id for d in plan.shows if d.listing} == {0: 1, 1: 2}
-    assert any(d.needs_review for d in plan.shows)
+    assert all(d.needs_review for d in plan.shows)  # both halves of the guessed pairing, not just the first (finding 6)
 
 
 def test_two_shows_at_one_time_pair_by_acts_not_by_the_lower_id() -> None:
@@ -148,6 +149,19 @@ def test_two_shows_at_one_time_pair_by_acts_not_by_the_lower_id() -> None:
     )
     assert {d.listing.index: d.stored_id for d in plan.shows if d.listing} == {0: 2, 1: 1}
     assert not any(d.needs_review for d in plan.shows)
+
+
+def test_a_scheduled_listing_outranks_a_cancelled_one_for_the_same_stored_show() -> None:
+    # Proves (code review finding 5): a page carrying both "CANCELLED Nona 8 PM" and "Nona 8 PM" for one stored show must
+    # settle the same way every night. The scheduled listing takes the stored show (a no-op) and the cancelled one,
+    # with nothing left to cancel, is skipped. Ranked the other way (listing order), the pair swaps every run: two rows
+    # alternating between removed and active.
+    page = [listed(0, day(20), at(20), status="cancelled"), listed(1, day(20), at(20))]
+    shows, artists = [stored(1, day(20), at(20), acts=[(7, "Nona")])], list(KNOWN)
+    for _ in range(3):
+        plan = plan_for(page, shows, artists)
+        assert sorted(actions(plan)) == ["no_op", "skip"]
+        shows, artists = apply_plan(plan, shows, artists)
 
 
 def test_an_active_twin_outranks_a_removed_one_at_the_same_key() -> None:
@@ -396,10 +410,30 @@ def test_sequence_numbers_come_from_list_position_when_the_page_states_none() ->
     assert [e.sequence_number for e in plan.shows[0].lineup] == [1, 2, 3]
 
 
-def test_stated_sequence_numbers_are_kept_when_every_act_has_one() -> None:
-    # Proves: a page that states the order is believed. The lineup keeps list order and the stated numbers.
+def test_stated_sequence_numbers_are_kept_and_the_lineup_is_in_that_order() -> None:
+    # Proves: a page that states the order is believed, and the lineup is in performance order (by sequence number),
+    # whatever order the page lists the acts in. Stored lineups are read back in sequence order, so a lineup left in
+    # list order would look changed against itself.
     plan = plan_for([listed(0, day(20), at(20), acts=[ListedAct("Zhora", None, 2), ListedAct("Nona", None, 1)])])
-    assert [(e.artist_id, e.sequence_number) for e in plan.shows[0].lineup] == [(8, 2), (7, 1)]
+    assert [(e.artist_id, e.sequence_number) for e in plan.shows[0].lineup] == [(7, 1), (8, 2)]
+
+
+def test_a_stated_order_that_differs_from_list_order_is_stable_run_to_run() -> None:
+    # Proves (code review finding 2): a page that lists "Zhora" first but states Zhora is 2nd and Nona 1st must not be an
+    # update every night. Written, read back and reconciled again, it is a no-op, three runs in a row.
+    page = [listed(0, day(20), at(20), acts=[ListedAct("Zhora", None, 2), ListedAct("Nona", None, 1)])]
+    shows, artists = [], list(KNOWN)
+    for _ in range(3):
+        plan = plan_for(page, shows, artists)
+        shows, artists = apply_plan(plan, shows, artists)
+    assert actions(plan) == ["no_op"]
+
+
+def test_repeated_stated_numbers_are_renumbered_by_position() -> None:
+    # Proves: two acts both stated as "1" would collide and could not be read back in a fixed order, so repeated numbers
+    # are treated as not stated and the acts are numbered by list position.
+    plan = plan_for([listed(0, day(20), at(20), acts=[ListedAct("Zhora", None, 1), ListedAct("Nona", None, 1)])])
+    assert [(e.artist_id, e.sequence_number) for e in plan.shows[0].lineup] == [(8, 1), (7, 2)]
 
 
 def test_a_mix_of_stated_and_derived_numbers_is_renumbered_by_position() -> None:
@@ -455,6 +489,7 @@ def test_feeding_a_plans_result_back_in_gives_all_no_ops() -> None:
         listed(2, day(22), None, acts=["Nona"]),
         listed(3, day(22), None, acts=["Nona"]),
         listed(4, day(23), None, acts=[ListedAct("Prince", at(19)), ListedAct("Zhora", at(21))]),
+        listed(5, day(24), at(20), acts=[ListedAct("Zhora", None, 2), ListedAct("Nona", None, 1)]),
     ]
     first = plan_for(page)
     assert set(actions(first)) == {"insert"}

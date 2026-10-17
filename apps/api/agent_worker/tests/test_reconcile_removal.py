@@ -16,21 +16,31 @@ import datetime
 from agent_worker.reconcile import (
     Action,
     ReconcilePolicy,
+    build_plan,
     covered_window,
+    listings_from,
     load_request,
+    prepare_inputs,
     removed_by_absence,
     withhold_if_mass_removal,
 )
+from agent_worker.schemas import VenuePageExtraction, show_model
+from agent_worker.tests.fakes import scripted_client
 from agent_worker.tests.reconcile_support import (
     FETCHED,
+    KNOWN,
+    OPTIONS,
+    URL,
     actions,
     at,
     day,
+    extracted,
     inputs_for,
     listed,
     only,
     plan_for,
     stored,
+    validated,
 )
 from app.enums import ShowStatus
 
@@ -98,13 +108,58 @@ def test_a_listing_the_splitter_left_out_protects_a_stored_show_on_its_date() ->
     assert len(only(plan_for(page, [show], excluded=[day(21)]), Action.REMOVE)) == 1
 
 
-def test_a_listing_left_out_for_an_impossible_date_does_not_stretch_the_window() -> None:
-    # Proves (D1): excluded listings count as evidence of reach only when they were left out for naming no act.
-    # `prepare_inputs` passes only those dates, so a year-2028 entry in a venue's structured data cannot extend the
-    # window over every stored show. Checked at the unit: with no excluded dates the window ends at the last kept
-    # listing.
-    window = covered_window([listed(0, day(20), at(20))], [], FETCHED)
-    assert window is not None and window.end == day(20)
+def test_a_no_act_listing_with_an_impossible_date_does_not_stretch_the_window() -> None:
+    # Proves (D1, "Settled details"; code review finding 1): a placeholder entry such as "Private event" can name no act
+    # AND carry a date far outside the plausible window (here March 2028). Validation leaves it out for naming no act
+    # before it ever checks the date, so it must not count as evidence the page reached 2028: that would remove every
+    # stored show between the page's real last date and 2028, and the D10 guard does not stop it (the matched shows
+    # count toward its denominator). Goes through real validation and `prepare_inputs`, the path the pipeline takes.
+    raw, kept, result = validated([
+        extracted(day(20), ["Nona"]), extracted(datetime.date(2028, 3, 1), []), extracted(day(25), ["Zhora"]),
+    ])
+    inputs = prepare_inputs(raw, kept, result, FETCHED)
+    assert inputs.coverage is not None and inputs.coverage.end == day(25)
+    plan = build_plan(
+        inputs,
+        [
+            stored(1, day(20), at(20), acts=[(7, "Nona")]), stored(2, day(25), at(20), acts=[(8, "Zhora")]),
+            stored(3, datetime.date(2026, 12, 5), at(20), acts=[(9, "Prince")]),
+            stored(4, datetime.date(2027, 2, 5), at(20), acts=[(9, "Prince")]),
+        ],
+        KNOWN, original_url=URL, client=scripted_client({}), options=OPTIONS,
+    )
+    assert only(plan, Action.REMOVE) == []
+
+
+def test_a_no_act_listing_with_a_plausible_date_still_counts_as_reach() -> None:
+    # Proves (D1): the other half. A listing left out for naming no act, on a plausible date, IS evidence the page
+    # reached that date (it is on the page), so the window runs to it.
+    raw, kept, result = validated([extracted(day(20), ["Nona"]), extracted(day(28), [])])
+    assert prepare_inputs(raw, kept, result, FETCHED).coverage == covered_window([listed(0, day(20))], [day(28)], FETCHED)
+
+
+def test_excluded_dates_come_from_the_raw_list_not_the_validated_one() -> None:
+    # Proves (notes.md, the index trap): `Finding.show_index` is a position in the RAW extraction. The show left out
+    # sits in the MIDDLE (index 1), so the validated list is [Oct 20, Oct 25] and index 1 there is Oct 25. Reading
+    # the wrong list would protect October 25 instead of October 22, silently.
+    raw, kept, result = validated([
+        extracted(day(20), ["Nona"]), extracted(day(22), []), extracted(day(25), ["Zhora"]),
+    ])
+    inputs = prepare_inputs(raw, kept, result, FETCHED)
+    assert inputs.excluded_dates == frozenset({day(22)})
+    assert [(l.index, l.date) for l in inputs.listings] == [(0, day(20)), (1, day(25))]
+
+
+def test_a_listing_carries_its_status_when_the_schema_has_one_and_is_scheduled_when_it_does_not() -> None:
+    # Proves (plan, "Known gotchas"): `ShowExtraction` doesn't declare `status`, only the pipeline's schema variant does,
+    # and the image route has none. `listings_from` reads it with a default, so a plain show is "scheduled" and a
+    # status-carrying one keeps "cancelled".
+    with_status = show_model(status=True, split_acts=False)(
+        venue="The Venue", date=day(20), time=at(20), acts=[{"name": "Nona"}], is_ambiguous=False, confidence=0.9,
+        status="cancelled",
+    )
+    page = VenuePageExtraction(page_readable=True, shows=[extracted(day(21)), with_status])
+    assert [listing.status for listing in listings_from(page)] == ["scheduled", "cancelled"]
 
 
 def test_the_window_is_none_when_every_listed_date_is_before_today() -> None:

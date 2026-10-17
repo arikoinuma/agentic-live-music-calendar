@@ -57,7 +57,7 @@ from agent_worker.artist_match import (
 from agent_worker.llm import RequestOptions
 from agent_worker.schemas import VenuePageExtraction
 from agent_worker.sources.jsonld import NIGHT_CUTOFF
-from agent_worker.validation import CheckCode, ValidationResult
+from agent_worker.validation import CheckCode, ValidationResult, check_plausibility
 from app.enums import AuditOutcome, ShowStatus
 
 # ---------------------------------------------------------------------------
@@ -264,13 +264,18 @@ def listings_from(extraction: VenuePageExtraction | None) -> list[Listing]:
     ]
 
 
-def excluded_listing_dates(extraction: VenuePageExtraction | None, validation: ValidationResult | None) -> frozenset[datetime.date]:
-    """Dates of listings validation left out because they named no act. They are still on the page (D1), and may be
-    a real show the splitter missed, so they protect a stored show on their date from the soft delete.
+def excluded_listing_dates(
+    extraction: VenuePageExtraction | None, validation: ValidationResult | None, fetched_on: datetime.date
+) -> frozenset[datetime.date]:
+    """Dates of listings validation left out because they named no act, on a plausible date. They are still on the page
+    (D1), and may be a real show the splitter missed, so they protect a stored show on their date from the soft delete,
+    and they count as evidence the page reached that date.
 
-    `Finding.show_index` is a position in `extraction.shows`, the RAW list, not in the validated list (which has
-    the excluded shows removed): reading the wrong list would protect the wrong dates. Listings excluded for an
-    implausible date are not evidence of reach and are left out here.
+    Two traps. `Finding.show_index` is a position in `extraction.shows`, the RAW list, not in the validated list (which
+    has the excluded shows removed): reading the wrong list protects the wrong dates. And validation leaves a show out
+    for naming no act BEFORE it checks the date, so a placeholder entry ("Private event") with a date years away arrives
+    here too; its date is not evidence the page reached that far, and would stretch the window over every stored show in
+    between. So a date outside the plausible window is dropped (code review finding 1).
     """
     if extraction is None or validation is None:
         return frozenset()
@@ -278,6 +283,7 @@ def excluded_listing_dates(extraction: VenuePageExtraction | None, validation: V
         extraction.shows[f.show_index].date
         for f in validation.findings
         if f.code is CheckCode.EXCLUDED_NO_ACTS and f.show_index is not None and f.show_index < len(extraction.shows)
+        and not check_plausibility(extraction.shows[f.show_index], fetched_on).date_out_of_window
     )
 
 
@@ -301,7 +307,7 @@ def prepare_inputs(
     """Everything reconcile reads from the validated page, as plain data (the trace wrapper calls this too, to know
     which stored shows to load)."""
     listings = listings_from(validated)
-    excluded = excluded_listing_dates(extraction, validation)
+    excluded = excluded_listing_dates(extraction, validation, fetched_on)
     return ReconcileInputs(tuple(listings), excluded, covered_window(listings, excluded, fetched_on), fetched_on)
 
 
@@ -349,15 +355,19 @@ def _overlap(listing: Listing, stored: StoredShow) -> int:
 def _assign_by_acts(
     candidates: list[tuple[Listing, StoredShow]], *, need_overlap: bool
 ) -> list[tuple[Listing, StoredShow, bool]]:
-    """Pair candidates globally: highest shared-act overlap first, ties broken by listing order and then the stored
-    show's order, so the same input always pairs the same way. Each side is used once. With `need_overlap` a pair
+    """Pair candidates globally: highest shared-act overlap first, ties broken by status (a scheduled listing before a
+    cancelled or postponed one), then listing order, then the stored show's order, so the same input always pairs
+    the same way. Each side is used once. With `need_overlap` a pair
     must share at least one act. The third item of each result says the pair was settled by the order tie-break
     (another unused candidate scored the same), which is flagged for review.
 
     A global assignment, not "each listing takes its first candidate": with two shows at one time, the listing
     that shares acts with the second stored show must get it even though the first has the lower id.
     """
-    ranked = sorted(candidates, key=lambda p: (-_overlap(*p), _order_listing(p[0]), _order_stored(p[1])))
+    ranked = sorted(
+        candidates,
+        key=lambda p: (-_overlap(*p), not p[0].is_scheduled, _order_listing(p[0]), _order_stored(p[1])),
+    )
     taken_listings: set[int] = set()
     taken_stored: set[int] = set()
     out: list[tuple[Listing, StoredShow, bool]] = []
@@ -436,21 +446,22 @@ def match_shows(listings: Sequence[Listing], stored: Sequence[StoredShow]) -> Ma
                 continue
             timed = [(l, s) for l in left_l for s in left_s if l.time is not None and l.time == s.start_time]
             found = _assign_by_acts(timed, need_overlap=False)
-            for listing, show, tied in found:
+            for listing, show, _ in found:
                 pairs.append((listing, show))
                 taken_listings.add(listing.index)
                 taken_stored.add(show.id)
-                if tied:
-                    review_listings.add(listing.index)
+            if any(tied for _, _, tied in found):  # a guessed pairing is flagged whole, not just its first half
+                review_listings |= {listing.index for listing, _, _ in found}
             left_l = [l for l in left_l if l.index not in taken_listings]
             left_s = [s for s in left_s if s.id not in taken_stored]
             if left_l and left_s:
-                for listing, show, tied in _null_time_pairs(left_l, left_s):
+                found = _null_time_pairs(left_l, left_s)
+                for listing, show, _ in found:
                     pairs.append((listing, show))
                     taken_listings.add(listing.index)
                     taken_stored.add(show.id)
-                    if tied:
-                        review_listings.add(listing.index)
+                if any(tied for _, _, tied in found):
+                    review_listings |= {listing.index for listing, _, _ in found}
 
     unpaired_l = [l for l in listings if l.index not in taken_listings]
     unpaired_s = [s for s in stored if s.id not in taken_stored]
@@ -481,9 +492,12 @@ def lineup_for(listing: Listing, resolutions: dict[str, ArtistResolution]) -> tu
     """The listing's acts as a resolved lineup.
 
     * An artist named twice in one show appears once (`show_artist` is keyed by (show, artist)); the first mention wins.
-    * Stated sequence numbers are kept only when every act has one; otherwise all are numbered by list position
-      (requirements: "make an assumption ... based on the order in which the artists are listed"), because a mix of
-      stated and derived numbers can collide.
+    * Stated sequence numbers are kept only when every act has one AND they are all different; otherwise all are
+      numbered by list position (requirements: "make an assumption ... based on the order in which the artists are
+      listed"), because a mix of stated and derived numbers can collide, and so can a number stated twice.
+    * The lineup is returned in performance order (by sequence number), because that is the order a stored lineup is read
+      back in; a page that lists "Zhora" first but states Zhora is second would otherwise look changed against itself on
+      every run (code review finding 2).
     """
     entries: list[LineupEntry] = []
     seen: set[tuple[str, Any]] = set()
@@ -495,9 +509,10 @@ def lineup_for(listing: Listing, resolutions: dict[str, ArtistResolution]) -> tu
             continue
         seen.add(identity)
         entries.append(LineupEntry(key, resolution.artist_id, act.name, act.start_time, act.sequence_number))
-    if not all(entry.sequence_number is not None for entry in entries):
+    stated = [entry.sequence_number for entry in entries]
+    if not all(n is not None for n in stated) or len(set(stated)) != len(stated):
         entries = [replace(entry, sequence_number=i) for i, entry in enumerate(entries, start=1)]
-    return tuple(entries)
+    return tuple(sorted(entries, key=lambda entry: entry.sequence_number or 0))
 
 
 def merge_lineup(lineup: tuple[LineupEntry, ...], stored: StoredShow) -> tuple[LineupEntry, ...]:
@@ -618,9 +633,9 @@ def removed_by_absence(
     #       and s.date not in skipped     # a listing we left out may be this show
     #   ]
     # Check: `uv run pytest agent_worker/tests/test_reconcile_removal.py -k "window or unit or both_ends or beyond or
-    #   already_removed or splitter or empty"`. Likeliest mistake: dropping the coverage bounds (the "beyond the last
-    #   listed date is left alone" test fails: it would remove every show past the page's horizon); second, forgetting
-    #   `s.status`, which "removes" an already-removed show and writes a pointless audit row.
+    #   already_removed or splitter or empty or stretch"`. Likeliest mistake: dropping the coverage bounds (the
+    #   "beyond the last listed date is left alone" test fails: it would remove every show past the page's horizon);
+    #   second, forgetting `s.status`, which "removes" an already-removed show and writes a pointless audit row.
     raise NotImplementedError("TODO(Ari)")
 
 

@@ -31,7 +31,9 @@ from agent_worker.reconcile import (
     covered_window,
     to_price,
 )
+from agent_worker.schemas import ShowExtraction, VenuePageExtraction
 from agent_worker.tests.fakes import scripted_client
+from agent_worker.validation import ValidationResult, validate_extraction
 from app.enums import ShowStatus
 
 FETCHED = datetime.date(2026, 10, 12)
@@ -164,3 +166,24 @@ def violates_free_check(
 
 def money(value: str) -> decimal.Decimal:
     return decimal.Decimal(value)
+
+
+def extracted(
+    date: datetime.date, acts: Sequence[str] = ("Nona",), time: datetime.time | None = datetime.time(20, 0), **fields: Any
+) -> ShowExtraction:
+    """One show as the extraction model returns it (the raw record, before validation)."""
+    return ShowExtraction(
+        venue="The Venue", date=date, time=time, is_ambiguous=False, confidence=0.9,
+        acts=[{"name": a} for a in acts], **fields,  # type: ignore[arg-type]
+    )
+
+
+def validated(
+    shows: Sequence[ShowExtraction], fetched: datetime.date = FETCHED
+) -> tuple[VenuePageExtraction, VenuePageExtraction, ValidationResult]:
+    """Run real validation over these raw shows. Returns (the raw extraction, the validated extraction with excluded
+    shows taken out, the validation result): exactly the three things `prepare_inputs` reads, so a test goes through
+    the same index mapping the pipeline does (the raw positions in the findings, the validated list without them)."""
+    raw = VenuePageExtraction(page_readable=True, shows=list(shows))
+    result, kept = validate_extraction(raw, source="model", notes={}, fetched_on=fetched, page_html="", page_text="")
+    return raw, raw.model_copy(update={"shows": kept}), result
