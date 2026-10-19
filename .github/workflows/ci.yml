@@ -186,9 +186,7 @@ jobs:
         env:
           API_BASE_URL: http://127.0.0.1:8102
 
-      # --repeat-each=3 is Step 1's "three green runs in a row" proof, on this commit only;
-      # Step 2 of the B6 plan removes it.
-      - run: pnpm --filter calendar exec playwright test --repeat-each=3
+      - run: pnpm --filter calendar exec playwright test
 
       # The HTML report and the failure traces, only when something failed.
       - uses: actions/upload-artifact@v4

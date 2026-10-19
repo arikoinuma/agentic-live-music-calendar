@@ -9,4 +9,11 @@ export default [
     files: ["e2e/**/*.mjs"],
     languageOptions: { globals: { process: "readonly" } },
   },
+  {
+    // Playwright fixtures receive a callback named `use` (`async ({ page }, use) => { ... }`).
+    // eslint-plugin-react-hooks takes any function called `use` for React's `use()` hook
+    // and objects to it. It is not React code; the rule has nothing to say about e2e/.
+    files: ["e2e/**/*.ts"],
+    rules: { "react-hooks/rules-of-hooks": "off" },
+  },
 ];

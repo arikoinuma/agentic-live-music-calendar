@@ -4,7 +4,7 @@
   // Read by apps/calendar/playwright.config.ts (CI picks its reporter). Declared here so eslint-plugin-turbo
   // (which runs with --max-warnings 0) accepts the reads; passed through, not hashed,
   // because no cached task output depends on them.
-  "globalPassThroughEnv": ["E2E_CHROMIUM_PATH", "CI"],
+  "globalPassThroughEnv": ["E2E_CHROMIUM_PATH", "E2E_FROZEN_NOW", "CI"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

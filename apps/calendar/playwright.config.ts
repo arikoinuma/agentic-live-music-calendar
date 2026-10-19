@@ -8,8 +8,9 @@
  * suite sees what a visitor gets (decision B6-D3). `make e2e` builds, then runs.
  */
 import { existsSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { defineConfig, devices } from "@playwright/test";
+import { E2E_NOW } from "./e2e/support/clock";
 import { API_PORT, API_URL, PROXY_PORT, PROXY_URL, WEB_PORT, WEB_URL } from "./e2e/support/stack";
 
 // Fail early, with the fix in the message, rather than with a Next error buried in
@@ -83,7 +84,14 @@ export default defineConfig({
     {
       // Next reads the API's address from API_BASE_URL (lib/api.ts), here the proxy.
       command: `pnpm exec next start --hostname 127.0.0.1 --port ${WEB_PORT}`,
-      env: { API_BASE_URL: PROXY_URL },
+      env: {
+        API_BASE_URL: PROXY_URL,
+        // Freeze this process's clock (e2e/support/clock.ts says why). `NODE_OPTIONS` is
+        // set here, on the Next server only, so the Playwright runner keeps the real clock.
+        // A file URL, not a path, because `--import` wants one on Windows.
+        E2E_FROZEN_NOW: E2E_NOW,
+        NODE_OPTIONS: `--import ${pathToFileURL(fileURLToPath(new URL("./e2e/support/fake-now.mjs", import.meta.url))).href}`,
+      },
       url: WEB_URL,
       reuseExistingServer: false,
       gracefulShutdown: shutdown,
