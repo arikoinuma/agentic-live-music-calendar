@@ -500,3 +500,14 @@ return), and jsdom with scripts enabled never runs Next's `$RC` swap, so it "agr
 strip `<script>`, and print the article and skeleton counts beside the verdict so a pair of skeletons can't
 pass. Also: a bundle grep for `jsdom` always hits Base UI's own user-agent sniffing; grep for
 `testing-library` and `user-event` instead.
+
+## The home page's window moves with the clock, but the sample data doesn't
+
+**A fixed sample plus a rolling window goes empty on a date.** The default window is "today plus 27 days"
+(`apps/api/app/routers/shows.py`, `DEFAULT_WINDOW`), and the sample data is generated from a fixed `START` in
+`apps/api/app/sample_data.py` (deliberately, so the fixtures diff cleanly). With `START` on September 28, 2026,
+the last sample show is October 25, so the default home view thins out from about October 26. B5 called the
+empty branch "unreachable through sample data"; that was true on the day it was written, not for good.
+
+Browser tests (B6) pin the clock to a date inside the sample window. **Whenever `sample_data.py` changes, move
+that pinned date in the same change.** See `alpha-build-plan.md`, B6, "Standing rule: the test clock".
