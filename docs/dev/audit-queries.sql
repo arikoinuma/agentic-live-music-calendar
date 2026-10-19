@@ -16,7 +16,13 @@
 --   fetch     url, fetched_on, error, text_chars
 --   extract   tier, route, error, staging_id (the MongoDB document), shows, larger_model_used
 --   validate  route, verdict, reasons, errors, warnings, repairs, excluded
---   reconcile / commit   stub (true until A5 / A6), decision
+--   reconcile summary   counts (per action), coverage ({start, end} the removals were judged inside, or null),
+--                       needs_review and withheld (lists of {action, date, time, stored_id, acts, reason}),
+--                       artists (resolutions per outcome), model_decisions
+--   reconcile artist    one row per artist the MODEL decided: entity_type = 'artist', entity_id = the artist linked
+--                       (null when the answer was "new"), model_used, confidence; detail has name, outcome, reason,
+--                       candidates
+--   commit              stub (true until A6)
 --   escalate  reason
 
 -- name: run_history
@@ -88,3 +94,27 @@ WHERE r.finished_at IS NULL
          WHERE al.run_id = r.id AND al.step_type IN ('commit', 'escalate')
       )
 ORDER BY r.id DESC;
+
+-- name: artist_match_decisions
+-- "Which artists did the model decide, and what did it say" (A5). Reconcile asks the model only about an artist
+-- whose name is close to, but not equal to, one we already have, and writes one row for each answer. This is the
+-- one place a model makes a database decision, so these rows are what to read when two acts look wrongly merged
+-- or wrongly split. artist_id is the existing artist it linked (NULL when it decided "new"); outcome is
+-- matched_by_model, or new_after_model (a different act, an unsure answer, or a failed call: see reason).
+SELECT al.id,
+       al.run_id,
+       v.name AS venue,
+       al.created_at,
+       al.entity_id AS artist_id,
+       al.detail ->> 'name' AS incoming_name,
+       al.detail ->> 'outcome' AS outcome,
+       al.model_used,
+       al.confidence,
+       al.detail ->> 'reason' AS reason,
+       CAST(al.detail -> 'candidates' AS text) AS candidates
+FROM audit_log al
+JOIN agent_run r ON r.id = al.run_id
+JOIN venue v ON v.id = r.venue_id
+WHERE al.step_type = 'reconcile'
+  AND al.entity_type = 'artist'
+ORDER BY al.id DESC;

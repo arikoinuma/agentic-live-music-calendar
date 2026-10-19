@@ -204,7 +204,7 @@ Required field: **Date**. Several fields are described as "inherited by default 
 | `free_admission` | Boolean | Yes | `CHECK (NOT (free_admission AND (admission_advance IS NOT NULL OR admission_day IS NOT NULL)))` — mirrors the internal-consistency rule agents validate against in `requirements-initial.md`. Absence of a price does *not* imply `true`. |
 | `image_url` | String | Yes | Poster link. |
 | `original_url` | Text | Yes | The venue page this show was most recently extracted from; overwritten on each successful reconcile, not a history — history lives in `audit_log`. |
-| `status` | Enum `show_status` (`active`, `removed`) | No, default `active` | Soft delete per the reconciliation rule: a show missing from a subsequent fetch, within the date range that fetch covered, is marked `removed`, never hard-deleted. |
+| `status` | Enum `show_status` (`active`, `removed`) | No, default `active` | Soft delete per the reconciliation rule: a show missing from a subsequent fetch, within the date range that fetch covered, is marked `removed`, never hard-deleted. A cancelled or postponed listing the page marks is stored as `removed` too, with `cancelled` or `postponed` in the audit trail rather than a new status (A5-D6); a removed show that is listed again is set back to `active` (A5-D7). |
 
 ### `show_artist`
 

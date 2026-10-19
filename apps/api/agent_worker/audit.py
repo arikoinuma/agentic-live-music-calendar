@@ -86,9 +86,10 @@ def audit_confidence(value: float | None) -> decimal.Decimal | None:
 # What each step records
 # ---------------------------------------------------------------------------
 
-# The four steps that act on the venue itself. Reconcile and commit act on no entity until A5/A6 write
-# per-show rows, so their A4 placeholder rows name none.
-_VENUE_LEVEL = {StepType.FETCH, StepType.EXTRACT, StepType.VALIDATE, StepType.ESCALATE}
+# The steps that act on the venue itself. Reconcile's summary row (A5) is venue-level; its model decisions
+# about artists are separate rows (`model_decision_entries`). Commit acts on no entity until A6 writes per-show rows,
+# so its placeholder row names none.
+_VENUE_LEVEL = {StepType.FETCH, StepType.EXTRACT, StepType.VALIDATE, StepType.RECONCILE, StepType.ESCALATE}
 # The two steps where a language model made the judgement being recorded: extract (reads the page or
 # splits titles) and validate (the verdict weighs the model's own confidence).
 _MODEL_STEPS = {StepType.EXTRACT, StepType.VALIDATE}
@@ -134,15 +135,76 @@ def _detail(step: StepType, state: VenueGraphState, staging_id: str | None) -> d
                 "repairs": len(result.repairs) if result else 0,
                 "excluded": len(result.excluded) if result else 0,
             }
-        case StepType.RECONCILE | StepType.COMMIT:
-            # A5 / A6 replace these stubs; until then the row says so, so nobody reads it as a decision.
-            detail = {"stub": True, "decision": state.reconcile_decision}
+        case StepType.RECONCILE:
+            detail = _reconcile_detail(state)
+        case StepType.COMMIT:
+            # A6 replaces this stub; until then the row says so, so nobody reads it as a decision.
+            detail = {"stub": True}
         case StepType.ESCALATE:
             detail = {"reason": state.escalation_reason}
     # `to_jsonable_python` turns dates, StrEnums and dataclasses into JSON types: a `date` reaching JSONB
     # unconverted raises at insert time, mid-run.
     converted: dict[str, Any] = to_jsonable_python(detail)
     return converted
+
+
+def _reconcile_detail(state: VenueGraphState) -> dict[str, Any]:
+    """Reconcile's summary row (A5-D11): what it decided, over what range, and what a person should look at.
+
+    Keys (also listed in docs/dev/audit-queries.sql): `counts` (decisions per action), `coverage` (the window
+    removals were judged inside, or null for a page with no dates), `needs_review` (decisions where a guess
+    was involved), `withheld` (removals the guard held back, A5-D10), `artists` (resolutions per outcome) and
+    `model_decisions` (how many the model made; each has its own row).
+    """
+    plan = state.reconcile_plan
+    if plan is None:
+        return {"plan": None}
+
+    def where(decision: Any) -> dict[str, Any]:
+        acts = [a.name for a in decision.listing.acts] if decision.listing else None
+        return {
+            "action": decision.action, "date": decision.date, "time": decision.start_time,
+            "stored_id": decision.stored_id, "acts": acts, "reason": decision.reason,
+        }
+
+    outcomes = {"exact": 0, "new": 0, "matched_by_model": 0, "new_after_model": 0}
+    for resolution in plan.artists:
+        outcomes[resolution.outcome] += 1
+    return {
+        "counts": plan.counts(),
+        "coverage": {"start": plan.coverage.start, "end": plan.coverage.end} if plan.coverage else None,
+        "needs_review": [where(d) for d in plan.shows if d.needs_review],
+        "withheld": [where(d) for d in plan.withheld],
+        "artists": outcomes,
+        "model_decisions": sum(1 for r in plan.artists if r.decided_by == "model"),
+    }
+
+
+def model_decision_entries(state: VenueGraphState) -> list[AuditEntry]:
+    """One reconcile row for each artist the MODEL decided (A5-D11), with `model_used` and `confidence`.
+
+    A rule-decided artist (exact or new) needs no row of its own: the summary counts it. A model decision does,
+    because it is a judgement call that changed what the calendar links to, and "why did the app think
+    'Zhora Band' was 'Zhora'?" has to be answerable. `entity_id` is the artist it linked to, or None when the
+    answer was "new" (the artist does not exist yet). The fallback (a failed call, low confidence) is a row too,
+    with its reason, so it is visible.
+    """
+    plan = state.reconcile_plan
+    if plan is None:
+        return []
+    return [
+        AuditEntry(
+            run_id=state.run_id, attempt_number=_attempt_number(StepType.RECONCILE, state),
+            step_type=StepType.RECONCILE, source=AuditSource.AGENT, entity_type=EntityType.ARTIST,
+            entity_id=resolution.artist_id, model_used=resolution.model_used,
+            confidence=audit_confidence(resolution.confidence),
+            detail=to_jsonable_python({
+                "name": resolution.name, "outcome": resolution.outcome, "reason": resolution.reason,
+                "candidates": [{"id": c.id, "name": c.name} for c in resolution.candidates],
+            }),
+        )
+        for resolution in plan.artists if resolution.decided_by == "model"
+    ]
 
 
 def entry_for(step: StepType, state: VenueGraphState, staging_id: str | None = None) -> AuditEntry:

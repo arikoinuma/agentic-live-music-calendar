@@ -460,6 +460,23 @@ gets `mongo:8.0` past the guard and it then answers ping, but it bypasses a chec
 incompatibility, so it was not used. Revisit the pin when Docker Desktop's kernel or a MongoDB 8.x patch
 changes.
 
+## Reconcile (A5): where "absent from the page" can go wrong
+
+- **"Not in the validated list" is not "not on the page".** `validation.excluded` and `Finding.show_index` index the RAW
+  `state.extraction.shows`, not `validated_extraction.shows` (which has the excluded shows taken out). A listing left out
+  for naming no act is still on the page and may be a real show the act splitter missed, so it protects a stored show on its
+  date from the soft delete; one left out for an implausible date is not evidence the page reached that far. Validation excludes a show for
+  naming no act BEFORE it checks the date, so an implausible-dated placeholder ("Private event", 2028) arrives as a no-act
+  exclusion too; `excluded_listing_dates` re-checks plausibility itself. Reading the wrong list protects the wrong dates,
+  silently. `reconcile.excluded_listing_dates` is the one place that does it.
+- **A reader that returns an empty list is not the same as a reader that failed.** Reconcile treats "nothing stored" as
+  "insert everything". The read therefore raises, and the run stops, rather than falling back to an empty calendar
+  (`trace.read_calendar`; test_an_unreadable_calendar_stops_the_run_with_no_reconcile_row).
+- **`None == None` is `True` in Python and not in SQL.** The null-time pairing is where this bites (a naive
+  `listing.time == stored.start_time` pairs two different untimed shows but not an untimed one with a timed one).
+- **Venue ids in DB tests are not 1, 2, 3.** Sequences don't reset when a test's transaction rolls back, so a test that
+  needs a venue reads the seeded ids (`load_venues`) rather than hard-coding them.
+
 ---
 
 ## Component tests: five things that cost time, found while setting up B5

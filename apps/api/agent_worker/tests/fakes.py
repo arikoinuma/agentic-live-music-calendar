@@ -20,12 +20,13 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from agent_worker import act_split, schemas, status_check
+from agent_worker import act_split, artist_match, schemas, status_check
 
 # The shapes the pipeline asks the model for, as the keys of a script.
 PAGE = schemas.VenueListingsExtraction  # the title-split model route's page call (the adopted route)
 SPLITTER = act_split.ActSplitAnswer
 STATUS = status_check.StatusAnswer
+ARTIST_MATCH = artist_match.ArtistMatchAnswer  # the ambiguous-artist question (A5)
 
 
 class ScriptedCompletions:
@@ -163,3 +164,28 @@ class RecordingStager:
             raise RuntimeError("the staging store is down")
         self.documents.append(document)
         return f"doc-{len(self.documents)}"
+
+
+class FakeReader:
+    """A `CalendarReader` that returns the stored shows and artists it was given (A5), and records what it was asked.
+
+    `fail=True` makes every read raise, to prove an unreadable calendar stops the run instead of looking empty.
+    Typed loosely, like the fakes above, so this module does not import the reader.
+    """
+
+    def __init__(self, stored: list[Any] | None = None, artists: list[Any] | None = None, *, fail: bool = False) -> None:
+        self.stored = stored or []
+        self.known = artists or []
+        self.fail = fail
+        self.reads: list[tuple[int, datetime.date, datetime.date]] = []  # (venue_id, start, end) per stored_shows call
+
+    async def stored_shows(self, venue_id: int, start: datetime.date, end: datetime.date) -> list[Any]:
+        if self.fail:
+            raise RuntimeError("the calendar is unreadable")
+        self.reads.append((venue_id, start, end))
+        return [s for s in self.stored if start <= s.date <= end]
+
+    async def artists(self) -> list[Any]:
+        if self.fail:
+            raise RuntimeError("the calendar is unreadable")
+        return list(self.known)

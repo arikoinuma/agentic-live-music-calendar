@@ -113,3 +113,12 @@ the router's decision, what each retry changes). Import order is `validation` �
 `ScriptedClient` stands in for the model. `tests/test_validation_on_real_pages.py` replays stored
 real extractions and **skips where `eval/fixtures/` and `eval/results/` are absent** — they are
 gitignored, so CI never runs it.
+
+Reconcile (A5) is two pure modules plus a reader: `reconcile.py` (pairing, changes, the soft delete and its guard,
+`build_plan`), `artist_match.py` (names, and the one model question about an ambiguous artist) and `calendar_reader.py`
+(`CalendarReader`, the stored calendar). Import order is `normalize`, `schemas`, `validation`, `llm` ← `artist_match`,
+`reconcile` ← `state` ← `nodes`/`graph`/`trace`: `reconcile.py` must not import `state.py` (a test enforces it), so its
+functions take plain arguments. The stored calendar is read in `trace.audited` before `reconcile_node` runs, and **a read
+that fails stops the run**; never turn an unreadable calendar into an empty list, or every listing becomes an insert.
+`validation.excluded` and `Finding.show_index` are positions in `state.extraction.shows` (the raw list), not in
+`validated_extraction.shows`. Reconcile only decides: it writes no show, artist or lineup row (A6's `commit_node` does).
