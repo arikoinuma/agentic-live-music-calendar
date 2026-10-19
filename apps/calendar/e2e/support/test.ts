@@ -7,7 +7,7 @@
  * A second: the delay proxy's reset, so no test leaves the API slow or broken for the next.
  */
 import { expect, test as base, type Request } from "@playwright/test";
-import { PROXY_URL } from "./stack";
+import { PROXY_URL, WEB_URL } from "./stack";
 
 export { expect };
 
@@ -17,7 +17,15 @@ export type Stack = {
   delay: (ms: number) => Promise<void>;
   /** Answer every API request with a 502, as an outage would. */
   fail: () => Promise<void>;
+  /** Back to a plain pass-through. */
+  reset: () => Promise<void>;
 };
+
+// A valid 1x1 transparent PNG, served in place of any image from outside the app (below).
+const TINY_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+  "base64",
+);
 
 const control = async (path: string) => {
   const response = await fetch(`${PROXY_URL}${path}`, { method: "POST" });
@@ -37,6 +45,7 @@ export const test = base.extend<{ stack: Stack }>({
       await use({
         delay: (ms) => control(`/__delay/${ms}`),
         fail: () => control("/__fail"),
+        reset: () => control("/__reset"),
       });
       await control("/__reset");
     },
@@ -55,7 +64,21 @@ export const test = base.extend<{ stack: Stack }>({
   // then let the browser close. Prefetching still happens: the suite sees what a visitor
   // gets, rather than switching the optimisation off. Best effort: a request that never
   // ends must not fail a test, so the wait gives up after a few seconds.
-  page: async ({ page }, use) => {
+  page: async ({ page, stack }, use) => {
+    // HERMETIC: nothing a test does may reach the internet. The sample data's poster and
+    // photo URLs point at example.com, so show and venue pages would otherwise fetch real
+    // images (slow, and a failure in CI or a sandbox with no route out). Images from outside
+    // the app are answered with a 1x1 PNG, so layout and `alt` text behave as with a real
+    // image; any other outside request is refused.
+    const appOrigin = new URL(WEB_URL).origin;
+    await page.route(
+      (url) => url.origin !== appOrigin,
+      (route) =>
+        route.request().resourceType() === "image"
+          ? route.fulfill({ contentType: "image/png", body: TINY_PNG })
+          : route.abort(),
+    );
+
     const inFlight = new Set<Request>();
     page.on("request", (request) => inFlight.add(request));
     const settled = (request: Request) => inFlight.delete(request);
@@ -63,6 +86,12 @@ export const test = base.extend<{ stack: Stack }>({
     page.on("requestfailed", settled);
 
     await use(page);
+
+    // Drop any delay or failure FIRST. A test that slowed the API would otherwise make
+    // the wait below sit out its whole timeout while the prefetches crawl (the proxy is
+    // still delaying them), and the browser would close on them anyway. Requests already
+    // started finish within the delay they were given; new ones go straight through.
+    await stack.reset();
 
     await expect
       .poll(() => inFlight.size, { timeout: 5_000, message: "requests still in flight at test end" })

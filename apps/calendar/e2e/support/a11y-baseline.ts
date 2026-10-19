@@ -50,4 +50,17 @@ export const BASELINE: BaselineEntry[] = [
   // B6-F1: artist links in show blocks are 18px high; WCAG 2.5.8 (Target Size, minimum)
   // wants 24. First found by the home-page scan, Step 3.
   { page: "/ @1280", ruleId: "target-size", nodes: 6, finding: "B6-F1" },
+  // The same links on the other screens that list artists, at both widths (Step 5).
+  { page: "/ @375", ruleId: "target-size", nodes: 6, finding: "B6-F1" },
+  { page: "/day/2026-10-07 @1280", ruleId: "target-size", nodes: 2, finding: "B6-F1" },
+  { page: "/day/2026-10-07 @375", ruleId: "target-size", nodes: 2, finding: "B6-F1" },
+  { page: "/day/2026-10-07?sort=time @1280", ruleId: "target-size", nodes: 2, finding: "B6-F1" },
+  { page: "/day/2026-10-07?sort=time @375", ruleId: "target-size", nodes: 2, finding: "B6-F1" },
+  { page: "/artist/1 @1280", ruleId: "target-size", nodes: 2, finding: "B6-F1" },
+  { page: "/artist/1 @375", ruleId: "target-size", nodes: 2, finding: "B6-F1" },
+  // With a popup open (Step 5). The Month popup leaves the page readable, so F1 shows
+  // through; the two combobox popups mark the rest of the page aria-hidden instead (F2).
+  { page: "/ venues popup open @1280", ruleId: "aria-hidden-focus", nodes: 5, finding: "B6-F2" },
+  { page: "/ artists popup open, option highlighted @1280", ruleId: "aria-hidden-focus", nodes: 5, finding: "B6-F2" },
+  { page: "/ month popup open @1280", ruleId: "target-size", nodes: 6, finding: "B6-F1" },
 ];
