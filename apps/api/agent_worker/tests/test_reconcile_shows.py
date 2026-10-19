@@ -2,12 +2,12 @@
 
 Milestone A5 (docs/dev/implementations/a5-reconcile.md, Test approach §1). Everything here is a pure function of
 hand-built data (`reconcile_support.py`): no database, no model. Reading order follows the plan: the composite key
-and its null-time rules (K1, D3), cancelled and postponed listings (K3, D6, D7), what counts as a change (D4, D5),
+and its null-time rules (A5-K1, A5-D3), cancelled and postponed listings (A5-K3, A5-D6, A5-D7), what counts as a change (A5-D4, A5-D5),
 lineups, and the idempotency property.
 
 Expected values come from `requirements-initial.md` ("Agent Reconciliation", "Times after midnight", "Cancelled or
 postponed listings", "Show"), `arch-initial.md` §7's outcome table, `data-model-initial.md` (`show`, including its
-CHECK) and the decisions D1-D12 in the plan, and from the literal inputs of each test. None is read from the code
+CHECK) and the decisions A5-D1 to A5-D12 in the plan, and from the literal inputs of each test. None is read from the code
 under test. The scenarios are the plan's: 8 PM against 9 PM, 7th St Entry's two untimed shows on October 31,
 Terminal Bar's page with no times.
 """
@@ -42,7 +42,7 @@ from agent_worker.tests.reconcile_support import (
 from app.enums import ShowStatus
 
 # ---------------------------------------------------------------------------
-# The composite key (K1, D3)
+# The composite key (A5-K1, A5-D3)
 # ---------------------------------------------------------------------------
 
 
@@ -71,7 +71,7 @@ def test_a_time_change_is_a_cancelled_show_plus_a_new_one() -> None:
     # Proves: "If 8pm show disappears but then 9pm show appears, that's a time change ... the old show [is marked]
     # as cancelled and [a] new show [entered]" (requirements, "Agent Reconciliation"). Two different times never
     # pair. It also proves needs_review stays False for ordinary changes: a flag on every insert and removal would
-    # mean nothing (plan D3).
+    # mean nothing (plan A5-D3).
     plan = plan_for([listed(0, day(20), at(21))], [stored(1, day(20), at(20), acts=[(7, "Nona")])])
     assert sorted(actions(plan)) == ["insert", "remove"]
     assert not any(d.needs_review for d in plan.shows)
@@ -80,7 +80,7 @@ def test_a_time_change_is_a_cancelled_show_plus_a_new_one() -> None:
 
 
 def test_a_time_that_appears_later_is_an_update() -> None:
-    # Proves (D3): a stored show with no time that now lists 8 PM is the same show getting its time, one update
+    # Proves (A5-D3): a stored show with no time that now lists 8 PM is the same show getting its time, one update
     # (not a remove plus an insert). Terminal Bar's page has no times at all, so this is the shape of its first
     # change.
     plan = plan_for([listed(0, day(20), at(20))], [stored(1, day(20), None, acts=[(7, "Nona")])])
@@ -89,7 +89,7 @@ def test_a_time_that_appears_later_is_an_update() -> None:
 
 
 def test_a_time_that_disappears_does_not_clear_the_stored_time() -> None:
-    # Proves (D4): an extraction that fails to read a time must not erase the stored one ("missing is tolerated,
+    # Proves (A5-D4): an extraction that fails to read a time must not erase the stored one ("missing is tolerated,
     # wrong is not", A3-D4). The untimed listing still pairs with the stored 8 PM show (one of each, a blank time
     # on one side) and nothing changes.
     plan = plan_for([listed(0, day(20))], [stored(1, day(20), at(20), acts=[(7, "Nona")])])
@@ -98,14 +98,14 @@ def test_a_time_that_disappears_does_not_clear_the_stored_time() -> None:
 
 
 def test_an_untimed_show_is_found_again_instead_of_duplicated_every_night() -> None:
-    # Proves (D3): in SQL a blank time never equals a blank time, so a naive (date, time) key would insert a fresh
+    # Proves (A5-D3): in SQL a blank time never equals a blank time, so a naive (date, time) key would insert a fresh
     # copy of an untimed show and remove yesterday's, every night. The untimed listing finds its untimed twin.
     plan = plan_for([listed(0, day(20))], [stored(1, day(20), None, acts=[(7, "Nona")])])
     assert actions(plan) == ["no_op"]
 
 
 def test_two_untimed_shows_on_one_date_pair_by_their_acts() -> None:
-    # Proves (D3; the 7th St Entry case, October 31): with two untimed shows on a date the lineups settle which
+    # Proves (A5-D3; the 7th St Entry case, October 31): with two untimed shows on a date the lineups settle which
     # listing is which, even when the page lists them in the opposite order to how they were stored.
     plan = plan_for(
         [listed(0, day(31), acts=["Zhora"]), listed(1, day(31), acts=["Nona"])],
@@ -116,7 +116,7 @@ def test_two_untimed_shows_on_one_date_pair_by_their_acts() -> None:
 
 
 def test_two_untimed_shows_whose_lineups_all_changed_are_inserted_and_removed_and_flagged() -> None:
-    # Proves (D3): when nothing ties a listing to a stored show, the pipeline doesn't guess. It inserts the
+    # Proves (A5-D3): when nothing ties a listing to a stored show, the pipeline doesn't guess. It inserts the
     # listings, removes the stored shows, and flags all four for a person (a guess was involved). Visible and
     # revertable, not silently wrong.
     plan = plan_for(
@@ -128,7 +128,7 @@ def test_two_untimed_shows_whose_lineups_all_changed_are_inserted_and_removed_an
 
 
 def test_two_untimed_shows_by_the_same_act_pair_in_a_fixed_order_and_are_flagged() -> None:
-    # Proves (D3, plan review finding 5): an early and a late show by the same act, both untimed, tie on acts.
+    # Proves (A5-D3, A5-PR1-5): an early and a late show by the same act, both untimed, tie on acts.
     # A tie that pairs nothing would insert and remove both shows every night, forever. A fixed order (listing
     # order against the stored shows' order) pairs them the same way each run, and the pair is flagged.
     plan = plan_for(
@@ -136,11 +136,11 @@ def test_two_untimed_shows_by_the_same_act_pair_in_a_fixed_order_and_are_flagged
         [stored(1, day(22), None, acts=[(7, "Nona")]), stored(2, day(22), None, acts=[(7, "Nona")])],
     )
     assert {d.listing.index: d.stored_id for d in plan.shows if d.listing} == {0: 1, 1: 2}
-    assert all(d.needs_review for d in plan.shows)  # both halves of the guessed pairing, not just the first (finding 6)
+    assert all(d.needs_review for d in plan.shows)  # both halves of the guessed pairing, not just the first (A5-CR1-6)
 
 
 def test_two_shows_at_one_time_pair_by_acts_not_by_the_lower_id() -> None:
-    # Proves (D3, finding 5): with two shows at 8 PM (two rooms), the listing that shares acts with the SECOND stored
+    # Proves (A5-D3, A5-PR1-5): with two shows at 8 PM (two rooms), the listing that shares acts with the SECOND stored
     # show must get it, even though the first has the lower id. A greedy "first candidate wins" would swap the
     # lineups.
     plan = plan_for(
@@ -152,7 +152,7 @@ def test_two_shows_at_one_time_pair_by_acts_not_by_the_lower_id() -> None:
 
 
 def test_a_scheduled_listing_outranks_a_cancelled_one_for_the_same_stored_show() -> None:
-    # Proves (code review finding 5): a page carrying both "CANCELLED Nona 8 PM" and "Nona 8 PM" for one stored show must
+    # Proves (A5-CR1-5): a page carrying both "CANCELLED Nona 8 PM" and "Nona 8 PM" for one stored show must
     # settle the same way every night. The scheduled listing takes the stored show (a no-op) and the cancelled one,
     # with nothing left to cancel, is skipped. Ranked the other way (listing order), the pair swaps every run: two rows
     # alternating between removed and active.
@@ -165,7 +165,7 @@ def test_a_scheduled_listing_outranks_a_cancelled_one_for_the_same_stored_show()
 
 
 def test_an_active_twin_outranks_a_removed_one_at_the_same_key() -> None:
-    # Proves (D3, finding 4): when a removed show and an active show share a key, the listing belongs to the active
+    # Proves (A5-D3, A5-PR1-4): when a removed show and an active show share a key, the listing belongs to the active
     # one. Without active-first matching the tie-break could pick the removed twin, reactivate it, and then remove
     # the active one by absence.
     plan = plan_for(
@@ -180,7 +180,7 @@ def test_an_active_twin_outranks_a_removed_one_at_the_same_key() -> None:
 
 
 def test_an_old_removed_show_does_not_make_an_untimed_pair_ambiguous() -> None:
-    # Proves (D3, finding 4): a cancelled show from weeks ago on the same date must not turn "the only untimed
+    # Proves (A5-D3, A5-PR1-4): a cancelled show from weeks ago on the same date must not turn "the only untimed
     # show on the date" into the several-candidates case. The untimed listing with changed acts is still an update
     # of the active untimed show, not an insert plus a removal.
     plan = plan_for(
@@ -195,7 +195,7 @@ def test_an_old_removed_show_does_not_make_an_untimed_pair_ambiguous() -> None:
 
 
 def test_a_returning_show_brings_the_same_row_back() -> None:
-    # Proves (D7): a show removed (say it was cancelled) and then listed again as scheduled is the same show: the
+    # Proves (A5-D7): a show removed (say it was cancelled) and then listed again as scheduled is the same show: the
     # same row goes from removed to active, reason `reappeared`. Without this it would be inserted again, leaving
     # two rows for one real show.
     plan = plan_for(
@@ -217,13 +217,13 @@ def test_a_show_with_no_time_but_per_act_times_reconciles_without_inventing_a_sh
 
 
 # ---------------------------------------------------------------------------
-# Cancelled and postponed listings (K3, D6)
+# Cancelled and postponed listings (A5-K3, A5-D6)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("status", ["cancelled", "postponed"])
 def test_a_cancelled_listing_removes_the_stored_show_and_says_why(status: str) -> None:
-    # Proves (D6; requirements, "Cancelled or postponed listings"): the show "was most likely extracted on an
+    # Proves (A5-D6; requirements, "Cancelled or postponed listings"): the show "was most likely extracted on an
     # earlier scan before it was cancelled, and the agent has to match it to that stored record and update it".
     # The status is `removed` (the read API hides it), and the audit reason keeps the distinction.
     plan = plan_for(
@@ -235,7 +235,7 @@ def test_a_cancelled_listing_removes_the_stored_show_and_says_why(status: str) -
 
 @pytest.mark.parametrize("status", ["cancelled", "postponed"])
 def test_a_cancelled_listing_for_an_already_removed_show_changes_nothing(status: str) -> None:
-    # Proves (D6): a show already removed, listed as cancelled again, is a no-op. Without it every run would
+    # Proves (A5-D6): a show already removed, listed as cancelled again, is a no-op. Without it every run would
     # write a removal for the same cancelled show.
     plan = plan_for(
         [listed(0, day(20), at(20), status=status)],
@@ -247,7 +247,7 @@ def test_a_cancelled_listing_for_an_already_removed_show_changes_nothing(status:
 
 @pytest.mark.parametrize("status", ["cancelled", "postponed"])
 def test_a_cancelled_listing_with_nothing_stored_is_skipped_not_inserted(status: str) -> None:
-    # Proves (D6): "Only on a venue's very first scan can a cancelled listing simply be ignored" and it is never
+    # Proves (A5-D6): "Only on a venue's very first scan can a cancelled listing simply be ignored" and it is never
     # a show to display, so it must not become a row. A decision of `skip` (it has no audit outcome) records
     # that it was seen.
     plan = plan_for([listed(0, day(20), at(20), status=status)])
@@ -256,7 +256,7 @@ def test_a_cancelled_listing_with_nothing_stored_is_skipped_not_inserted(status:
 
 
 def test_a_skipped_listing_creates_no_artist_and_makes_no_model_call() -> None:
-    # Proves (plan review finding 6): artists are resolved only for scheduled listings. A cancelled listing naming
+    # Proves (A5-PR1-6): artists are resolved only for scheduled listings. A cancelled listing naming
     # an artist nobody has heard of must not cost a model call, create an artist, or leave a resolution for commit
     # to write. The default client is unscripted, so a model call here would fail the test.
     plan = plan_for([listed(0, day(20), at(20), acts=["Totally New Band"], status="cancelled")])
@@ -264,7 +264,7 @@ def test_a_skipped_listing_creates_no_artist_and_makes_no_model_call() -> None:
 
 
 def test_a_cancelled_untimed_listing_does_not_pair_with_an_unrelated_show_by_date_alone() -> None:
-    # Proves (plan review finding 3): cancelled listings that the status merge ADDS have no time, so they always
+    # Proves (A5-PR1-3): cancelled listings that the status merge ADDS have no time, so they always
     # reach the null-time pairing. By date alone, one cancelled listing and one stored show would pair, and an
     # unrelated show would be removed "as cancelled" on another show's cancellation. Here the stored show's own
     # listing was left out by validation (its date is in `excluded`), and a different act's cancellation on the same
@@ -278,7 +278,7 @@ def test_a_cancelled_untimed_listing_does_not_pair_with_an_unrelated_show_by_dat
 
 
 def test_a_cancelled_untimed_listing_pairs_with_the_show_whose_acts_it_names() -> None:
-    # Proves (D3, D6): the cancellation pairs on shared acts, so the right show is removed.
+    # Proves (A5-D3, A5-D6): the cancellation pairs on shared acts, so the right show is removed.
     plan = plan_for(
         [listed(0, day(20), None, acts=["Zhora"], status="cancelled")],
         [stored(1, day(20), None, acts=[(8, "Zhora")])],
@@ -288,7 +288,7 @@ def test_a_cancelled_untimed_listing_pairs_with_the_show_whose_acts_it_names() -
 
 
 # ---------------------------------------------------------------------------
-# What counts as a change (D4, D5)
+# What counts as a change (A5-D4, A5-D5)
 # ---------------------------------------------------------------------------
 
 
@@ -319,7 +319,7 @@ def test_a_price_equal_to_the_stored_one_is_no_change() -> None:
 
 
 def test_a_blank_field_does_not_erase_a_stored_value() -> None:
-    # Proves (D4): Monday's page had an end time and a poster; Tuesday's extraction has neither. The stored show
+    # Proves (A5-D4): Monday's page had an end time and a poster; Tuesday's extraction has neither. The stored show
     # keeps both ("missing is tolerated, wrong is not"). A different non-blank value is a change.
     stored_show = stored(1, day(20), at(20), acts=[(7, "Nona")], end_time=at(23), image_url="https://x.example/p.png")
     blank = plan_for([listed(0, day(20), at(20))], [stored_show])
@@ -329,9 +329,9 @@ def test_a_blank_field_does_not_erase_a_stored_value() -> None:
 
 
 def test_free_stated_over_a_stored_price_clears_the_price() -> None:
-    # Proves (D5, plan review finding 1): the table forbids free admission together with a price (the
+    # Proves (A5-D5, A5-PR1-1): the table forbids free admission together with a price (the
     # `show_free_admission_check` constraint). A stored $20 door price and a listing now saying FREE must become
-    # free with NO price. Updating field by field (D4's rule) would keep the $20 and produce a row A6 cannot
+    # free with NO price. Updating field by field (A5-D4's rule) would keep the $20 and produce a row A6 cannot
     # write.
     show = stored(1, day(20), at(20), acts=[(7, "Nona")], admission_day=money("20.00"))
     plan = plan_for([listed(0, day(20), at(20), free_admission=True)], [show])
@@ -341,7 +341,7 @@ def test_free_stated_over_a_stored_price_clears_the_price() -> None:
 
 
 def test_a_price_stated_over_stored_free_clears_free() -> None:
-    # Proves (D5, finding 1): the other direction. Stored FREE and a listing now showing a $15 door price becomes
+    # Proves (A5-D5, A5-PR1-1): the other direction. Stored FREE and a listing now showing a $15 door price becomes
     # priced and no longer free.
     show = stored(1, day(20), at(20), acts=[(7, "Nona")], free_admission=True)
     plan = plan_for([listed(0, day(20), at(20), admission_day=15.0)], [show])
@@ -351,7 +351,7 @@ def test_a_price_stated_over_stored_free_clears_free() -> None:
 
 
 def test_stating_only_the_door_price_clears_a_stored_advance_price() -> None:
-    # Proves (D5): the accepted cost. Admission is one unit, so a listing that states only the door price replaces
+    # Proves (A5-D5): the accepted cost. Admission is one unit, so a listing that states only the door price replaces
     # all three values, and the stored advance price goes. Pinned so that changing the rule is a decision, not an
     # accident.
     show = stored(
@@ -362,7 +362,7 @@ def test_stating_only_the_door_price_clears_a_stored_advance_price() -> None:
 
 
 def test_a_listing_stating_no_admission_leaves_all_three_as_stored() -> None:
-    # Proves (D5): a listing that says nothing about admission changes nothing about it. Stored FREE stays FREE.
+    # Proves (A5-D5): a listing that says nothing about admission changes nothing about it. Stored FREE stays FREE.
     show = stored(1, day(20), at(20), acts=[(7, "Nona")], free_admission=True)
     assert actions(plan_for([listed(0, day(20), at(20))], [show])) == ["no_op"]
 
@@ -388,7 +388,7 @@ def test_a_reordered_lineup_is_an_update_and_the_same_order_is_not() -> None:
 
 
 def test_an_act_time_that_is_no_longer_stated_is_kept_and_a_different_one_is_a_change() -> None:
-    # Proves (D4): a route that stops stating per-act set times (the title-split route returns none) must not
+    # Proves (A5-D4): a route that stops stating per-act set times (the title-split route returns none) must not
     # erase the stored ones; the lineup is a no-op and the resulting lineup keeps the stored time. A different
     # stated time is an update.
     show = dataclasses.replace(stored(1, day(20), at(20)), lineup=(StoredLineupEntry(7, "Nona", at(21), 1),))
@@ -419,7 +419,7 @@ def test_stated_sequence_numbers_are_kept_and_the_lineup_is_in_that_order() -> N
 
 
 def test_a_stated_order_that_differs_from_list_order_is_stable_run_to_run() -> None:
-    # Proves (code review finding 2): a page that lists "Zhora" first but states Zhora is 2nd and Nona 1st must not be an
+    # Proves (A5-CR1-2): a page that lists "Zhora" first but states Zhora is 2nd and Nona 1st must not be an
     # update every night. Written, read back and reconciled again, it is a no-op, three runs in a row.
     page = [listed(0, day(20), at(20), acts=[ListedAct("Zhora", None, 2), ListedAct("Nona", None, 1)])]
     shows, artists = [], list(KNOWN)
@@ -525,7 +525,7 @@ def test_a_removal_is_stable_after_it_is_applied() -> None:
 
 
 def test_reconcile_and_artist_match_do_not_import_the_state() -> None:
-    # Proves (plan review finding 7): `state.py` imports reconcile's and artist_match's types for its new fields, so
+    # Proves (A5-PR1-7): `state.py` imports reconcile's and artist_match's types for its new fields, so
     # they must not import `state.py` back (apps/api/AGENTS.md: keep the imports a DAG). Run in a fresh interpreter,
     # because this one has already imported everything.
     code = (

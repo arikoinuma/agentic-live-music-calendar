@@ -53,7 +53,7 @@ async def read_calendar(state: VenueGraphState, reader: CalendarReader) -> Venue
 
     Which shows to read comes from the validated page (`reconcile.load_request`): the range is wider than the
     removal window on the left, so a listing dated before today still finds its stored twin. Nothing is read when
-    the page gave no dates (a confirmed-empty page): there is nothing to compare, and nothing will be removed (D2).
+    the page gave no dates (a confirmed-empty page): there is nothing to compare, and nothing will be removed (A5-D2).
     """
     inputs = prepare_inputs(
         state.extraction, state.validated_extraction, state.validation, state.fetched_on or metro_today(state.metro_timezone),

@@ -134,7 +134,7 @@ async def test_the_added_opener_is_a_lineup_change_and_the_artists_resolve_witho
     venue_run: tuple[VenueGraphState, dict[str, int], VenueFacts],
 ) -> None:
     # Proves: the Oct 22 update is a lineup change (Prince added after Zhora), "Poliça" is linked to the stored "Polica"
-    # by exact match (accents tidied, D8) and "Sunny Day" is a new artist. The model script has no artist-match
+    # by exact match (accents tidied, A5-D8) and "Sunny Day" is a new artist. The model script has no artist-match
     # answer, so a model call for any of them would have failed the run.
     state, ids, _ = venue_run
     assert state.reconcile_plan is not None
@@ -148,7 +148,7 @@ async def test_the_added_opener_is_a_lineup_change_and_the_artists_resolve_witho
 async def test_the_window_runs_from_the_fetch_date_to_the_last_listed_date(
     venue_run: tuple[VenueGraphState, dict[str, int], VenueFacts],
 ) -> None:
-    # Proves (D1): the plan's window is October 12 (the fetch date) to October 31 (the page's last listing), which is
+    # Proves (A5-D1): the plan's window is October 12 (the fetch date) to October 31 (the page's last listing), which is
     # why the November 20 show was outside it.
     state, _, _ = venue_run
     assert state.reconcile_plan is not None and state.reconcile_plan.coverage is not None

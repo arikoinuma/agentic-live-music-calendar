@@ -5,10 +5,10 @@ HOW TO READ THIS
   "which one?" in three steps, cheapest first:
 
   1. `artist_key` — one tidied form of a name (case, accents, "&" vs "and", punctuation, a leading "The"),
-     so "Poliça" and "Polica" are the same artist without anyone being asked (D8).
-  2. `classify_artist` — **K4**: exact, ambiguous (similar but not equal) or new (D8, D12).
-  3. `decide_ambiguous` — **K5**: the one place a model makes a database decision. It is asked about at most
-     three candidates; an unsure answer, a refusal, a made-up id or a failed call all mean "new artist" (D9).
+     so "Poliça" and "Polica" are the same artist without anyone being asked (A5-D8).
+  2. `classify_artist` — **A5-K4**: exact, ambiguous (similar but not equal) or new (A5-D8, A5-D12).
+  3. `decide_ambiguous` — **A5-K5**: the one place a model makes a database decision. It is asked about at most
+     three candidates; an unsure answer, a refusal, a made-up id or a failed call all mean "new artist" (A5-D9).
   `resolve_artists` runs the three once per distinct name in a run, so the same unknown act on three shows is
   one new artist and one model call, not three.
 
@@ -17,10 +17,10 @@ HOW TO READ THIS
 WHY IT'S SHAPED THIS WAY
   The thresholds are starting values in a named `ArtistMatchPolicy`, to be calibrated against labelled data in A8,
   the way A3's confidence threshold was. Similarity is Python's `difflib` over every artist loaded for the run
-  (D12): no new dependency and no migration at alpha size. Import order: this module sits below `state.py`
+  (A5-D12): no new dependency and no migration at alpha size. Import order: this module sits below `state.py`
   (reconcile.py and the state import it), so it takes `EXTRACTION_ERRORS` from llm.py, not nodes.py.
 
-docs/dev/implementations/a5-reconcile.md, D8, D9, D12; K4, K5.
+docs/dev/implementations/a5-reconcile.md, A5-D8, A5-D9, A5-D12; A5-K4, A5-K5.
 """
 
 import difflib
@@ -50,12 +50,12 @@ class KnownArtist:
 
 @dataclass(frozen=True)
 class ArtistMatchPolicy:
-    """The named, injectable settings for artist matching (D12), as `RetryPolicy` is for retries.
+    """The named, injectable settings for artist matching (A5-D12), as `RetryPolicy` is for retries.
 
     Starting values, not measurements: A8 calibrates them against labelled data. `ratio` is the
     `difflib` similarity at or above which two different names are "close"; `max_candidates` is how many
     close artists the model is shown; `min_confidence` is the model confidence below which its "same act"
-    is not trusted (D9).
+    is not trusted (A5-D9).
     """
 
     ratio: float = 0.85
@@ -119,7 +119,7 @@ class ArtistResolution:
 
 
 def artist_key(name: str) -> str:
-    """One comparison form for an artist name (D8): folded, accents removed, "&" read as "and",
+    """One comparison form for an artist name (A5-D8): folded, accents removed, "&" read as "and",
     punctuation dropped, a leading "the" dropped. Never stored or shown; for comparing only.
 
     A name that is nothing but punctuation ("!!!", a real touring band) would come out empty, and an empty
@@ -147,16 +147,16 @@ def _similarity(key: str, other: str) -> float:
 
 
 # ---------------------------------------------------------------------------
-# K4: exact, ambiguous or new
+# A5-K4: exact, ambiguous or new
 # ---------------------------------------------------------------------------
 
 
 def classify_artist(
     name: str, known: Iterable[KnownArtist], policy: ArtistMatchPolicy = DEFAULT_ARTIST_POLICY
 ) -> Classification:
-    """Exact, ambiguous or new (D8, D12): a three-way answer, not a score with one cut-off."""
+    """Exact, ambiguous or new (A5-D8, A5-D12): a three-way answer, not a score with one cut-off."""
     # TODO(Ari) — Lesson: "clear matches and clear non-matches resolve automatically; ambiguous matches go through a
-    #   review step rather than a fixed rule" (requirements-initial.md, D8, D12). That is a THREE-way answer, not a
+    #   review step rather than a fixed rule" (requirements-initial.md, A5-D8, A5-D12). That is a THREE-way answer, not a
     #   similarity score with one cut-off, and the middle band is deliberately where the model is used. A two-way
     #   rule is wrong in one direction either way: too loose merges two acts, too strict duplicates one.
     # Code:
@@ -175,7 +175,7 @@ def classify_artist(
 
 
 # ---------------------------------------------------------------------------
-# K5: the model decides the ambiguous case
+# A5-K5: the model decides the ambiguous case
 # ---------------------------------------------------------------------------
 
 
@@ -211,7 +211,7 @@ def _new(
     name: str, options: RequestOptions, candidates: tuple[KnownArtist, ...], *, reason: str,
     answer: ArtistMatchAnswer | None = None,
 ) -> ArtistResolution:
-    """The conservative outcome (D9): a new artist, decided by the model's step, with why."""
+    """The conservative outcome (A5-D9): a new artist, decided by the model's step, with why."""
     return _resolution(
         name, "new_after_model", artist_id=None, decided_by="model", model_used=options.model,
         confidence=answer.confidence if answer else None, candidates=candidates, reason=reason,
@@ -232,9 +232,9 @@ def decide_ambiguous(
     name: str, candidates: tuple[KnownArtist, ...], *, client: Any, options: RequestOptions,
     policy: ArtistMatchPolicy = DEFAULT_ARTIST_POLICY,
 ) -> ArtistResolution:
-    """Ask the model; link only on a confident answer naming an offered artist, else create a new one (D9)."""
+    """Ask the model; link only on a confident answer naming an offered artist, else create a new one (A5-D9)."""
     # TODO(Ari) — Lesson: this is the one place in the pipeline where a model makes a database decision, so the failure
-    #   direction is a design decision, not an accident (D9). A wrong merge is silent and spreads (two acts share one
+    #   direction is a design decision, not an accident (A5-D9). A wrong merge is silent and spreads (two acts share one
     #   page); a duplicate artist is visible and revertable. So low confidence, a "different act" answer, an id nobody
     #   offered and a failed call ALL resolve to "new artist", and the resolution records why, which `trace.audited`
     #   turns into the audit row.

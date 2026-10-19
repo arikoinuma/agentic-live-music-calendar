@@ -23,14 +23,14 @@ HOW TO READ THIS
      `Coverage` (how far the page reached), `ShowDecision` and `ReconcilePlan` (the answer).
   2. `night_sort_key`, `prepare_inputs`, `covered_window`, `load_request`: turn the validated extraction into
      the inputs, and say which stored shows to read.
-  3. `match_shows` (**K1**): pair each listing with its stored twin. `plan_for_listing` (**K3**): what a pair,
+  3. `match_shows` (**A5-K1**): pair each listing with its stored twin. `plan_for_listing` (**A5-K3**): what a pair,
      or a lone listing, means. `show_changes`: has anything changed.
-  4. `removed_by_absence` (**K2**) and `withhold_if_mass_removal`: the soft delete and its guard.
+  4. `removed_by_absence` (**A5-K2**) and `withhold_if_mass_removal`: the soft delete and its guard.
   5. `build_plan`: runs the steps in order.
 
 WHY IT'S SHAPED THIS WAY
   Every rule that decides what the calendar looks like is a decision Ari made in a5-reconcile.md, cited where
-  it applies (D1-D12 and "Settled details"). The ones that are easy to get wrong silently are covered by tests
+  it applies (A5-D1 to A5-D12 and "Settled details"). The ones that are easy to get wrong silently are covered by tests
   that state their expected values from the requirements, not from this code: the window (a show past the page's
   last date is out of sight, not gone), the null time (blank is not equal to blank, in SQL or in a sensible
   match), and the idempotency property (feeding a plan's own result back in must give all no-ops, or a show
@@ -137,7 +137,7 @@ class Listing:
 
 @dataclass(frozen=True)
 class Coverage:
-    """The dates a fetch reached, both ends inclusive (D1): the only dates where "not on the page" can mean "gone"."""
+    """The dates a fetch reached, both ends inclusive (A5-D1): the only dates where "not on the page" can mean "gone"."""
 
     start: datetime.date
     end: datetime.date
@@ -148,7 +148,7 @@ class Coverage:
 
 @dataclass(frozen=True)
 class ReconcilePolicy:
-    """The removal guard's numbers (D10), named in one place the way `RetryPolicy` names the retry settings."""
+    """The removal guard's numbers (A5-D10), named in one place the way `RetryPolicy` names the retry settings."""
 
     min_removals_to_guard: int = 3
     max_removal_share: float = 0.5
@@ -207,7 +207,7 @@ class ShowDecision:
 
 @dataclass(frozen=True)
 class ReconcilePlan:
-    """Everything reconcile decided for one venue run. `withheld` are removals the guard held back (D10)."""
+    """Everything reconcile decided for one venue run. `withheld` are removals the guard held back (A5-D10)."""
 
     coverage: Coverage | None
     shows: tuple[ShowDecision, ...]
@@ -268,14 +268,14 @@ def excluded_listing_dates(
     extraction: VenuePageExtraction | None, validation: ValidationResult | None, fetched_on: datetime.date
 ) -> frozenset[datetime.date]:
     """Dates of listings validation left out because they named no act, on a plausible date. They are still on the page
-    (D1), and may be a real show the splitter missed, so they protect a stored show on their date from the soft delete,
+    (A5-D1), and may be a real show the splitter missed, so they protect a stored show on their date from the soft delete,
     and they count as evidence the page reached that date.
 
     Two traps. `Finding.show_index` is a position in `extraction.shows`, the RAW list, not in the validated list (which
     has the excluded shows removed): reading the wrong list protects the wrong dates. And validation leaves a show out
     for naming no act BEFORE it checks the date, so a placeholder entry ("Private event") with a date years away arrives
     here too; its date is not evidence the page reached that far, and would stretch the window over every stored show in
-    between. So a date outside the plausible window is dropped (code review finding 1).
+    between. So a date outside the plausible window is dropped (A5-CR1-1).
     """
     if extraction is None or validation is None:
         return frozenset()
@@ -290,8 +290,8 @@ def excluded_listing_dates(
 def covered_window(
     listings: Sequence[Listing], excluded_dates: Iterable[datetime.date], fetched_on: datetime.date
 ) -> Coverage | None:
-    """D1: from `fetched_on` to the latest date the page evidences (a kept listing, cancelled ones included, or a
-    listing we left out). None when there is no evidence of reach: a confirmed-empty page (D2), or a page whose
+    """A5-D1: from `fetched_on` to the latest date the page evidences (a kept listing, cancelled ones included, or a
+    listing we left out). None when there is no evidence of reach: a confirmed-empty page (A5-D2), or a page whose
     listings are all before `fetched_on`, which would give `end < start`."""
     dates = [listing.date for listing in listings] + list(excluded_dates)
     if not dates:
@@ -326,7 +326,7 @@ def load_request(inputs: ReconcileInputs) -> tuple[datetime.date, datetime.date]
 
 
 # ---------------------------------------------------------------------------
-# K1: pairing listings with stored shows
+# A5-K1: pairing listings with stored shows
 # ---------------------------------------------------------------------------
 
 
@@ -392,7 +392,7 @@ def _assign_by_acts(
 def _null_time_pairs(
     listings: list[Listing], stored: list[StoredShow]
 ) -> list[tuple[Listing, StoredShow, bool]]:
-    """K1: pair what the timed pass left over on one date, where a missing time is involved (D3).
+    """A5-K1: pair what the timed pass left over on one date, where a missing time is involved (A5-D3).
 
     Two different times never pair (that is a time change: a cancelled show plus a new one). A missing time on
     EITHER side is the only thing that can pair across times. With exactly one listing and one stored show left it is
@@ -402,7 +402,7 @@ def _null_time_pairs(
     # TODO(Ari) — Lesson: the key is (venue, date, time), exact, with no fuzzy matching on shows
     #   (arch-initial.md §7), and the whole subtlety is what a NULL does. In SQL `NULL = NULL` is not true, so a
     #   naive key never finds an untimed show: every night would insert a duplicate and remove the old one
-    #   (D3, a5-reconcile.md). The rule: two different times never pair (that is a time change, a cancelled show
+    #   (A5-D3, a5-reconcile.md). The rule: two different times never pair (that is a time change, a cancelled show
     #   plus a new one); a missing time on EITHER side pairs only when it is unambiguous (one listing and one
     #   stored show left on the date) or when shared acts settle it; a cancelled/postponed listing pairs only on
     #   shared acts, never by date alone; and a tie is broken the same way every run (`_assign_by_acts`) so
@@ -422,7 +422,7 @@ def _null_time_pairs(
 
 
 def match_shows(listings: Sequence[Listing], stored: Sequence[StoredShow]) -> MatchResult:
-    """Pair each listing with its stored twin (D3): per date, **active stored shows first**, then removed ones for
+    """Pair each listing with its stored twin (A5-D3): per date, **active stored shows first**, then removed ones for
     the listings still unpaired (so a returning show is found, but a removed twin never outranks an active one).
     Each round runs a timed pass (same time) then a null-time pass (`_null_time_pairs`).
 
@@ -497,7 +497,7 @@ def lineup_for(listing: Listing, resolutions: dict[str, ArtistResolution]) -> tu
       listed"), because a mix of stated and derived numbers can collide, and so can a number stated twice.
     * The lineup is returned in performance order (by sequence number), because that is the order a stored lineup is read
       back in; a page that lists "Zhora" first but states Zhora is second would otherwise look changed against itself on
-      every run (code review finding 2).
+      every run (A5-CR1-2).
     """
     entries: list[LineupEntry] = []
     seen: set[tuple[str, Any]] = set()
@@ -516,7 +516,7 @@ def lineup_for(listing: Listing, resolutions: dict[str, ArtistResolution]) -> tu
 
 
 def merge_lineup(lineup: tuple[LineupEntry, ...], stored: StoredShow) -> tuple[LineupEntry, ...]:
-    """D4 for a lineup: an act whose own set time is unstated now keeps the time stored for the same artist."""
+    """A5-D4 for a lineup: an act whose own set time is unstated now keeps the time stored for the same artist."""
     stored_times = {e.artist_id: e.start_time for e in stored.lineup}
     return tuple(
         replace(entry, start_time=stored_times.get(entry.artist_id))
@@ -530,8 +530,8 @@ def show_changes(
 ) -> dict[str, tuple[Any, Any]]:
     """What differs between the stored show and the listing: `{field: (old, new)}`, empty meaning no-op.
 
-    D4: a field the listing leaves blank never erases a stored value; only a different non-blank value is a change.
-    D5: `admission_advance`, `admission_day` and `free_admission` are one unit. If the listing states any of them it
+    A5-D4: a field the listing leaves blank never erases a stored value; only a different non-blank value is a change.
+    A5-D5: `admission_advance`, `admission_day` and `free_admission` are one unit. If the listing states any of them it
     replaces all three (an unstated one becomes blank, so the result can never be "free" and priced at once, which
     the table's CHECK forbids); if it states none, all three stay as stored.
     The extraction's `time` is the column `start_time`. `lineup` is the resolved lineup after `merge_lineup`.
@@ -564,21 +564,21 @@ def show_changes(
 
 
 # ---------------------------------------------------------------------------
-# K3: what a listing means
+# A5-K3: what a listing means
 # ---------------------------------------------------------------------------
 
 
 def plan_for_listing(
     listing: Listing, stored: StoredShow | None, lineup: tuple[LineupEntry, ...], original_url: str
 ) -> ShowDecision:
-    """What one listing means, given its stored twin (or none) (D6, D7, A2.1-D12)."""
+    """What one listing means, given its stored twin (or none) (A5-D6, A5-D7, A2.1-D12)."""
 
     def decide(action: Action, reason: str, *, start_time: datetime.time | None, **fields: Any) -> ShowDecision:
         return ShowDecision(action, listing.date, start_time, reason, listing=listing, **fields)
 
     if listing.status != "scheduled":  # cancelled / postponed
         # TODO(Ari) — Lesson: a cancelled or postponed listing is EVIDENCE ABOUT A STORED SHOW, not a show
-        #   (requirements-initial.md: "the agent has to match it to that stored record and update it"; D6). It must
+        #   (requirements-initial.md: "the agent has to match it to that stored record and update it"; A5-D6). It must
         #   never be inserted. The status decides what the match means, which is why the answer depends on both the
         #   listing and the stored show. (The scheduled path below is written: insert, reactivate a removed show,
         #   or compare the details.)
@@ -598,7 +598,7 @@ def plan_for_listing(
     merged = merge_lineup(lineup, stored)
     changes = show_changes(stored, listing, merged, original_url)
     start = listing.time if listing.time is not None else stored.start_time
-    if stored.status is ShowStatus.REMOVED:  # D7: the same row comes back
+    if stored.status is ShowStatus.REMOVED:  # A5-D7: the same row comes back
         changes = {"status": (ShowStatus.REMOVED, ShowStatus.ACTIVE), **changes}
         return decide(Action.UPDATE, "reappeared", start_time=start, stored_id=stored.id, changes=changes, lineup=merged)
     if changes:
@@ -607,7 +607,7 @@ def plan_for_listing(
 
 
 # ---------------------------------------------------------------------------
-# K2: the soft delete, and its guard
+# A5-K2: the soft delete, and its guard
 # ---------------------------------------------------------------------------
 
 
@@ -615,14 +615,14 @@ def removed_by_absence(
     stored: Iterable[StoredShow], matched_ids: set[int], coverage: Coverage | None,
     excluded_dates: Iterable[datetime.date],
 ) -> list[StoredShow]:
-    """The stored shows the page no longer lists, inside the dates it reached (D1, D2)."""
+    """The stored shows the page no longer lists, inside the dates it reached (A5-D1, A5-D2)."""
     # TODO(Ari) — Lesson: a show is removed because the PAGE no longer lists it, and only if the fetch REACHED its
     #   date (data-model-initial.md, `show.status`; requirements-initial.md: "falling within the date range that
-    #   fetch actually covered"; D1, D2). "Absent from the validated list" is not "absent from the page": a listing
+    #   fetch actually covered"; A5-D1, A5-D2). "Absent from the validated list" is not "absent from the page": a listing
     #   the splitter left out is still on the page. And a show beyond the last listed date is not absent, it is out
     #   of sight.
     # Code:
-    #   if coverage is None:          # a confirmed-empty page: no evidence of reach, so nothing is removed (D2)
+    #   if coverage is None:          # a confirmed-empty page: no evidence of reach, so nothing is removed (A5-D2)
     #       return []
     #   skipped = set(excluded_dates)
     #   return [
@@ -642,7 +642,7 @@ def removed_by_absence(
 def withhold_if_mass_removal(
     removals: list[StoredShow], in_window_active: list[StoredShow], policy: ReconcilePolicy
 ) -> tuple[list[StoredShow], list[StoredShow]]:
-    """D10: `(removals to do, removals withheld)`. A page that is merely truncated passes validation and would wipe
+    """A5-D10: `(removals to do, removals withheld)`. A page that is merely truncated passes validation and would wipe
     most of the calendar silently, so a run that would remove at least `min_removals_to_guard` shows AND more than
     `max_removal_share` of the active shows in the window removes none of them, and the plan says so."""
     if len(removals) >= policy.min_removals_to_guard and len(removals) > policy.max_removal_share * len(in_window_active):
@@ -662,11 +662,11 @@ def build_plan(
 ) -> ReconcilePlan:
     """Decide everything for one venue run, in the order each step needs the last:
 
-    1. Pair listings with stored shows (K1). This compares act NAMES, so it needs no artist resolution.
+    1. Pair listings with stored shows (A5-K1). This compares act NAMES, so it needs no artist resolution.
     2. Resolve artists, once per distinct name, **only for scheduled listings**: a cancelled listing never inserts or
        updates a lineup, so its acts cost no model call and create no artist.
-    3. Decide each listing's action (K3) and its changes.
-    4. Remove stored shows absent from the page, inside the window (K2), then apply the guard.
+    3. Decide each listing's action (A5-K3) and its changes.
+    4. Remove stored shows absent from the page, inside the window (A5-K2), then apply the guard.
     5. Sort in calendar order. `plan.artists` holds only resolutions some decision uses.
     """
     matched = match_shows(inputs.listings, stored)

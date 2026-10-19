@@ -14,7 +14,7 @@ WEB := calendar
 
 .DEFAULT_GOAL := help
 .PHONY: help setup dev api web db db-up db-down db-reset db-shell db-wait worker \
-        migrate migration seed fixtures types contract-check test lint typecheck \
+        migrate migration seed fixtures types contract-check designation-check test lint typecheck \
         check clean
 
 help: ## Show this help
@@ -129,6 +129,9 @@ fixtures: ## Regenerate the frontend JSON fixtures from app/sample_data.py
 types: ## Regenerate lib/api-types.ts from FastAPI's OpenAPI schema
 	cd $(API_DIR) && uv run python -m scripts.dump_openapi
 	pnpm exec openapi-typescript $(API_DIR)/openapi.json -o apps/$(WEB)/lib/api-types.ts
+
+designation-check: ## Fail if lines added since BASE=<ref> use a bare D5/K2/PR1-3 outside their plan (docs/dev/conventions.md)
+	@python3 scripts/check_designations.py $(BASE)
 
 contract-check: ## Fail if the generated contract output is stale
 	@snap=$$(mktemp -d); \

@@ -1,11 +1,11 @@
 """Tests for what reconcile's audit rows contain: the summary row and one row per model decision about an artist.
 
-Milestone A5 (docs/dev/implementations/a5-reconcile.md, D11 and Test approach §4). `audit.entry_for` and
+Milestone A5 (docs/dev/implementations/a5-reconcile.md, A5-D11 and Test approach §4). `audit.entry_for` and
 `audit.model_decision_entries` are pure functions of the state, so the rules about what is recorded are tested here
 without a graph or a database, as test_audit_entries.py does for the other steps. The keys of the summary row's
 `detail` are read by `docs/dev/audit-queries.sql`; changing one means changing both.
 
-Expected values come from D11 (what each row carries), data-model-initial.md §3 (`audit_log` columns) and A3-D9
+Expected values come from A5-D11 (what each row carries), data-model-initial.md §3 (`audit_log` columns) and A3-D9
 ("no confidence" is no evidence, not zero), and the literal inputs.
 """
 
@@ -48,8 +48,8 @@ def matched(confidence: float | None = 0.9) -> ArtistResolution:
 
 
 def test_the_summary_row_counts_every_action_and_names_the_window() -> None:
-    # Proves (D11): the reconcile row is venue-level and carries the counts (every action present, so the row's
-    # shape doesn't depend on the run), the window it judged removals inside (D1), and the number of model
+    # Proves (A5-D11): the reconcile row is venue-level and carries the counts (every action present, so the row's
+    # shape doesn't depend on the run), the window it judged removals inside (A5-D1), and the number of model
     # decisions. It takes the attempt number of the attempt that passed, like validate's.
     plan = ReconcilePlan(
         Coverage(day(12), day(31)),
@@ -65,14 +65,14 @@ def test_the_summary_row_counts_every_action_and_names_the_window() -> None:
 
 
 def test_a_page_with_no_dates_records_a_null_window() -> None:
-    # Proves (D2): a confirmed-empty page has no window, and the row says so (`coverage: null`) rather than
+    # Proves (A5-D2): a confirmed-empty page has no window, and the row says so (`coverage: null`) rather than
     # inventing a range, which is how a person reading the trail learns nothing was removed and why.
     detail = entry_for(StepType.RECONCILE, state_with(ReconcilePlan(None, ()))).detail
     assert detail["coverage"] is None and detail["counts"]["remove"] == 0
 
 
 def test_the_summary_lists_what_a_person_should_look_at_and_what_the_guard_held_back() -> None:
-    # Proves (D10, "Settled details"): flagged decisions and withheld removals are in the row, each with its
+    # Proves (A5-D10, "Settled details"): flagged decisions and withheld removals are in the row, each with its
     # date, time, stored id and reason, so "what did reconcile hold back, and what is unsure?" is a query.
     flagged = decision(Action.INSERT, needs_review=True, listing=listed(0, day(20), at(20), acts=["Nona"]))
     held = decision(Action.REMOVE, stored_id=3, reason="absent from the page (withheld by the removal guard)")
@@ -82,7 +82,7 @@ def test_the_summary_lists_what_a_person_should_look_at_and_what_the_guard_held_
 
 
 def test_a_model_decision_has_its_own_row_with_model_and_confidence() -> None:
-    # Proves (D11): an artist the MODEL decided gets a `reconcile` row: entity = the artist it linked, `model_used`,
+    # Proves (A5-D11): an artist the MODEL decided gets a `reconcile` row: entity = the artist it linked, `model_used`,
     # the confidence in the column's Decimal form, and the name, answer, reason and candidates in `detail`. A
     # rule-decided artist gets none (the summary counts it).
     rule = ArtistResolution("Nona", "nona", "exact", 7, "rule")
@@ -99,7 +99,7 @@ def test_a_model_decision_has_its_own_row_with_model_and_confidence() -> None:
 
 
 def test_a_fallback_after_a_failed_call_is_a_row_with_no_confidence_not_zero() -> None:
-    # Proves (A3-D9, D9): when the model call failed there is no confidence, and the audit trail must say NULL, not
+    # Proves (A3-D9, A5-D9): when the model call failed there is no confidence, and the audit trail must say NULL, not
     # 0.000 (which A8 would read as "the model was certain it was wrong"). The row exists anyway: the fallback is
     # visible, with the failure in the reason, and `entity_id` is None because the artist doesn't exist yet.
     failed = ArtistResolution(

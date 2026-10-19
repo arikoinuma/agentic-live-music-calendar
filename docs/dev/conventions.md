@@ -71,8 +71,9 @@ So `A3-Gap-B` (`classify_page`) is now `A3-K2`.
    defined in A2's lever list, so it is `A2-S6` even where A2.1 cites it.
 2. **Scope cross-references, not in-file items.** Inside the document that defines an ID, a
    bare ID is fine: `D3` in A1 is A1's own D3, so it stays `D3`. Only a reference to another
-   document's item carries its scope, for example `A2.1-D3` written in A1. Code and tests
-   always scope, since they cite plans rather than define them.
+   document's item carries its scope, for example `A2.1-D3` written in A1. Code, tests and code
+   comments always scope, **even when they implement the one plan in view**, since they cite plans
+   rather than define them (`A5-D7` in `reconcile.py`, never `D7`).
 3. **Write the token form:** `A2.1-D5`, with no space and no comma. It is one token, so it
    can be searched for, and a reader sees it as one thing.
 4. **Review items say which review they belong to.** A plan has two kinds of review round,
@@ -84,13 +85,26 @@ So `A3-Gap-B` (`classify_page`) is now `A3-K2`.
 
 ### Checking
 
-This search finds bare designations. It excludes the virtualenv, caches, and generated
+**For new work, run the branch check** (it looks only at the lines a branch adds, so the exceptions below don't
+get in the way):
+
+```
+make designation-check BASE=<the commit before the work began>
+```
+
+`BASE` is the diff base the milestone's Implementation log names. The script is `scripts/check_designations.py`: it reads
+the added lines (committed, uncommitted and new files), skips the plan files under `docs/dev/implementations/` (they
+define their own IDs, so bare is right there), and flags `D`, `E`, `F`, `S`, `G`, `K` and `PR`/`CR` tokens with no
+scope. A token that is not a designation (a ruff code, "S3") is silenced with `designation-ok` on the line, or `noqa`.
+Its default base is the merge-base with `origin/main`, which is only right when a branch holds one milestone.
+
+**To audit the whole repo,** this search finds bare designations. It excludes the virtualenv, caches, and generated
 files:
 
 ```
 grep -rnE --exclude-dir=.venv --exclude-dir=node_modules --exclude-dir=.mypy_cache \
   --exclude-dir=__pycache__ --exclude-dir=.next -I \
-  '(^|[^A-Za-z0-9._-])(D|E|F|S|G)[0-9]+([^0-9]|$)|Gap[s]? [A-E]\b' .
+  '(^|[^A-Za-z0-9._-])(D|E|F|S|G|K)[0-9]+([^0-9]|$)|Gap[s]? [A-E]\b' .
 ```
 
 A hit inside the document that defines the ID is fine. Any other hit is a cross-reference

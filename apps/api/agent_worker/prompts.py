@@ -214,7 +214,7 @@ def extraction_instruction(
 def artist_match_instruction(incoming: str, candidates: list[tuple[int, str]]) -> str:
     """The question for an ambiguous artist name: is `incoming` the same act as one of the candidates?
 
-    A5 (docs/dev/implementations/a5-reconcile.md, D9). The name is close to existing artists but not
+    A5 (docs/dev/implementations/a5-reconcile.md, A5-D9). The name is close to existing artists but not
     equal to any, and a rule can't settle it ("Zhora" and "Zhora Band"), which is the one place reconcile
     asks a model (arch-initial.md §7, `LLMMatch`). Narrow on purpose, like the act splitter's: one
     incoming name, a few numbered candidates, and an answer that is a candidate's id or null. The id

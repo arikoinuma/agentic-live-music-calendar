@@ -14,7 +14,7 @@ HOW TO READ THIS
   duplicate of every show.
 
 WHAT IT RETURNS
-  Shows in a date range of every status (`removed` included: a returning show is found among them, D7), each with
+  Shows in a date range of every status (`removed` included: a returning show is found among them, A5-D7), each with
   its lineup, and every artist as (id, name). One short, read-only session per call, like the audit writer's.
 
 docs/dev/implementations/a5-reconcile.md.

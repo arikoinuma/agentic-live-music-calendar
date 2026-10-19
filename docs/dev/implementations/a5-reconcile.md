@@ -1012,6 +1012,24 @@ flagged whole), because the review showed the plan hadn't said them.
 a date); `lineup_for` (the sort and the distinct-numbers rule, because a wrong order is a nightly update); the batch
 flagging in `match_shows`.
 
+### Round 3 — Claude Sonnet 5.5, October 19, 2026 (scoped designations; a comment-only pass)
+
+**Scope.** Ari noticed that comments cited plan items bare (`# D7: the same row comes back`), against
+`docs/dev/conventions.md` rule 2 ("Code, tests and code comments always scope"). All 14 A5 source and test files that had
+them were rewritten to the scoped form (`A5-D7`, `A5-K1`, `A5-PR1-4`, `A5-CR1-2`); one line in `alpha-build-plan.md` too.
+Nothing else changed in the code.
+
+**Verification (a comment-only pass, as `AGENTS.md` asks).** Syntax trees compared before and after with docstrings
+stripped: **identical in all 14 files**. `ruff` clean. `REQUIRE_DB=1 uv run pytest`: 668 passed, 112 failed, 10 errors,
+15 skipped, the same as before the pass (all 122 red results are `NotImplementedError: TODO(Ari)`; gaps still open). The
+new `make designation-check BASE=886e04e` exits 0 on the branch, and fails on a planted bare `D9`.
+
+**Process change (so this does not recur).** `AGENTS.md` ("Cross-references carry a scope") now says code, tests and comments
+write the scoped form even when implementing the one plan in view; `docs/dev/conventions.md` rule 2 and "Checking" say the
+same and document `make designation-check` (`scripts/check_designations.py`, which reads only the lines a branch adds);
+the `build-milestone` skill cites scoped IDs while implementing and runs the check before review and after resolving;
+`plan-milestone` asks for a "Designations" paragraph; the `plan-reviewer` agent runs the check on a code review.
+
 ## Code review
 
 ### Round 1 — Claude Opus 5.5, October 17, 2026

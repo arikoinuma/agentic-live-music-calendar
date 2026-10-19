@@ -8,8 +8,7 @@ order, for one venue only, plus every artist.
 How to read it: `calendar` seeds the four starting venues, a handful of artists and five shows (some for another
 venue, some out of range, one removed), using `polyfactory` for the columns nobody asserts on (photo and website
 links, image URLs: filler) and explicit values for everything a test checks (names, dates, times, statuses). Random
-names or dates would make the expected values depend on the seed rather than on the requirements (plan review
-finding 15). Expected values are the literal rows seeded here, and the contract in `calendar_reader.py`.
+names or dates would make the expected values depend on the seed rather than on the requirements (A5-PR1-15). Expected values are the literal rows seeded here, and the contract in `calendar_reader.py`.
 """
 
 import datetime
@@ -115,7 +114,7 @@ async def test_it_returns_this_venues_shows_in_the_range_of_every_status(
     factory: async_sessionmaker[AsyncSession], calendar: dict[str, Any]
 ) -> None:
     # Proves: the range is inclusive, only the asked-for venue's shows come back, and a REMOVED show is among them
-    # (reconcile needs it to bring a returning show back instead of duplicating it, D7). Venue B's show and the
+    # (reconcile needs it to bring a returning show back instead of duplicating it, A5-D7). Venue B's show and the
     # November show are not returned.
     reader = PostgresCalendarReader(factory)
     shows = await reader.stored_shows(calendar["venues"]["a"], datetime.date(2026, 10, 20), datetime.date(2026, 10, 25))

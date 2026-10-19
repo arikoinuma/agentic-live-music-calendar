@@ -153,7 +153,7 @@ def _reconcile_detail(state: VenueGraphState) -> dict[str, Any]:
 
     Keys (also listed in docs/dev/audit-queries.sql): `counts` (decisions per action), `coverage` (the window
     removals were judged inside, or null for a page with no dates), `needs_review` (decisions where a guess
-    was involved), `withheld` (removals the guard held back, D10), `artists` (resolutions per outcome) and
+    was involved), `withheld` (removals the guard held back, A5-D10), `artists` (resolutions per outcome) and
     `model_decisions` (how many the model made; each has its own row).
     """
     plan = state.reconcile_plan

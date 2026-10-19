@@ -2,12 +2,12 @@
 
 Milestone A5 (docs/dev/implementations/a5-reconcile.md, Test approach §4). The pure rules are tested in
 test_reconcile_shows.py, test_reconcile_removal.py and test_artist_match.py; these prove the pieces are wired: the
-wrapper reads the stored calendar before the node runs, the plan reaches the state, the audit rows are the ones D11
+wrapper reads the stored calendar before the node runs, the plan reaches the state, the audit rows are the ones A5-D11
 describes, and an unreadable calendar stops the run instead of looking empty. The model is `fakes.scripted_client`; the
 stores are the recording fakes plus `fakes.FakeReader`, so no database is involved (test_reconcile_db.py is the
 real-database layer).
 
-Expected values come from the plan (D1, D2, D6, D9, D11 and "Settled details") and the literal page: the one event is
+Expected values come from the plan (A5-D1, A5-D2, A5-D6, A5-D9, A5-D11 and "Settled details") and the literal page: the one event is
 "Nona" at 8 PM Central on October 20, 2026, fetched October 12.
 """
 
@@ -79,7 +79,7 @@ async def test_the_first_run_over_an_empty_calendar_inserts_and_records_it(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Proves: a calendar with nothing stored turns the page's one show into one insert. The reconcile row is
-    # venue-level (D11) and its detail carries the counts and the window (D1): the fetch date to the last date the
+    # venue-level (A5-D11) and its detail carries the counts and the window (A5-D1): the fetch date to the last date the
     # page lists. The reader was asked for exactly that range.
     reader = FakeReader()
     state, audit = await run_reconcile(tmp_path, monkeypatch, NONA_PAGE, {SPLITTER: [NONA]}, reader)
@@ -103,7 +103,7 @@ async def test_a_second_run_over_what_the_first_wrote_changes_nothing(
 
 
 async def test_a_cancelled_listing_removes_the_stored_show(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # Proves (D6) through the whole pipeline: the venue marks the show cancelled in its structured data
+    # Proves (A5-D6) through the whole pipeline: the venue marks the show cancelled in its structured data
     # (schema.org `eventStatus`, read by the JSON-LD route), and the stored show it matches is removed with the
     # reason `cancelled`.
     page = jsonld_page(event("Nona", "2026-10-20T20:00:00-05:00", eventStatus="https://schema.org/EventCancelled"))
@@ -117,7 +117,7 @@ async def test_a_cancelled_listing_removes_the_stored_show(tmp_path: Path, monke
 async def test_a_model_decision_about_an_artist_gets_its_own_audit_row(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Proves (D9, D11): "Zhora Band" is similar to the stored artist "Zhora" (id 8), so the model is asked and says
+    # Proves (A5-D9, A5-D11): "Zhora Band" is similar to the stored artist "Zhora" (id 8), so the model is asked and says
     # same, 0.9. The summary row comes first, then a second `reconcile` row for the decision: entity = that artist,
     # `model_used`, the confidence as a Decimal, and the reason and candidates in `detail`. This is "the one place
     # a model makes a database decision", and the reason it needs its own row.
@@ -162,7 +162,7 @@ async def test_an_unreadable_calendar_stops_the_run_with_no_reconcile_row(
 async def test_a_confirmed_empty_page_reads_nothing_and_removes_nothing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Proves (D2, decided A): the model reads the page and says it lists no shows. A stored show is untouched, the
+    # Proves (A5-D2, decided A): the model reads the page and says it lists no shows. A stored show is untouched, the
     # reader was never asked for shows (there is no window to read), and the reconcile row says `coverage: None`.
     reader = FakeReader([stored_nona(tmp_path)], [KnownArtist(7, "Nona")])
     state, audit = await run_reconcile(

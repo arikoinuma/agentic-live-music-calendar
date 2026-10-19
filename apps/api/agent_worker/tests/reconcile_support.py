@@ -82,7 +82,7 @@ KNOWN = [NONA, ZHORA, PRINCE]
 def inputs_for(
     listings: Sequence[Listing], *, fetched: datetime.date = FETCHED, excluded: Iterable[datetime.date] = ()
 ) -> ReconcileInputs:
-    """The reconcile inputs for a page with these listings; the window is derived as the pipeline derives it (D1)."""
+    """The reconcile inputs for a page with these listings; the window is derived as the pipeline derives it (A5-D1)."""
     excluded = frozenset(excluded)
     return ReconcileInputs(tuple(listings), excluded, covered_window(listings, excluded, fetched), fetched)
 
