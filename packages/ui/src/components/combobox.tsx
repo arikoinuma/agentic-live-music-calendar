@@ -233,9 +233,15 @@ function ComboboxChip({
   className,
   children,
   showRemove = true,
+  removeLabel,
   ...props
 }: ComboboxPrimitive.Chip.Props & {
   showRemove?: boolean
+  // The remove button holds only an icon, so without this it has no
+  // accessible name and a screen reader announces just "button". Callers
+  // that know what the chip is should pass e.g. "Remove Zhora Darling"
+  // (apps/calendar B5-D3).
+  removeLabel?: string
 }) {
   return (
     <ComboboxPrimitive.Chip
@@ -252,6 +258,7 @@ function ComboboxChip({
           render={<Button variant="ghost" size="icon-xs" />}
           className="-ml-1 opacity-50 hover:opacity-100"
           data-slot="combobox-chip-remove"
+          aria-label={removeLabel}
         >
           <XIcon className="pointer-events-none" />
         </ComboboxPrimitive.ChipRemove>

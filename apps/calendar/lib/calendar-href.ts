@@ -57,3 +57,17 @@ export function withIds(
 ): CalendarFilters {
   return { ...filters, [key]: [...new Set(ids)].sort((a, b) => a - b) };
 }
+
+/**
+ * True when any filter narrows the calendar: a venue, an artist or a month.
+ *
+ * Two places need this answer and used to each spell it out: the filter
+ * header (does it offer "Clear filters"?) and the home page (is an empty
+ * result "No matches found, reset" or just an empty window?). One function
+ * means they can't disagree. It lives here, not in lib/params.ts, because
+ * the header is a Client Component and may only import Temporal-free code
+ * (see the top of this file). Pinned by calendar-href.test.ts (B5-D1).
+ */
+export function hasActiveFilters(filters: CalendarFilters): boolean {
+  return filters.venueIds.length > 0 || filters.artistIds.length > 0 || filters.month !== null;
+}
