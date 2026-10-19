@@ -63,4 +63,9 @@ export const BASELINE: BaselineEntry[] = [
   { page: "/ venues popup open @1280", ruleId: "aria-hidden-focus", nodes: 5, finding: "B6-F2" },
   { page: "/ artists popup open, option highlighted @1280", ruleId: "aria-hidden-focus", nodes: 5, finding: "B6-F2" },
   { page: "/ month popup open @1280", ruleId: "target-size", nodes: 6, finding: "B6-F1" },
+  // Painted focus indicators and unfocused control borders, measured from screenshots
+  // (focus-indicator.spec.ts, Step 6). `nodes` counts the controls below 3:1: all six
+  // focus targets measured, and both form controls' borders.
+  { page: "focus indicators and borders @1280", ruleId: "b6-focus-indicator-3to1", nodes: 6, finding: "B6-F3" },
+  { page: "focus indicators and borders @1280", ruleId: "b6-control-border-3to1", nodes: 2, finding: "B6-F6" },
 ];

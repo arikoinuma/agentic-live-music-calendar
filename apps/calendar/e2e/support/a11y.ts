@@ -48,6 +48,15 @@ export async function expectBaseline(page: Page, label: string): Promise<void> {
     ruleId: v.id,
     nodes: v.nodes.length,
   }));
+  expectMatchesBaseline(label, found);
+}
+
+/**
+ * Hold a list of findings for `label` to the baseline rows for `label`. Used for axe's
+ * violations above and for the checks axe cannot make (painted focus-indicator contrast,
+ * control borders), which report their own findings so ONE baseline governs both.
+ */
+export function expectMatchesBaseline(label: string, found: Finding[]): void {
   const { added, stale } = compareToBaseline(
     found,
     BASELINE.filter((entry) => entry.page === label),
@@ -57,7 +66,7 @@ export async function expectBaseline(page: Page, label: string): Promise<void> {
   // fix; "stale" is a fix to record by lowering or deleting the baseline row.
   expect(
     added,
-    `${label}: accessibility violations NOT in the baseline (new, or more elements than known) [rule@page, elements]`,
+    `${label}: findings NOT in the baseline (new, or more elements than known) [rule@page, elements]`,
   ).toEqual([]);
   expect(
     stale,
