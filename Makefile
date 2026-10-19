@@ -15,7 +15,7 @@ WEB := calendar
 .DEFAULT_GOAL := help
 .PHONY: help setup dev api web db db-up db-down db-reset db-shell db-wait worker \
         migrate migration seed fixtures types contract-check test lint typecheck \
-        check clean
+        e2e check clean
 
 help: ## Show this help
 	@echo "Agentic Live Music Calendar — local development"
@@ -156,7 +156,7 @@ contract-check: ## Fail if the generated contract output is stale
 # Checks — these mirror .github/workflows/ci.yml
 # ---------------------------------------------------------------------
 
-check: lint typecheck test contract-check ## Run everything CI runs
+check: lint typecheck test contract-check e2e ## Run everything CI runs
 
 lint: ## ruff + eslint
 	cd $(API_DIR) && uv run ruff check .
@@ -171,6 +171,20 @@ typecheck: ## mypy + tsc
 test: ## pytest (DB tests required) + vitest
 	cd $(API_DIR) && REQUIRE_DB=1 uv run pytest
 	pnpm turbo run test
+
+# End-to-end tests (B6). Playwright starts its own stack, so this needs no running
+# `make dev`: the real FastAPI app on the sample data (8101), a pass-through proxy
+# (8102) and `next start` on a production build (3100). Other ports than `make dev`
+# on purpose, so the two never collide. Chromium: a laptop runs
+# `pnpm --filter calendar exec playwright install chromium` once; a cloud session sets
+# E2E_CHROMIUM_PATH (scripts/cloud-setup.sh does). Extra Playwright arguments go in
+# E2E_ARGS, e.g. make e2e E2E_ARGS="--repeat-each=3".
+# The build's API_BASE_URL only has to exist: every route is dynamic, so nothing is
+# fetched at build time (apps/calendar/AGENTS.md).
+E2E_ARGS ?=
+e2e: ## Playwright end-to-end tests (builds the app, starts API + proxy + Next)
+	API_BASE_URL=http://127.0.0.1:8102 pnpm --filter $(WEB) build
+	pnpm --filter $(WEB) exec playwright test $(E2E_ARGS)
 
 clean: ## Remove caches and build output
 	rm -rf .turbo apps/*/.turbo apps/*/.next

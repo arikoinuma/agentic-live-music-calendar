@@ -18,6 +18,10 @@ coverage
 # Turbo
 .turbo
 
+# Playwright (B6): the HTML report and per-test traces/screenshots
+playwright-report/
+test-results/
+
 # Vercel
 .vercel
 

@@ -1,6 +1,6 @@
 # B6 — accessibility and end-to-end tests
 
-**Status:** Awaiting approval
+**Status:** Approved; building. Step 1 is done and the build is **paused for Ari's first run** (D11); Step 2 has not been started
 **Date:** October 19, 2026
 **Author model:** Claude Sonnet 5.5
 **Reviewer model:** Claude Opus 5.5 (plan review round 1)
@@ -95,7 +95,7 @@ Not findings, recorded so nobody re-checks them: reflow at 320/375 passes everyw
 
 ## Decisions for the user / reviewer
 
-Each has a recommendation and the alternative on record. **Ari: D1, D2, D4, D5, D6 and D9 change what gets built or how it is run; the rest are low-stakes.**
+**Settled by Ari, October 19, 2026: D1–D10 are accepted as recommended, and the plan is approved for implementation, with one addition (D11).** Each decision below keeps its recommendation and its alternative on record. **Ari: D1, D2, D4, D5, D6 and D9 change what gets built or how it is run; the rest are low-stakes.**
 
 - **D1 — The stack the tests run against. Recommended: the real FastAPI app serving `sample_data.py`** (P2, fact 3), started by Playwright's `webServer` on dedicated ports (API 8101, proxy 8102, Next 3100, so a running `make dev` is never reused and never collides). *Alternatives:* a stub serving `lib/fixtures` (the fixtures are response bodies, not the logic that picks them, so the stub would re-implement the filters, ranges, `upcoming`, 404s and 422s, and could drift); or wait for A1b and use a seeded Postgres (blocks B6 on another milestone, and the seed has no shows). *Consequence of the recommendation:* when A1b swaps the routers onto the database, the e2e job gains a Postgres service and a deterministic show seed; A1b already has an open item about keeping a sample-data source (build plan A1b, last bullet), and this strengthens it (Follow-ups).
 - **D2 — How the clock is pinned. Recommended: a test-only `--import` preload on the Next server that patches `Date.now`** (fact 7), the pin held as one constant (`2026-10-07T17:00:00Z`, noon Wednesday in Minneapolis, inside the sample window with five shows on it) and **guarded by a Vitest test** that fails when the pin leaves the fixtures' window or its date has no show. *Alternatives:* an env override read by the app (a production hook that exists only for tests); or no pin and no assertion on the Today row (loses the only browser-level check of `aria-current="date"`). Note the guard replaces the build plan's "move the pin in the same change" memo with a red test.
@@ -107,6 +107,7 @@ Each has a recommendation and the alternative on record. **Ari: D1, D2, D4, D5, 
 - **D8 — The skeleton's handle. Recommended: a visually hidden `role="status"` paragraph "Loading shows" beside the decorative bars** (which stay `aria-hidden`). It gives a role-based test its locator, and a screen-reader user who browses the page finds a loading state (F5). It does **not** promise an announcement: a live region already present in the first HTML with its text is generally not announced, and neither is its removal (PLAUSIBLE; not run in a screen reader), so whether anything is spoken stays a manual-pass question and `aria-busy` on the results region is the other common pattern. Same shape as B5-D3 (a defect found while writing tests, fixed with a test first). It touches `calendar-skeleton.tsx` and its message. **Approving D8 is the mark** for this one production change, so it is made in round 1 (Step 5) and F5 is recorded as "markup fixed by D8", not left for Ari to mark again. *Alternatives:* a `data-testid` (breaks the project's "role, name or label only" rule and leaves F5); a class selector on `animate-pulse` (brittle, same).
 - **D9 — Process around findings. Recommended: two implementation rounds.** Round 1 builds Steps 1–7, records the findings table with proposed severities, passes code review, and stops at `Awaiting sign-off` with the **marking request first in the handoff**. Ari marks F-items; round 2 (Step 8) fixes the marked ones, each in its own commit, test first, then sign-off. This uses `AGENTS.md`'s existing "second implementation pass gets its own log round", and honours the build plan's "Ari marks, then fixed" without a mid-run stop. *Alternatives:* the build run fixes everything it proposes as must-fix without waiting (WCAG AA is already a stated requirement, so the decision could be treated as made, but the build plan says Ari marks); or a mid-build stop after Step 3 (changes the cycle's gates). One exception to "nothing is fixed before Ari marks it": D8's skeleton markup, because approving D8 is its mark.
 - **D10 — Marking. Recommended: K1–K3 [fill-in]; everything else [written].** K1 (the clock pin) is the server/browser split this project exists to teach: Server Components run on the Next server, so the browser's clock tools cannot reach them. K2 (the focus-obscured predicate) is a lesson about *what the check means*. K3 (the reflow predicate) is the weakest (two lines); if Ari wants fewer gaps, drop K3 and keep it [written]. **The ratchet comparison was a candidate and is [written] on purpose** (plan review round 1, finding 1): while open, every axe-backed test would throw, so the baseline rows and most of Steps 3, 5 and 6 could not be verified. *Alternative:* all [written], which `AGENTS.md` allows when no line carries a lesson; this plan thinks two do.
+- **D11 — A pause after Step 1's first green test. Decided: yes (added by Ari, October 19, 2026).** This is Ari's first time with Playwright, so when Step 1's one end-to-end test is green the build **stops and hands off**: Ari checks the branch out (or `claude --teleport`) and runs that test himself to get a feel for it, then tells the next session to continue with Step 2. The branch is committed and pushed at the pause (a cloud session's work only reaches Ari through the branch, `AGENTS.md` "Cloud sessions"). Nothing after Step 1 is started before then. *Consequence for the cycle:* the build is no longer one run. The Implementation log gets a round per run (this pause is round 1, scoped to Step 1), and **the second-model code review waits until all implementation is finished** (Ari: no mid-build review), so the review round covers Steps 1–7 together. Ari's D9 findings-marking gate is unchanged.
 
 ## WCAG 2.2 AA coverage matrix
 
@@ -512,3 +513,67 @@ cannot be verified by the build, and the Verification section's "every other tes
 | 18 | nit | **Gap choice: K3 is weak, as D10 says. A stronger lesson sits in the clock pin.** "`page.clock` cannot reach a Server Component, so the pin goes on the Next server, and only `Date.now`" is the RSC server/browser split this learning project is about. The two `fake-now.mjs` lines (or the `webServer` `env` that scopes `NODE_OPTIONS` to the Next process) would make a better gap than K3's `scrollWidth` comparison. Check: J1's Today row, and M9 | Plan: D2, D10, K3; S1 ("`page.clock` is browser-side"). Judgement | A gap that teaches a measurement idiom where one could teach the architecture | **Fixed.** The clock pin is now K1 (Step 2, D10): `Date.now = () => FROZEN` in `fake-now.mjs`, with the server/browser lesson. Its placeholder is a missing line, not a `throw`, so an open gap reddens only J1 (reasoned in the gap). K3 stays as the weakest gap, flagged in D10 for Ari to drop. |
 
 Rejected: none. All 18 findings were accepted; the blocker (finding 1) was resolved by changing which lines are `TODO(Ari)` gaps, which is a plan change rather than a rejection.
+
+## Implementation log
+
+### Round 1 — Step 1, the harness and one green test (Claude Sonnet 5.5, October 19, 2026)
+
+**Paused here on purpose (D11).** Ari runs the one test himself before Step 2 starts. No second-model review yet: it runs once, after all implementation (D11).
+
+**Scope:** working tree on `claude/sharp-euler-uoi339` against base `2efabbd`; committed and pushed at the pause so Ari can run it (a cloud session's work only reaches him through the branch). Files:
+
+| File | Change |
+|---|---|
+| `apps/calendar/e2e/home.spec.ts` | new: J1's first half, written **first** (red: no browser path, no stack) |
+| `apps/calendar/e2e/support/{stack.ts,delay-proxy.mjs,test.ts}` | new: ports, the pass-through proxy (controls come in Step 4), the shared `test`/`expect` |
+| `apps/calendar/playwright.config.ts` | new: `testMatch`, one worker, no retries, three `webServer` entries, `E2E_CHROMIUM_PATH` |
+| `apps/calendar/package.json`, `pnpm-lock.yaml` | `@playwright/test` 1.64.1 (the lockfile's `next@16.3.0(…)` key gains the optional-peer suffix, plan fact 1) |
+| `apps/calendar/eslint.config.js` | a scoped `process` global for `e2e/**/*.mjs` |
+| `turbo.json` | `globalPassThroughEnv`: `E2E_CHROMIUM_PATH`, `CI` |
+| `Makefile` | `make e2e`, `E2E_ARGS`, and `e2e` added to `make check` (D4) |
+| `.github/workflows/ci.yml` | the `e2e` job, carrying `--repeat-each=3` for this commit |
+| `.gitignore` | `playwright-report/`, `test-results/` |
+| `scripts/cloud-setup.sh` | exports `E2E_CHROMIUM_PATH` through `CLAUDE_ENV_FILE` |
+| this plan | Status, D11 |
+
+**Departures from the plan**
+1. **ESLint's `.mjs` block declares `process` inline** (`globals: { process: "readonly" }`), not `globals.node`: the `globals` package is a dependency of `packages/eslint-config`, not of `apps/calendar`, and pnpm's strict layout would not resolve it. A direct dependency would be a third unapproved one. The block is correct for what the two files use today; widen it if a later file needs more.
+2. **`CI` is declared in `globalPassThroughEnv` too.** The config reads it to choose the reporter and `eslint-plugin-turbo` flagged it (`--max-warnings 0`).
+3. **`make e2e` passes `API_BASE_URL=http://127.0.0.1:8102` to the build.** Nothing is fetched at build time, but the variable has to exist; the plan did not say.
+4. **The CI job caches the browser with `actions/cache@v4`**, which the repo's workflows did not use before. Its version is the one I know; the job has not run (see Not verified).
+5. **The proxy's readiness URL is `/health`, forwarded to the API,** so the proxy is "ready" only when the API is. That is what the order of the `webServer` entries needs anyway.
+
+**`TODO(Ari)` gaps:** none open yet. K1 arrives in Step 2, K2 and K3 in Step 6.
+
+**Verification** (Node 22.22.0, this sandbox)
+- Red first: with only a bare config, the test failed with `Executable doesn't exist at /opt/pw-browsers/chromium_headless_shell-1248/…` (no browser path, no stack).
+- `E2E_CHROMIUM_PATH=/opt/pw-browsers/chromium make e2e`: **1 passed** (0.6–1.0 s for the test; ~39 s with the build). uvicorn shut down gracefully ("Application shutdown complete").
+- `make e2e E2E_ARGS="--repeat-each=3"`: **3 passed** (0.58, 0.68, 0.66 s).
+- After each run, `curl` to 8101, 8102 and 3100 gets no answer (`000`) and `ps` shows no uvicorn, next-server or proxy process: **no orphans**.
+- `pnpm turbo run lint check-types test`: 7 of 7 tasks successful, **zero lint warnings**, 337 Vitest tests.
+- **`make check`: exit 0.** ruff clean; pytest 669 passed, 15 skipped (the known cloud skips); Vitest 337 passed; contract current; e2e 1 passed.
+
+**Not verified:** the CI job (a cloud session cannot run it before the push; its YAML parses and its steps mirror the local commands); Node 24 and Ari's laptop; `playwright install --with-deps chromium` and the `ms-playwright` cache path on the runner; the `cloud-setup.sh` export (the session hook had already run, so it takes effect at the next session start: check `echo $E2E_CHROMIUM_PATH` in a fresh cloud session); `gracefulShutdown` on a Mac or Windows laptop.
+
+**Where to look hardest:** `playwright.config.ts` is the file to read, since the rest of the milestone stands on it: the order and readiness of the three servers, `reuseExistingServer: false`, and the hand-off of `API_BASE_URL`. Second, the CI job, which nothing here has exercised.
+
+**How to run it yourself (D11)**
+
+```
+git fetch origin claude/sharp-euler-uoi339 && git checkout claude/sharp-euler-uoi339
+pnpm install
+(cd apps/api && uv sync)
+pnpm --filter calendar exec playwright install chromium     # one-time: Playwright's own browser
+make e2e                                                     # builds, starts the 3 servers, runs the test, stops them
+```
+
+To get a feel for it (each is the same command with `E2E_ARGS`):
+
+| Try | Command | What you see |
+|---|---|---|
+| Watch the browser | `make e2e E2E_ARGS="--headed"` | A real Chromium window opening the page |
+| UI mode | `make e2e E2E_ARGS="--ui"` | Playwright's inspector: every step, a DOM snapshot before and after it, a timeline |
+| Break it on purpose | change `"Live music"` to `"Live musicc"` in `e2e/home.spec.ts`, run `make e2e` | A failure that names the locator, what it waited for, and the page state; then `pnpm --filter calendar exec playwright show-trace test-results/<test folder>/trace.zip` replays it |
+| Step through | `make e2e E2E_ARGS="--debug"` | The Playwright Inspector, one action at a time |
+
+(Locally the reporter is `list`; the HTML report is for CI.) Then tell the next session to continue the build from Step 2.
