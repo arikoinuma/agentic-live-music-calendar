@@ -355,7 +355,8 @@ Scope agreed with Ari on October 17, 2026. Two things come out of it: the access
    | 7 | The Suspense skeleton is replaced by content | Streaming, which jsdom can't show (B5 backlog) |
 
 4. **Layout and modes.** Reflow at 320px and 375px: no page-level horizontal scroll. Axe in dark mode. A keyboard-only journey through the filter header and a show block.
-5. **Manual passes.** A keyboard and screen-reader pass (VoiceOver or NVDA), recorded in the B6 implementation log, done by Ari. The automated suite doesn't replace it.
+5. **Run, review, resolve.** Run the full suite, axe scan included, at the end of each step, and review the results with Ari. Every finding Ari marks should-fix or must-fix is fixed in B6 before the step closes, in its own commit, with a test that fails before the fix and passes after. Findings Ari marks nit, or leaves unmarked, are logged in the B6 implementation log and don't block the step.
+6. **Manual passes.** A keyboard and screen-reader pass (VoiceOver or NVDA), recorded in the B6 implementation log, done by Ari. The automated suite doesn't replace it.
 
 **Not in B6:** visual snapshots (until the UI settles), a browser matrix beyond Chromium, and API or agent tests (those stay in pytest). Open for the B6 plan, not this document: where the Playwright job runs in CI, and the stack option in Step 1.
 
