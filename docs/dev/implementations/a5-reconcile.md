@@ -835,6 +835,33 @@ rows with `entity_type = 'artist'`, joined to the run's venue. It uses `CAST(...
 6. Seed a stored show by hand on a date inside the fixture's range that the page doesn't list, re-run, and check the
    plan removes it, and one *after* the page's last date, and check it is left alone.
 
+**Local results (October 19, 2026).** Run by Claude Haiku 5.5 at Ari's request, on Ari's machine: Postgres 18 and
+MongoDB 7.0 from `docker compose`, Ollama serving `gemma4-e4b-32k` (`MODEL_NAME` in `apps/api/.env`), the saved White
+Squirrel fixture with `fetched_on` August 17, 2026, the JSON-LD route. Each step ran `local_test` and read the printed
+plan, the `reconcile` audit rows and the database.
+
+- **Step 4, runs 1 and 2** (after `make db-reset`, then `make seed`; no artists, no shows). Both runs passed validation on
+  the first attempt. Both plans: 12 `insert`, 0 `update`, 0 `no_op`, 0 `remove`, 0 `skip`; coverage August 17 to
+  August 22, 2026; 0 withheld; 27 artists resolved `new` by rule, 0 `exact`, 0 model calls. Both runs are the same plan,
+  so the second run is still all inserts, as expected while commit is a stub. Run 1 was started by mistake with its
+  output discarded; it is counted here because it gave the same plan as the run the plan asks for.
+- **Step 5, run 3** (`INSERT INTO artist (name) VALUES ('Nat Harriett')`, id 1). The plan is unchanged at 12 inserts.
+  One model decision, for "Nat Harriet" (similarity 0.957, so ambiguous): `matched_by_model`, `artist_id` 1,
+  `model_used` `gemma4-e4b-32k`, `confidence` 0.950, reason "The names are extremely similar, suggesting a minor
+  spelling variation of the same artist.", candidates `[{"id": 1, "name": "Nat Harriett"}]`. The other 26 names
+  resolved `new` by rule with no model call. The `artist_match_decisions` query returns exactly that row.
+- **Step 6, run 4** (stored shows seeded by hand at venue 1: August 19, 2026 at 23:00, id 1; August 25, 2026 at 20:00,
+  id 2; both `active`). The plan has 12 inserts and 1 `remove`: stored show 1, reason "absent from the page", inside
+  the window. Stored show 2 is not in the plan at all: it is after the window's end (August 22), and the reader loads
+  only August 17 to August 22, so it was never read. 0 withheld. Both rows are still `active` in the database, as
+  expected while commit is a stub.
+- **Deviation from step 6.** The fixture lists every date from August 17 to August 22, so there is no date inside the
+  range that the page does not list at all. The stored show used a time the page does not list on a listed date.
+  Under the "two different times never pair" rule (A5-D3), that is absent, and the result matches what the step checks.
+- **Audit trail.** Four runs, each with a venue-level `reconcile` row; runs 3 and 4 also have the artist decision row.
+- **Left in the local database after these runs:** artist 1 (Nat Harriett) and shows 1 and 2. `make db-reset` clears them.
+- **Still open:** all of this checks the decisions, not the calendar. Nothing was written to `show` or `event`; that is A6.
+
 ## Not doing in A5
 
 - **Writing to the calendar** — A6 (`commit_node`, the per-show `audit_log` rows with `previous_value` /
