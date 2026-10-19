@@ -1038,6 +1038,25 @@ same and document `make designation-check` (`scripts/check_designations.py`, whi
 the `build-milestone` skill cites scoped IDs while implementing and runs the check before review and after resolving;
 `plan-milestone` asks for a "Designations" paragraph; the `plan-reviewer` agent runs the check on a code review.
 
+### Round 4 — Claude Sonnet 5.5, October 19, 2026 (cleanup of the closed gaps; the designation check in CI)
+
+**Cleanup pass (`AGENTS.md` "[fill-in] tasks" step 4).** Ari had filled A5-K1 to A5-K5 (`efe95ca`) and removed the `TODO(Ari)` markers,
+`Code:`/`Check:` blocks and the `noqa`. What remained was formatting from the scaffold, so this pass made each block a plain
+why-comment in the style of its neighbours (`reconcile.py`: `_null_time_pairs`, `plan_for_listing`, `removed_by_absence`;
+`artist_match.py`: `classify_artist`, `decide_ambiguous`), dropped a comment that repeated its docstring, and removed the
+"(the scheduled path below is written)" aside. The reasoning and the plan-level references (`A5-D3`, `A5-D6`, the `A5-K1`..`A5-K5`
+section headers and test headers) are kept. One stale note of the same kind in A4's `test_run_venue.py` ("stay red until Ari
+fills …", closed in A4) was reworded. **Comment-only, verified as such:** syntax trees (docstrings stripped) identical before
+and after in all three files. No placeholder helper existed to delete (`lib/todo.ts` is the frontend's).
+
+**Designation check wired in.** `make designation-check` is now part of `make check` (default base: where the branch left
+`origin/main`) and a CI job, `designations`, on pull requests (base: the PR's own merge-base), with `fetch-depth: 0`. It caught a
+bare example in its own CI comment on the first run.
+
+**Verification.** `make check` end to end: **exit 0**. Python 790 passed, 15 skipped; JS 283 passed; ruff, mypy (`app/`),
+eslint, tsc and `make contract-check` clean; `make designation-check` exits 0. The five gaps are all filled (by Ari) and cleaned;
+no `TODO(Ari)` remains in the A5 files.
+
 ## Code review
 
 ### Round 1 — Claude Opus 5.5, October 17, 2026

@@ -399,14 +399,12 @@ def _null_time_pairs(
     unambiguous and they pair; with several, shared act names settle it, and a cancelled or postponed listing pairs
     only that way, never by date alone (its status is evidence about a specific show).
     """
-    #   The key is (venue, date, time), exact, with no fuzzy matching on shows
-    #   (arch-initial.md §7), and the whole subtlety is what a NULL does. In SQL `NULL = NULL` is not true, so a
-    #   naive key never finds an untimed show: every night would insert a duplicate and remove the old one
-    #   (A5-D3, a5-reconcile.md). The rule: two different times never pair (that is a time change, a cancelled show
-    #   plus a new one); a missing time on EITHER side pairs only when it is unambiguous (one listing and one
-    #   stored show left on the date) or when shared acts settle it; a cancelled/postponed listing pairs only on
-    #   shared acts, never by date alone; and a tie is broken the same way every run (`_assign_by_acts`) so
-    #   nothing churns.
+    # The key is (venue, date, time), exact, with no fuzzy matching on shows (arch-initial.md §7), and the subtlety is
+    # what a NULL does. In SQL `NULL = NULL` is not true, so a naive key never finds an untimed show: every night would
+    # insert a duplicate and remove yesterday's (A5-D3). Python's `None == None` is True, which is the opposite trap:
+    # comparing the two times directly would pair two different untimed shows but not an untimed one with a timed one,
+    # so the test is "either side is missing", not "the times are equal". A tie among several candidates is broken the
+    # same way every run (`_assign_by_acts`), so nothing churns.
     pairable = [(l, s) for l in listings for s in stored if l.time is None or s.start_time is None]
     if len(listings) == 1 and len(stored) == 1 and pairable and listings[0].is_scheduled:
         return [(*pairable[0], False)]
@@ -569,20 +567,19 @@ def plan_for_listing(
         return ShowDecision(action, listing.date, start_time, reason, listing=listing, **fields)
 
     if listing.status != "scheduled":  # cancelled / postponed
-        #   A cancelled or postponed listing is EVIDENCE ABOUT A STORED SHOW, not a show
-        #   (requirements-initial.md: "the agent has to match it to that stored record and update it"; A5-D6). It must
-        #   never be inserted. The status decides what the match means, which is why the answer depends on both the
-        #   listing and the stored show. (The scheduled path below is written: insert, reactivate a removed show,
-        #   or compare the details.)
-
+        # A cancelled or postponed listing is evidence about a stored show, not a show (requirements-initial.md: "the
+        # agent has to match it to that stored record and update it"; A5-D6). It is never inserted: the status decides
+        # what the match means, so the answer depends on both the listing and the stored show.
         if stored is None:
             return decide(Action.SKIP, f"{listing.status} listing, no stored show", start_time=listing.time)
         if stored.status is ShowStatus.ACTIVE:
             return decide(Action.REMOVE, listing.status, start_time=stored.start_time, stored_id=stored.id)
-        return decide(Action.NO_OP, f"already removed ({listing.status})",
-                    start_time=stored.start_time, stored_id=stored.id)
+        return decide(
+            Action.NO_OP, f"already removed ({listing.status})", start_time=stored.start_time, stored_id=stored.id
+        )
 
-    if stored is None: # since cancelled / postponed is caught above, now we assume it's a new show
+    # Cancelled and postponed listings returned above, so a scheduled listing with no stored twin is a new show.
+    if stored is None:
         return decide(Action.INSERT, "new show", start_time=listing.time, lineup=lineup)
     merged = merge_lineup(lineup, stored)
     changes = show_changes(stored, listing, merged, original_url)
@@ -605,12 +602,11 @@ def removed_by_absence(
     excluded_dates: Iterable[datetime.date],
 ) -> list[StoredShow]:
     """The stored shows the page no longer lists, inside the dates it reached (A5-D1, A5-D2)."""
-    #   A show is removed because the PAGE no longer lists it, and only if the fetch REACHED its
-    #   date (data-model-initial.md, `show.status`; requirements-initial.md: "falling within the date range that
-    #   fetch actually covered"; A5-D1, A5-D2). "Absent from the validated list" is not "absent from the page": a listing
-    #   the splitter left out is still on the page. And a show beyond the last listed date is not absent, it is out
-    #   of sight.
-    if coverage is None:          # a confirmed-empty page: no evidence of reach, so nothing is removed (A5-D2)
+    # A show is removed because the page no longer lists it, and only if the fetch reached its date
+    # (data-model-initial.md, `show.status`; requirements-initial.md: "falling within the date range that fetch
+    # actually covered"). "Absent from the validated list" is not "absent from the page": a listing the splitter left
+    # out is still on the page. And a show beyond the last listed date is not absent, it is out of sight.
+    if coverage is None:  # a confirmed-empty page: no evidence of reach, so nothing is removed (A5-D2)
         return []
     skipped = set(excluded_dates)
     return [
@@ -618,7 +614,7 @@ def removed_by_absence(
         if s.status is ShowStatus.ACTIVE
         and coverage.contains(s.date)
         and s.id not in matched_ids
-        and s.date not in skipped     # a listing we left out may be this show
+        and s.date not in skipped  # a listing we left out may be this show
     ]
 
 

@@ -155,10 +155,9 @@ def classify_artist(
     name: str, known: Iterable[KnownArtist], policy: ArtistMatchPolicy = DEFAULT_ARTIST_POLICY
 ) -> Classification:
     """Exact, ambiguous or new (A5-D8, A5-D12): a three-way answer, not a score with one cut-off."""
-    #   "clear matches and clear non-matches resolve automatically; ambiguous matches go through a
-    #   review step rather than a fixed rule" (requirements-initial.md, A5-D8, A5-D12). That is a THREE-way answer, not a
-    #   similarity score with one cut-off, and the middle band is deliberately where the model is used. A two-way
-    #   rule is wrong in one direction either way: too loose merges two acts, too strict duplicates one.
+    # "Clear matches and clear non-matches resolve automatically; ambiguous matches go through a review step rather than
+    # a fixed rule" (requirements-initial.md). The middle band is deliberately where the model is used. A two-way rule is
+    # wrong in one direction either way: too loose merges two acts, too strict duplicates one.
     key = artist_key(name)
     known = list(known)
     exact = sorted(a.id for a in known if artist_key(a.name) == key)
@@ -228,11 +227,10 @@ def decide_ambiguous(
     policy: ArtistMatchPolicy = DEFAULT_ARTIST_POLICY,
 ) -> ArtistResolution:
     """Ask the model; link only on a confident answer naming an offered artist, else create a new one (A5-D9)."""
-    #   This is the one place in the pipeline where a model makes a database decision, so the failure
-    #   direction is a design decision, not an accident (A5-D9). A wrong merge is silent and spreads (two acts share one
-    #   page); a duplicate artist is visible and revertable. So low confidence, a "different act" answer, an id nobody
-    #   offered and a failed call ALL resolve to "new artist", and the resolution records why, which `trace.audited`
-    #   turns into the audit row.
+    # This is the one place in the pipeline where a model makes a database decision, so the failure direction is a design
+    # decision, not an accident (A5-D9). A wrong merge is silent and spreads (two acts share one page); a duplicate artist
+    # is visible and revertable. So low confidence, a "different act" answer, an id nobody offered and a failed call all
+    # resolve to "new artist", and the resolution records why, which `trace.audited` turns into the audit row.
     try:
         answer = ask(name, candidates, client=client, options=options)
     except EXTRACTION_ERRORS as err:

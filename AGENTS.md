@@ -102,8 +102,9 @@ mypy, pytest) and is not in the pipeline.
   `reconcile.py` cites `A5-D7`, never `D7` (a bare `D7` can't be searched for or told apart from `A3-D7`). A
   `TODO(Ari)` block cites its key point as `A5-K1`. The build-plan catalogue is written `v0.1-G<n>` in every other
   document. The full forms, the mapping from the old gap letters, and the check command are in
-  `docs/dev/conventions.md`. **Before you hand code or docs to a reviewer, run
-  `make designation-check BASE=<the diff base your Implementation log names>`**; it lists the bare ones you added.
+  `docs/dev/conventions.md`. **`make designation-check`** lists the bare ones a branch adds; it is part of `make check` and a CI job on pull requests, so
+  a bare one fails the PR. (Milestone branches that hold more than one milestone pass `BASE=<the diff base your Implementation
+  log names>`.)
 - **Commit attribution names the model.** Git commit messages end with the trailer
   `Co-Authored-By: Claude <model name>` (for example `Co-Authored-By: Claude Haiku 5.5`), with
   no email address. Model names are allowed in commits, PR titles and PR bodies.

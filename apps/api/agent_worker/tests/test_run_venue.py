@@ -6,8 +6,8 @@ the real Postgres writer (so the rows are real), the real graph, the scripted mo
 
 How to read it: `ctx` builds a `WorkerContext` on the test connection; `setup` seeds the venues and returns
 the first as `VenueFacts`. Expected values are the seed's literals (`app/db/seed.py`: venue 1 is The White
-Squirrel Bar, in the America/Chicago metro) and the plan's rules. The tests marked (A4-K1) stay red until Ari
-fills the `TODO(Ari)` block in `main.run_venue`.
+Squirrel Bar, in the America/Chicago metro) and the plan's rules. The tests marked (A4-K1) pin the run lifecycle that
+`main.run_venue` implements.
 """
 
 from pathlib import Path

@@ -85,18 +85,19 @@ So `A3-Gap-B` (`classify_page`) is now `A3-K2`.
 
 ### Checking
 
-**For new work, run the branch check** (it looks only at the lines a branch adds, so the exceptions below don't
-get in the way):
+**For new work, run the branch check.** It looks only at the lines a branch adds, so the exceptions below don't get in
+the way. It is part of `make check` and its own CI job (pull requests only), so a bare designation fails the PR:
 
 ```
-make designation-check BASE=<the commit before the work began>
+make designation-check                  # base: where this branch left origin/main
+make designation-check BASE=<commit>    # an explicit base, e.g. the diff base a milestone's Implementation log names
 ```
 
-`BASE` is the diff base the milestone's Implementation log names. The script is `scripts/check_designations.py`: it reads
+Fetch `origin/main` first; a stale one makes the base too old and the check flags other people's lines. `BASE` is the diff base the milestone's Implementation log names, if you need an explicit one. The script is `scripts/check_designations.py`: it reads
 the added lines (committed, uncommitted and new files), skips the plan files under `docs/dev/implementations/` (they
 define their own IDs, so bare is right there), and flags `D`, `E`, `F`, `S`, `G`, `K` and `PR`/`CR` tokens with no
 scope. A token that is not a designation (a ruff code, "S3") is silenced with `designation-ok` on the line, or `noqa`.
-Its default base is the merge-base with `origin/main`, which is only right when a branch holds one milestone.
+Its default base is the merge-base with `origin/main`, which is only right when a branch holds one milestone; CI always passes the PR's own base.
 
 **To audit the whole repo,** this search finds bare designations. It excludes the virtualenv, caches, and generated
 files:

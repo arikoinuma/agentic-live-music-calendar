@@ -130,7 +130,12 @@ types: ## Regenerate lib/api-types.ts from FastAPI's OpenAPI schema
 	cd $(API_DIR) && uv run python -m scripts.dump_openapi
 	pnpm exec openapi-typescript $(API_DIR)/openapi.json -o apps/$(WEB)/lib/api-types.ts
 
-designation-check: ## Fail if lines added since BASE=<ref> use a bare D5/K2/PR1-3 outside their plan (docs/dev/conventions.md)
+# The commit this branch left main at. Right in CI and for a branch of one milestone; for anything else pass
+# BASE=<commit before the work began> (a milestone's Implementation log names it). Fetch first: a stale origin/main
+# makes the base too old and the check flags other people's lines.
+BASE ?= $(shell git merge-base origin/main HEAD 2>/dev/null)
+
+designation-check: ## Fail if lines added since BASE use a bare D5/K2/PR1-3 outside their plan (docs/dev/conventions.md)
 	@python3 scripts/check_designations.py $(BASE)
 
 contract-check: ## Fail if the generated contract output is stale
@@ -159,7 +164,7 @@ contract-check: ## Fail if the generated contract output is stale
 # Checks — these mirror .github/workflows/ci.yml
 # ---------------------------------------------------------------------
 
-check: lint typecheck test contract-check ## Run everything CI runs
+check: lint typecheck test contract-check designation-check ## Run everything CI runs
 
 lint: ## ruff + eslint
 	cd $(API_DIR) && uv run ruff check .
