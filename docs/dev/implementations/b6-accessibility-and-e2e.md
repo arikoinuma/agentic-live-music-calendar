@@ -101,7 +101,7 @@ Each has a recommendation and the alternative on record. **Ari: D1, D2, D4, D5, 
 - **D2 — How the clock is pinned. Recommended: a test-only `--import` preload on the Next server that patches `Date.now`** (fact 7), the pin held as one constant (`2026-10-07T17:00:00Z`, noon Wednesday in Minneapolis, inside the sample window with five shows on it) and **guarded by a Vitest test** that fails when the pin leaves the fixtures' window or its date has no show. *Alternatives:* an env override read by the app (a production hook that exists only for tests); or no pin and no assertion on the Today row (loses the only browser-level check of `aria-current="date"`). Note the guard replaces the build plan's "move the pin in the same change" memo with a red test.
 - **D3 — Production build or dev server. Recommended: `next build && next start`.** It is what visitors get (streaming, no development overlay). *Alternative:* `next dev`: no build step, but Next's dev tooling injects its own elements into every page, which would put findings in the scan that no visitor sees (PLAUSIBLE; not measured). Cost: a 26 s build before each run.
 - **D4 — CI and `make check`. Recommended:** a separate `e2e` job in `ci.yml` (Node 24, `uv sync --locked`, `playwright install --with-deps chromium`, a cache for the browser, the report uploaded on failure), and `make e2e` added to `make check` so "everything CI runs" stays true. *Alternatives:* fold it into the `js` job (slower feedback for every JS change; needs Python there); or leave `make check` without it and say so in the Makefile header (`check` then no longer mirrors CI). The branch has no protection yet (`env-setup.md`), so "the build fails" means a red job.
-- **D5 — Report-only or ratchet. Recommended: a ratchet baseline** (P9). *Alternative:* report-only until the findings are fixed (nothing fails until a later change flips a switch, so a new violation can land in the meantime).
+- **D5 — Report-only or ratchet. Recommended: a ratchet baseline** (P9; explained with examples under "The ratchet" in the harness design). In short: a committed list of the known accessibility problems that the scan must match exactly, so anything worse fails and each fix becomes a red-then-green step. *Alternative:* report-only until the findings are fixed (nothing fails until a later change flips a switch, so a new violation can land in the meantime).
 - **D6 — Reflow and the sideways-scrolling rows. Recommended:** treat each venue row's own scroll region as WCAG 1.4.10's two-dimensional-content exception, assert only that the **page** never scrolls sideways (K3), and rely on axe's `scrollable-region-focusable` plus the keyboard pass to confirm each scroller is reachable. *Alternative:* stack the venue columns vertically below 320px (a layout change to the B3 design, which is Ari's). Ari's call because it is a reading of a criterion about his own design.
 - **D7 — Dark mode. Recommended: drop it from B6** (P3). Add it to the scan matrix if the app ever gets a theme switch. *Alternative:* scan a forced `.dark` page anyway: it is clean today and describes a state that does not ship.
 - **D8 — The skeleton's handle. Recommended: a visually hidden `role="status"` paragraph "Loading shows" beside the decorative bars** (which stay `aria-hidden`). It gives a role-based test its locator, and a screen-reader user who browses the page finds a loading state (F5). It does **not** promise an announcement: a live region already present in the first HTML with its text is generally not announced, and neither is its removal (PLAUSIBLE; not run in a screen reader), so whether anything is spoken stays a manual-pass question and `aria-busy` on the results region is the other common pattern. Same shape as B5-D3 (a defect found while writing tests, fixed with a test first). It touches `calendar-skeleton.tsx` and its message. **Approving D8 is the mark** for this one production change, so it is made in round 1 (Step 5) and F5 is recorded as "markup fixed by D8", not left for Ari to mark again. *Alternatives:* a `data-testid` (breaks the project's "role, name or label only" rule and leaves F5); a class selector on `animate-pulse` (brittle, same).
@@ -199,9 +199,72 @@ Browser: `launchOptions.executablePath` from `E2E_CHROMIUM_PATH` when set (fact 
 
 ### The ratchet (D5)
 
-A **finding** is `{ page, ruleId, nodes }`: one entry per page per rule, however many elements. axe results become findings (`ruleId` = the axe rule); the custom checks (reflow, focus-indicator contrast) emit findings of their own (`ruleId: "b6-focus-indicator-3to1"`, `nodes` = how many of a fixed list of focus targets fall below 3:1), so one baseline governs both. `BASELINE` is committed data, each entry carrying the `B6-F<n>` it belongs to. `expectBaseline(page, name)` fails when the page has an **added** finding (not in the baseline, or with more nodes) **or a stale one** (in the baseline but gone, or with fewer nodes). Stale-fails-too is the point: deleting an entry is the red step of a fix, and a fixed rule cannot quietly come back. `incomplete` results are attached to the test report and logged, not failed (P13), and triaged by hand in the log.
+**In one sentence:** a committed list of the accessibility problems we already know about, which the scan must match *exactly*: anything worse than the list fails, and anything better than the list also fails until the list is updated.
 
-`compareToBaseline(found, baseline)` is written complete and unit-tested (it was a candidate `TODO(Ari)` gap and is not one, D10). Without the stale half, fixing one violation silently makes room for a new one of the same rule; without node counts, a rule can grow from 2 elements to 20 unnoticed; `expect(violations).toEqual([])` would be red on day one and `length <= n` lets a fix mask a regression:
+#### The problem it solves
+
+The scan produces a list of violations, and today it is not empty (F1 and F2 below). There are three ways to turn that list into pass or fail, and two of them do not work:
+
+| Approach | What happens | Why it falls short |
+|---|---|---|
+| "Fail if there are any violations" | Red from the first commit | Nothing can merge until every finding is fixed, and Ari has not yet marked which ones to fix (D9) |
+| "Report only" (the build plan's wording) | Always green | A brand-new violation can land and nobody is told |
+| **A ratchet** | Green today, red the moment things get worse | Needs one small committed list, the baseline |
+
+#### What the baseline holds
+
+One row per page per rule: `{ page, ruleId, nodes }`, where `nodes` is how many elements on that page break that rule. Each row also names the finding (`B6-F<n>`) it belongs to. For example, the prototype's first finding:
+
+```
+rule: target-size    page: /    nodes: 6    finding: B6-F1
+```
+
+The axe results become rows like this (`ruleId` is the axe rule). The custom checks (reflow, painted focus-ring contrast) produce rows of their own (for example `ruleId: "b6-focus-indicator-3to1"`, with `nodes` = how many of a fixed list of focus targets fall below 3:1), so **one baseline governs both**.
+
+#### The three outcomes
+
+Every scan is compared with the baseline. The test fails on anything other than an exact match:
+
+| The scan shows | Verdict | What it means | What you do |
+|---|---|---|---|
+| Exactly what the baseline lists | pass | Nothing changed | Nothing |
+| A rule that is not in the baseline, or more elements than the row lists | fail: **added** | Something got worse | Fix the new problem. The baseline is not edited to make room for it. |
+| A row whose problem is gone, or fewer elements than the row lists | fail: **stale** | Something got better | Lower or delete that row. This is the "ratchet click": the list can shrink and never grow back. |
+
+#### Why a fix makes the test fail, with numbers
+
+The "stale" outcome is the part that feels backwards. Take the row above (`target-size` on `/`, 6 elements):
+
+| Step | What happens | Scan finds | Verdict |
+|---|---|---|---|
+| Today | Baseline says 6 | 6 | pass |
+| Someone fixes 2 links | The page is better | 4 | **stale**: lower the row to 4 |
+| *(without a stale check)* someone then adds a new 2-element problem of the same rule | The page is worse again | 6 | A looser "no more than 6" rule would **still pass**, and the new problem is hidden |
+| *(with the stale check)* the row was forced down to 4 | The new problem makes it 6 | 6 vs 4 | fail: **added**. It is caught |
+
+So the exact-match rule is what closes the gap a "no more than N" rule leaves open. Counting elements, not just rule names, closes the other one: without it, a rule could grow from 2 elements to 20 and still be "known".
+
+#### How a fix works with it
+
+Every fix in the fix round (Step 8) follows the same three steps, and the first two are the "test that fails before the fix" the build plan asks for:
+
+1. Delete the finding's baseline row. The test goes red, because the scan still sees the problem.
+2. Fix the code. The test goes green.
+3. The row never comes back, so a regression of the same rule shows up as **added**.
+
+#### What it does not do
+
+- It does not say the known problems are acceptable. They stay on the list until Ari marks them and the fix round removes them.
+- It does not find anything axe cannot. The custom checks feed the same list, and the manual pass covers the rest (the coverage matrix).
+- `incomplete` results (axe could not decide, finding F4) are not in the baseline. They are attached to the test report and triaged by hand in the log (P13).
+
+#### The name
+
+"Ratchet" is an informal industry term for this pattern, not a standard: like a ratchet wrench, the count of known problems can only move one way. The same idea goes by other names, and the plan uses "ratchet" and "baseline" for the two halves (the rule, and the list it holds). Notion's engineering blog describes a "ratcheting system" for lint rules with a committed file of allowed violation counts per file and rule, which CI enforces and which fixes lower. ESLint ships the same thing built in as *bulk suppressions* (`eslint-suppressions.json`, counts per file and rule; ESLint 9.24 and later). Android Lint calls it a *baseline* (`lint-baseline.xml`). The one thing this plan adds to the common form is the **stale** half: many tools only fail on *added* problems, and this one also fails when the list is out of date, so it cannot drift.
+
+#### The comparison itself
+
+`compareToBaseline(found, baseline)` is written complete and unit-tested (`a11y-baseline.test.ts`; it was a candidate `TODO(Ari)` gap and is not one, D10). The test cases are the table above: equal, a new rule, more elements, a fixed row, fewer elements, and two pages with the same rule treated independently.
 
 ```ts
 const key = (e: Finding) => `${e.ruleId}@${e.page}`;
@@ -212,6 +275,8 @@ return {
   stale: [...known].filter(([k, n]) => (seen.get(k) ?? 0) < n), // fixed, or fewer elements than known
 };
 ```
+
+`expectBaseline(page, name)` runs the scan, calls this, and fails if either list is non-empty, printing both so the message says which kind of failure it is.
 
 ## Test approach (written first, watched fail, then made green)
 
