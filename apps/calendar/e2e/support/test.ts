@@ -2,15 +2,47 @@
  * The `test` and `expect` every spec imports, from one place.
  *
  * Specs import from here rather than from `@playwright/test` so that behaviour every
- * test needs reaches all of them without editing each file. Today that is one
- * thing: letting the page's in-flight requests finish before the browser closes.
- * (The delay proxy's reset joins it in Step 4 of the B6 plan.)
+ * test needs reaches all of them without editing each file. One is
+ * letting the page's in-flight requests finish before the browser closes.
+ * A second: the delay proxy's reset, so no test leaves the API slow or broken for the next.
  */
 import { expect, test as base, type Request } from "@playwright/test";
+import { PROXY_URL } from "./stack";
 
 export { expect };
 
-export const test = base.extend({
+/** What a test can do to the API behind Next, through the delay proxy (delay-proxy.mjs). */
+export type Stack = {
+  /** Answer every API request after `ms` milliseconds. */
+  delay: (ms: number) => Promise<void>;
+  /** Answer every API request with a 502, as an outage would. */
+  fail: () => Promise<void>;
+};
+
+const control = async (path: string) => {
+  const response = await fetch(`${PROXY_URL}${path}`, { method: "POST" });
+  if (!response.ok) throw new Error(`delay proxy ${path} answered ${response.status}`);
+};
+
+export const test = base.extend<{ stack: Stack }>({
+  // The proxy's mode is global, so a test that slows or breaks the API must never
+  // leave it that way for the next one. `auto` runs this for EVERY test, even one
+  // that never asks for `stack`, and the reset is in the teardown, so it happens
+  // whether the test passed, failed or timed out.
+  stack: [
+    // Playwright finds a fixture's dependencies by reading its first parameter as an
+    // object pattern, so the empty `{}` is required even though nothing is used.
+    // eslint-disable-next-line no-empty-pattern
+    async ({}, use) => {
+      await use({
+        delay: (ms) => control(`/__delay/${ms}`),
+        fail: () => control("/__fail"),
+      });
+      await control("/__reset");
+    },
+    { auto: true },
+  ],
+
   // WHY THIS EXISTS. A production Next page PREFETCHES the pages its links point to
   // (the `[RSC] [prefetch]` requests), and those are streamed responses. A test that
   // ends while one is mid-stream closes the browser on it, React in the Next server
