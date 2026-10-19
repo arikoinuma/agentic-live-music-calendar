@@ -1024,6 +1024,14 @@ stripped: **identical in all 14 files**. `ruff` clean. `REQUIRE_DB=1 uv run pyte
 15 skipped, the same as before the pass (all 122 red results are `NotImplementedError: TODO(Ari)`; gaps still open). The
 new `make designation-check BASE=886e04e` exits 0 on the branch, and fails on a planted bare `D9`.
 
+**Ari's commit `efe95ca` (October 19, 2026) arrived while this pass was running:** he filled all five `TODO(Ari)` gaps
+(A5-K1 to A5-K5) locally, in `reconcile.py` and `artist_match.py`. This pass was merged with it (a merge, not a rebase, since
+it is his history); where we both edited a line his version won, then the scoping was re-applied around it. His code is
+identical to his commit (syntax trees compared). One fix in his docstring text: `A8-D8`/`A8-D12` read `A5-D8`/`A5-D12` (A8 is
+a different milestone). With his gaps filled the suite is **790 passed, 15 skipped** on the branch itself, ruff clean. The
+gap scaffolding comments ("Lesson" blocks) are still in place: the cleanup pass of `AGENTS.md` step 4 follows once Ari asks
+for it ("clean up the closed gaps in A5").
+
 **Process change (so this does not recur).** `AGENTS.md` ("Cross-references carry a scope") now says code, tests and comments
 write the scoped form even when implementing the one plan in view; `docs/dev/conventions.md` rule 2 and "Checking" say the
 same and document `make designation-check` (`scripts/check_designations.py`, which reads only the lines a branch adds);

@@ -399,7 +399,7 @@ def _null_time_pairs(
     unambiguous and they pair; with several, shared act names settle it, and a cancelled or postponed listing pairs
     only that way, never by date alone (its status is evidence about a specific show).
     """
-    # TODO(Ari) — Lesson: the key is (venue, date, time), exact, with no fuzzy matching on shows
+    #   The key is (venue, date, time), exact, with no fuzzy matching on shows
     #   (arch-initial.md §7), and the whole subtlety is what a NULL does. In SQL `NULL = NULL` is not true, so a
     #   naive key never finds an untimed show: every night would insert a duplicate and remove the old one
     #   (A5-D3, a5-reconcile.md). The rule: two different times never pair (that is a time change, a cancelled show
@@ -407,18 +407,10 @@ def _null_time_pairs(
     #   stored show left on the date) or when shared acts settle it; a cancelled/postponed listing pairs only on
     #   shared acts, never by date alone; and a tie is broken the same way every run (`_assign_by_acts`) so
     #   nothing churns.
-    # Code:
-    #   pairable = [(l, s) for l in listings for s in stored if l.time is None or s.start_time is None]
-    #   if len(listings) == 1 and len(stored) == 1 and pairable and listings[0].is_scheduled:
-    #       return [(*pairable[0], False)]
-    #   return _assign_by_acts(pairable, need_overlap=True)
-    # Check: `uv run pytest agent_worker/tests/test_reconcile_shows.py -k "composite or null or untimed or tie or
-    #   time_change or appears or disappears or active_twin or old_removed or cancelled"`. Likeliest mistakes:
-    #   pairing ANY leftover listing with ANY leftover stored show on the date, which turns an 8 pm -> 9 pm change
-    #   into an update (test_a_time_change_is_a_cancelled_show_plus_a_new_one); and `l.time == s.start_time` for the
-    #   null case instead of "either side is null": `None == None` is True in Python (unlike SQL) but it is False for
-    #   null-against-timed, so the null -> 20:00 and 20:00 -> null tests are the ones that go red.
-    raise NotImplementedError("TODO(Ari)")
+    pairable = [(l, s) for l in listings for s in stored if l.time is None or s.start_time is None]
+    if len(listings) == 1 and len(stored) == 1 and pairable and listings[0].is_scheduled:
+        return [(*pairable[0], False)]
+    return _assign_by_acts(pairable, need_overlap=True)
 
 
 def match_shows(listings: Sequence[Listing], stored: Sequence[StoredShow]) -> MatchResult:
@@ -577,23 +569,20 @@ def plan_for_listing(
         return ShowDecision(action, listing.date, start_time, reason, listing=listing, **fields)
 
     if listing.status != "scheduled":  # cancelled / postponed
-        # TODO(Ari) — Lesson: a cancelled or postponed listing is EVIDENCE ABOUT A STORED SHOW, not a show
+        #   A cancelled or postponed listing is EVIDENCE ABOUT A STORED SHOW, not a show
         #   (requirements-initial.md: "the agent has to match it to that stored record and update it"; A5-D6). It must
         #   never be inserted. The status decides what the match means, which is why the answer depends on both the
         #   listing and the stored show. (The scheduled path below is written: insert, reactivate a removed show,
         #   or compare the details.)
-        # Code:
-        #   if stored is None:
-        #       return decide(Action.SKIP, f"{listing.status} listing, no stored show", start_time=listing.time)
-        #   if stored.status is ShowStatus.ACTIVE:
-        #       return decide(Action.REMOVE, listing.status, start_time=stored.start_time, stored_id=stored.id)
-        #   return decide(Action.NO_OP, f"already removed ({listing.status})",
-        #                 start_time=stored.start_time, stored_id=stored.id)
-        # Check: `uv run pytest agent_worker/tests/test_reconcile_shows.py -k "cancelled or postponed or skipped"`.
-        #   Likeliest mistake: falling through to an insert for a cancelled listing with nothing stored (the `skip`
-        #   test catches it).
-        raise NotImplementedError("TODO(Ari)")
-    if stored is None:
+
+        if stored is None:
+            return decide(Action.SKIP, f"{listing.status} listing, no stored show", start_time=listing.time)
+        if stored.status is ShowStatus.ACTIVE:
+            return decide(Action.REMOVE, listing.status, start_time=stored.start_time, stored_id=stored.id)
+        return decide(Action.NO_OP, f"already removed ({listing.status})",
+                    start_time=stored.start_time, stored_id=stored.id)
+
+    if stored is None: # since cancelled / postponed is caught above, now we assume it's a new show
         return decide(Action.INSERT, "new show", start_time=listing.time, lineup=lineup)
     merged = merge_lineup(lineup, stored)
     changes = show_changes(stored, listing, merged, original_url)
@@ -616,27 +605,21 @@ def removed_by_absence(
     excluded_dates: Iterable[datetime.date],
 ) -> list[StoredShow]:
     """The stored shows the page no longer lists, inside the dates it reached (A5-D1, A5-D2)."""
-    # TODO(Ari) — Lesson: a show is removed because the PAGE no longer lists it, and only if the fetch REACHED its
+    #   A show is removed because the PAGE no longer lists it, and only if the fetch REACHED its
     #   date (data-model-initial.md, `show.status`; requirements-initial.md: "falling within the date range that
     #   fetch actually covered"; A5-D1, A5-D2). "Absent from the validated list" is not "absent from the page": a listing
     #   the splitter left out is still on the page. And a show beyond the last listed date is not absent, it is out
     #   of sight.
-    # Code:
-    #   if coverage is None:          # a confirmed-empty page: no evidence of reach, so nothing is removed (A5-D2)
-    #       return []
-    #   skipped = set(excluded_dates)
-    #   return [
-    #       s for s in stored
-    #       if s.status is ShowStatus.ACTIVE
-    #       and coverage.contains(s.date)
-    #       and s.id not in matched_ids
-    #       and s.date not in skipped     # a listing we left out may be this show
-    #   ]
-    # Check: `uv run pytest agent_worker/tests/test_reconcile_removal.py -k "window or unit or both_ends or beyond or
-    #   already_removed or splitter or empty or stretch"`. Likeliest mistake: dropping the coverage bounds (the
-    #   "beyond the last listed date is left alone" test fails: it would remove every show past the page's horizon);
-    #   second, forgetting `s.status`, which "removes" an already-removed show and writes a pointless audit row.
-    raise NotImplementedError("TODO(Ari)")
+    if coverage is None:          # a confirmed-empty page: no evidence of reach, so nothing is removed (A5-D2)
+        return []
+    skipped = set(excluded_dates)
+    return [
+        s for s in stored
+        if s.status is ShowStatus.ACTIVE
+        and coverage.contains(s.date)
+        and s.id not in matched_ids
+        and s.date not in skipped     # a listing we left out may be this show
+    ]
 
 
 def withhold_if_mass_removal(

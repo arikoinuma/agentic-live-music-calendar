@@ -32,7 +32,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from agent_worker import prompts
-from agent_worker.llm import EXTRACTION_ERRORS, RequestOptions, request_kwargs  # noqa: F401
+from agent_worker.llm import EXTRACTION_ERRORS, RequestOptions, request_kwargs
 from agent_worker.normalize import fold_text
 
 # ---------------------------------------------------------------------------
@@ -155,23 +155,18 @@ def classify_artist(
     name: str, known: Iterable[KnownArtist], policy: ArtistMatchPolicy = DEFAULT_ARTIST_POLICY
 ) -> Classification:
     """Exact, ambiguous or new (A5-D8, A5-D12): a three-way answer, not a score with one cut-off."""
-    # TODO(Ari) — Lesson: "clear matches and clear non-matches resolve automatically; ambiguous matches go through a
+    #   "clear matches and clear non-matches resolve automatically; ambiguous matches go through a
     #   review step rather than a fixed rule" (requirements-initial.md, A5-D8, A5-D12). That is a THREE-way answer, not a
     #   similarity score with one cut-off, and the middle band is deliberately where the model is used. A two-way
     #   rule is wrong in one direction either way: too loose merges two acts, too strict duplicates one.
-    # Code:
-    #   key = artist_key(name)
-    #   known = list(known)
-    #   exact = sorted(a.id for a in known if artist_key(a.name) == key)
-    #   if exact:
-    #       return Exact(artist_id=exact[0], duplicates=tuple(exact[1:]))
-    #   close = [(a, _similarity(key, artist_key(a.name))) for a in known if _is_close(key, artist_key(a.name), policy)]
-    #   close.sort(key=lambda pair: (-pair[1], pair[0].id))
-    #   return Ambiguous(candidates=tuple(a for a, _ in close[: policy.max_candidates])) if close else New()
-    # Check: `uv run pytest agent_worker/tests/test_artist_match.py -k "exactly_the_same or ambiguous or unrelated or
-    #   policy or lowest_id or candidates"`. Likeliest mistake: returning `Exact` for the best SIMILAR name (merging
-    #   "Dessa" into "Desa" with no review); the ambiguous-band tests catch it.
-    raise NotImplementedError("TODO(Ari)")
+    key = artist_key(name)
+    known = list(known)
+    exact = sorted(a.id for a in known if artist_key(a.name) == key)
+    if exact:
+        return Exact(artist_id=exact[0], duplicates=tuple(exact[1:]))
+    close = [(a, _similarity(key, artist_key(a.name))) for a in known if _is_close(key, artist_key(a.name), policy)]
+    close.sort(key=lambda pair: (-pair[1], pair[0].id))
+    return Ambiguous(candidates=tuple(a for a, _ in close[: policy.max_candidates])) if close else New()
 
 
 # ---------------------------------------------------------------------------
@@ -233,26 +228,18 @@ def decide_ambiguous(
     policy: ArtistMatchPolicy = DEFAULT_ARTIST_POLICY,
 ) -> ArtistResolution:
     """Ask the model; link only on a confident answer naming an offered artist, else create a new one (A5-D9)."""
-    # TODO(Ari) — Lesson: this is the one place in the pipeline where a model makes a database decision, so the failure
+    #   This is the one place in the pipeline where a model makes a database decision, so the failure
     #   direction is a design decision, not an accident (A5-D9). A wrong merge is silent and spreads (two acts share one
     #   page); a duplicate artist is visible and revertable. So low confidence, a "different act" answer, an id nobody
     #   offered and a failed call ALL resolve to "new artist", and the resolution records why, which `trace.audited`
     #   turns into the audit row.
-    # Code:
-    #   try:
-    #       answer = ask(name, candidates, client=client, options=options)
-    #   except EXTRACTION_ERRORS as err:
-    #       return _new(name, options, candidates, reason=f"model call failed: {type(err).__name__}: {err}")
-    #   if answer.matched_artist_id in {c.id for c in candidates} and answer.confidence >= policy.min_confidence:
-    #       return _matched(name, options, candidates, answer)
-    #   return _new(name, options, candidates, reason=answer.reason, answer=answer)
-    # Then: delete the noqa marker on the `EXTRACTION_ERRORS` import at the top of this file; it exists only while
-    #   the gap is open, and ruff flags it (RUF100) once the name is used.
-    # Check: `uv run pytest agent_worker/tests/test_artist_match.py -k "answer or failed or not_shown or bar or own_code"`.
-    #   Likeliest mistake: trusting `matched_artist_id` without checking it was offered (the not-shown test catches it);
-    #   second, catching bare `Exception`, which would hide a bug in our own code as a "failed call"
-    #   (test_an_error_in_our_own_code_is_not_swallowed).
-    raise NotImplementedError("TODO(Ari)")
+    try:
+        answer = ask(name, candidates, client=client, options=options)
+    except EXTRACTION_ERRORS as err:
+        return _new(name, options, candidates, reason=f"model call failed: {type(err).__name__}: {err}")
+    if answer.matched_artist_id in {c.id for c in candidates} and answer.confidence >= policy.min_confidence:
+        return _matched(name, options, candidates, answer)
+    return _new(name, options, candidates, reason=answer.reason, answer=answer)
 
 
 # ---------------------------------------------------------------------------
