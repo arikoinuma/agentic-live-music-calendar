@@ -1,0 +1,8 @@
+{
+  "author_model": "sonnet",
+  "reviewer_model": "opus",
+  "plans_dir": "docs/milestones",
+  "verify_command": "make check",
+  "conventions_files": ["AGENTS.md"],
+  "tracker_hint": "Jira"
+}
