@@ -31,10 +31,12 @@ replaces them. Check first.
 
 | Step | Who | Ends with |
 |---|---|---|
-| Plan | author (`plan-milestone`) | Plan file written, `Plan review` |
+| Read reference docs | author (`plan-milestone`) | Every file in `reference_docs_dir` read and listed in the plan |
+| Plan, test strategy first | author | Plan file written, `Plan review` |
 | Review 1 | reviewer, `reviewer_model` | Round appended, `Plan review: findings open` |
 | Resolve | author | `Awaiting plan approval` (**gate 1**) |
 | Decide | human | `approve` → `Approved` · `reject` → `Rejected` · `send back` → back to Plan |
+| Read reference docs, tests first | author (`build-milestone`) | Tests written and seen to fail, then code until green |
 | Build | author (`build-milestone`) | Code written, `Code review` |
 | Review 2 | reviewer, `reviewer_model` | Round appended, `Code review: findings open` |
 | Resolve | author | `Awaiting sign-off` (**gate 2**) |
@@ -72,6 +74,7 @@ the record survives the chat.
 | `author_model` | unset | The model the session should run on. Plans and code both come from it. The skill stops if the session is on another model |
 | `reviewer_model` | `opus` | `sonnet`, `opus`, `haiku`, or `fable`. Must differ from the author's model |
 | `plans_dir` | `docs/milestones` | Where plan files are saved (the paper trail) |
+| `reference_docs_dir` | unset | A folder of higher-level docs (architecture, style guide, requirements). Every file is read before planning and before coding. If unset, the skills fall back to the usual docs and tell you to set it |
 | `verify_command` | unset | The check command the author runs and the reviewer re-runs, e.g. `make check` or `npm test` |
 | `conventions_files` | `[]` | Repo rule files the reviewer reads first, e.g. `["AGENTS.md", "CONTRIBUTING.md"]` |
 | `tracker_hint` | unset | Names the ticket system (e.g. `Jira`, `Linear`), so the author can search for its tools |
@@ -82,6 +85,16 @@ Planning and coding are one author. A plan written by one model and coded by ano
 reasoning that the plan's "why" depends on. So the config has one author model and one reviewer
 model. A skill can't switch the model of the session it runs in. Start the session on
 `author_model`, and the skill checks that it did.
+
+### Testing comes first
+
+Both skills and the reviewer enforce this order:
+
+| Stage | Rule |
+|---|---|
+| Planning | The **test strategy** is written before the steps. Every acceptance criterion gets a test, and each test's expected values come from the spec or the reference docs, not from the code still to be written |
+| Coding | Tests are written before any implementation code. Each one is seen to fail for the expected reason. Then the coder keeps going until every test passes |
+| Review | The reviewer checks test-first evidence and flags any test that was skipped, deleted, or loosened to pass, unless a departure entry gives a reason |
 
 ## The milestone reference
 

@@ -10,24 +10,41 @@ between you and the author: you read it, append one review round to it, and stop
 
 ## Before you start
 
-1. Read the **conventions files** the prompt names (for example `AGENTS.md`, `CLAUDE.md`,
+1. Read the **reference docs** the prompt names (every file in the folder, recursively, in full).
+   These are the higher-level context: architecture, style guide, requirements. If none are named,
+   say so in your preamble.
+2. Read the **conventions files** the prompt names (for example `AGENTS.md`, `CLAUDE.md`,
    `CONTRIBUTING.md`). They hold the repo's rules. If none are named or none exist, say so in
    your round's preamble and review against the spec alone.
-2. Read the **plan file** the prompt names, in full: the spec, the plan, earlier review rounds,
+3. Read the **plan file** the prompt names, in full: the spec, the plan, earlier review rounds,
    the Implementation log, and the Decisions log.
-3. Read every doc or source file the plan cites in the sections you're reviewing.
+4. Read every doc or source file the plan cites in the sections you're reviewing.
 
 ## What to review
 
 The prompt says **plan review** or **code review**.
 
-- **Plan review:** check the plan against the spec (the acceptance criteria are the contract),
-  the repo's conventions, and the code that actually exists. Look for wrong assumptions, criteria
-  with no test, risky steps, steps that put code before tests, and missing out-of-scope items.
-- **Code review:** the newest `## Implementation log` round gives the scope (diff base and files
-  touched). Run the verification command the prompt gives you, and the plan's own verification
-  steps where you can. Review the diff against the plan, the acceptance criteria, and the
-  conventions. Don't report work the plan marks as open for the user as a finding.
+Testing comes first in this workflow, so check that first.
+
+- **Plan review:**
+  - Check the plan against the spec (the acceptance criteria are the contract), the reference docs,
+    the conventions, and the code that actually exists.
+  - Check the **Reference docs read** table covers every file in the reference folder. A missing or
+    unread file is a finding.
+  - Check **test strategy comes before steps**. Each acceptance criterion needs a test. Each test
+    needs a level, a fixture, and an expected value whose source is the spec or the docs, not the
+    code yet to be written. A step that turns no test green is a finding.
+  - Look for wrong assumptions, risky steps, and missing out-of-scope items.
+- **Code review:**
+  - The newest `## Implementation log` round gives the scope (diff base and files touched). Run the
+    verification command the prompt gives you, and the plan's own verification steps where you can.
+  - Test-first: the log should show the tests were written before the code, and failed for the
+    expected reason first. Look for signs they weren't (tests that were written after the code and
+    match it exactly, or red evidence that is really an import error).
+  - Tests weakened to pass: look for skipped, deleted, or loosened tests and changed expected values.
+    Each one needs a departure entry with a reason; without one, it's a blocker.
+  - Review the diff against the plan, the acceptance criteria, the reference docs, and the
+    conventions. Don't report work the plan marks as open for the user as a finding.
 
 **Decisions for the user** are the approver's to make. You may say whether a recommendation is
 sound, but don't decide the question yourself.

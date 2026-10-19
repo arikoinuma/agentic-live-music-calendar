@@ -1,6 +1,6 @@
 ---
 name: build-milestone
-description: Implement an approved milestone plan, have a reviewer on a different model check the code for one round, fix the findings, and stop at a human sign-off gate. The human answers approve, reject, or send back. Gate 2 of the milestone workflow; plan-milestone is gate 1.
+description: Implement an approved milestone plan test-first, reading the repo's reference docs before coding. A reviewer on a different model checks the code for one round, the findings get fixed, and the skill stops at a human sign-off gate. The human answers approve, reject, or send back. Gate 2 of the milestone workflow; plan-milestone is gate 1.
 argument-hint: <plan file path, or milestone ref> [approve | reject [reason] | send back: <notes>] [reviewer=<model>]
 disable-model-invocation: true
 ---
@@ -16,6 +16,9 @@ Arguments: `$ARGUMENTS`
 Running this skill does **not** approve the plan. Plan approval is gate 1, recorded by
 `plan-milestone`. This skill refuses to build a plan that isn't `Approved`.
 
+**Testing comes first in this workflow.** Write the tests before any implementation code. Then keep
+coding, running the tests after each change, until every test passes. Step 2 spells out the rules.
+
 ## Step 0: Configuration, the gate, and the model pair
 
 1. Read `.claude/milestones.json` the same way `plan-milestone` does (its Step 0 has the keys and
@@ -30,11 +33,11 @@ Running this skill does **not** approve the plan. Plan approval is gate 1, recor
 
 | Status | Argument | Action |
 |---|---|---|
-| `Approved` | *(none)* | Build (Step 1) |
-| `Changes requested` | *(none)* | Build (Step 1). The latest send-back note in the Decisions log is the work order |
+| `Approved` | *(none)* | Build (Steps 1 to 3), then Steps 4 to 6 |
+| `Changes requested` | *(none)* | Build (Steps 1 to 3), then Steps 4 to 6. The latest send-back note in the Decisions log is the work order |
 | `Awaiting sign-off` | `approve` | Record the decision. Set `Done`. Stop and hand off |
 | `Awaiting sign-off` | `reject [reason]` | Record it with the reason. Set `Rejected`. Stop. Don't revert any code; list the changed files so the human can decide |
-| `Awaiting sign-off` | `send back: <notes>` | Record the notes verbatim. Set `Changes requested`. Build (Step 1) with the notes as the work order, then Steps 2 to 4 |
+| `Awaiting sign-off` | `send back: <notes>` | Record the notes verbatim. Set `Changes requested`. Build (Steps 1 to 3) with the notes as the work order, then Steps 4 to 6 |
 | `Awaiting sign-off` | *(none)* | Change nothing. Re-show the handoff and the three commands |
 | `Awaiting plan approval`, `Plan review`, `Plan review: findings open` | any | Stop. The plan isn't approved. Run `plan-milestone` on it |
 | `Approved` or `Changes requested` with a decision argument | any | Stop. Sign-off hasn't been reached, so there's nothing to decide |
@@ -44,35 +47,59 @@ Running this skill does **not** approve the plan. Plan approval is gate 1, recor
 **Decisions log row:** `| # | Gate | Date | Decision | By | Notes |`. `Gate` is `2`. `By` follows the same
 rule as in `plan-milestone`.
 
-## Step 1: Implement
+## Step 1: Set up
 
 1. Set `Status` to `Building`.
-2. Read the repo's conventions files (`conventions_files` in the config). Read every file the plan's
-   **Critical files** section names.
-3. **Tests first.** Write the tests from the plan's **Test approach** and the acceptance criteria.
-   Run them and confirm they fail for the expected reason. A test that passes before the code exists
-   proves nothing.
-4. Implement the steps in order. Follow the plan. If a step can't be done as written, make the
-   smallest change that meets the acceptance criteria, and record it as a departure with a reason.
-5. Run `verify_command`. Fix any failure, or explain it in the log if it is outside this milestone.
+2. Read the **reference docs**: every file in `reference_docs_dir` (recursively, in full). If that
+   isn't configured, read the usual higher-level docs in the repo (README, architecture, style guide,
+   `CONTRIBUTING`) and tell the human to set `reference_docs_dir`. Code written without this context
+   tends to break the architecture or the style rules.
+3. Read the repo's `conventions_files`, and every file the plan's **Critical files** section names.
+4. Re-read the plan's **Test strategy** and **Acceptance criteria**. They are the contract for the
+   code.
+
+## Step 2: Tests first, then code until green
+
+This is the core loop. Follow it in order.
+
+1. **Write the tests before any implementation code.** Build them from the plan's **Test strategy**
+   and the acceptance criteria. Use the fixtures and expected values the plan names. Don't derive
+   expected values from code you haven't written yet.
+2. **Run the tests and confirm each one fails for the expected reason.** A test that passes before the
+   code exists proves nothing. A test that fails with an import error or a typo is not a red test
+   either. Fix the test until it fails because the behavior is missing.
+3. **Keep coding until every test passes.** Implement the steps in the plan's order. Run the tests
+   after each change. Stop only when they all pass.
+4. **Don't weaken the tests to get green.** Don't skip, delete, loosen an assertion, or change an
+   expected value to match the code. If a test really is wrong, change it, and record a departure with
+   the reason and the spec or doc that shows the test was wrong.
+5. **If a step can't be done as written,** make the smallest change that meets the acceptance criteria,
+   and record it as a departure with a reason.
+
+## Step 3: Verify
+
+1. Run `verify_command`. Fix any failure, or explain it in the log if it is outside this milestone.
    If `verify_command` is unset, find the repo's own check command (its README, or its package or
    build manifest) and note in the log which one you used. Ask the human if you can't find one.
-6. **Don't commit** unless the human has asked. The reviewer reviews the working tree.
-7. Append a round under `## Implementation log`:
+2. Run the plan's **Verification** steps and record each result.
+3. **Don't commit** unless the human has asked. The reviewer reviews the working tree.
+4. Append a round under `## Implementation log`:
 
 ```
 ### Round <n> — <author model>, <date>
 
 **Scope:** diff base <commit or "working tree vs HEAD">; files touched: <list>
+**Reference docs read:** <list, or "as in the plan">
+**Tests:** <written first: yes/no, and the red-then-green evidence for the main ones>
 **Departures from the plan:** <each one with its reason, or "none">
 **Verification:** <each command, its result, and the test counts>
 **Open items for the human:** <anything left for the human to do or decide>
 **Where to look hardest:** <what you're least sure of>
 ```
 
-8. Set `Status` to `Code review`.
+5. Set `Status` to `Code review`.
 
-## Step 2: One review round
+## Step 4: One review round
 
 Follow this protocol. It runs once per invocation.
 
@@ -84,32 +111,34 @@ Follow this protocol. It runs once per invocation.
    - `model`: the `reviewer_model` (always passed; never omitted)
    - `run_in_background`: `false`
    - a prompt that names: the plan file path; the mode, **code review**; the round number of the
-     newest Implementation log entry; the reviewer model name; the `verify_command` (or the check
-     command you recorded); the conventions files; and the instruction to review cold. Don't
-     summarize your reasoning or your own findings.
+     newest Implementation log entry; the reviewer model name; the `reference_docs_dir`; the
+     `verify_command` (or the check command you recorded); the conventions files; and the instruction
+     to review cold. Don't summarize your reasoning or your own findings.
 3. **Check the reviewer stayed in its lane.** Under git, `git status --porcelain` and the `git diff`
    checksum should match the snapshot. The plan file's diff should show only the new round and the
    header lines. If anything else changed, revert that part, note it in the round's preamble, and
    tell the human. Outside git, check the plan file only.
 
-## Step 3: Resolve the round
+## Step 5: Resolve the round
 
-1. Fix the code. For each testable finding, write the failing test first, then the fix.
+1. Fix the code. For each testable finding, write the failing test first, then the fix. This is the
+   same loop as Step 2.
 2. Fill every **Resolution** cell with `Fixed` plus what changed and where, or `Rejected` plus a
    one-line reason. No cell may stay empty.
-3. Re-run `verify_command`. Record the result at the end of the review round, under a line that says
-   "After fixes:".
+3. Re-run `verify_command` and confirm every test passes. Record the result at the end of the review
+   round, under a line that says "After fixes:".
 4. If the verdict was `rework`, or the fixes change the approach substantially, don't run another
    round. Say so in the handoff.
 5. Set `Status` to `Awaiting sign-off`. This is gate 2.
 
-## Step 4: Stop at gate 2
+## Step 6: Stop at gate 2
 
 Stop here. Write the handoff, with a short summary at the top and again at the bottom:
 
 - The plan file path (a link, not just the name).
-- The review round's verdict and counts, and the final verification results.
+- The review round's verdict and counts, and the final verification results, including the test counts.
 - Each rejected finding, with its reason, and any finding you're unsure of.
+- Each departure from the plan, and any test you changed, with its reason.
 - Each open item the human must do or decide, and the command that runs its tests.
 - Anything you did not commit, and the list of files changed.
 - What the human should check before signing off.
