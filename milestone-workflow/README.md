@@ -102,7 +102,7 @@ ticket it came from.
 | Choice | Why | Alternative |
 |---|---|---|
 | Approval is a skill argument, recorded in a Decisions log | The decision is on the record, not in chat | A hard stop with `AskUserQuestion` |
-| Invoking build doesn't approve the plan | Gate 1 stays a real gate | Treat invocation as approval (the project's original rule) |
+| Invoking build doesn't approve the plan | Gate 1 stays a real gate | Treat invoking the build as approval, which is quicker but skips the pause |
 | One review round per invocation | Keeps a human between rounds; the author doesn't loop alone | Auto-loop until clean |
 | Reject leaves code and plan in place | Nothing is deleted without a human looking | Revert the branch on reject |
 | No commits without an explicit request | The human reviews the working tree first | Auto-commit per gate |
