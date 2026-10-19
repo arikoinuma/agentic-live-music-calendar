@@ -1,6 +1,6 @@
 # A5 — reconcile
 
-**Status:** Awaiting sign-off
+**Status:** Done (Ari sign off) - Oct 19, 2026
 **Date:** October 16, 2026 (plan); October 17, 2026 (decisions, implementation)
 **Author model:** Claude Sonnet 5.5 (plan and plan-review resolution, October 16, 2026; implementation and code-review resolution, October 17, 2026)
 **Reviewer model:** Claude Opus 5.5 (plan review round 1, October 16, 2026); Claude Opus 5.5 (code review round 1, October 17, 2026)
@@ -885,6 +885,12 @@ plan, the `reconcile` audit rows and the database.
 **Ari, October 17, 2026:** decided D1 (window end = the latest date the page lists) and D2 (an empty page removes nothing), both as recommended (option A). **Ari, October 17, 2026 (later):** decided D3 through D12, all as recommended (option A). D13 (where the database read lives) was removed as a decision at Ari's request and listed under "Settled details". **All twelve decisions are closed.**
 
 **Ari, October 17, 2026: approved the plan** ("The plan is approved. /build-milestone docs/dev/implementations/a5-reconcile.md"). The status was set to `Approved` by `/build-milestone` at step 0 and recorded here after code review round 1 found the approval was missing from the file (A5-CR1-4). No [written] item was re-marked [fill-in] or the reverse at approval.
+
+**Ari, October 19, 2026: signed off. A5 is Done.** Ari filled the five key points himself (A5-K1 to A5-K5, commit `efe95ca`) and ran
+the local verification (Postgres 18, MongoDB 7.0, Ollama with `gemma4-e4b-32k`; recorded in the Implementation log, commit `7153119`),
+which found everything in order. Plan review round 1 (16 findings) and code review round 1 (9 findings) are both fully resolved. Not
+verified, and not claimed: reconcile's effect on the calendar itself, since nothing writes to `show`, `show_artist` or `artist`
+until A6; and the artist-match thresholds, which A8 calibrates against labelled data.
 
 ## Plan review
 
