@@ -127,6 +127,11 @@ On a send back, re-read only the docs the notes touch, and update the table if y
 3. Only then write the steps. Every step names the test it has to turn green, and the first step is
    the first failing test.
 
+**Cite the reference docs.** The coder may not reread the whole reference folder, so the plan has to
+carry the context. Each step, each acceptance criterion, and each constraint from the docs cites the
+doc and section it relies on, such as `architecture.md §3`. Put the constraints that apply to the
+whole milestone in the Context section, each with its citation.
+
 **Fresh plan.** Write the file with these parts, in this order and under these headings:
 
 ```

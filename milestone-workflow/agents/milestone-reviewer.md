@@ -31,6 +31,9 @@ Testing comes first in this workflow, so check that first.
     the conventions, and the code that actually exists.
   - Check the **Reference docs read** table covers every file in the reference folder. A missing or
     unread file is a finding.
+  - Check that every step, acceptance criterion, and constraint that relies on a reference doc cites
+    the doc and section. A constraint from the docs that the plan doesn't cite is a should-fix
+    finding, because the coder may not reread the folder.
   - Check **test strategy comes before steps**. Each acceptance criterion needs a test. Each test
     needs a level, a fixture, and an expected value whose source is the spec or the docs, not the
     code yet to be written. A step that turns no test green is a finding.

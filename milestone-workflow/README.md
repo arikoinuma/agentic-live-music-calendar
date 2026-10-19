@@ -96,6 +96,16 @@ Both skills and the reviewer enforce this order:
 | Coding | Tests are written before any implementation code. Each one is seen to fail for the expected reason. Then the coder keeps going until every test passes |
 | Review | The reviewer checks test-first evidence and flags any test that was skipped, deleted, or loosened to pass, unless a departure entry gives a reason |
 
+The test strategy is part of the plan, so the human approves it at gate 1. There is no separate
+approval for it.
+
+### Reference docs in the plan and the coder
+
+The plan cites each reference doc section it relies on. The coder reads the cited sections and the
+**Reference docs read** table. It rereads the whole `reference_docs_dir` only when it can't be sure
+the planner's reads are still in its context, such as in a new or resumed session. When in doubt,
+it rereads everything.
+
 ## The milestone reference
 
 The first argument can be any of these:

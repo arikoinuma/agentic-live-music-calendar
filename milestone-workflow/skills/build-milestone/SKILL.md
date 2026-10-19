@@ -50,10 +50,17 @@ rule as in `plan-milestone`.
 ## Step 1: Set up
 
 1. Set `Status` to `Building`.
-2. Read the **reference docs**: every file in `reference_docs_dir` (recursively, in full). If that
-   isn't configured, read the usual higher-level docs in the repo (README, architecture, style guide,
-   `CONTRIBUTING`) and tell the human to set `reference_docs_dir`. Code written without this context
-   tends to break the architecture or the style rules.
+2. **Reference docs.** The plan's **Reference docs read** table and the sections its steps cite are
+   the context. Read those sections in full. Then decide whether to read the whole
+   `reference_docs_dir` (recursively, in full):
+   - **Read the whole folder** if you can't be sure the planner's reads are still in your context: a
+     new session, a resumed session, a compacted thread, or any doubt. When in doubt, read it all.
+   - **Skip the full re-read** only when you know the planning reads are still in your context, as
+     in the same thread. Then the cited sections are enough.
+   - If `reference_docs_dir` isn't configured, read the usual higher-level docs in the repo (README,
+     architecture, style guide, `CONTRIBUTING`) and tell the human to set it.
+   - If a constraint you need isn't cited in the plan, read the doc that covers it and record it as a
+     departure, because the plan missed a citation.
 3. Read the repo's `conventions_files`, and every file the plan's **Critical files** section names.
 4. Re-read the plan's **Test strategy** and **Acceptance criteria**. They are the contract for the
    code.
