@@ -95,8 +95,8 @@ HTTP against the API for anything else — the routes exist and serve the same d
   in `app/page.tsx` only fetches.
 - The calendar's Client Components are `app/_components/filter-header.tsx` and `app/_components/scroll-row.tsx`.
   The header holds no results: a selection calls `router.push` with the new URL and the server page re-renders. `ScrollRow`
-  is the sideways-scrolling venue row (the same `<div>`, with an `onFocus`): on keyboard focus it scrolls the row to the
-  focused control's column, because Chromium does not scroll a nested scroller for a half-visible focused element and
+  is the sideways-scrolling venue row (the same `<div>`, with an `onFocus`): on KEYBOARD focus only (guarded by `:focus-visible`, so a mouse press or a tap is not
+  disturbed) it scrolls the row to the focused control's column, because Chromium does not scroll a nested scroller for a half-visible focused element and
   `scroll-snap` undoes a nudge (B6-F7; its Playwright journey is in `e2e/keyboard.spec.ts`).
 - Every API call logs one line to the Next server's terminal from `send()` in `lib/api.ts`:
   `[api] GET /shows?venue_id=3 -> 200 in 41ms` (or `-> failed (timed out) in …ms`). It's how you

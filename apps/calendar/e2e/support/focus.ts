@@ -36,14 +36,6 @@ export async function isFocusObscured(page: Page): Promise<boolean> {
 type Pixel = Rgb;
 
 /**
- * How different a pixel must be from what it replaced to count as a CHANGE a person can see.
- * Not a WCAG number (AA sets none): it only has to separate a real change (a grey border
- * going dark, 2.5:1 or more) from a no-op (#000 to #222, 1.1:1). The 3:1 that WCAG 1.4.11
- * does ask is applied to the indicator against the page, not to this.
- */
-const VISIBLE_CHANGE = 1.5;
-
-/**
  * Screenshot a clip of the page and return its pixels, decoded in the BROWSER (the PNG is
  * drawn onto a canvas and read back), so no image library is needed in Node.
  * `rows` is every pixel as a flat [r, g, b, a, r, g, b, a, …] list with the clip's width.
@@ -89,16 +81,17 @@ async function clipAround(area: Locator, pad: number) {
  *
  * Two guards keep a change nobody can see from counting as an indicator (code review round
  * 1 of B6 found the first version, "the strongest changed pixel against the page", crediting
- * both). A changed pixel only counts if it is VISIBLY different from what it replaced
- * (`VISIBLE_CHANGE`): text going from #000 to #222 is "high contrast" against a white page but
- * 1.1:1 against what it replaced, so it scores nothing. A pixel that does count is scored by
- * its contrast with the page background, which is what WCAG 1.4.11 asks of an indicator.
- * (An earlier version scored by the LOWER of the two contrasts. That applied the AAA rule
- * of 2.4.13, 3:1 between the focused and unfocused pixel, to every pixel, and marked a
- * border going from faint grey to a 4.7:1 dark one as failing.) And the result is
- * the score that half an outline's worth of pixels reaches (half of a one-pixel ring around
- * the control's box): a speck of a few maximum-contrast pixels outlines nothing and
- * reads as 1:1. `changedPixels` is how many pixels changed at all.
+ * both). Each changed pixel is scored by the LOWER of two contrasts: against the page
+ * background (what WCAG 1.4.11 asks of an indicator) and against the pixel it replaced (what
+ * makes the change visible at all). Text going from #000 to #222 is "high contrast" against a
+ * white page but 1.1:1 against what it replaced, so it scores 1.1; a faint border turning
+ * dark scores well on both. A floor on the second contrast alone ("visibly different,
+ * then score against the page") was tried in the B6-F3 fix and was wrong: it credited a step
+ * such as #000 to #444 (2.2:1 between the states, 9.7:1 against the page) as a strong
+ * indicator (code review round 2, finding 2). And the result is the score that half an
+ * outline's worth of pixels reaches (half of a one-pixel ring around the control's box): a speck
+ * of a few maximum-contrast pixels outlines nothing and reads as 1:1. `changedPixels` is how
+ * many pixels changed at all.
  */
 export async function measureFocusIndicator(
   page: Page,
@@ -119,7 +112,7 @@ export async function measureFocusIndicator(
     const was: Pixel = [before.data[i]!, before.data[i + 1]!, before.data[i + 2]!];
     const now: Pixel = [after.data[i]!, after.data[i + 1]!, after.data[i + 2]!];
     if (was[0] === now[0] && was[1] === now[1] && was[2] === now[2]) continue;
-    scores.push(contrastRatio(now, was) >= VISIBLE_CHANGE ? contrastRatio(now, background) : 1);
+    scores.push(Math.min(contrastRatio(now, background), contrastRatio(now, was)));
   }
 
   // The least that could be called an indicator: HALF of a one-pixel ring around the

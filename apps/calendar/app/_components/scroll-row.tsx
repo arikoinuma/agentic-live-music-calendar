@@ -22,8 +22,16 @@ import type { FocusEvent, ReactNode } from "react";
  * where snapping wants the row to be, and the whole column (and so the focused control) is in
  * view. Scrolling to the control itself would be undone by the snap.
  *
- * Nothing happens when the control is already fully visible (no jump on every Tab) or when
- * focus lands outside a column.
+ * KEYBOARD FOCUS ONLY. A mouse press or a tap on a control that is partly off-screen also
+ * focuses it, and scrolling the row between the press and the release moves the control out from
+ * under the pointer, so the click never lands (code review round 2 of B6 found this on a phone:
+ * tapping a partly visible show link did nothing). `:focus-visible` is the browser's own test for
+ * "focus that came from the keyboard" (it is false for a mouse or touch focus on a link), so
+ * pointer users keep the browser's behaviour and only keyboard users get the scroll.
+ *
+ * Nothing happens when the control is already fully visible (no jump on every Tab), when
+ * focus lands outside one of this row's own columns, or when the focus did not come from the
+ * keyboard.
  */
 export function ScrollRow({ className, children }: { className: string; children: ReactNode }) {
   return (
@@ -37,6 +45,7 @@ export function ScrollRow({ className, children }: { className: string; children
 function revealColumn(event: FocusEvent<HTMLDivElement>) {
   const row = event.currentTarget;
   const target = event.target as HTMLElement;
+  if (!target.matches(":focus-visible")) return; // a press or tap, not a Tab: leave the row alone
 
   const rowBox = row.getBoundingClientRect();
   const targetBox = target.getBoundingClientRect();
@@ -45,7 +54,9 @@ function revealColumn(event: FocusEvent<HTMLDivElement>) {
   if (fullyVisible) return;
 
   const column = target.closest("section");
-  if (!column) return;
+  // Only a column that is a direct child of THIS row is a snap point of this row; a `<section>`
+  // further up the page (or one that wraps the row) would scroll it to the wrong place.
+  if (!column || column.parentElement !== row) return;
   // How far the column's left edge is from the row's, added to where the row already is.
   row.scrollTo({ left: row.scrollLeft + (column.getBoundingClientRect().left - rowBox.left) });
 }

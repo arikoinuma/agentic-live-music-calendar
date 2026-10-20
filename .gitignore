@@ -20,9 +20,8 @@ test-results/
 # Turbo
 .turbo
 
-# Playwright (B6): the HTML report and per-test traces/screenshots
+# Playwright (B6): the HTML report (test-results/ is under "Testing" above)
 playwright-report/
-test-results/
 
 # Vercel
 .vercel

@@ -554,3 +554,10 @@ off for `e2e/**/*.ts` in `eslint.config.js`. Also, `eslint-plugin-turbo` (with `
 
 **The sandbox cannot download Playwright's browser** and ships an older Chromium (`/opt/pw-browsers/chromium`) than
 Playwright 1.64 expects; it works. `scripts/cloud-setup.sh` exports `E2E_CHROMIUM_PATH` for it.
+
+**A `focus` handler that scrolls runs for a mouse press or a tap too, and swallows the click.** Chromium focuses a link on
+mouse-down; if the handler moves the page (or a scroller) before the mouse-up, the release lands on something else and
+nothing navigates. Guard such handlers with `target.matches(":focus-visible")` (keyboard focus only). `ScrollRow` does; its
+pointer journey is `e2e/venue-row-pointer.spec.ts`. Test it with raw `page.mouse` / `page.touchscreen` coordinates on the
+VISIBLE part of a partly visible control, and with a viewport tall enough that the control is on screen (a press below the
+fold reaches nothing and the test fails for the wrong reason).

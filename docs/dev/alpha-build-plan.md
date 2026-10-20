@@ -341,7 +341,7 @@ Scope agreed with Ari on October 17, 2026. Two things come out of it: the access
 - [x] **[fill-in]** B6-K1: the clock pin, `Date.now = () => FROZEN` in `e2e/support/fake-now.mjs` *(filled by Ari October 20, 2026; the scaffold then taken out by a Claude pass, verified comment-only)*
 - [x] **[fill-in]** B6-K2: the focus-not-obscured predicate in `e2e/support/focus.ts` *(filled by Ari October 20, 2026; the scaffold then taken out by a Claude pass, verified comment-only)*
 - [x] **[fill-in]** B6-K3: the page-reflow predicate in `e2e/support/reflow.ts` *(filled by Ari October 20, 2026; the scaffold then taken out by a Claude pass, verified comment-only)*
-- [x] **[written]** Findings marked by Ari and the fix round done (the plan's Step 8, October 20, 2026): B6-F1 (lineup link target size), B6-F3 (focus ring contrast) and B6-F7 (a half-visible focused link in a venue row; `ScrollRow`) fixed, each in its own commit; B6-F2 (Base UI popup hides the page) accepted as upstream behaviour; B6-F4 not reproduced; B6-F6 a nit, kept; B6-F5 fixed in round 1 (D8).
+- [x] **[written]** Findings marked by Ari and the fix round done (the plan's Step 8, October 20, 2026): B6-F1 (lineup link target size), B6-F3 (focus ring contrast) and B6-F7 (a half-visible focused link in a venue row; `ScrollRow`) fixed, each in its own commit; B6-F2 (Base UI popup hides the page) accepted as upstream behaviour; B6-F4 not reproduced; B6-F6 a nit, kept; B6-F5 fixed in round 1 (B6-D8).
 - [ ] Second-model code review of the Step 8 changes, then sign-off. *(Ari did his manual checks October 20, 2026.)*
 
 **Implementation strategy.** One test first, green, then the rest. Each step ends with its own green result before the next starts.

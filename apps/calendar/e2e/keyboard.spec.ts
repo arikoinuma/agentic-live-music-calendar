@@ -94,6 +94,7 @@ for (const width of [1280, 375, 320]) {
     await screen.ready(page);
 
     const partlyOutside: string[] = [];
+    let insideRow = 0; // stops that live in a sideways scroller, so the check below cannot pass on nothing
     for (let stop = 0; stop < MAX_STOPS; stop++) {
       await page.keyboard.press("Tab");
       const result = await page.evaluate(() => {
@@ -102,18 +103,25 @@ for (const width of [1280, 375, 320]) {
         // The sideways scroller the control lives in, if any.
         let row: HTMLElement | null = el.parentElement;
         while (row && getComputedStyle(row).overflowX !== "auto") row = row.parentElement;
-        if (!row) return { name: "", outside: false };
+        if (!row) return { name: "", outside: false, row: false };
         const rect = el.getBoundingClientRect();
         const bounds = row.getBoundingClientRect();
         return {
           name: (el.textContent ?? "").trim().slice(0, 40),
+          row: true,
           outside: rect.left < bounds.left - 1 || rect.right > bounds.right + 1,
         };
       });
       if (result === null) break;
+      if (result.row) insideRow++;
       if (result.outside) partlyOutside.push(result.name);
     }
 
+    // Every one of the home page's 25 shows has at least one link in a row (84 stops measured at
+    // all three widths); if the scroller selector ever stops matching (a class
+    // change, a different overflow value) every stop would read "not in a row" and the check
+    // below would pass having looked at nothing.
+    expect(insideRow, "Tab stops found inside a venue row").toBeGreaterThanOrEqual(25);
     expect(partlyOutside, "focused controls not fully inside their venue row").toEqual([]);
   });
 }

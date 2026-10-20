@@ -66,6 +66,34 @@ test.describe("the measuring method, on pages built for the purpose", () => {
     expect(ratio).toBeLessThan(3);
   });
 
+  // Proves: a text-colour change that is a real but SMALL step between the two states does not
+  // count as a focus indicator. Black text going to #444 differs by only 2.16:1 between focused
+  // and unfocused (under the 3:1 a colour-only indicator needs), though #444 is 9.7:1 against the
+  // white page. A rule that scores only against the page called this a strong indicator (code
+  // review round 2, finding 2).
+  test("does not count a text colour change that is under 3:1 between the states", async ({ page }) => {
+    await page.setContent(withFocusStyle("outline:none;color:#444"));
+    const { ratio } = await measureFocusIndicator(page, page.locator("#b"));
+
+    expect(ratio).toBeLessThan(3);
+  });
+
+  // Proves: the opposite guard, so the rule cannot drift too strict: a faint #e5e5e5 border that
+  // turns dark (#333) on focus IS an indicator. It differs from the unfocused border by 9.6:1
+  // and from the page by 12.6:1. (The Month select's real border, grey to 4.7:1 dark, is this
+  // shape.)
+  test("counts a faint border that turns dark", async ({ page }) => {
+    await page.setContent(
+      // The base border is in the stylesheet, not an inline style: an inline `border` would
+      // beat the `:focus` rule and the colour would never change.
+      `<body style="margin:0;background:#fff;padding:24px"><button id="b" style="margin:12px;padding:6px 12px">Button</button>
+       <style>#b{border:1px solid #e5e5e5;background:#fff;outline:none}#b:focus{border-color:#333}</style></body>`,
+    );
+    const { ratio } = await measureFocusIndicator(page, page.locator("#b"));
+
+    expect(ratio).toBeGreaterThanOrEqual(3);
+  });
+
   // Proves: a speck is not an indicator either. A 2px black square appearing beside the
   // button changes a handful of pixels that are individually maximum contrast, but too few
   // to outline anything: the measurement asks for half an outline's worth (half of a 1px ring

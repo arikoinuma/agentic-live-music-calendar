@@ -9,9 +9,10 @@ import { ShowBlock } from "./show-block";
  * scrolling row of venue columns, each column holding that venue's shows
  * that day (requirements-initial.md, "Calendar").
  *
- * A Server Component: nothing here is interactive (the sideways scroll is
- * the browser's own), so it ships no JavaScript, and the Temporal
- * formatting stays on the server.
+ * A Server Component: nothing here is interactive of its own (the sideways scroll is
+ * the browser's; `ScrollRow`, the one Client Component it renders, only adds a keyboard-focus
+ * scroll), so the grid itself ships no JavaScript, and the Temporal formatting stays on the
+ * server.
  *
  * Plan B3-D1 and B3-D2: a row lists only the venues with a show that date, and every
  * date in the served range gets a row — a date with nothing on it is a thin
@@ -68,7 +69,8 @@ export function CalendarGrid({ rows }: { rows: CalendarRow[] }) {
               // here (B3-CR1-4; Ari tried it and it was noise). A
               // scrollable area must be keyboard-reachable, but every venue
               // column already starts with a link, so Tab lands inside the row
-              // and the browser scrolls the focused link into view. Making the
+              // (and `ScrollRow` scrolls the focused link's column into view;
+              // the browser alone leaves a partly visible link where it is). Making the
               // row itself focusable added a tab stop per date (20 on `/`)
               // before that date's first link, and `role="region"` added 20
               // near-identical landmarks to a screen reader's list.
