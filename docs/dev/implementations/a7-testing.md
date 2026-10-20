@@ -1,6 +1,6 @@
 # A7 — testing
 
-**Status:** Awaiting approval
+**Status:** Approved
 **Date:** October 20, 2026
 **Author model:** Claude Sonnet 5.5 (plan, October 20, 2026)
 **Reviewer model:** Claude Opus 5.5 (plan review round 1, October 20, 2026)
@@ -509,3 +509,8 @@ configuration, bookkeeping or a pinning test, and none of them is where a concep
 **For Ari to decide before approving:** D1, D2 and D3 above. Also veto-or-accept the Settled details, in particular: narrowing
 `python_files` (a manual script can no longer be named `*_test.py` *and* be collected, which is the point), the single new
 `# type: ignore`, and leaving the two other model fakes alone.
+
+**Ari, October 20, 2026: approved the plan** ("The implementation plan is approved. I accept the recommendations on all 3
+decisions."), then ran `/build-milestone`, which set the status to `Approved` at step 0. Decided as recommended: **D1 = A** (a
+report-only coverage target), **D2 = B** (all 14 older tests get a `Proves:` comment now; revised from A in plan review),
+**D3 = A** (mypy covers tests and `eval/`). The Settled details stand as written.
