@@ -1,6 +1,6 @@
 # B6 — accessibility and end-to-end tests
 
-**Status:** Approved; building. Step 1 is done and the build is **paused for Ari's first run** (D11); Step 2 has not been started
+**Status:** Code review
 **Date:** October 19, 2026
 **Author model:** Claude Sonnet 5.5
 **Reviewer model:** Claude Opus 5.5 (plan review round 1)
@@ -577,3 +577,85 @@ To get a feel for it (each is the same command with `E2E_ARGS`):
 | Step through | `make e2e E2E_ARGS="--debug"` | The Playwright Inspector, one action at a time |
 
 (Locally the reporter is `list`; the HTML report is for CI.) Then tell the next session to continue the build from Step 2.
+
+### Round 2 — Steps 2–7, the rest of the build (Claude Sonnet 5.5, October 19–20, 2026)
+
+Step 1 was round 1 (Ari ran it and said to continue). This round is the rest, and **the second-model code review covers Steps 1–7 together** (D11). Step 8, the fix round, waits for Ari's marks on findings F1–F7.
+
+**Scope:** `git diff 2efabbd` (the last plan commit) on `claude/sharp-euler-uoi339`: 50 files, about 2,080 insertions. Commits `83d63b1` (Step 1) to `26a5a4f` (docs and F7). Files:
+
+| Area | Files |
+|---|---|
+| Harness | `apps/calendar/playwright.config.ts`; `e2e/support/{stack.ts,test.ts,delay-proxy.mjs,fake-now.mjs,clock.ts,screens.ts}`; `Makefile` (`make e2e`, in `make check`); `.github/workflows/ci.yml` (`e2e` job); `turbo.json`; `apps/calendar/eslint.config.js`; `.gitignore`; `scripts/cloud-setup.sh` |
+| Journeys (J1–J9) | `e2e/{home,filter-venue,filter-empty,filter-history,day-view,venue-page,artist-page,show-page,not-found,filter-busy,skeleton}.spec.ts` |
+| Accessibility | `e2e/{a11y-screens,a11y-popups,focus-indicator,keyboard,reflow}.spec.ts`; `e2e/support/{a11y.ts,a11y-baseline.ts,focus.ts,reflow.ts,contrast.ts}` |
+| Unit tests (Vitest) | `e2e/support/{clock,a11y-baseline,contrast}.test.ts`; `app/_components/calendar-skeleton.test.tsx` |
+| Production code | `app/_components/calendar-skeleton.tsx` (D8: a hidden "Loading shows" status), nothing else |
+| Docs | the build plan's B6 section, `notes.md`, `arch-initial.md`, `nextjs-style-guide.md`, `conventions.md`, `README.md`, `AGENTS.md`, `apps/calendar/AGENTS.md` |
+
+**Departures from the plan** (each with its reason)
+1. **Today row found by its badge, not `getByRole("listitem", { current: "date" })`.** Playwright has no `current` option (Testing Library does; `next build` rejected it as a type error). The row is found by the "Today" text and `aria-current="date"` is asserted on it.
+2. **J6a is scoped to the Oct 7 row by its date heading, not the Today row,** so it does not depend on the pin (K1). Otherwise an open K1 would redden J6a as well.
+3. **Added: a request-settling fixture and a hermetic browser (`e2e/support/test.ts`).** Ari's first run showed Next logging `The destination stream closed early` (link prefetches still streaming when the browser closed). The `page` fixture now resets the proxy and waits for in-flight requests before closing, and refuses outside requests (the sample data's poster and photo URLs point at example.com; images are answered with a 1x1 PNG). Before: 1 occurrence in 30 runs here; after: 0 in 285. Not in the plan.
+4. **`a11y-home.spec.ts` (Step 3) was removed** when Step 5's every-screen spec subsumed it. The shared screen list is `e2e/support/screens.ts`, used by the scan and the reflow spec.
+5. **The strict K2 predicate found a real stop** (finding F7), so `keyboard.spec.ts` does not assert `hidden === []` but holds the hidden stops to the ratchet baseline (a custom `b6-focus-obscured` finding). With K2 filled strictly as written, the test is green with F7's row; a sticky-heading regression would show as added. The plan's gap text says so.
+6. **Painted-focus ratios use the page background, not the before/after pair.** The prototype compared the changed pixel with what it replaced (the Month select's border: 229 to 181, 1.63:1); the build compares it with the page background (2.58:1). So the numbers differ from the plan's fact 8. Artist link 1.76 (the plan's 1.54 was the nav link; the darkest changed pixel on the artist link is stronger).
+7. **The measurement has self-tests** (`focus-indicator.spec.ts`, first block): a 3px black outline reads about 21:1, a control with no focus style reads nothing, a pale grey ring about 1.6:1, a known border its known ratio. Not in the plan; the method deserves proof before its numbers are trusted.
+8. **35 tests are red while the gaps are open, not three.** K3's function is called by 30 reflow tests (15 screens times 2 widths), K2's by 4 keyboard tests, K1's by 1. The plan said "the reflow test" in the singular.
+9. **All ten mutations ran in the throwaway worktree with the gaps filled,** not on the branch, so the branch was never edited to break it (the plan had M1–M3, M7, M8 and M10 on the branch). M8 was also run on the branch during Step 3.
+10. **The popup scans run at 1280 only** (the plan said "popup states"); the error screen is scanned at both widths.
+11. **Docs:** the `F` form widened in `conventions.md`; `README.md` gained a `make e2e` line (not listed in Departure 9).
+
+**`TODO(Ari)` gaps: all three open** (scaffold only; none was filled). Each reddens only its own tests.
+
+| Gap | Where | Lesson | Command |
+|---|---|---|---|
+| K1 | [`e2e/support/fake-now.mjs:32`](../../apps/calendar/e2e/support/fake-now.mjs) | Server Components run on the Next server, so the browser's clock tools cannot reach "today"; patch `Date.now` and only that, as a `NODE_OPTIONS` preload | `make e2e E2E_ARGS="e2e/home.spec.ts"` (1 test, `the Today row is the pinned Wednesday`) |
+| K2 | [`e2e/support/focus.ts:39`](../../apps/calendar/e2e/support/focus.ts) | WCAG 2.4.11: ask the browser what is on top at the focused control's centre; `toBeVisible()` ignores overlap | `make e2e E2E_ARGS='e2e/keyboard.spec.ts -g sticky'` (4 tests) |
+| K3 | [`e2e/support/reflow.ts:26`](../../apps/calendar/e2e/support/reflow.ts) | WCAG 1.4.10: measure the document (`documentElement`), not `body` and not the scrollers that scroll on purpose | `make e2e E2E_ARGS="e2e/reflow.spec.ts"` (30 tests) |
+
+**Verification** (Node 22.22.0, this sandbox; Chromium via `E2E_CHROMIUM_PATH=/opt/pw-browsers/chromium`)
+- **`make check`** (exit 2, **red only through the three gaps' tests**): ruff clean; mypy and pytest 669 passed, 15 skipped (the known cloud skips); Vitest 351 passed (25 files; +14 over B5: the clock guard, the ratchet, the contrast arithmetic, the skeleton); contract current; e2e **60 passed, 35 failed** (1 K1 + 4 K2 + 30 K3, every failure `TODO(Ari)` or the Today row on the real clock).
+- **Gaps checked in a throwaway worktree** (the plan's code filled in there, never on the branch): the full suite is **95 of 95 green, and 285 of 285 over `--repeat-each=3`** (6.4 minutes, about 2 minutes per run), `pnpm lint` zero warnings once K1's scaffold-only `eslint-disable` is dropped, no `destination stream closed early` line, no listener left on 8101, 8102 or 3100.
+- **Mutations** (each: break one thing in the worktree, build, run the named spec, restore):
+
+  | M | Break | Result |
+  |---|---|---|
+  | B6-M1 | filter pushes with `replace` | J4 red (1 of 1) |
+  | B6-M2 | venue page returns markup instead of `notFound()` | J7 `/venue/9999` red (1 of 4) |
+  | B6-M3 | no `<Suspense>` around `CalendarBody` | J9 red |
+  | B6-M4 | `aria-current` removed from the Today row | J1's Today test red (1 of 2) |
+  | B6-M5 | `min-w-[400px]` in the header | reflow red (30 of 30) |
+  | B6-M6 | a fixed 96px bar in the layout | the 4 sticky-heading tests red |
+  | B6-M7 | an unlabelled `<button>` on `/` | 6 scans red (`button-name` added) |
+  | B6-M8 | delete the `/ @1280` baseline row | the `/` scan red (also on the branch, Step 3) |
+  | B6-M9 | start Next without the pin | J1's Today test red |
+  | B6-M10 | the chip-remove button loses its `aria-label` | J2 red |
+
+**Findings** (Ari marks each must-fix, should-fix or nit before the fix round; severities here are proposals). Measured values are from this build; the baseline holds counts, not ratios.
+
+| ID | Finding | WCAG | Evidence | Proposed | Likely fix |
+|---|---|---|---|---|---|
+| B6-F1 | Artist links are 18px high (24 needed). `/` 6 elements, `/day/2026-10-07` and `?sort=time` 2 each, `/artist/1` 2, the Month popup shows the same 6; same at 375 | 2.5.8 AA | axe `target-size` | **must-fix** | `inline-block py-1`, the day view's own pattern (B4) |
+| B6-F2 | `aria-hidden-focus` (5 elements) while the Venues or Artists popup is open: Base UI marks `header`, `footer` and the page content `aria-hidden` yet focusable elements stay inside. It also hides the page from role queries (and a screen reader) while a multi-select's popup is open after a pick | 4.1.2 A | axe, popup state; the journeys needed Escape | **should-fix**; cause not investigated (a Base UI option, or upstream) | find the Base UI prop (`modal`) or accept and document |
+| B6-F3 | Painted focus indicator vs the page background: artist link 1.76, nav link 1.54, date heading link 1.92, Venues combobox 2.58, Month select 2.58, Clear filters 1.59 (all below 3:1) | 1.4.11 AA | screenshot diff, `focus-indicator.spec.ts` | **must-fix** if Ari reads 1.4.11 as covering focus rings (the W3C Understanding document does) | a darker `--ring` at full opacity; the link outline is the ring colour at 50% alpha |
+| B6-F4 | At 375px on `/`, axe cannot decide the contrast of 4 venue links ("partially obscured by another element"). Desktop is clean | 1.4.3 AA | axe `incomplete`; hit-testing finds every in-view venue link topmost at its centre | **nit**: triage by eye | none unless a look finds a real overlap |
+| B6-F5 | The loading skeleton had no text | 4.1.3 AA (judgement) | by reading | **markup fixed in round 1 by D8** (its approval is the mark); whether a screen reader announces anything is a manual-pass question | done |
+| B6-F6 | Unfocused control borders are 1.26:1 on white (Venues box, Month select) | 1.4.11 AA | screenshot, `focus-indicator.spec.ts` | **should-fix or nit**: depends on whether the label alone identifies the field | a darker `--input` |
+| B6-F7 | At 375px, tabbing `/` lands on show 2's time link at the right edge of its venue row **half cut off by the row's scroll container** (link x 297 to 425, row visible to 359; the hit point is the page padding). Not a sticky heading | 2.4.11 AA passes (not entirely hidden), but a half-clipped focus is a defect | the strict K2 predicate in a worktree, then a probe | **should-fix**; cause PLAUSIBLE: scroll-snap `mandatory` against the browser's focus scrolling | `scroll-padding` on the row, or `proximity` snapping |
+
+Not findings: reflow passes on all 15 screens at 320 and 375; focus is never entirely hidden and never under a sticky heading on `/` or `/venue/1` at either width; all 15 screens' browser titles match the exact expected text (2.4.2); both 404 pages and the error screen are clean; the muted-on-muted pair (4.35:1 by arithmetic) is not rendered anywhere (the chip is `text-foreground`).
+
+**`incomplete` triage** (13 pages, 2 widths): the only incomplete result is F4 above.
+
+**Not verified:** the CI `e2e` job (a cloud session cannot run it before the push; the YAML parses and mirrors the local commands, and `actions/cache@v4` is the version I know); Node 24 and Ari's laptop; `playwright install --with-deps chromium` and the `ms-playwright` cache path on the runner; the `cloud-setup.sh` export from a fresh session (this session set the variable by hand); the headed and UI modes on a laptop; **K1, K2 and K3 as Ari types them** (verified as the plan's code in a worktree, not as typed); the manual keyboard and screen-reader pass (Ari's, Verification 7).
+
+**Where to look hardest**
+1. **F7's cause** is a hypothesis; nothing diagnosed it. And F2's cause was not investigated.
+2. **The focus-indicator measurement** (`e2e/support/focus.ts`): a diff of two screenshots with animations disabled. The self-tests cover known pages, but the baseline holds counts, so a ring that moves across 3.0 flips a count. Is "strongest changed pixel against the page background" the right reading of 1.4.11 for a ring that anti-aliases?
+3. **The `page` fixture** (`test.ts`): the best-effort wait (a `.catch(() => {})` on the poll) and the unconditional proxy reset in it. A test that hangs a request for more than 5 seconds is silently let go.
+4. **The stubbed images** make every page's images 1x1: the scans never see a real image's `alt` text rendering or its overflow.
+5. **The CI job** has not run.
+6. **`next build` type-checks `e2e/`** (notes.md): a type error in a spec now breaks the Vercel build, not only `check-types`.
+
+**Handoff notes for Ari:** mark F1–F7 (and any the review adds); fill K1–K3 (or tell a session to); run the manual pass (Verification 7); the findings gate before sign-off.
