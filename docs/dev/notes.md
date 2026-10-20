@@ -554,8 +554,10 @@ SQLAlchemy 2.0.52 / asyncpg 0.32.0. `tests/fakes.py` builds the real shapes.
 The test factories bind every session to one connection in `create_savepoint` mode, so a session opened while another is mid-
 transaction creates a savepoint INSIDE the first's, and rolling the outer one back undoes the inner one's "committed" work. A test
 that asserts "a rolled-back write left no audit row" cannot tell a writer that used one transaction from one that wrote the audit
-row through a second session (the A6-M2 mutation). Count the sessions (`test_a_write_uses_exactly_one_session`), or end the first
-with a failure raised AFTER the rows were produced (`test_audit_rows_roll_back_with_the_write`).
+row through a second session (the A6-M2 mutation). Only counting the sessions catches that (`test_a_write_uses_exactly_one_session`),
+or a test on a real engine instead of savepoint mode. A failure raised AFTER the rows were produced
+(`test_audit_rows_roll_back_with_the_write`) catches a different mistake, a `commit()` before the rows are added, and passes a
+writer that used a second session.
 
 ---
 

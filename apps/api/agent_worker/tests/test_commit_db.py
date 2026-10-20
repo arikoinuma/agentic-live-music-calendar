@@ -171,7 +171,7 @@ async def test_each_decision_was_written_as_the_requirements_say(
 async def test_an_unchanged_show_gets_no_audit_row_and_every_write_gets_one(
     run1: Committed, factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    # Proves (A6-D1): run 1 wrote four shows (an update, a removal, a reactivation, two inserts: five writes), so five
+    # Proves (A6-D1): run 1 wrote five shows (an update, a removal, a reactivation, two inserts: five writes), so five
     # show rows plus one artist row (Sunny Day) plus the summary; the unchanged Oct 20 show has none. Every show row has the
     # outcome of its decision.
     rows = await commit_rows(factory, run1.state.run_id)
@@ -213,12 +213,12 @@ async def test_the_second_run_is_all_no_ops(
     run1: Committed, factory: async_sessionmaker[AsyncSession], db_conn: AsyncConnection,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Proves (A6-M4; the property that stops a show flipping every night): run the same page again and the plan is all
-    # no-ops (and the shows past the window untouched), no row is added or rewritten, and no per-show commit row is added,
-    # only the summary. Every show's `updated_at` is first set to a literal past time: inside the test transaction `now()`
-    # never moves, so a rewritten row would get the transaction's start, a different value, while comparing two `now()`s
-    # would prove nothing (A6-PR1-3). Skipping the price conversion would make `20.0` compare unequal to the stored
-    # Decimal("20.00") and fail this test.
+    # Proves (the property that stops a show flipping every night): run the same page again and the plan is all no-ops
+    # (and the shows past the window untouched), no row is added or rewritten, and no per-show commit row is added, only
+    # the summary. Every show's `updated_at` is first set to a literal past time: inside the test transaction `now()` never
+    # moves, so a rewritten row would get the transaction's start, a different value, while comparing two `now()`s would
+    # prove nothing (A6-PR1-3). This page has no prices, so it says nothing about the price conversion: that is
+    # `test_a_price_round_trips_exactly_and_a_second_run_does_not_rewrite_it` (A6-M4, A6-CR1-2).
     await db_conn.execute(update(Show).values(updated_at=LONG_AGO))
     before = await counts_and_stamps(factory)
     state = await run_page(factory, run1.venue, run1.page, PAGE, ACTS, monkeypatch)
@@ -235,23 +235,25 @@ async def test_the_second_run_is_all_no_ops(
 async def test_a_price_round_trips_exactly_and_a_second_run_does_not_rewrite_it(
     factory: async_sessionmaker[AsyncSession], tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Proves (build plan A6, the [written] price item, end to end): a model-route listing with an advance price of 19.99 and
-    # a day price of 25.0 is stored as exactly Decimal("19.99") and Decimal("25.00") (the columns are Numeric(10, 2)), and
-    # the second run compares them equal, so it is a no-op and not an update. (That the write converts through
-    # `to_price` and not `Decimal(float)` is pinned in test_commit_ops.py: Postgres rounds to two places, so the
-    # database alone would hide the difference.)
+    # Proves (build plan A6, the [written] price item, end to end; A6-M4): a model-route listing with a day price of 19.99
+    # and an advance price of 0.125 (a HALF cent) is stored as exactly Decimal("19.99") and Decimal("0.12"), and the second
+    # run compares them equal, so it is a no-op and not an update. The half cent is what makes this a test of the write's
+    # conversion: `to_price` rounds half to even (0.12) but Postgres `numeric` rounds half away from zero (0.13), so a write
+    # that handed the database `Decimal(0.125)` instead would store 0.13, the next run would see 0.13 against 0.12 and
+    # UPDATE the show, and so on every night. (For 19.99 and 20.0 the two roundings agree, which is why a price like
+    # that proves nothing here; the unit test in test_commit_ops.py pins the conversion itself.)
     venue = await bare_venue(factory)
     page = tmp_path / "page.html"
     page.write_text(fakes.text_page("Nona", "Oct 20", "8 pm"))
     answer = fakes.listings_answer(
-        fakes.listing("2026-10-20", "Nona", time="20:00", admission_advance=19.99, admission_day=25.0)
+        fakes.listing("2026-10-20", "Nona", time="20:00", admission_advance=0.125, admission_day=19.99)
     )
     monkeypatch.setattr(nodes, "instructor_client", scripted_client({fakes.PAGE: [answer], SPLITTER: [split_answer(("Nona", ["Nona"]))]}))
     first = await run_venue(venue, real_context(factory), calendar_url=str(page), fetched_on=fakes.FETCHED)
     assert first.commit_result is not None and first.commit_result.written["inserted"] == 1
     [shown] = await PostgresCalendarReader(factory).stored_shows(venue.id, *RANGE)
-    assert (shown.admission_advance, shown.admission_day) == (Decimal("19.99"), Decimal("25.00"))
-    assert str(shown.admission_advance) == "19.99"
+    assert (shown.admission_advance, shown.admission_day) == (Decimal("0.12"), Decimal("19.99"))
+    assert str(shown.admission_day) == "19.99"
 
     monkeypatch.setattr(nodes, "instructor_client", scripted_client({fakes.PAGE: [answer], SPLITTER: [split_answer(("Nona", ["Nona"]))]}))
     second = await run_venue(venue, real_context(factory), calendar_url=str(page), fetched_on=fakes.FETCHED)

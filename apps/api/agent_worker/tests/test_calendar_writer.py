@@ -550,6 +550,21 @@ async def test_a_failing_show_is_recorded_and_skipped_and_the_loop_goes_on() -> 
     assert row.detail["date"] == "2026-10-21" and row.detail["sqlstate"] == "23514" and row.outcome is None
 
 
+async def test_a_show_gone_error_in_the_loop_is_recorded_and_skipped_like_a_refused_row() -> None:
+    # Proves (A6-D2, A6-PR1-7, A6-CR1-1): a stored show deleted by hand between reconcile and commit raises `ShowGone`
+    # from the writer, which is one show's problem, not the run's: the other two writes happen, the failure is recorded
+    # with no SQLSTATE (it is not a database error) and an error that names `ShowGone`, and one failure row says which
+    # show. An A6-K2 that catches only `DBAPIError` lets it escape and stops the venue's run, and this test fails.
+    plan = plan_for([listed(i, day(20 + i), at(20), acts=["Nona"]) for i in range(3)])
+    writer, audit = FakeWriter(fail={1: ShowGone("show 3 is not in the calendar")}), RecordingAudit()
+    result = await write_plan(build_ops(plan, 1, URL), writer, audit, run_id=1, attempt_number=1)
+    assert result.written["inserted"] == 2 and len(writer.ops) == 3
+    [failure] = result.failures
+    assert (failure.date, failure.sqlstate) == (day(21), None) and failure.error.startswith("ShowGone:")
+    [row] = audit.entries
+    assert row.detail["sqlstate"] is None and row.detail["error"].startswith("ShowGone:") and row.outcome is None
+
+
 async def test_an_all_failed_run_is_flagged() -> None:
     # Proves (A6-PR2-2): three operations that all fail set `all_failed` (it looks like a bug in the writes, not three bad
     # listings); two that all fail do not (too few to say).

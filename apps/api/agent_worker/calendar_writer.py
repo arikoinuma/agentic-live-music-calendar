@@ -97,14 +97,15 @@ def is_decision_error(err: BaseException) -> bool:
 def failure_for(op: ShowOp, err: BaseException) -> ShowFailure:
     """A failed write as data: which show (date, time, stored id), the SQLSTATE, and the error's type and first line.
     Never the SQL with its parameters, which can carry a whole page's worth of text."""
-    wrapped = isinstance(err, DBAPIError)
-    sqlstate = (getattr(err.orig, "sqlstate", None) or None) if isinstance(err, DBAPIError) else None
-    message = str(err.orig if isinstance(err, DBAPIError) else err)
+    if isinstance(err, DBAPIError):
+        sqlstate = getattr(err.orig, "sqlstate", None) or None
+        message = str(err.orig)
+    else:  # ShowGone: not a database error, so no SQLSTATE
+        sqlstate, message = None, str(err)
     first_line = message.splitlines()[0] if message else ""
     return ShowFailure(
         action=op.action.value, date=op.decision.date, time=op.decision.start_time, stored_id=op.stored_id,
-        reconcile_reason=op.reconcile_reason, sqlstate=sqlstate if wrapped else None,
-        error=f"{type(err).__name__}: {first_line}",
+        reconcile_reason=op.reconcile_reason, sqlstate=sqlstate, error=f"{type(err).__name__}: {first_line}",
     )
 
 
@@ -177,12 +178,16 @@ class PostgresCalendarWriter:
         #           audit_row(e) for e in self._audit_rows(op, created, show_id, previous, new, run_id, attempt_number)
         #       )
         #   return ShowWritten(show_id, op.outcome, created)
-        # Check: uv run pytest agent_worker/tests/test_calendar_writer.py -k "writes or previous or atomic or audit_rows or revert or remembered or one_session"
+        #   Then delete the suppression comment on the `audit_row` import above: the name is used now, and `ruff` (RUF100)
+        #   rejects a suppression that suppresses nothing, which would fail `make check`'s lint stage.
+        # Check: uv run pytest agent_worker/tests/test_calendar_writer.py -k "insert or update or removal or previous or roll_back or rolls_back or one_session or check_constraint or overflowing_price_is or vanished or restoring"
+        #   (the loop's tests, and the "remembered" test, which runs through `write_plan`, go green only once A6-K2 is filled too).
         #   The likeliest mistake is taking `previous` after `_apply` (it equals `new_value`: test_previous_value_is_the_row_before_the_change
-        #   goes red). The second is writing the audit rows through another session or calling `session.commit()` before they
-        #   are added (test_audit_rows_roll_back_with_the_write and test_a_write_uses_exactly_one_session go red; the
-        #   foreign-key test fails earlier, before the audit rows exist, so it cannot see this). The third is keeping created
-        #   ids anywhere but the return value (test_a_rolled_back_artist_is_not_remembered goes red).
+        #   goes red). The second is writing the audit rows through another session (only test_a_write_uses_exactly_one_session
+        #   goes red: in these tests a second session nests inside the first's savepoint and rolls back with it) or calling
+        #   `session.commit()` before they are added (test_audit_rows_roll_back_with_the_write goes red; the foreign-key test
+        #   fails earlier, before the audit rows exist, so it cannot see either). The third is keeping created ids anywhere
+        #   but the return value (test_a_rolled_back_artist_is_not_remembered goes red once A6-K2 is filled).
         raise NotImplementedError("TODO(Ari)")
 
     async def _create_artists(self, session: AsyncSession, op: ShowOp, artist_ids: Mapping[str, int]) -> dict[str, int]:
@@ -299,11 +304,13 @@ async def write_plan(
         #       continue
         #   artist_ids.update(written.created_artists)
         #   tally[written.outcome.value] += 1
-        # Check: uv run pytest agent_worker/tests/test_calendar_writer.py -k "write_plan or overflowing or connection or created_once or all_failed or is_decision_error or failing_show"
-        #   and agent_worker/tests/test_graph_commit.py -k failed. The likeliest mistake is catching `Exception`, `SQLAlchemyError`
+        # Check: uv run pytest agent_worker/tests/test_calendar_writer.py -k "created_once or remembered or overflowing or connection or failing_show or show_gone or all_failed or created_so_far"
+        #   and agent_worker/tests/test_graph_commit.py -k failing. The likeliest mistake is catching `Exception`, `SQLAlchemyError`
         #   or any `DBAPIError` without the SQLSTATE test (test_a_connection_error_stops_the_run goes red, with `08006` and with
         #   the real lost-connection shape); the second is forgetting that the overflow is NOT an `IntegrityError` (catching
-        #   only `IntegrityError` makes test_an_overflowing_price_fails_only_its_show, the A6-D2 scenario, go red).
+        #   only `IntegrityError` makes test_an_overflowing_price_fails_only_its_show, the A6-D2 scenario, go red); the third is
+        #   catching only `DBAPIError`, which lets `ShowGone` (a show deleted by hand) stop the run
+        #   (test_a_show_gone_error_in_the_loop_is_recorded_and_skipped_like_a_refused_row goes red).
         raise NotImplementedError("TODO(Ari)")
     result = CommitResult(tally, len(artist_ids), tuple(failures), len(ops))
     if result.all_failed:

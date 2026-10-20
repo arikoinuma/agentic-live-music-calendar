@@ -1,9 +1,9 @@
 # A6 — commit
 
-**Status:** Code review
+**Status:** Awaiting sign-off
 **Date:** October 19, 2026 (plan); October 20, 2026 (decisions, implementation)
 **Author model:** Claude Sonnet 5.5 (plan and plan-review resolution, October 19 to 20, 2026; implementation, October 20, 2026)
-**Reviewer model:** Claude Opus 5.5 (plan review round 1, October 19, 2026; round 2, targeted at D2 and K2, October 20, 2026); Claude Opus 5.5 (plan review round 2, targeted at D2 / K2, October 20, 2026)
+**Reviewer model:** Claude Opus 5.5 (plan review round 1, October 19, 2026; round 2, targeted at D2 and K2, October 20, 2026; code review round 1, October 20, 2026); Claude Opus 5.5 (plan review round 2, targeted at D2 / K2, October 20, 2026); Claude Opus 5.5 (code review round 1, October 20, 2026)
 **Spec:** `docs/dev/alpha-build-plan.md` §5 A6 (and §2 points 2 and 3); `docs/arch/arch-initial.md` §7 ("Reconcile (insert /
 update / delete / no-op)", "Audit trail extensions", "Revert"); `docs/arch/requirements-initial.md` ("Agent
 Reconciliation", "Agent Artist Creation & Matching", "Show"); `docs/arch/data-model-initial.md` §2 (`show`, `show_artist`,
@@ -624,7 +624,7 @@ The Implementation log lists the red tests by file with the reason, as A4 and A5
             session.add_all(audit_row(e) for e in self._audit_rows(op, created, show_id, previous, new, run_id, attempt_number))
     return ShowWritten(show_id, op.outcome, created)
     ```
-  - *Check:* `uv run pytest agent_worker/tests/test_calendar_writer.py -k "writes or previous or atomic or audit_rows or revert or remembered"`.
+  - *Check:* `uv run pytest agent_worker/tests/test_calendar_writer.py -k "insert or update or removal or previous or roll_back or rolls_back or one_session or check_constraint or overflowing_price_is or vanished or restoring"` (corrected in code review, A6-CR1-4: the first draft named `atomic`, which matches nothing, and left out the update, removal and vanished-show tests). After filling K1, also delete the noqa comment on the `audit_row` import, which `ruff` then rejects as unused.
     The likeliest mistake is taking `previous` after `_apply` (the identity map returns the mutated object, so
     `previous_value` equals `new_value`: the "previous is the row before the change" test goes red); the second is writing
     the audit rows through `AuditWriter.record` or calling `session.commit()` before they are added (only
@@ -652,8 +652,8 @@ The Implementation log lists the red tests by file with the reason, as A4 and A5
     artist_ids.update(written.created_artists)
     tally[written.outcome.value] += 1
     ```
-  - *Check:* `uv run pytest agent_worker/tests/test_calendar_writer.py -k "write_plan or overflowing or connection or created_once or all_failed or is_decision_error"`
-    and `test_graph_commit.py -k failed`. The likeliest mistake is catching `Exception`, `SQLAlchemyError` or any `DBAPIError`
+  - *Check:* `uv run pytest agent_worker/tests/test_calendar_writer.py -k "created_once or remembered or overflowing or connection or failing_show or show_gone or all_failed or created_so_far"`
+    and `test_graph_commit.py -k failing` (corrected in code review, A6-CR1-4: `-k failed` collected nothing). The likeliest mistake is catching `Exception`, `SQLAlchemyError` or any `DBAPIError`
     without the SQLSTATE test (the "connection error stops the run" test goes red, with `08006` and with the real
     `lost_connection()` shape); the second is forgetting that the overflow is **not** an `IntegrityError` (catching only
     `IntegrityError` makes the overflow test, the D2 scenario, go red). The SQLSTATE rule itself is the written
@@ -967,10 +967,11 @@ prepares operations), `trace.py` (the commit branch), `main.py` (the writer; `ru
    `test_calendar_reader.py` imports `reconcile_support`, and `reconcile_support` importing `make_show` from it would be a cycle.
    `test_commit_db.py` imports it from `test_reconcile_db.py`, the pattern `test_reconcile_db.py` already uses for `test_calendar_reader`.
 7. **A6-M4's named test is the unit test**, `test_prices_are_converted_at_the_write_not_carried_as_floats`, not
-   `test_the_second_run_is_all_no_ops`. The plan's reasoning was wrong: Postgres rounds `Decimal(19.99)` to `19.99` in a
-   `Numeric(10, 2)` column, and reconcile compares with `to_price` either way, so a `Decimal(float)` write is invisible to a
-   database-level test; only the unit test sees the unconverted value. The plan file keeps its text (the plan is the plan);
-   `test_commit_db.py` still has the end-to-end price round trip.
+   `test_the_second_run_is_all_no_ops`. *(Corrected in round 2, A6-CR1-2.)* The reason first given here, that a `Decimal(float)`
+   write is invisible to a database-level test, is true only for prices like 19.99 and 20.0, where Python and Postgres round the
+   same way. For a HALF cent they differ (`to_price(0.125)` is `0.12`, Postgres stores `Decimal(0.125)` as `0.13`), so the
+   mutation would flip a show between updates every night; the end-to-end round-trip test now uses a half-cent price and
+   catches it too. The plan file keeps its text (the plan is the plan).
 8. **A6-M2 needed an extra test** (`test_a_write_uses_exactly_one_session`). In savepoint mode a second session's "committed"
    work nests inside the first's savepoint and rolls back with it, so the "own session" mutation was NOT caught by the plan's
    test. Recorded in `notes.md`. Also added `fakes.client_side_error()` (an `InterfaceError` with `sqlstate = None` that is not
@@ -980,6 +981,10 @@ prepares operations), `trace.py` (the commit branch), `main.py` (the writer; `ru
    overflowing price"; the JSON-LD route carries no prices, and the overflow is covered at layer 3
    (`test_an_overflowing_price_fails_only_its_show`, through the real writer).
 10. **`audit.attempt_number`** is public (the plan said so); `_attempt_number` is gone. `local_test.main` returns an exit status.
+11. **`test_graph_audit.py`'s step lists did not gain the per-show commit rows** the plan's "Existing tests that change" described:
+    those tests build `FakeWriter()` without an audit, so nothing is appended and the lists still end `("commit", n)` once. The
+    order of the per-show rows and the summary is proven by `test_graph_commit.py`'s first test and by `test_audit_queries.py`'s
+    `run_history` (A6-CR1-6).
 
 **`TODO(Ari)` gaps** (both open; review the code as it stands, they are not findings):
 
@@ -1030,3 +1035,108 @@ is red until K2, fakes included.
 5. **The test harness's limits**: savepoint mode hides a second session's commit (departure 8); whether any other mutation of K1
    could survive; `test_commit_db.py`'s parity comparison masks `original_url` and artist spelling, by design.
 6. Anything in the tests whose expected value I may have taken from the code instead of the requirements.
+
+### Round 2 — Claude Sonnet 5.5, October 20, 2026 (fixes for code review round 1)
+
+**Scope.** The fixes for `A6-CR1-1` to `A6-CR1-7`, on top of `f8c0138`: `calendar_writer.py` (`failure_for`; the comment blocks of the
+two open gaps), tests `test_calendar_writer.py` (the `ShowGone` loop test), `test_commit_db.py` (the half-cent price, two comments),
+`test_audit_entries.py` (a comment), and docs (`notes.md`, this plan's Check commands and departures). Each testable finding got a
+failing-test check first: the `ShowGone` test and the half-cent price were run against the reviewer's mutations in the scratch copy
+(both caught) before being relied on.
+
+**Departures.** None from the plan. Departure 7 and a new departure 11 are recorded in round 1.
+
+**`TODO(Ari)` gaps.** Both still open (A6-K1, A6-K2). The gaps' `Check:` commands are corrected and verified (A6-CR1-4).
+
+**Verification.**
+- **As delivered (gaps open):** `REQUIRE_DB=1 uv run pytest`: **798 passed, 52 failed, 18 errors, 15 skipped**. All 70 red results are
+  `NotImplementedError: TODO(Ari)` (the 69 of round 1 plus the new `ShowGone` loop test). Red by file: `test_calendar_writer.py` 23,
+  `test_graph.py` 10, `test_commit_db.py` 9, `test_audit_queries.py` 8, `test_graph_audit.py` 6, `test_graph_commit.py` 5,
+  `test_reconcile_db.py` 4, `test_graph_reconcile.py` 3, `test_run_venue.py` 2.
+- **Gaps filled on a scratch copy** (outside the repo, the working tree with the filled `calendar_writer.py`): **868 passed, 15
+  skipped**, ruff clean, the two new modules clean under `mypy` apart from `act_split.py:109` (A7's). On a copy with only K1 filled,
+  K1's corrected `-k` selection gives 12 passed; K2's `-k` is red with only K1 filled (11 failed) and 16 passed with both.
+- **Mutation checks, re-run for the two new tests:** K2 catching only `DBAPIError`: caught; A6-M4 (`Decimal(float)`) with the
+  half-cent price: caught by `test_a_price_round_trips_exactly_and_a_second_run_does_not_rewrite_it`.
+- `uv run ruff check .`, `make lint`, `make typecheck`, `make contract-check` and `make designation-check BASE=e6008cd` exit 0.
+  `make check` as a whole still stops at its Python test stage, red by design.
+
+**Where to look hardest.** The corrected `-k` selections (do they select what the gap's lesson names?), and `failure_for`'s single
+branch.
+
+## Code review
+
+### Round 1 — Claude Opus 5.5, October 20, 2026
+
+**Scope.** Implementation log round 1: `git diff e6008cd` plus the untracked files. While this review ran, the author committed
+that working tree as `f8c0138` ("A6: commit step (scaffold with two TODO(Ari) gaps), tests, docs"). `git diff e6008cd f8c0138`
+has the same 29 files the log lists (23 changed, 6 new), so this round reviews `e6008cd..f8c0138`. The two open gaps (A6-K1,
+A6-K2) are not findings.
+
+**What was checked and how.**
+- **Read:** the whole plan, including both plan-review rounds and the Implementation log; `AGENTS.md`; `apps/api/AGENTS.md`;
+  `docs/references/fastapi-style-guide.md` (Anti-patterns); and the full diff: `commit.py`, `calendar_writer.py`, `audit.py`,
+  `trace.py`, `nodes.py`, `state.py`, `context.py`, `main.py`, `local_test.py`, `fakes.py`, the six new or changed test files
+  and the updated existing ones, `audit-queries.sql`, and the doc changes (`arch-initial.md`, `data-model-initial.md`,
+  `alpha-build-plan.md`, `conventions.md`, `notes.md`). I also read `app/db/models/calendar.py` (`Show` has no
+  `relationship()`, so replacing the lineup can't collide with the identity map) and `reconcile.lineup_for` (an artist named
+  twice is deduplicated, so the `show_artist` primary key can't be hit twice).
+- **`make check` on the tree as delivered:** it stops at the Python test stage, red by design: **51 failed, 18 errors, 798
+  passed, 15 skipped**, the log's numbers. By file the reds match the log (writer 22, graph 10, commit_db 9, audit_queries 8,
+  graph_audit 6, graph_commit 5, reconcile_db 4, graph_reconcile 3, run_venue 2), and every one is `NotImplementedError:
+  TODO(Ari)` (no other failure line). I then ran each stage after it: `ruff check .` clean, `mypy app/` clean, `make
+  contract-check` current, `make designation-check BASE=e6008cd` exit 0 (the script covers untracked files),
+  `pnpm turbo run lint check-types test` 7/7. `mypy` on `commit.py` and `calendar_writer.py` reports only
+  `act_split.py:109` (A7's). All CONFIRMED.
+- **The gaps filled from their own `Code:` lines,** in a throwaway `git worktree` at `f8c0138` (with `.env` copied and the
+  venv linked; removed afterwards, and `git worktree list` shows only the main tree): **867 passed, 15 skipped**, as the log
+  says. `ruff` then reports only RUF100 on the `audit_row` import's `noqa` (see row 4). CONFIRMED.
+- **The author's mutation checks, re-run in that worktree:** A6-M1 (`previous` read after `_apply`) is caught by 3 tests.
+  For A6-M2, the "own session" variant (the audit rows written through `PostgresAuditWriter(self._session_factory).record`)
+  is caught **only** by `test_a_write_uses_exactly_one_session`; `test_audit_rows_roll_back_with_the_write` stays green, so
+  departure 8 holds. A6-M6 (the `is_decision_error` re-raise removed) is caught by 5 tests. All CONFIRMED.
+- **My own mutations:**
+  - K2 catching only `DBAPIError`, without `ShowGone`: **survives**, the whole suite stays green (row 1).
+  - K1 writing `created` into the caller's `artist_ids` before `_apply`: caught by
+    `test_a_rolled_back_artist_is_not_remembered`.
+  - K1 dropping `lock=True`, and `_snapshot` without `populate_existing`: both survive, as expected. Neither is observable on
+    one test connection, and the plan lists concurrency as not covered. Not findings.
+- **A real lost connection through the real writer:** a scratch test on a real engine (not savepoint mode). A
+  `PostgresCalendarWriter` subclass killed its own backend (`pg_terminate_backend`) inside `_apply`, and the filled
+  `write_plan` ran over two ops. Result: `sqlalchemy.exc.InterfaceError`, `orig.sqlstate = None`, `connection_invalidated =
+  True`, `is_decision_error` False, no failure row recorded, and it propagated. The rollback on leaving `begin()` did not
+  replace it. A fresh session worked afterwards (what `run_venue`'s `finally` needs). This answers "look hardest" 1 for the
+  real case, not only the `fakes` shape. CONFIRMED.
+- **Half-cent price under A6-M4:** see row 2. Python's `quantize` rounds half to even and Postgres `numeric` rounds half away
+  from zero, so `to_price(0.125)` is `0.12` but `Decimal(0.125)` is stored as `0.13`. CONFIRMED.
+
+**What holds up.** `commit.py` is pure and stays out of `state` / `audit` (a test enforces it). `build_ops` follows A6-D1 and
+removals-last. The snapshot is derived from the model, and its pin test can fail. `is_decision_error` uses the corrected
+expression (A6-PR2-1) and is right on the real shape. The per-show rows go through `audit_row` in the write's session. The
+summary row is written last in `trace.audited`, and none is written when the run raises. `unfinished_runs` and
+`failed_commits` match the plan and run against real rows. `run_all` and `local_test` exit non-zero on refused shows. The
+anti-patterns table turned up nothing: no bare `except Exception`, no sync I/O in `async def`, no mocked database, and
+`is None` throughout. The test layers are as planned, the `Proves` lines cite their sources, and departures 1 to 10 are
+reasoned. Departure 7's reasoning is the exception (row 2).
+
+**Counts:** 0 blockers, 3 should-fix, 4 nits.
+
+**Verdict:** *proceed after fixes.* The scaffold is sound and the gaps fill green from their own `Code:` lines. The
+should-fix rows are two test or guard claims that don't hold (one K2 branch with no test, and one `Proves` line that claims
+A6-M4 protection it can't give) and one lesson in `notes.md` that names a test which can't catch the mutation it is offered
+for.
+
+| # | Sev | Finding | Evidence | What goes wrong | Resolution |
+|---|---|---|---|---|---|
+| 1 | should-fix | **No test covers half of K2's `except (DBAPIError, ShowGone)`.** A6-D2 says "the show having vanished" is one show's failure, and K2's lesson and code list `ShowGone`. But no test takes a `ShowGone` through `write_plan`. `test_a_vanished_show_is_a_show_gone_failure_not_an_attribute_error` only calls `write_show` and `is_decision_error`, and the loop tests use only `overflow()`, `check_violation()` and the connection shapes. A K2 that catches only `DBAPIError` passes every test. **Fix:** a loop test with `FakeWriter(fail={1: ShowGone("show 3 is not in the calendar")})` that asserts the other two writes, one `ShowFailure` with `sqlstate None` and an `error` beginning `ShowGone:`, and one failure row. Put it in K2's Check `-k` (or parametrize `test_a_failing_show_is_recorded_and_skipped_and_the_loop_goes_on` over `check_violation()` and `ShowGone`). | CONFIRMED (worktree, gaps filled): with K2's `except` reduced to `except DBAPIError as err:` the suite stays at **867 passed**. The probe test above went red under that mutation (868 passed, 1 failed) and green without it. Its failure was `ShowFailure(action='insert', …, sqlstate=None, error='ShowGone: show 3 is not in the calendar')`. `calendar_writer.py:295` (K2 code), `test_calendar_writer.py:350-364, 540-550`. | A row deleted by hand between reconcile and commit (the A6-PR1-7 case) raises out of `write_plan` and stops the venue's run instead of being recorded. Every test stays green while Ari's K2 has that bug, and the lesson's "names the broad types" half is never checked. | **Fixed.** Test first: `test_a_show_gone_error_in_the_loop_is_recorded_and_skipped_like_a_refused_row` (`FakeWriter(fail={1: ShowGone(...)})`; the other two writes happen, one `ShowFailure` with `sqlstate None` and an error starting `ShowGone:`, one failure row). Red before the fix in the sense that matters: with K2's `except` reduced to `except DBAPIError`, it fails (mutation re-run in the scratch copy: caught, 1 failed, 33 passed). It is in K2's Check `-k` (`show_gone`) and in K2's list of likeliest mistakes (the third). The gap itself is unchanged. |
+| 2 | should-fix | **`test_the_second_run_is_all_no_ops` says it guards A6-M4, but it can't; and departure 7's reason is wrong.** Its `Proves` comment says "Skipping the price conversion would make `20.0` compare unequal to the stored Decimal("20.00") and fail this test". Its page (`test_reconcile_db.PAGE`, JSON-LD) carries no prices, so it can't see a price conversion at all. Departure 7 moves A6-M4 to the unit test because "a `Decimal(float)` write is invisible to a database-level test". That is true for 19.99 and 20.0, but not in general. `to_price` rounds half to even and Postgres `numeric` rounds half away from zero, so a half-cent price stores differently under the mutation, and the next run updates the show **every night**. That nightly flip is the failure A6-M4 exists to catch. **Fix:** correct the run-2 test's comment (it proves idempotency, not the price conversion). Add a half-cent price (e.g. `admission_advance=0.125`, expected `Decimal("0.12")`) to `test_a_price_round_trips_exactly_and_a_second_run_does_not_rewrite_it`, so the end-to-end test also catches A6-M4. Correct departure 7's reason. | CONFIRMED (worktree): `to_price(0.125)` = `0.12`; `SELECT CAST(0.125 AS numeric(10,2))` = `0.13`. With the round-trip test's advance price changed to `0.125`, the correct code stored `0.12` and passed. Under A6-M4 (`Decimal(listing.admission_advance)` in `insert_values`) it stored `0.13`, and the second run's plan was `[Action.UPDATE]`, so the test failed. `test_commit_db.py:216-221`, `:235-259`, `test_reconcile_db.py:51-57`; Implementation log departure 7. | The suite's only end-to-end idempotency guard for prices is a page with no prices, while its comment says otherwise. The recorded reason ("invisible to a database-level test") tells the next reader that no such test is possible. A price conversion that drifted (e.g. a later `to_price` change to round half up) would make half-cent shows flip nightly, and only a unit test that compares against `to_price`'s own output would notice. | **Fixed.** Reproduced (`to_price(0.125)` is `0.12`, `CAST(0.125 AS numeric(10,2))` is `0.13`) and my departure-7 reason was wrong; it is corrected in Implementation log round 1 (departure 7) and the round-trip test now carries the half cent: a day price of 19.99 and an advance price of 0.125, expected stored `Decimal("19.99")` and `Decimal("0.12")`. Re-ran A6-M4 (`Decimal(float)` in `insert_values`) against `test_commit_db.py`: caught by that test (1 failed). The run-2 test's `Proves` comment no longer claims to guard A6-M4; it says it proves idempotency and points at the round-trip test. The unit test stays too. The mutation table row for A6-M4 still names the unit test in the plan (the plan keeps its text); the log records that the end-to-end test also catches it. |
+| 3 | should-fix | **The new `notes.md` entry on savepoint nesting offers, as its second remedy, the test that can't catch the mutation it describes.** The entry says a rolled-back-write test "cannot tell a writer that used one transaction from one that wrote the audit row through a second session (the A6-M2 mutation)". It then offers: "Count the sessions (`test_a_write_uses_exactly_one_session`), **or** end the first with a failure raised AFTER the rows were produced (`test_audit_rows_roll_back_with_the_write`)". That second test is the one the own-session variant passes. It catches only the other variant (`commit()` before the rows are added). **Fix:** say that only counting sessions (or a test on a real engine, not savepoint mode) catches a second session. The raise-after-the-rows test catches an early `commit()`, not a second session. | CONFIRMED (worktree): under the own-session A6-M2 mutation, only `test_a_write_uses_exactly_one_session` failed, and `test_audit_rows_roll_back_with_the_write` passed. The Implementation log's own mutation line says the same. `docs/dev/notes.md:552-558`. | `notes.md` is where the next milestone's author looks for "what bit us". Following its "or" gives a test that can't fail on exactly the bug the note warns about. | **Fixed.** `notes.md` now says only counting sessions (or a test on a real engine, not savepoint mode) catches a second session, and that the raise-after-the-rows test catches a different mistake (`commit()` before the rows are added) and passes a writer that used a second session. |
+| 4 | nit | **The gaps' `Check:` lines don't select what they claim, and K1 leaves a lint failure it doesn't mention.** (a) K2's second command, `agent_worker/tests/test_graph_commit.py -k failed`, collects **no tests**. The graph test is `test_one_failing_show_is_recorded_…` ("failing", not "failed"), so pytest exits 5 ("no tests ran"). (b) K1's `-k` names `atomic`, which matches no test. Its selection leaves out the K1 tests for the update, lineup-only, removal and return, rollback, CHECK, overflow and vanished-show paths (6 of the 13 writer tests selected; the rest only by the full file). (c) Filling K1 makes the `audit_row` import's `noqa: F401` unused, so `ruff` (RUF100) fails, and so does `make check`'s first stage, until the noqa goes. The comment on the import says so, but K1's block, which is what Ari reads, does not. **Fix:** `-k failing` (or the node id); drop `atomic` and add `update or removal or lineup or vanished or rolls_back or constraint`, or run the whole file; add "and delete the `noqa` on the `audit_row` import" to K1's Code. | CONFIRMED: `pytest --collect-only -k failed agent_worker/tests/test_graph_commit.py` lists nothing; K1's `-k` collects the 6 tests named above; worktree `ruff check .` after filling gives `RUF100 Unused noqa directive (unused: F401)` at `calendar_writer.py:46`. `calendar_writer.py:180, 302-303`. | Ari runs a Check that tests nothing, or that skips the update and removal paths of the block he just typed, and reads it as done. Then his first `make check` fails on lint for a reason the block didn't tell him about. | **Fixed.** (a) K2's graph command is now `test_graph_commit.py -k failing` (verified: 1 test collected, passes with K2 filled). (b) K1's `-k` is `insert or update or removal or previous or roll_back or rolls_back or one_session or check_constraint or overflowing_price_is or vanished or restoring` (verified on a copy with only K1 filled: 12 passed; the remaining writer tests, which run through `write_plan`, stay red until K2). K2's `-k` is `created_once or remembered or overflowing or connection or failing_show or show_gone or all_failed or created_so_far` (11 red with only K1 filled, 16 passed with both). (c) K1's comment block now says to delete the suppression comment on the `audit_row` import after filling (and the plan body's K1 Check says so). The plan's two `Check:` lines carry the same corrections. |
+| 5 | nit | **`failure_for` computes the same condition three ways.** `wrapped = isinstance(err, DBAPIError)`, then `sqlstate = (getattr(err.orig, "sqlstate", None) or None) if isinstance(err, DBAPIError) else None`, then `sqlstate=sqlstate if wrapped else None`. The second `isinstance` and the final conditional repeat `wrapped`, and `or None` only turns `""` into `None`. **Fix:** compute `sqlstate` once from `wrapped` and pass it as is. | CONFIRMED by reading: `calendar_writer.py:97-108`. | No behaviour difference. A learner reading the module that teaches "the SQLSTATE expression" finds three versions of it in one function. | **Fixed.** `failure_for` branches once on `isinstance(err, DBAPIError)` and sets `sqlstate` and `message` together; the `ShowGone` branch says it has no SQLSTATE because it is not a database error. Behaviour unchanged (all failure-path tests green, and the filled copy re-run). |
+| 6 | nit | **`test_graph_audit.py`'s step lists did not gain the per-show commit rows, and the log doesn't record this as a departure.** The plan ("Existing tests that change") says those step lists "gain the per-show commit rows where the page has shows (the fake appends them)". The tests construct `FakeWriter()` without an audit, so nothing is appended, and the lists still end `("commit", n)` once. The order is proven elsewhere (`test_graph_commit.py`'s first test and `test_audit_queries`' `run_history`), so the gap is only in the record. **Fix:** list it as a departure, or pass the `RecordingAudit` to the `FakeWriter` and extend the two lists. | CONFIRMED by reading: `test_graph_audit.py:64, 79, 121`; plan "Existing tests that change"; Implementation log departures 1-10. | The Implementation log is meant to name every departure. A reader comparing plan and tests finds one it doesn't mention. | **Fixed (recorded as a departure).** Implementation log round 1, new departure 11: `test_graph_audit.py` constructs `FakeWriter()` without an audit and so its step lists are unchanged; the order of per-show and summary rows is proven by `test_graph_commit.py`'s first test and by `test_audit_queries.py`'s `run_history`. I did not extend those lists: the point of that file is the A4 trail, and a second place that restates commit's row order would be one more place to edit. |
+| 7 | nit | **Two comment slips in the new tests.** `test_commit_db.py:174` says run 1 "wrote four shows (an update, a removal, a reactivation, two inserts: five writes)". That is five shows, and the assertions say five. `test_audit_entries.py:298` (`an_insert_op`) says "one new Nona show", but the listing's act is "Sunny Day". **Fix:** "five shows"; "one new Sunny Day show". | CONFIRMED by reading the lines cited. | Comments that disagree with the code next to them, in a project whose tests are read as explanations. | **Fixed.** `test_commit_db.py`: "run 1 wrote five shows"; `test_audit_entries.py`: `an_insert_op` says "one new Sunny Day show". |
+
+**Rejected:** none. Round 1 resolved by the author (Claude Sonnet 5.5), October 20, 2026: 7 of 7 fixed (row 6 by recording the departure,
+not by changing the tests). Test-suite result after the fixes: 798 passed, 52 failed, 18 errors, 15 skipped with the two gaps open
+(every red result is `NotImplementedError: TODO(Ari)`); 868 passed, 15 skipped with the gaps filled on a scratch copy. No round 2
+review was run; nothing in the fixes touched the write path, only a function's shape (`failure_for`), tests and comments.

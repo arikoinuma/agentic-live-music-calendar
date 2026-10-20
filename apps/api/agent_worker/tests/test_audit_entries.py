@@ -295,7 +295,7 @@ def test_a_failed_show_is_listed_with_its_identity_and_the_flag_is_set_for_an_al
 
 
 def an_insert_op(**fields: Any) -> ShowOp:
-    """The operation for one new Nona show on the 20th at 8 PM (a new artist: "Sunny Day" is unknown)."""
+    """The operation for one new Sunny Day show on the 20th at 8 PM (an artist nobody has stored, so a new artist)."""
     plan = plan_for([listed(0, day(20), at(20), acts=["Sunny Day"], **fields)])
     [op] = build_ops(plan, 4, URL)
     return op
