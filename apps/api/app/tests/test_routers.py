@@ -33,6 +33,9 @@ client = TestClient(app)
     ],
 )
 def test_list_endpoints_return_their_envelope(path: str, key: str) -> None:
+    # Proves (api-contract.md §3, "Envelopes, not bare arrays"): each list endpoint answers 200 with an object holding a named
+    # array (`shows`, `venues`, `artists`, `months`). The generated TypeScript and the frontend's reads depend on that shape.
+    # Shape only: no data is asserted.
     response = client.get(path)
     assert response.status_code == 200
     # Every list endpoint returns an object with a named array, never a
@@ -42,6 +45,8 @@ def test_list_endpoints_return_their_envelope(path: str, key: str) -> None:
 
 @pytest.mark.parametrize("path", ["/venues", "/artists"])
 def test_lists_are_alphabetical(path: str) -> None:
+    # Proves (alpha-build-plan.md, B4: "flat alphabetical lists"): /venues and /artists are ordered by name. The expected order
+    # is `sorted()` of the names the response itself returned, so this checks the ordering, not which names are listed.
     names = [row["name"] for row in client.get(path).json()[path.strip("/")]]
     assert names == sorted(names)
 
@@ -50,23 +55,31 @@ def test_lists_are_alphabetical(path: str) -> None:
     ("path", "expected"), [("/shows/999", 404), ("/venues/99", 404), ("/artists/99", 404)]
 )
 def test_unknown_id_is_404_not_500(path: str, expected: int) -> None:
+    # Proves: an id that matches no row is a 404 on all three detail routes, not a 500 (the module docstring's `== "None"`
+    # bug). 999 and 99 are above every id in `sample_data.py`; A1b's seed must leave them unused.
     assert client.get(path).status_code == expected
 
 
 @pytest.mark.parametrize("path", ["/shows/abc", "/venues/abc", "/artists/abc"])
 def test_non_integer_id_is_422(path: str) -> None:
+    # Proves: an id that is not an integer is a 422 on all three detail routes. If a route's path parameter lost its `int`
+    # annotation, "abc" would reach the lookup and become a 404 (or a 500) instead.
     # Free from the `int` annotation on the path parameter; no code in
     # the route does this check.
     assert client.get(path).status_code == 422
 
 
 def test_detail_endpoints_return_the_requested_record() -> None:
+    # Proves: each detail route returns the record whose id was asked for. Venue 3, artist 1 and show 2 are rows in
+    # `sample_data.py`; A1b's seed must have a row at each of those ids or this test must move with it.
     assert client.get("/venues/3").json()["id"] == 3
     assert client.get("/artists/1").json()["id"] == 1
     assert client.get("/shows/2").json()["id"] == 2
 
 
 def test_show_detail_resolves_inherited_venue_fields() -> None:
+    # Proves (api-contract.md §5): the read API returns the effective value of an inherited field, resolved on the server.
+    # The expected `twenty_one_plus` and alcohol-serving come from show 2's venue in `sample_data.py`, set by hand there.
     # Show 2 sets none of the four inherited fields itself, so these come
     # from its venue — resolved server-side, per api-contract.md §5.
     show = client.get("/shows/2").json()
@@ -75,6 +88,8 @@ def test_show_detail_resolves_inherited_venue_fields() -> None:
 
 
 def test_date_range_filters() -> None:
+    # Proves (api-contract.md §2, §3): `start` and `end` bound the shows returned, and the response echoes the range it
+    # used. The bounds are the literals in the URL; ISO dates compare correctly as strings.
     body = client.get("/shows?start=2026-10-01&end=2026-10-07").json()
     assert body["start"] == "2026-10-01"
     assert body["end"] == "2026-10-07"
@@ -82,6 +97,9 @@ def test_date_range_filters() -> None:
 
 
 def test_repeated_filter_values_are_or_ed() -> None:
+    # Proves (api-contract.md §2, "Filtering"): repeating `venue_id` means "either venue", so venues 1 and 3 together return
+    # exactly venue 1's shows plus venue 3's (no show is at both). The expected count is the sum of the two single-venue
+    # responses, not a literal.
     one = len(client.get("/shows?venue_id=1").json()["shows"])
     three = len(client.get("/shows?venue_id=3").json()["shows"])
     both = len(client.get("/shows?venue_id=1&venue_id=3").json()["shows"])
@@ -89,12 +107,16 @@ def test_repeated_filter_values_are_or_ed() -> None:
 
 
 def test_different_filters_are_and_ed() -> None:
+    # Proves (api-contract.md §2, "Filtering"): different filters are AND-ed. Venue 3 with artist 1 is a non-empty subset of
+    # venue 3's shows: non-empty because artist 1 plays venue 3 in `sample_data.py`, a subset because AND cannot add shows.
     venue_only = len(client.get("/shows?venue_id=3").json()["shows"])
     combined = len(client.get("/shows?venue_id=3&artist_id=1").json()["shows"])
     assert 0 < combined <= venue_only
 
 
 def test_artist_filter_matches_anywhere_in_the_lineup() -> None:
+    # Proves: the artist filter matches an artist anywhere in a lineup, not only as headliner. Artist 1 is third on one sample
+    # bill (hand-checked in `sample_data.py`).
     # Artist 1 appears third on one bill; an artist's page should show
     # that night too, not only the ones they headline.
     shows = client.get("/shows?artist_id=1").json()["shows"]
@@ -106,6 +128,9 @@ def test_artist_filter_matches_anywhere_in_the_lineup() -> None:
 
 
 def test_shows_are_ordered_by_date_then_time() -> None:
+    # Proves: /shows returns shows ordered by date, then start time, with a show that has no time after the timed ones on
+    # its date. That is the router's own rule, which A1b's ORDER BY must keep. The expected order is the response sorted by
+    # that key, so this checks order only.
     shows = client.get("/shows").json()["shows"]
     keys = [(s["date"], s["start_time"] is None, s["start_time"] or "") for s in shows]
     assert keys == sorted(keys)
@@ -119,11 +144,15 @@ def test_shows_are_ordered_by_date_then_time() -> None:
     ],
 )
 def test_invalid_ranges_are_rejected(query: str) -> None:
+    # Proves (api-contract.md §2): an end before the start, and a range wider than `MAX_RANGE`, are each a 422 rather than an
+    # empty or an unbounded answer. Both queries are written out in the parameters above.
     assert client.get(f"/shows?{query}").status_code == 422
 
 
 def test_openapi_exposes_the_response_schemas() -> None:
-    """The reason these stub routes exist before the database does.
+    """Proves: the OpenAPI document lists the response models the frontend's types are generated from.
+
+    The reason these stub routes exist before the database does.
 
     If a route stops declaring its return type, its models silently drop
     out of components.schemas and the generated TypeScript loses them —
