@@ -3,7 +3,7 @@
 **Status:** Awaiting approval
 **Date:** October 19, 2026 (plan)
 **Author model:** Claude Sonnet 5.5 (plan and plan-review resolution, October 19, 2026)
-**Reviewer model:** Claude Opus 5.5 (plan review round 1, October 19, 2026)
+**Reviewer model:** Claude Opus 5.5 (plan review round 1, October 19, 2026; round 2, targeted at D2 and K2, October 20, 2026); Claude Opus 5.5 (plan review round 2, targeted at D2 / K2, October 20, 2026)
 **Spec:** `docs/dev/alpha-build-plan.md` §5 A6 (and §2 points 2 and 3); `docs/arch/arch-initial.md` §7 ("Reconcile (insert /
 update / delete / no-op)", "Audit trail extensions", "Revert"); `docs/arch/requirements-initial.md` ("Agent
 Reconciliation", "Agent Artist Creation & Matching", "Show"); `docs/arch/data-model-initial.md` §2 (`show`, `show_artist`,
@@ -141,8 +141,12 @@ to Postgres. *A snapshot* is a copy of a show as a JSON object, stored in `audit
   decided by the error's SQLSTATE class: class `22` (a data exception, such as the overflow above) or class `23` (an
   integrity violation: the CHECK, a foreign key), or the show having vanished. It is **not** decided by Python exception
   class: on this driver (SQLAlchemy 2.0 with asyncpg) only integrity violations arrive as `IntegrityError`; an overflow
-  arrives as a plain `DBAPIError`, and `DataError` never occurs (A6-PR1-1). A lost connection (`InterfaceError`, or class
-  `08` / `57`) or a bug in our code still stops the run, because those are not about one show.
+  arrives as a plain `DBAPIError`, and `DataError` never occurs (A6-PR1-1). A lost connection (an `InterfaceError`, whose
+  SQLSTATE is `None`, or a class `08` / `57` error) still stops the run, because it is not about one show.
+  **What the rule separates, stated carefully (A6-PR2-2):** the database *refusing a row* from *losing the database*. It does
+  **not** separate a bad listing from a bug of ours: a commit bug that sends a malformed row (a column left out of the insert,
+  an enum written as the wrong string, a stale artist id) is refused with class 22 / 23 too, and is recorded as one show's
+  failure. Only a bug that raises a Python exception, or a database error outside classes 22 / 23, stops the run.
   Technically: `calendar_writer.is_decision_error` (**K2**).
 - **Option B — stop at the first failure.** The shows already written stay written (each was its own transaction); the rest
   wait for tomorrow. Simpler (no `try`), and a failure can't be missed. But one poisoned listing blocks every show after
@@ -154,6 +158,10 @@ to Postgres. *A snapshot* is a copy of a show as a JSON object, stored in `audit
   appears, so the calendar has a **gap** on that date every night until a person fixes it (the stale-too-long direction
   `A5-D1` calls safe is the other one). Withholding the removal when the insert on that date failed would avoid it, but
   that is a judgement made in commit, and commit adds none; so the plan states the cost instead of building around it.
+  **A third cost (A6-PR2-2):** a commit bug of the malformed-row kind fails *every* write, and option A carries on past each:
+  N failure rows, a summary, exit 1, and nothing written. It looks like N bad listings; only the repeated SQLSTATE says
+  otherwise. So the failure rows carry `sqlstate`, `failed_commits` can group by it, and the summary flags `all_failed` (below,
+  Settled details) so the all-fail case reads as what it probably is.
   **Cost of B:** the calendar for that venue goes stale behind one bad row.
 - Either way the next run recomputes the plan from the stored calendar, so a half-applied run **converges**: the shows
   that were written are now no-ops and the rest are decided again (the idempotency test is what proves it).
@@ -209,9 +217,14 @@ These follow from your requirements or from the decisions above. I'm listing the
   because the transaction that would have held them is gone.
 - **`detail` keys on commit rows avoid `reason`:** `run_history` labels `detail ->> 'reason'` "escalation_reason", so a
   commit row calls the reconcile reason `reconcile_reason`.
-- **Exceptions that stop the run are not caught.** An `InterfaceError`, a `DBAPIError` whose SQLSTATE is not class `22` or
-  `23` (`08006`, `57P01`, ...) and every non-database exception propagate; `main.run_all` already treats `SQLAlchemyError`
-  as "this venue failed, carry on to the next one".
+- **Exceptions that stop the run are not caught.** An `InterfaceError` (a real lost connection, `connection_invalidated`,
+  SQLSTATE `None`), a `DBAPIError` whose SQLSTATE is not class `22` or `23` (`08006`, `57P01`, ...) and every non-database
+  exception propagate; `main.run_all` already treats `SQLAlchemyError` as "this venue failed, carry on to the next one". A
+  commit bug that makes the database refuse a row is *not* in this list (see D2's wording and third cost).
+- **An all-fail run is flagged, not raised.** When a run had at least 3 operations and every one failed with a decision error,
+  the summary row carries `all_failed: true` and the worker logs an error saying the failures look like a bug and not bad
+  listings. It does not raise: the exit code is already 1 and nothing is written either way. (3 mirrors
+  `ReconcilePolicy.min_removals_to_guard`; a named constant in `calendar_writer.py`.)
 
 ## Design
 
@@ -226,7 +239,7 @@ ShowOp         decision: ShowDecision; values: dict[str, Any]   # column -> valu
                lineup: tuple[LineupEntry, ...] | None            # None = leave show_artist untouched
                new_artist_names: dict[str, str]                  # key -> name, for artists with no id yet in this lineup
                (properties: action, stored_id, outcome -> AuditOutcome, reconcile_reason, needs_review)
-ShowFailure    action, date, time, stored_id, error              # one failed show
+ShowFailure    action, date, time, stored_id, sqlstate, error    # one failed show; sqlstate None for ShowGone
 CommitResult   written: dict[str, int]                           # "inserted" / "updated" / "removed" -> how many
                artists_created: int; failures: tuple[ShowFailure, ...]
 SNAPSHOT_EXCLUDED = {"created_at", "updated_at"}                 # D3
@@ -268,8 +281,13 @@ DECISION_SQLSTATE_CLASSES = ("22", "23")   # data exception, integrity violation
 
 def is_decision_error(err: BaseException) -> bool:
     """A failure about ONE show (A6-D2): the show vanished, or the database rejected its row by SQLSTATE class 22 / 23.
-    Decided by `getattr(err.orig, "sqlstate", "")`, not by Python class: asyncpg maps only integrity violations to
-    `IntegrityError`, and an overflow is a plain `DBAPIError` (A6-PR1-1). Everything else (a lost connection, a bug) is False."""
+    Decided by SQLSTATE, not by Python class: asyncpg maps only integrity violations to `IntegrityError`, and an overflow is
+    a plain `DBAPIError` (A6-PR1-1). The expression is `sqlstate = getattr(err.orig, "sqlstate", None) or ""`, **not** a
+    `getattr(..., "")` default: the dialect always SETS `sqlstate`, to `None` for an error asyncpg gives none (a real lost
+    connection is an `InterfaceError` with `orig.sqlstate = None`), so a default is never used and `None[:2]` would raise a
+    `TypeError` inside K2's `except`, an exception outside `RUN_ERRORS` that crashes the whole worker (A6-PR2-1). An error
+    with `connection_invalidated` set is False before the SQLSTATE is looked at. Everything else (a lost connection, an
+    error outside classes 22 / 23, a bug that raises) is False."""
 ```
 
 **`PostgresCalendarWriter(session_factory).write_show`** is one transaction, in this order (the order is the lesson, **K1**):
@@ -311,13 +329,14 @@ one place that knows the columns. New pure builders, tested without a database:
 |---|---|---|---|---|---|
 | A show written | `commit` | `show`, the show's id | `inserted` / `updated` / `removed` | the two snapshots (previous is `null` for an insert) | `action`, `reconcile_reason`, `changed` (the column names, plus `"lineup"`), `needs_review` |
 | An artist created | `commit` | `artist`, the new id | `inserted` | `null` / `{id, name}` | `name`, `key` |
-| A show that failed | `commit` | `show`, the stored id (`null` for an insert) | none | none | `action`, `reconcile_reason`, `error` (the exception type and first line of the database's message; never the SQL with its parameters) |
-| The run's summary | `commit` | `venue` | none | none | `counts`, `artists_created`, `failed` (a list of `{action, date, time, stored_id, error}`), `withheld` |
+| A show that failed | `commit` | `show`, the stored id (`null` for an insert) | none | none | `action`, `reconcile_reason`, `date`, `time`, `stored_id`, `sqlstate`, `error` (the exception type and first line of the database's message; never the SQL with its parameters). The identity keys are the same as the summary's `failed` entries, so an insert's failure row says which show failed (A6-PR2-3) |
+| The run's summary | `commit` | `venue` | none | none | `counts` (exactly five keys), `artists_created`, `failed` (a list of `{action, date, time, stored_id, sqlstate, error}`), `all_failed` (bool), `withheld` |
 
 `COMMIT` joins `_VENUE_LEVEL` (the summary row names the venue, as reconcile's does). `attempt_number` for every commit row is
 the existing rule (the last attempt, floored at 1); the private helper becomes public as `audit.attempt_number`, because
-`trace` and the builders both need it. The summary `counts` shape is `{inserted, updated, removed, no_op, skip}` plus the
-failures, so its shape doesn't depend on the run (as reconcile's does).
+`trace` and the builders both need it. The summary `counts` has **exactly** the five keys `{inserted, updated, removed, no_op,
+skip}` (what was written, and what reconcile decided to leave alone), so its shape doesn't depend on the run (as reconcile's
+does); failures are **only** in the `failed` list, never a sixth key (A6-PR2-8).
 
 ### The wiring
 
@@ -334,8 +353,13 @@ failures, so its shape doesn't depend on the run (as reconcile's does).
   log it, so the process exits 1 (`A6-D2`). `main` and `local_test` build `PostgresCalendarWriter(SessionFactory)`.
 - `audit-queries.sql`: `unfinished_runs` currently treats *any* `commit` row as "the run finished". With per-show rows, a run that
   crashed after writing one show has a `commit` row but no summary. The query changes to count only the summary
-  (`step_type = 'commit' AND entity_type = 'venue'`), with a test. A sixth query, `failed_commits`, lists the failure rows.
-  `show_history` loses its "EMPTY until A6" note.
+  (`step_type = 'commit' AND entity_type = 'venue'`), with a test. The A4 / A5 stub `commit` row has no entity, so **every run
+  that finished before A6 in an un-reset dev database reads as unfinished**; the query's comment says so and relies on
+  `make db-reset` (as Verification 6 already does) rather than also accepting the stub (A6-PR2-6). A sixth query,
+  `failed_commits`, lists the failure rows: `WHERE step_type = 'commit' AND entity_type = 'show' AND detail ->> 'error' IS NOT
+  NULL`, with a `LEFT JOIN agent_run` and `LEFT JOIN venue` so a row with a NULL `run_id` doesn't drop out; it selects `date`,
+  `time`, `stored_id`, `action`, `sqlstate`, `error` from the row's own `detail`, and a `GROUP BY sqlstate` variant in its comment
+  for a recurring failure (A6-PR2-3). `show_history` loses its "EMPTY until A6" note.
 
 ## Test approach (written first, watched fail, then made green)
 
@@ -381,9 +405,12 @@ Hand-built `ReconcilePlan`s; no database. Sources: `data-model-initial.md` §2 a
 ### 2. Pure: the rows (`agent_worker/tests/test_audit_entries.py`, extended)
 
 `entry_for(COMMIT, state)` is the summary: entity = the venue, no outcome, `detail` keys as listed under "Audit rows"
-(`counts` always has `inserted, updated, removed, no_op, skip`). The show, artist and failure builders: the outcome follows the
+(`counts` has exactly `inserted, updated, removed, no_op, skip`, pinned as a set; failures appear only in `failed`, and
+`all_failed` is true only for 3 or more operations that all failed). The show, artist and failure builders: the outcome follows the
 action (`insert` → `inserted`, `update` → `updated`, `remove` → `removed`); an insert's `previous_value` is `None`; the
-artist row names `entity_type = artist`; a failure row has no outcome and no snapshots and its `error` is the type and one line;
+artist row names `entity_type = artist`; a failure row has no outcome and no snapshots, its `error` is the type and one line,
+and its `detail` keys are pinned (`action`, `reconcile_reason`, `date`, `time`, `stored_id`, `sqlstate`, `error`), so an insert's
+failure says which show failed;
 `json.dumps` succeeds on every row's `detail`, `previous_value` and `new_value`. The A4 tests that call the commit row "a stub"
 (`test_the_commit_stub_names_no_entity_yet`, `test_the_commit_stub_says_it_is_a_stub`) are replaced, not edited around.
 
@@ -417,9 +444,11 @@ random ones would make the expected values depend on the code under test.
   - the table's CHECK (a `free_admission` row with a price) and a foreign key each raise `IntegrityError`, and a price that
     overflows `Numeric(10, 2)` raises a plain `DBAPIError` with SQLSTATE `22003` (not `DataError`: A6-PR1-1); each leaves
     nothing behind and each is `is_decision_error`;
-  - a unit test of `is_decision_error` on the real shapes: `IntegrityError` and a `DBAPIError` with `orig.sqlstate` `22003` are
-    True; a `DBAPIError` with `08006` and `57P01`, an `InterfaceError`, a `RuntimeError` and a `NoResultFound` are False; a
-    `ShowGone` is True;
+  - a unit test of `is_decision_error` on the real shapes from the shared `fakes` helper (A6-PR2-1): `check_violation()`
+    (`IntegrityError`, `23514`) and `overflow()` (`DBAPIError`, `22003`) are True; **`lost_connection()` (an `InterfaceError`
+    with `orig.sqlstate = None` and `connection_invalidated = True`) is False and does not raise** (the case a
+    `getattr(..., "")[:2]` implementation fails with a `TypeError`); a `DBAPIError` with `08006` and with `57P01`, a
+    `RuntimeError` and a `NoResultFound` are False; a `ShowGone` is True;
   - **revert is possible:** a test-only `restore(session, snapshot)` puts a row back from `previous_value`, and the row then
     equals its pre-update snapshot (columns and lineup). This proves the snapshot is *sufficient*, which is its whole purpose
     (build plan A6: "those are what a future revert restores"); the revert action itself stays deferred.
@@ -429,9 +458,11 @@ random ones would make the expected values depend on the code under test.
     names the same artist creates it again and succeeds (**A6-M3**: the writer remembers created ids in a cache that
     outlives the transaction);
   - a failing show is recorded (failure row, `ShowFailure`) and the others are written (D2), including a show whose price
-    overflows `Numeric(10, 2)` (the D2 scenario); a connection-class failure (a stub writer raising `DBAPIError` with
-    `orig.sqlstate = "08006"`, and another raising `InterfaceError`) propagates and writes nothing further; a bare
-    `RuntimeError` from the writer propagates (it's a bug, not a data error) (**A6-M6**);
+    overflows `Numeric(10, 2)` (the D2 scenario, named `test_an_overflowing_price_fails_only_its_show`); a connection-class
+    failure (a stub writer raising `fakes.lost_connection()`, and another a `DBAPIError` with `08006`) propagates and writes
+    nothing further (`test_a_connection_error_stops_the_run`); a bare `RuntimeError` from the writer propagates (it's a bug,
+    not a data error) (**A6-M6**); and a run of 3 operations that all fail sets `all_failed` in the summary while a run of 2
+    does not (`test_an_all_failed_run_is_flagged`);
   - with D2 answered B the "others are written" test becomes "the run stops at the failure" (the plan notes this so the
     build can follow Ari's answer).
 
@@ -470,7 +501,11 @@ not write ("a real database round trip is A6's test").
 - **the artists table** now holds exactly the old artists plus the new ones, once each;
 - **a run with one failing show** leaves the other shows written, writes the failure row and the summary, and
   `unfinished_runs` does *not* list it (the summary was written), while a run whose writer raises a connection error *is*
-  listed (**A6-M5**: the query counting per-show rows as "reached commit"). The failure is injected by a mechanism that
+  listed (**A6-M5**: the query counting per-show rows as "reached commit"). **The crash must come after at least one show was
+  written** (A6-PR2-4): the injected writer delegates to the real `PostgresCalendarWriter` for the first operation, then raises
+  `fakes.lost_connection()` on the second, and the test asserts that exactly one per-show `commit` row exists, that **no** summary
+  row exists, and that the run is listed. A writer that raises on the first operation leaves no `commit` row, so both the correct
+  query and the mutated one list the run and the check proves nothing. The one-failing-show failure is injected by a mechanism that
   exists on the real graph (A6-PR1-6): a **test-only constraint added inside the test transaction**, `ALTER TABLE show ADD
   CONSTRAINT tmp_no_end_time CHECK (end_time IS NULL) NOT VALID`, so that inserting a show with an end time raises
   `IntegrityError` (DDL is transactional in Postgres, so the outer rollback removes it; the build verifies that under the
@@ -536,8 +571,13 @@ teaches. This is Ari's call at approval: say so if you would rather keep the old
   And in tests `now()` is the outer transaction's start time, so an `updated_at` assertion compares against a literal
   past value the row was seeded with, never two readings of `now()` (A6-PR1-3; the same trap `finished_at` set in A4-CR1-5).
 - **The driver's exception classes lie about data errors.** With asyncpg only integrity violations arrive as
-  `IntegrityError`; an overflow is a plain `DBAPIError` and a lost connection may be an `InterfaceError` or a `DBAPIError`
-  with a class `08` / `57` SQLSTATE. Classify by `orig.sqlstate` (A6-PR1-1), and build the tests' errors with those shapes.
+  `IntegrityError`; an overflow is a plain `DBAPIError` (`22003`), a CHECK violation an `IntegrityError` (`23514`), and a **real
+  lost connection an `InterfaceError` whose `orig.sqlstate` is `None` and whose `connection_invalidated` is `True`** (measured
+  both by killing the backend with `pg_terminate_backend` and by closing the raw connection; neither produced an `08006`).
+  Classify by `getattr(err.orig, "sqlstate", None) or ""` (A6-PR1-1, A6-PR2-1). The tests' errors come from one shared helper in
+  `tests/fakes.py` that builds each real shape (`overflow()`, `check_violation()`, `lost_connection()`), used by the unit test,
+  by `FakeWriter` and by the stub writers, so no test invents a shape the driver never produces. A `08006` /`57P01`
+  `DBAPIError` is kept as one extra case: the rule must treat any non-22/23 SQLSTATE as run-level.
 - **`session.begin()` inside the test's savepoint mode** nests as a savepoint, so a rollback in a test is real but does not
   end the outer transaction; an assertion that "nothing persisted" reads through the same connection.
 - **A failed asyncpg transaction can't be reused.** The loop opens a fresh session per show (`write_show` owns its session),
@@ -612,11 +652,12 @@ The Implementation log lists the red tests by file with the reason, as A4 and A5
     artist_ids.update(written.created_artists)
     tally[written.outcome.value] += 1
     ```
-  - *Check:* `uv run pytest agent_worker/tests/test_calendar_writer.py -k "write_plan or failure or created_once or connection"` and
-    `test_graph_commit.py -k failed`. The likeliest mistake is catching `Exception`, `SQLAlchemyError` or any `DBAPIError`
-    without the SQLSTATE test (the "connection error stops the run" test goes red, with `08006` and with `InterfaceError`);
-    the second is forgetting that the overflow is **not** an `IntegrityError` (catching only `IntegrityError` makes the
-    overflow test, the D2 scenario, go red).
+  - *Check:* `uv run pytest agent_worker/tests/test_calendar_writer.py -k "write_plan or overflowing or connection or created_once or all_failed or is_decision_error"`
+    and `test_graph_commit.py -k failed`. The likeliest mistake is catching `Exception`, `SQLAlchemyError` or any `DBAPIError`
+    without the SQLSTATE test (the "connection error stops the run" test goes red, with `08006` and with the real
+    `lost_connection()` shape); the second is forgetting that the overflow is **not** an `IntegrityError` (catching only
+    `IntegrityError` makes the overflow test, the D2 scenario, go red). The SQLSTATE rule itself is the written
+    `is_decision_error`, whose own unit test (the real `lost_connection()` shape must be False and must not raise) guards it.
   - *If you answer D2 with B,* the `try` goes and the block is two lines; the lesson becomes only the second half.
 
 ### 1. Tests first (written)
@@ -644,7 +685,8 @@ summary `_detail`, `attempt_number` public. The A4 stub comments are updated, no
 
 `context.py`, `state.py`, `nodes.py` (`commit_node`), `trace.py` (the commit branch, with a comment block saying why the write
 is awaited there and why the summary row comes last), `main.py` (the writer; `run_all` counts commit failures), `local_test.py`
-(builds the writer; prints what was written and what failed), and `tests/fakes.py`.
+(builds the writer; prints what was written and what failed; **exits 1 when `commit_result.failures` is non-empty**, as `main` does
+through `run_all`: A6-PR2-5), and `tests/fakes.py`.
 
 ### 6. `docs/dev/audit-queries.sql` (written)
 
@@ -729,8 +771,8 @@ build plan's gate for schema changes is "their own early PR".
    `previous_value` / `new_value` differing in `end_time` and `lineup`), and the changed-time show is removed and re-inserted.
    Run the `show_history` query for the updated show.
 9. The failure path (D2): `ALTER TABLE show ADD CONSTRAINT tmp_no_end_time CHECK (end_time IS NULL) NOT VALID;`, delete one
-   show **and its `show_artist` rows first** (`show_artist_show_id_fkey`), run. Expect the insert of that show (it has an end time) to fail, a `failed_commits` row, the others unaffected, and exit
-   status 1; then drop the constraint and run once more to see it converge.
+   show **and its `show_artist` rows first** (`show_artist_show_id_fkey`), run. Expect the insert of that show (it has an end time) to fail, a `failed_commits` row (with the show's date and time), the others unaffected, and exit
+   status 1 (`local_test` exits 1 on commit failures); then drop the constraint and run once more to see it converge.
 10. Eyeball the snapshots: take one `previous_value` and confirm it has the whole row and a `lineup` array you could restore from.
 
 ## Not doing in A6
@@ -747,7 +789,7 @@ build plan's gate for schema changes is "their own early PR".
 
 ## Approval
 
-*(Awaiting Ari's decisions. Plan review round 1 is resolved. Ari moves the status to `Approved`.)*
+*(Awaiting Ari's decisions. Plan review rounds 1 and 2 are resolved. Ari moves the status to `Approved`.)*
 
 **For Ari to decide before approving:** D1, D2 and D3 above, and one more that is not a numbered decision: while K2 is open,
 **about 31 existing graph tests are red** (not only the new ones), because `write_plan` is real code on every path to commit
@@ -817,3 +859,74 @@ documenting the consequence, with the alternative and the decision left to Ari).
 ★ D2, which Ari is asked to decide, and K2's lesson, code and check; rows 2, 3 and 6 added or changed tests; row 7 moved the row
 lock to the first read. No round 2 was run. The change to D2 and K2 is substantial enough that Ari may want one before
 approving; I would run it if you want a second look at the SQLSTATE rule.
+
+### Round 2 — Claude Opus 5.5, October 20, 2026 (targeted: D2 and K2)
+
+**Scope.** The plan as committed at `24bf94a`, read cold. The review covers only ★ D2 and the K2 gap (`write_plan`), plus
+what they depend on or feed: `is_decision_error` and the SQLSTATE rule, the failure rows and the summary row's `failed`
+list, `main.run_all`'s handling of commit failures, the `unfinished_runs` and `failed_commits` queries where they touch
+failures, the layer-3, 4 and 5 tests and A6-M3 / A6-M6 on the failure path, and three Settled details: removals last,
+failure rows written outside the rolled-back transaction, and what stops the run. Everything else in the plan is out of
+scope and was not re-reviewed. This is still a plan review, so no A6 code exists yet.
+
+**What was checked and how.**
+- **Read:** round 1 and its resolutions; `agent_worker/main.py` (`RUN_ERRORS`, `run_venue`, `run_all`), `trace.py`,
+  `audit.py` (`_VENUE_LEVEL`, `PostgresAuditWriter.record`), `context.py`, `local_test.py`, `docs/dev/audit-queries.sql`
+  (`unfinished_runs`), `app/db/models/calendar.py` (no unique constraint on `artist`), `tests/fakes.RecordingAudit` and
+  `test_run_venue.py`. I also read SQLAlchemy's asyncpg dialect: `_handle_exception` (`asyncpg.py:781-800`), the
+  translation table (`:1010-1020`) and `is_disconnect` (`:1176`).
+- **Versions:** SQLAlchemy 2.0.52 and asyncpg 0.32.0, from the repo's `.venv`.
+- **Experiments:** run in a throwaway `git worktree` of `24bf94a` (with a copy of `apps/api/.env`), as a scratch pytest
+  file on `calendar_test` with `REQUIRE_DB=1`. The worktree was removed afterwards and `git worktree list` shows only
+  the main tree. Results, all CONFIRMED:
+  - **The failure loop works in savepoint mode** (the `test_audit_writer.py` factory). A write of a `Numeric(10, 2)`
+    overflow in its own session and `begin()` raised `DBAPIError`, with `orig.sqlstate = '22003'` and cause
+    `NumericValueOutOfRangeError`. After it, a failure row written through `PostgresAuditWriter(factory).record`
+    succeeded, and so did a good show write in a fresh session. The final count was 1 `show` and 1 `audit_log`.
+  - **Layer 5's test-only constraint works and goes away on rollback.** `ALTER TABLE show ADD CONSTRAINT tmp_no_end_time
+    CHECK (end_time IS NULL) NOT VALID` on `db_conn` made an insert with an end time raise `IntegrityError` `23514`. The
+    next test found 0 rows for that constraint in `pg_constraint`. Round 1's resolution left this for the build to
+    check; it is now checked.
+  - **Errors that come from page text are classified per show.** A NUL byte in `image_url` raised `DBAPIError` `22021`.
+    A lone surrogate raised `DBAPIError` `22000`. Both have class 22, so the rule treats both as one show's failure.
+  - **Bug-shaped errors are also class 22 / 23** (finding 2). A NOT NULL violation raised `IntegrityError` `23502`. An
+    invalid enum text raised `DBAPIError` `22P02`.
+  - **A real lost connection is an `InterfaceError` whose `orig.sqlstate` is `None`** (finding 1). I tried two ways:
+    killing the session's backend with `pg_terminate_backend` from a second connection, and closing the raw asyncpg
+    connection under the session. Both raised `sqlalchemy.exc.InterfaceError`, with `orig.sqlstate = None`,
+    `connection_invalidated = True` and cause asyncpg `InterfaceError`. Neither raised the `08006` or `57P01` shapes the
+    plan's tests use. The plan's literal rule, `getattr(err.orig, "sqlstate", "")[:2]`, raised
+    `TypeError: 'NoneType' object is not subscriptable` on both.
+  - Aside, out of scope, not counted: a `Decimal("NaN")` price is **written**, not refused, because `numeric(10, 2)`
+    accepts NaN. If extraction can ever produce one, that belongs to validation or `to_price`, not to D2.
+
+**What holds up.** Classifying by SQLSTATE class is the right rule on this driver. The dialect maps only
+`IntegrityConstraintViolationError` to its own class, and every other server error becomes the generic `Error`, so a
+Python-class rule can't work. The rule is also right about data from a venue's page: overflow, bad characters and
+constraint violations all land in 22 / 23. K2 sits where the concept lives. Its `except (DBAPIError, ShowGone)` plus
+re-raise is the correct shape, and it can't make the artist-cache mistake, which round 1 moved to K1. "Removals last"
+is now stated correctly. Failure rows go through `AuditWriter.record` and survive the rollback, as shown above.
+`run_all` already treats `SQLAlchemyError` as "venue failed, carry on", and `InterfaceError` is a `SQLAlchemyError`.
+Counting a venue with commit failures as failed is a small, correct addition.
+
+**Counts:** 0 blockers, 4 should-fix, 4 nits.
+
+**Verdict:** *proceed after fixes.* None of the findings changes D2's recommendation. Finding 1 is a crash path in the
+helper's specified expression, and the planned tests can't see it. Finding 2 corrects a claim Ari is asked to decide ★
+D2 on. Findings 3 and 4 are a failure row that can't say which show failed, and a mutation check that can stay green.
+
+| # | Sev | Finding | Evidence | What goes wrong | Resolution |
+|---|---|---|---|---|---|
+| 1 | should-fix | **`is_decision_error` as specified crashes on a real lost connection, and the planned tests can't see it.** The Design docstring says the rule is "decided by `getattr(err.orig, "sqlstate", "")`". When the dialect translates an asyncpg error, it always *sets* `sqlstate`, to `getattr(error, "sqlstate", None)`. asyncpg's `InterfaceError` has no `sqlstate`, so a real dropped connection reaches K2 as `sqlalchemy.exc.InterfaceError` with `orig.sqlstate = None`. The attribute exists, so `getattr`'s default `""` is never used, and `None[:2]` or `None.startswith(...)` raises `TypeError` / `AttributeError` inside K2's `except` block. The 08006 / 57P01 shapes the plan names did not occur in either experiment. The planned tests build "an `InterfaceError`" and "a `DBAPIError` with `orig.sqlstate = "08006"`". An `orig` without a `sqlstate` attribute, or with `"08006"`, passes under the buggy expression. **Fix:** write the rule as `sqlstate = getattr(err.orig, "sqlstate", None) or ""`, and return False when `err.connection_invalidated` is set. The `is_decision_error` unit test and A6-M6's `InterfaceError` should use the real shape: an `orig` whose `sqlstate` is `None`, plus `connection_invalidated=True`. Name it in the "driver lies" gotcha, ideally as a shared `fakes` helper that builds each real shape (`22003`, `23514`, lost connection), which `FakeWriter` also uses. | CONFIRMED (worktree probe): `pg_terminate_backend` and a closed raw connection each gave `('InterfaceError', orig 'InterfaceError', sqlstate None, connection_invalidated True)`, and the plan's expression raised `TypeError: 'NoneType' object is not subscriptable`. Translation: `.venv/…/sqlalchemy/dialects/postgresql/asyncpg.py:794-796`. Plan lines 269-272, 420-422, 432-434, 492, 538-540. | A database restart or idle-connection kill during a commit raises `TypeError` instead of `InterfaceError`. `TypeError` is not in `main.RUN_ERRORS`, so instead of "this venue failed, carry on to the next one", the **whole worker process crashes** and every venue after it is skipped that night. Layer 3, layer 4 and A6-M6 all stay green under the bug. | **Fixed.** The rule is now `sqlstate = getattr(err.orig, "sqlstate", None) or ""`, and an error with `connection_invalidated` is False before SQLSTATE is looked at (Design docstring for `is_decision_error`). The reviewer's measurement stands (a real lost connection is an `InterfaceError` with `orig.sqlstate = None`); I replaced my invented `08006` shapes. A shared helper in `tests/fakes.py` builds each real shape (`overflow()` 22003, `check_violation()` 23514, `lost_connection()` with `sqlstate=None` and `connection_invalidated=True`) and is used by the `is_decision_error` unit test (which asserts the lost-connection shape is False **and does not raise**), by `FakeWriter`, and by the stub writers in layers 3 to 5. A6-M6 and the 'driver lies' gotcha updated. A `08006` / `57P01` `DBAPIError` stays as one extra case. |
+| 2 | should-fix | **D2 tells Ari that "a bug in our code still stops the run". Under the SQLSTATE rule, many commit bugs don't.** A bug that sends the database a malformed row gets a class 22 / 23 SQLSTATE, the same as a bad listing. Examples: a column left out of `insert_values` (`23502`), an enum value written as the wrong string (`22P02`), a wrong or stale artist id (`23503`, which is the very failure layer 3's atomicity test (a) injects). Each one is classified as one show's failure. A commit bug of that kind fails **every** write, and D2-A carries on past each: N failure rows, a summary, exit 1, and nothing written. Only bugs that raise a Python exception, or a SQLSTATE outside 22 / 23, stop the run. **Fix:** in D2 option A and the "Exceptions that stop the run" Settled detail, say that the rule separates the database refusing a row from losing the database, not "the venue's data" from "our bug". Add this case to D2's "Cost of A". Optionally (Ari's call, and it is an operational rule, not a calendar judgement), add a breaker: when every op failed with a decision error, `write_plan` raises after recording them, so an all-fail run reads as a crash and not as N separate bad listings. | CONFIRMED (worktree probe): NOT NULL gave `IntegrityError` `23502`; a bad enum text gave `DBAPIError` `22P02`; both were classified per-show by the rule. Plan lines 140-146, 150-151, 212-214, 408-410. | Ari decides ★ D2 on a false premise. In practice the visible harm is small, because nothing wrong is written and the exit code is 1. But the audit trail then shows a commit bug as N failed listings, each with the same SQLSTATE. A person reading `failed_commits` goes looking at venue pages instead of the code. | **Fixed.** D2 option A now says what the rule really separates (the database refusing a row from losing the database, not a bad listing from a bug of ours), lists the malformed-row bugs (`23502`, `22P02`, `23503`) that are recorded per show, and gets a third cost of A (an all-fail run looks like N bad listings). The Settled detail 'Exceptions that stop the run' is corrected to match. **Optional breaker (Ari's call, per the reviewer):** I did not make `write_plan` raise on an all-fail run. A raise would need its own exception type in `RUN_ERRORS`, and the exit code is already 1 and nothing is written either way. Instead a new Settled detail flags it: the summary carries `all_failed` (3 or more operations, every one a decision error), the worker logs an error that says it looks like a bug, and the failure rows carry `sqlstate` so `failed_commits` groups them. Veto it or ask for the raising version. |
+| 3 | should-fix | **The failure row for a failed insert can't say which show failed.** The "Audit rows" table gives the failure row `entity_id` = the stored id (`null` for an insert) and a `detail` of only `action`, `reconcile_reason`, `error`. For an insert, nothing in the row identifies the show. The date and time live only in the summary's `failed` list and in `ShowFailure`. `failed_commits` ("which shows failed to write, and why") reads the failure rows, so for D2's own scenario (an overflowing price on a new show) and for Verification 9 (a failed insert) it returns a row with no date, no time and no id. The table also doesn't say what marks a failure row, so the query's `WHERE` is left to the build. **Fix:** give the failure row's `detail` the same identity the summary's `failed` entry has: `date`, `time`, `stored_id`, plus `sqlstate`, which lets `failed_commits` group a recurring failure (see finding 2). Pin the keys in layer 2. State `failed_commits`'s predicate (`step_type = 'commit' AND entity_type = 'show' AND outcome IS NULL`) and its join. A `LEFT JOIN agent_run`, or a note, keeps rows whose `run_id` is NULL from silently dropping out. | CONFIRMED by reading: plan line 314 (failure row) against line 315 (summary `failed`) and line 229 (`ShowFailure`); line 337 (`failed_commits`); Verification 9 (lines 731-733). | The saved query built for D2 can't answer its own question for inserts, which is the D2 scenario. A person has to correlate the failure row with the summary row of the same run by hand. | **Fixed.** The failure row's `detail` now has `action`, `reconcile_reason`, `date`, `time`, `stored_id`, `sqlstate` and `error` (the same identity as the summary's `failed` entries; `ShowFailure` gains `sqlstate`); layer 2 pins the keys. The `failed_commits` predicate is stated (`step_type = 'commit' AND entity_type = 'show' AND detail ->> 'error' IS NOT NULL`, with `LEFT JOIN agent_run` / `venue`), as are its selected columns and a `GROUP BY sqlstate` variant for a recurring failure. I used `detail ->> 'error'` rather than the reviewer's `outcome IS NULL`, because a no-op or stub row with no outcome would also match the latter. |
+| 4 | should-fix | **A6-M5's companion test can stay green under the mutation unless the crash comes after at least one show was written.** Layer 5 says only that "a run whose writer raises a connection error *is* listed". A6-M5 mutates `unfinished_runs` back to "any `commit` row means the run finished". If the injected writer raises on the **first** op, the run has no `commit` row at all, so both the correct and the mutated query list it, and `test_a_run_that_crashed_mid_commit_is_unfinished` stays green. The test proves something only if a per-show `commit` row exists and the summary doesn't. **Fix:** say so in layer 5. The injected writer delegates to the real `PostgresCalendarWriter` for the first op, then raises the real lost-connection shape (finding 1) on the second. The test asserts that one per-show `commit` row exists, that no summary row exists, and that the run is listed. | CONFIRMED by reading the query: `docs/dev/audit-queries.sql:92-95` (`NOT EXISTS … step_type IN ('commit', 'escalate')`); plan lines 335-337, 471-473, 491. | The mutation table claims protection the suite might not give. The one thing the `unfinished_runs` change exists for, a run that crashed between per-show rows and the summary, goes untested. | **Fixed.** Layer 5 now requires the injected writer to delegate to the real `PostgresCalendarWriter` for the first operation and raise `fakes.lost_connection()` on the second, and asserts one per-show `commit` row, no summary row, and that the run is listed. The text says why a first-operation raise proves nothing under A6-M5. |
+| 5 | nit | **Verification 9 expects "exit status 1", but it runs through `local_test`, which always exits 0.** `local_test.main()` returns `None` and is run as `asyncio.run(main())`. Step 5 only says `local_test` "prints what was written and what failed". **Fix:** have `local_test` exit 1 when `state.commit_result.failures` is non-empty (as `main` does through `run_all`), or drop the exit-status expectation from Verification 9. | CONFIRMED by reading `agent_worker/local_test.py:35, 98`; plan lines 645-647, 731-733. | Ari's local check of D2 fails on the exit code while the behaviour is correct. | **Fixed.** `local_test` exits 1 when `commit_result.failures` is non-empty (Wiring, step 5), and Verification 9 says so. |
+| 6 | nit | **The new `unfinished_runs` predicate lists every pre-A6 run in an existing dev database.** The A4 / A5 stub `commit` row has `entity_type` NULL, because `COMMIT` is not in `_VENUE_LEVEL` today. So `step_type = 'commit' AND entity_type = 'venue'` doesn't match it, and every run that finished before A6 now reads as a crash. **Fix:** say so in the query's comment and rely on `make db-reset`, as Verification 6 already does, or also accept the stub row (`… OR al.detail ? 'stub'`). | CONFIRMED by reading `agent_worker/audit.py:92` and `:142` (the stub's `detail`); plan lines 335-337. | Someone running the query against a dev database that was not reset sees false "unfinished" runs. | **Fixed (documented).** The `unfinished_runs` comment and the Wiring bullet say that runs finished before A6 in an un-reset dev database read as unfinished, and rely on `make db-reset` as Verification 6 does. I did not also accept the stub row: the stub row has no entity to separate it from per-show rows, and a one-time dev-data artefact doesn't earn query logic. |
+| 7 | nit | **K2's Check command may not select the test its second "likeliest mistake" depends on.** The Check is `-k "write_plan or failure or created_once or connection"`, and mistake 2 says the overflow test goes red. That test's name isn't given ("a failing show is recorded … including a show whose price overflows"). A natural name such as `test_an_overflowing_price_fails_only_its_show` matches none of the four words. **Fix:** name the K2 tests in the plan, or list their node ids in the Check. | PLAUSIBLE (reasoned): plan lines 431-434, 615-619. | Ari runs the Check after catching only `IntegrityError`, sees green, and moves on. | **Fixed.** The K2 tests are named (`test_an_overflowing_price_fails_only_its_show`, `test_a_connection_error_stops_the_run`, `test_an_all_failed_run_is_flagged`) and K2's Check `-k` now selects them (`write_plan or overflowing or connection or created_once or all_failed or is_decision_error`). |
+| 8 | nit | **The summary's `counts` key set is stated two ways.** "Audit rows" says the shape is `{inserted, updated, removed, no_op, skip}` "plus the failures". Layer 2 says `counts` "always has `inserted, updated, removed, no_op, skip`". It is unclear whether `counts` has a `failed` key or whether failures appear only as the `failed` list. **Fix:** pick one, and make layer 2 pin the exact key set. | CONFIRMED by reading plan lines 319-320 against 383-384. | The builder and the test agree by accident or not at all, and `audit-queries.sql`'s header documents whichever one came first. | **Fixed.** `counts` has exactly five keys (`inserted, updated, removed, no_op, skip`), pinned as a set in layer 2; failures appear only in the `failed` list, with `all_failed` as a separate boolean. The Audit rows table, its prose and layer 2 now agree; `audit-queries.sql`'s header documents this one. |
+
+**Rejected:** none. Round 2 resolved by the author (Claude Sonnet 5.5), October 20, 2026: 8 of 8 fixed. Two are judgement calls
+worth Ari's eye: the optional all-fail breaker (row 2) is a flag and a log line, not a raised error; and `failed_commits` keys on
+`detail ->> 'error'` (row 3), not on a missing outcome. No round 3 was run. D2's recommendation is unchanged, but its wording now
+says what its rule does and does not separate, and its cost list has three entries.
