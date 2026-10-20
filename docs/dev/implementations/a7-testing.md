@@ -1,14 +1,14 @@
 # A7 — testing
 
-**Status:** Plan review
+**Status:** Awaiting approval
 **Date:** October 20, 2026
 **Author model:** Claude Sonnet 5.5 (plan, October 20, 2026)
-**Reviewer model:** Claude Opus 5.5 (plan review round 1 — pending)
+**Reviewer model:** Claude Opus 5.5 (plan review round 1, October 20, 2026)
 **Spec:** `docs/dev/alpha-build-plan.md` §5 A7 (gaps v0.1-G14, v0.1-G15, v0.1-G16) and §2 point 5; `AGENTS.md`
 ("Conventions": *Tests state what they prove*, *Comment-only passes must not change code*);
 `docs/references/fastapi-style-guide.md` ("Testing", "Linting", Anti-patterns); `apps/api/AGENTS.md`
 
-**Designations.** Inside this plan the decisions are `D1`–`D3` and the mutation checks `M1`–`M9`; elsewhere they are written
+**Designations.** Inside this plan the decisions are `D1`–`D3` and the mutation checks `M1`–`M10`; elsewhere they are written
 `A7-D1`, `A7-M1` and so on (`docs/dev/conventions.md`). Code, tests and code comments write the scoped form even while
 implementing this plan: `A7-D3` in `pyproject.toml`, never `D3` (`make designation-check` fails a bare one). Review items are
 `A7-PR<round>-<n>` (plan review) and `A7-CR<round>-<n>` (code review). Other plans' IDs carry their scope (`A3-D5`, `A5-CR1-1`,
@@ -44,7 +44,7 @@ So A7's job is to **finish and lock in**, not to build:
    decision to record (`run_eval.py:171`), and 57 are one wrong annotation.
 3. **A handful of documented behaviors have no test.** The coverage run lists 27 uncovered statements across `app/` and
    `agent_worker/` (15 of them in `agent_worker/`) and 17 partial branches. Most are defensive or wiring ("What is not
-   covered", below). Seven are real rules nobody pinned: the act splitter ignoring out-of-range and duplicate ids, three
+   covered", below). Six groups of real rules are unpinned (eight tests below): the act splitter ignoring out-of-range and duplicate ids, three
    JSON-LD edge cases, the status question's fallback match, the time normalizer's non-string refusal, reconcile's `None`
    guards, and the fetch node's image-file route.
 4. **Bookkeeping that went stale:** the build plan's A7 boxes, the "lower bar" paragraph in `apps/api/AGENTS.md`, the CI
@@ -63,14 +63,14 @@ model. All of A7 is deterministic and runs in a cloud session; the 15 skips are 
 | Unit tests for reconcile against a seeded database | [fill-in] (done) | A5: `tests/test_reconcile_*.py`, `test_calendar_reader.py`. **Ticked, no work** |
 | A fake model client | [written] | Exists (A3, extended in A5). **Ticked**, with the stale `ScriptedClient` name corrected in the docs and in `fakes.py`'s docstring; two other fakes deliberately left alone (Settled details) |
 | Widen mypy to `agent_worker/` in CI and clear the errors (v0.1-G15) | [written] | `[tool.mypy] files`, 75 errors cleared, `make typecheck` and the CI step both run `uv run mypy` |
-| *(added)* Close the seven unpinned rules | [written] | New tests in the existing files for each module |
+| *(added)* Close the six groups of unpinned rules (eight tests) | [written] | New tests in the existing files for each module |
 | *(added, D1)* A report-only coverage target | [written] | `coverage` dev dependency, `make coverage`, `.gitignore` |
 | *(added, D2)* `Proves:` comments on the 14 older tests that lack one | [written] | `app/tests/` — which of the 14 is D2 |
 
 ### Decisions already made (earlier in this project)
 
 - **Tests first, and a test must be able to fail.** Build plan §3; A6 added a "Mutation checks" table as the proof. This plan
-  follows it (M1–M9).
+  follows it (M1–M10).
 - **Real database in tests; dependency/monkeypatch the model client, not the database** (style guide Anti-patterns:
   "Mocking the database in integration tests"). Unchanged: A7 adds no DB mocks. The new tests need no database at all.
 - **`app/` never imports from `agent_worker/`** (`apps/api/AGENTS.md`). The guard test lives in `app/tests/` and imports from
@@ -87,7 +87,7 @@ model. All of A7 is deterministic and runs in a cloud session; the 15 skips are 
    stopped moving" is not met: A8 and H1 will still change `eval/` and `extraction.py`. The mypy gate in CI is the answer to
    that (a later change either type-checks or fails the PR), so the milestone is built now rather than waiting.
 3. **G16 is closed with evidence** (583 test functions; the coverage figures above), not just ticked.
-4. **Three items were added** that the build plan doesn't list: the guard test, the seven coverage-gap tests, and (per D1, D2)
+4. **Three items were added** that the build plan doesn't list: the guard test, the eight coverage-gap tests, and (per D1, D2)
    the coverage target and the `Proves:` pass. Each is small and each is justified in the section that describes it; D1
    and D2 can be declined.
 5. **The fake-client box is ticked without consolidating the three fakes** (Settled details). It can be reopened.
@@ -95,13 +95,13 @@ model. All of A7 is deterministic and runs in a cloud session; the 15 skips are 
 ## Decisions for Ari
 
 **How to read this section.** Each decision is one question with two options, a scenario, and what each costs. The plan below
-is written to the recommended option (A). None of these is ★ (changes how the calendar or the audit trail behaves): A7 changes
+is written to the recommended option (A for D1 and D3, B for D2). None of these is ★ (changes how the calendar or the audit trail behaves): A7 changes
 no behavior of either. All three change what the repo asks of future work, so they are yours.
 
 | # | Question | Recommendation | Status |
 |---|---|---|---|
 | D1 | Add a report-only coverage tool (`make coverage`)? | A: yes, no threshold, not in CI | Open |
-| D2 | Which older tests get a `Proves:` comment now? | A: `test_health.py` only; the 13 router tests wait for A1b | Open |
+| D2 | Which older tests get a `Proves:` comment now? | B: all 14 now (revised in plan review; A was `test_health.py` only) | Open |
 | D3 | Does the mypy gate cover tests and the eval harness, or only production code? | A: everything under `agent_worker/` | Open |
 
 ---
@@ -114,10 +114,10 @@ no behavior of either. All three change what the repo asks of future work, so th
 - **Option A — yes.** Add `coverage` to the dev dependency group (pinned in `uv.lock`), a `[tool.coverage]` block (branch
   coverage; `source = ["app", "agent_worker"]`; omit tests, `eval/` and `local_test.py`), a `make coverage` target
   (`REQUIRE_DB=1 uv run coverage run -m pytest`, then `coverage report -m --skip-empty`) and a `.coverage` line in `.gitignore`
-  (the existing `coverage` entry matches a directory, not the file; CONFIRMED by `git status`). **No threshold, and not in
+  (the existing `coverage` pattern matches a file or directory named exactly `coverage`, not `.coverage`; CONFIRMED by `git status` and `git check-ignore`). **No threshold, and not in
   `make check` or CI.** A percentage gate invites writing tests to touch lines rather than to prove behavior (the exact thing
   the `Proves:` convention exists to prevent); the report is for reading the "Missing" column, as A7 does below.
-- **Option B — no new tool.** The measurement stays in this plan as a one-off; the seven coverage-gap tests land either way.
+- **Option B — no new tool.** The measurement stays in this plan as a one-off; the eight coverage-gap tests land either way.
   Costs nothing now; the next person re-derives the incantation.
 - **Why A:** it's four small lines of config and it makes the claim in "Context" re-checkable by anyone, which is this repo's
   "verify, don't assume" standard. If you'd rather not carry the dependency, B loses little.
@@ -125,16 +125,22 @@ no behavior of either. All three change what the repo asks of future work, so th
 ### D2 — Which older tests get a `Proves:` comment now?
 
 - **Scenario.** `AGENTS.md` requires every test to open with `Proves:`. A scan of all 583 test functions finds **14 without
-  one**, all in `app/tests/`: `test_health.py::test_health` and 13 in `test_routers.py` (Track 0, before the convention). But
-  A1b will rewrite `test_routers.py` wholesale (async client, a real session, `sample_data.py` deleted), and the expected values
-  in those tests come from `sample_data`, which is exactly what A1b removes.
-- **Option A — `test_health.py` now; the 13 router tests are A1b's.** The build step adds one comment (comment-only pass,
-  verified by comparing syntax trees before and after, per `AGENTS.md`), and adds one sentence to A1b's build-plan bullet:
-  "tests it writes or migrates carry `Proves:`". No wasted work, no merge conflict with A1b.
-- **Option B — all 14 now.** The convention holds on the day A7 closes; A1b then rewrites 13 of the comments along with the
-  tests, and has to read around them.
-- **Why A:** the 13 comments would be written against behavior A1b is about to replace. If you want the repo clean of the
-  14 on the day A7 is signed off, B is a few minutes of work and is safe.
+  one**, all in `app/tests/`: `test_health.py::test_health` and 13 in `test_routers.py` (Track 0, before the convention).
+  `test_routers.py`'s own docstring says its tests deliberately avoid data and pin "the behavior that A1b must not break when it
+  swaps the bodies for real queries: the URLs, the filter semantics, and the error codes". Several are data-free
+  (`test_non_integer_id_is_422`, `test_invalid_ranges_are_rejected`, `test_openapi_exposes_the_response_schemas`, the envelope
+  test); a few use sample ids (`/shows/2`, artist 1 third on a bill). A1b changes the client (`TestClient` →
+  `httpx.AsyncClient`) and some of those ids, not what most of the tests prove (A7-PR1-4).
+- **Option A — `test_health.py` now; the 13 router tests are A1b's.** One comment (comment-only pass, verified by comparing
+  syntax trees before and after, per `AGENTS.md`), plus one sentence in A1b's build-plan bullet: "tests it writes or migrates
+  carry `Proves:`". Cost: 13 tests stay out of the convention until A1b, which is not scheduled.
+- **Option B — all 14 now.** The convention holds on the day A7 closes. The comments say what each test pins (URL, filter
+  semantics, error code) and, for the few that read sample ids, say that the expected value comes from `sample_data`
+  (`AGENTS.md`: "say where the expected values come from"); A1b then touches only those few. Cost: a short comment-only pass
+  over 14 tests.
+- **Why B (revised after plan review):** I first recommended A on the belief that the router tests' expectations all came from
+  `sample_data` and would be rewritten. The file says otherwise: most of what they pin survives A1b, so the comments would
+  mostly carry over. A is still safe if you'd rather keep A7 out of `test_routers.py`.
 
 ### D3 — Does the mypy gate cover tests and the eval harness?
 
@@ -146,6 +152,7 @@ no behavior of either. All three change what the repo asks of future work, so th
   failure A5-PR1-15 was about.
 - **Option B — production code only:** `exclude = ["agent_worker/(tests|eval)/"]`. One error to fix (`act_split.py:109`), and
   the gate says nothing about 35 test modules or the eval harness. Less friction when writing tests; the 17 errors stay.
+- **A limit either option shares:** mypy here doesn't check the bodies of unannotated functions (no `check_untyped_defs`), so an unannotated test such as `test_health` is outside the gate. Turning that on is a stricter-mypy decision, listed under "Not doing".
 - **Why A:** all of it is already fixed on a scratch copy and the suite is unchanged (868 passed, 15 skipped, ruff clean, mypy
   0 errors in 103 files). The ongoing cost is that a new test must type-check, which for the helpers that exist is small.
 
@@ -190,7 +197,7 @@ three different things, and the plan says which applies where.
 |---|---|---|
 | The collection setting | the guard test's pattern check **fails** on today's config: the effective `python_files` is pytest's default `["test_*.py", "*_test.py"]`, which matches `agent_worker/local_test.py` | `python_files = ["test_*.py"]` |
 | The mypy gate | `uv run mypy agent_worker/` **is** the failing test: 75 errors, recorded at the start of the build | `uv run mypy` exits 0 on `files = ["app", "agent_worker"]` |
-| The seven unpinned rules | they can't be red against current code: they pin behavior that already exists. So they're proved able to fail by **mutation** instead (M1–M7): break the line, watch the named test go red, restore | each mutation turns exactly its test red |
+| The eight coverage-gap tests | they can't be red against current code: they pin behavior that already exists. So they're proved able to fail by **mutation** instead (M1–M7 and M10): break the line, watch the named test go red, restore | each mutation turns exactly its test red |
 
 ### 1. The collection guard (`app/tests/test_pytest_config.py`, new)
 
@@ -201,15 +208,18 @@ code being guarded.
 - `test_every_test_module_is_inside_a_test_path` — walks `apps/api` for `test_*.py` (skipping `.venv`, `node_modules`,
   `__pycache__`, hidden directories) and asserts none lies outside `testpaths`. **Proves:** a test file added under `scripts/`
   or a new top-level package is not silently never run (v0.1-G14's original failure). Green today and after.
-- `test_the_file_pattern_matches_only_test_modules` — for every `.py` under `testpaths`, if its name matches any effective
-  `python_files` glob it must be named `test_*.py`. **Proves:** a manual script such as `local_test.py` is never imported by
-  pytest. **Red today** (the default `*_test.py` matches `local_test.py`); green after the config change. The failure message
-  names the file and the pattern.
+- `test_the_file_pattern_matches_only_test_modules` — walks the **same tree as the location test** (`pytestconfig.rootpath`,
+  minus `.venv`, `node_modules`, `__pycache__` and hidden directories), not just `testpaths`, and asserts that any `.py` file
+  whose name matches an effective `python_files` glob is named `test_*.py`. **Proves:** a manual script such as `local_test.py`
+  is never imported by pytest, now or after a later widening of `testpaths` alone. **Red today** (the default `*_test.py`
+  matches `local_test.py` wherever it sits); green after the config change. Walking only `testpaths` would be green today,
+  because today's `testpaths` is `agent_worker/tests`, which doesn't contain `local_test.py` (A7-PR1-1, CONFIRMED by the
+  reviewer with a scratch test). The failure message names the file and the pattern.
 - `test_the_guards_can_fail` — the negative control: the two helpers are applied to a synthetic `scripts/test_x.py` (reported
   as uncollected) and to `local_test.py` against `["*_test.py"]` (reported as imported), so a guard that always passes can't
   hide.
 
-### 2. The seven unpinned rules (new tests in each module's existing test file)
+### 2. The unpinned rules: six groups, eight tests (new tests in each module's existing test file)
 
 Each is a plain unit test with no database and no monkeypatching. Where the expected value comes from is stated per test.
 
@@ -217,12 +227,19 @@ Each is a plain unit test with no database and no monkeypatching. Where the expe
 |---|---|---|---|
 | C1 | `test_act_split.py`: an answer with an out-of-range id, a negative id, and a repeated id | `act_split.py:99–105`: "the first answer for an id wins; ids outside the range are ignored" (`missing_ids` lists the title that got no usable answer) | The module's own stated rule, and the test's hand-written script: three titles, an answer that skips one, repeats another with different acts, and adds ids `-1` and `3` |
 | C2a | `test_jsonld.py`: a non-dict entry in the JSON-LD graph | `_is_event` returns False for a non-dict, so the real events beside it are still read | A hand-written `@graph` with a string and a number next to two events |
-| C2b | `test_jsonld.py`: an offer whose `price` isn't a number | `_price` skips it and takes the next offer's price (the `continue`), instead of raising | A hand-written two-offer event: `"free-ish"`, then `"15.00"` → `15.0` |
+| C2b | `test_jsonld.py`: an offer whose `price` isn't a number | `_offer_price` skips it and takes the next offer's price (the `continue`), instead of raising | A hand-written two-offer event: `"free-ish"`, then `"15.00"` → `15.0` |
 | C2c | `test_jsonld.py`: a start with a UTC offset and an end without one | `_end_time` returns `None` rather than subtracting an aware from a naive datetime (`TypeError`) | Hand-written ISO strings differing only in the offset |
-| C3 | `test_status_check.py`: acts that have no identifying words (names too short to have any, like "MO" or "U2", per `status_check.py`'s own docstring) | `_on_page`'s fallback (`status_check.py:100–101`): compare the folded text instead, in both directions (act present → true, absent → false). Reached through the public function that calls it, which the build identifies | A hand-written page text and short-name acts; the build reads `identifying_words` first to choose names that really have none |
+| C3 | `test_status_check.py`: acts that have no identifying words (names too short to have any, like "MO" or "U2", per `status_check.py`'s own docstring) | `_on_page`'s fallback (`status_check.py:100–101`): compare the folded text instead, in both directions (act present → true, absent → false). **This is a substring test, not a word test:** `['MO']` is "on the page" of "Oct 24: Lizzo at the Armory" (`armory` contains `mo`; CONFIRMED by the reviewer). The test pins substring behavior and its comment says so; the "absent" page must hold no occurrence of the name inside any word (`['U2']` against "Oct 24: Lizzo" is false). Reached through the public function that calls it, which the build identifies | A hand-written page text and short-name acts; the build reads `identifying_words` first to choose names that really have none |
 | C4 | `test_normalize.py`: a list or dict where a time should be | `normalize_time` raises `ValueError` (not `TypeError`) so Pydantic turns it into a re-ask — the reasoning is in the function's own comment | The comment, and the exception type the test asserts |
-| C5 | `test_reconcile_shows.py`: `listings_from(None)` and `excluded_listing_dates` with `None` extraction or `None` validation | no extraction → no listings; either `None` → no protected dates. Both are the "nothing to reconcile" answers (`reconcile.py:254`, `:281`) | An empty list and an empty `frozenset`; the guard clauses themselves say so, and the test builds its non-`None` control case by hand |
+| C5 | `test_reconcile_removal.py` (where the existing `listings_from` test lives): `listings_from(None)` and `excluded_listing_dates` with `None` extraction or `None` validation | no extraction → no listings; either `None` → no protected dates. Both are the "nothing to reconcile" answers (`reconcile.py:254`, `:281`) | An empty list and an empty `frozenset`; the guard clauses themselves say so, and the test builds its non-`None` control case by hand |
 | C6 | the file with the fetch tests (found at build): `fetch_node` on a `.png` path | a local image file is read as base64 into `page_content` and `page_html` stays unset (`nodes.py:143–146`) | A one-pixel PNG written to `tmp_path`; the test computes `base64.b64encode(bytes)` itself |
+
+**What a mutation can prove for C1 (A7-PR1-2).** The range half (`0 <= item.id < len(titles)`) is *redundant by construction*:
+`by_id` is read only through `by_id.get(i)` for `i` in `range(len(titles))`, so an out-of-range id stored in it is never read.
+Dropping the bound leaves every output unchanged (CONFIRMED by the reviewer), so no test can turn red on it. C1 still includes
+ids `-1` and `3` (they document the rule and would catch a change that did read `by_id` another way), but only the duplicate
+half, `and item.id not in by_id` (first answer wins), is mutation-provable. M1 is that mutation alone. No production change
+for it in A7.
 
 C2b and C2c are the two that are real *decision* logic on the JSON-LD route, the route that carries most of the venues, which
 is why they matter most.
@@ -236,20 +253,22 @@ scratch copy of the tree while writing this plan** (Verification, step 1). The b
 ### 4. Mutation checks (the proof the tests can fail)
 
 Run by the build step in a throwaway `git worktree` (removed afterwards). A bare directory copy is **not** enough: some tests
-find `docs/dev/audit-queries.sql` from their own path (I hit this while verifying this plan). Each result goes in the
-Implementation log.
+find `docs/dev/audit-queries.sql` from their own path (I hit this while verifying this plan), and the worktree needs
+`apps/api/.env` copied in (it is gitignored, and `Settings()` fails at import without it). `uv` creates the worktree's own
+`.venv` on first run. Each result goes in the Implementation log.
 
 | # | Break | The test that must go red |
 |---|---|---|
-| A7-M1 | in `act_split.py`, drop the `0 <=` bound, then separately drop `and item.id not in by_id` | C1 (each mutation turns it red) |
+| A7-M1 | in `act_split.py`, drop `and item.id not in by_id` (a repeated id then overwrites the first answer). Dropping the `0 <=` / `< len(titles)` bound is **not** a valid mutation: it changes nothing observable (above) | C1 |
 | A7-M2 | in `jsonld._end_time`, delete the `if (start_at.tzinfo is None) != (end_at.tzinfo is None)` return | C2c |
-| A7-M3 | in `jsonld._price`, replace `continue` with `return None` | C2b |
+| A7-M3 | in `jsonld._offer_price`, replace `continue` with `return None` | C2b |
 | A7-M4 | in `status_check`, make the fallback `return True` | C3 (the "absent → false" half) |
 | A7-M5 | in `normalize_time`, delete the `if not isinstance(value, str)` raise | C4 |
 | A7-M6 | in `reconcile.listings_from` / `excluded_listing_dates`, delete the `None` guards | C5 |
-| A7-M7 | in `nodes.fetch_node`, drop the `IMAGE_SUFFIXES` branch | C6 |
+| A7-M7 | in `nodes.fetch_node` (`nodes.py:145`), drop the `IMAGE_SUFFIXES` branch. The uses at `:161` and `:176` are the extract side and belong to other tests | C6 |
 | A7-M8 | restore `python_files` to pytest's default; separately add a stray `scripts/test_probe.py` | the pattern test; the location test |
-| A7-M9 | add `x: int = "a"` to a function in `agent_worker/nodes.py` | `uv run mypy` exits non-zero (proves the widened gate can fail) |
+| A7-M9 | add `x: int = "a"` at module level or inside an **annotated** function in `agent_worker/nodes.py` (mypy does not check the bodies of unannotated functions here; a probe inside one printed an `annotation-unchecked` note and exited 0) | `uv run mypy` exits non-zero (proves the widened gate can fail) |
+| A7-M10 | in `jsonld._is_event`, delete the `if not isinstance(item, dict): return False` guard (a string or number in `@graph` then raises `AttributeError` on `.get`) | C2a |
 
 ### Existing tests that change
 
@@ -272,6 +291,7 @@ Implementation log.
   helper's own skip, fail and explicit-URL branches.
 - **`calendar_writer._apply`'s second `ShowGone`** (`calendar_writer.py:226`): unreachable. The locked read at line 207
   raises first, and this `session.get` is an identity-map hit on the row that read loaded. Kept as a defensive guard.
+- **The range half of the act splitter's id filter** (`act_split.py:104`): redundant by construction, so unobservable (C1 note, A7-PR1-2).
 - **Four partial branches** (`audit.py:168→172`, `policy.py:220→218`, `extraction.py:375→377`, `nodes.py:325→332`): the
   untaken side is "a `match` with no matching case", "an advice code with no advice text", "the image route with the year rule
   off" and "an escalation with an empty attempt history". Reaching the last needs a state the graph never produces (an
@@ -295,6 +315,8 @@ Implementation log.
 - **A coverage run leaves `.coverage` in the working tree** until D1 (A) adds it to `.gitignore`. Delete it after any
   measurement.
 - **Shared helper, wide blast radius.** `reconcile_support.py` is used by many tests; run the whole suite after touching it.
+- **A worktree has no `.env`.** Copy `apps/api/.env` into it before the first run, or every test fails at import with
+  `model_name Field required` (A7-PR1-10).
 - **One pytest at a time:** the DB fixtures drop `calendar_test` (`apps/api/AGENTS.md`), so don't run the mutation checks in
   parallel with the suite.
 - **mypy's first run is cold** (~20 s here), and the `files` paths are relative to where mypy is run: always from `apps/api`,
@@ -313,7 +335,7 @@ bookkeeping. One commit per numbered step so a reviewer can read them one at a t
    (expect **75 errors in 8 files**), `uv run mypy app/` (clean), `uv run ruff check .` (clean).
 2. Write the guard test file. Confirm `test_the_file_pattern_matches_only_test_modules` is red and names `local_test.py`; the
    other two pass.
-3. Write C1–C6. They pass at once; watch each go red under its mutation (M1–M7), restore, record.
+3. Write C1–C6 (eight tests). They pass at once; watch each go red under its mutation (M1–M7 and M10), restore, record. M1's range half is the one mutation that cannot go red (below).
 
 ### 2. The collection setting (written)
 
@@ -327,7 +349,7 @@ Fix the 75 errors as follows (all CONFIRMED on a scratch copy: mypy 0 errors in 
 
 | Where | Errors | Cause | Fix |
 |---|---|---|---|
-| `eval/run_eval.py:200–206` | 56 | `flag = {...}` infers `dict[str, object]`, so `**flag` matches no `add_argument` parameter | `flag: dict[str, Any] = {...}` (`Any` is already imported) |
+| `eval/run_eval.py:199–206` | 56 | `flag = {...}` infers `dict[str, object]`, so `**flag` matches no `add_argument` parameter | `flag: dict[str, Any] = {...}` (`Any` is already imported) |
 | `eval/run_eval.py:171` | 1 | the `--legacy` path's frozen schema is a different class (see Settled details) | `# type: ignore[arg-type]` with a two-line reason |
 | `act_split.py:109` | 1 | loop variable reused with a wider type | rename the second use to `answered` |
 | `tests/reconcile_support.py:232–246` | 9 | `Decision.listing` and `.stored_id` are optional | three `assert … is not None`, each with its reason |
@@ -344,9 +366,9 @@ what the gate now covers; M9.
 
 ### 4. The `Proves:` pass (written, comment-only; per D2)
 
-Per D2 option A: one comment on `test_health.py::test_health`. Snapshot the file first, compare syntax trees ignoring comments
-and docstrings afterwards (the `AGENTS.md` pattern), then run the suite. Add one sentence to A1b's build-plan bullet.
-(Option B: the same for the 13 router tests.)
+Per D2 option B: a `Proves:` comment on `test_health.py::test_health` and the 13 tests in `test_routers.py`. Snapshot both files
+first, compare syntax trees ignoring comments and docstrings afterwards (the `AGENTS.md` pattern), then run the suite. (Option
+A: `test_health.py` only, plus one sentence in A1b's build-plan bullet: "tests it writes or migrates carry `Proves:`".)
 
 ### 5. Coverage target (written; per D1)
 
@@ -357,13 +379,16 @@ the Implementation log so the figures in "Context" are the figures on the merged
 ### 6. Docs and bookkeeping (written)
 
 - `docs/dev/alpha-build-plan.md` §5 A7: tick the boxes with the evidence above; add the "Plan and review" paragraph as A2–A6
-  have; add the D2 sentence to A1b's bullet. Leave the G14/G15 rows of the gap table as the historical inventory, but the A7
+  have; under D2 option A only, add the "tests it writes or migrates carry `Proves:`" sentence to A1b's bullet. Leave the G14/G15 rows of the gap table as the historical inventory, but the A7
   paragraph says G15's "~11" was 75.
 - `docs/dev/conventions.md`: the `A7` row in the scope table.
 - `apps/api/AGENTS.md`: Commands (`uv run mypy`), replace the "held to a lower bar" paragraph, `ScriptedClient` →
   `scripted_client()` / `ScriptedCompletions`, and one line on naming test modules `test_*.py`.
 - `agent_worker/tests/fakes.py`: the docstring sentence "It is the fake model client that milestone A7 plans, in the one shape
-  A3 needs" becomes a statement of what it is.
+  A3 needs" becomes a statement of what it is, and the stale `ScriptedClient` on `fakes.py:5`, `test_graph.py:7` and
+  `test_graph_audit.py:4` (module docstrings) becomes `scripted_client()` / `ScriptedCompletions` (A7-PR1-6).
+- `agent_worker/local_test.py:9`: its docstring says "(Not collected by pytest: `pyproject.toml` scopes `testpaths`.)" Once Step 2
+  lands that is false; the reason becomes "`python_files` is `test_*.py`" (A7-PR1-5). A comment-only edit.
 - `docs/dev/env-setup.md:230`: a dated `[UPDATE OCT 20]` note after "widen the scope once that settles".
 - `docs/dev/notes.md`: the `*_test.py` / zero-item-module entry (Known gotchas, above).
 - `.github/workflows/ci.yml`: step 3.
@@ -374,12 +399,13 @@ the Implementation log so the figures in "Context" are the figures on the merged
 |---|---|
 | `apps/api/pyproject.toml` | `testpaths`, `python_files`, `[tool.mypy] files`, comments; D1: `coverage` dev dependency and `[tool.coverage.*]` |
 | `apps/api/app/tests/test_pytest_config.py` (new) | The collection guard |
-| `apps/api/agent_worker/tests/` | C1–C6 added to `test_act_split`, `test_jsonld`, `test_status_check`, `test_normalize`, `test_reconcile_shows`, and the fetch tests' file; the typing edits in `reconcile_support`, `test_validation`, `test_reconcile_shows`, `test_commit_ops`, `test_graph_audit`, `test_commit_db`; `fakes.py` docstring |
+| `apps/api/agent_worker/tests/` | C1–C6 added to `test_act_split`, `test_jsonld`, `test_status_check`, `test_normalize`, `test_reconcile_removal`, and the fetch tests' file; the typing edits in `reconcile_support`, `test_validation`, `test_reconcile_shows`, `test_commit_ops`, `test_graph_audit`, `test_commit_db`; docstrings in `fakes.py`, `test_graph.py`, `test_graph_audit.py` |
+| `apps/api/agent_worker/local_test.py` | Docstring only: why pytest doesn't collect it |
 | `apps/api/agent_worker/act_split.py` | One rename (no behavior change) |
 | `apps/api/agent_worker/eval/run_eval.py` | One annotation, one ignore with its reason |
 | `Makefile`, `.github/workflows/ci.yml` | `uv run mypy`; D1: `make coverage` |
 | `.gitignore` | D1: `.coverage`, `htmlcov/` |
-| `apps/api/app/tests/test_health.py` | D2: one comment |
+| `apps/api/app/tests/test_health.py`, `test_routers.py` | D2: `Proves:` comments (comment-only) |
 | Docs listed in step 6 | Bookkeeping |
 
 No migration, and `app/schemas.py` is untouched, so `make types` / `make fixtures` have nothing to regenerate and there is no
@@ -396,7 +422,7 @@ B-track impact. No production behavior changes: the only production-code edit is
    The build repeats this on the real tree, after the new tests, and records the new totals.
 2. `make check`: ruff, mypy (both packages), eslint, `tsc`, pytest with `REQUIRE_DB=1`, Vitest, `contract-check`,
    `designation-check`. Node is 22 here and 24 in CI, so a green JS half in the sandbox is not quite a green CI.
-3. M1–M9 run in a worktree and recorded in the Implementation log.
+3. M1–M10 run in a worktree and recorded in the Implementation log.
 4. `make designation-check BASE=<the commit the branch started from>` exits 0.
 5. The comment-only pass (step 4): syntax trees match before and after.
 6. `git status` shows no `.coverage`, `htmlcov/` or `.mypy_cache` residue.
@@ -405,7 +431,7 @@ B-track impact. No production behavior changes: the only production-code edit is
 **Locally (Ari, optional; needs Docker, no Ollama):**
 
 8. `make db-up && make check`. Expect the same suite green with the one Mongo test now running (14 skips instead of 15).
-9. Deliberately add `x: int = "a"` to a file in `agent_worker/` and run `make typecheck`: it must fail. Remove it.
+9. Deliberately add `x: int = "a"` at module level (or inside an annotated function) in a file in `agent_worker/` and run `make typecheck`: it must fail. Remove it. (Inside an unannotated function mypy only prints a note and passes.)
 10. If D1 is accepted: `make coverage` and read the "Missing" column for one module you know.
 
 ## Not doing in A7
@@ -415,14 +441,68 @@ B-track impact. No production behavior changes: the only production-code edit is
 - **The read-route rewrite** (A1b), including `test_routers.py` and the `StarletteDeprecationWarning`.
 - **A coverage threshold or CI gate**, and a mutation-testing tool over the whole suite.
 - **Consolidating the three model fakes.**
-- **Stricter mypy** (`disallow_untyped_defs`, `strict`), `scripts/` and `migrations/` in the gate, `filterwarnings = error`.
+- **Stricter mypy** (`check_untyped_defs`, `disallow_untyped_defs`, `strict`), `scripts/` and `migrations/` in the gate, `filterwarnings = error`.
 - **Committing sanitized venue fixtures so CI can run the 14 real-page tests.** That is a copyright and maintenance call for
   A8 or the hosted phase, not a testing-tooling one.
 - **End-to-end browser tests.** The frontend's testing is B5's.
 
 ## Plan review
 
-*(none yet)*
+### Round 1 — Claude Opus 5.5, October 20, 2026
+
+**Scope.** The plan as committed in `b521d14` ("A7: draft the testing implementation plan"), 431 lines. The author committed
+it while this review was running; the reviewed text and the committed file are the same. Plan review only, so no code
+exists yet. The `*(none yet)*` placeholder under this heading was replaced by this round.
+
+**What was checked and how.**
+- **Docs read:** `AGENTS.md` ([fill-in] tasks; Implementation plans; Conventions); `apps/api/AGENTS.md`;
+  `docs/references/fastapi-style-guide.md` (Testing, Linting, Anti-patterns); build plan §1.3 (v0.1-G14–v0.1-G16), §2
+  point 5, §3, §5 A7; `docs/dev/conventions.md` (scope table, forms); `docs/dev/env-setup.md:230`.
+- **Code read:** `apps/api/pyproject.toml`, `conftest.py`, `Makefile` (`typecheck`, `test`, `check`), `.github/workflows/ci.yml`,
+  `.gitignore`, `agent_worker/act_split.py`, `sources/jsonld.py`, `status_check.py`, `normalize.py`, `reconcile.py`
+  (`listings_from`, `excluded_listing_dates`), `nodes.py` (`fetch_node`), `eval/run_eval.py:150–215`, `local_test.py`,
+  `tests/fakes.py`, and every test-side mypy error site in the Step 3 table.
+- **Reproduced, in a throwaway `git worktree` of `bc1308c` (with `apps/api/.env` copied in; removed afterwards):**
+  - Baseline `REQUIRE_DB=1 uv run pytest`: **868 passed, 15 skipped**; `--collect-only`: **883**. CONFIRMED.
+  - `uv run mypy agent_worker/`: **75 errors in 8 files** (57 `run_eval.py`, 1 `act_split.py`, 17 in six test files, per-file
+    counts as in the Step 3 table); `uv run mypy app/`: clean, 31 files. CONFIRMED.
+  - Branch coverage with the plan's source/omit: **98% total, 27 missed statements (15 in `agent_worker/`, 12 in `app/`), 17
+    partial branches**, every missed line exactly as listed in "Context" and "What is not covered". CONFIRMED.
+  - `local_test.py` with a top-level `print` probe: **not imported** under today's config; **imported** with
+    `testpaths = ["app", "agent_worker"]` and default `python_files`; **not imported** once `python_files = ["test_*.py"]`;
+    item count 883 in all three. CONFIRMED.
+  - Every Step 3 fix applied as written, plus `files = ["app", "agent_worker"]`: `uv run mypy` **no issues in 103 source files**,
+    `ruff check .` clean (with `StoredShow` placed between `StoredLineupEntry` and `night_sort_key`), suite **868 passed, 15
+    skipped**, parametrize ids `[15.0-None]` / `[None-10.0]`; `uv run mypy <one file>` checks only that file. CONFIRMED.
+  - Counts: 583 test functions, 14 without `Proves:` (exactly `test_health` + 13 in `test_routers.py`, via an AST scan),
+    29 `# type: ignore` in `app/` + `agent_worker/`, `ScriptedCompletions`/`scripted_client` in 11 test modules plus
+    `reconcile_support.py`, `coverage` absent from `uv.lock`. CONFIRMED.
+  - The guard test's pattern check, the C1 mutations, the C3 fallback and the M9 probe: see findings 1, 2, 8, 9.
+
+**Counts.** 0 blocker, 5 should-fix, 6 nit.
+
+**Verdict: proceed after fixes.** The measurements in "Context" all reproduce, and the mypy work is exactly as described. The
+should-fixes are in the tests-first proof: one guard test that is not red today, one mutation that can't fail, one new test
+with no mutation, and the D2 scenario put to Ari. No `TODO(Ari)` gap is the right call: every remaining item is
+configuration, bookkeeping or a pinning test, and none of them is where a concept lives.
+
+| # | Sev | Finding | Evidence | What goes wrong | Resolution |
+|---|---|---|---|---|---|
+| 1 | should-fix | `test_the_file_pattern_matches_only_test_modules` is **green on today's config**, not red. As specified it walks ".py under `testpaths`", and today's `testpaths` is `["app", "agent_worker/tests"]`, which doesn't contain `agent_worker/local_test.py`. Test approach row 1 and Step 1.2 ("confirm … is red and names `local_test.py`") both rely on the red. Fix: walk the same tree as the location test (`pytestconfig.rootpath`, minus `.venv`/hidden/`__pycache__`) and assert no file whose name matches an effective `python_files` glob is named anything but `test_*.py`. That is red today (`local_test.py` matches `*_test.py` anywhere), green after, and it no longer depends on `testpaths`, so it also catches a future widening of `testpaths` alone. | CONFIRMED: a scratch test implementing the plan's wording in `app/tests/` printed `TESTPATHS ['app', 'agent_worker/tests'] PATTERNS ['test_*.py', '*_test.py']` and **passed** on `bc1308c`. | The build's first tests-first step fails its own check, and the build either rewrites the test ad hoc or records a guard that was never seen red. | **Fixed.** The pattern check now walks the same tree as the location test (`pytestconfig.rootpath`, minus `.venv`/hidden/`__pycache__`), not `testpaths`, so it is red on today's config and also catches a later widening of `testpaths` alone (Test approach §1, with the reason recorded). Step 1.2 is now true as written. |
+| 2 | should-fix | **A7-M1's first mutation can't turn C1 red.** Dropping `0 <=` (or the `< len(titles)` bound) in `act_split.py:104` leaves every output unchanged: `by_id` is read only through `by_id.get(i)` for `i in range(len(titles))`, so an out-of-range id stored in it is never read. The range filter is unobservable; only `and item.id not in by_id` (first answer wins) is. Fix: say so in C1 and M1 (the range half is pinned by C1's assertions but is not mutation-provable, because the alignment loop already ignores those ids), keep the duplicate mutation, and list the range check under "What is not covered" as redundant-by-construction. Don't change production code for it in A7. | CONFIRMED: a C1-shaped test (three titles, ids `-1` and `3`, a repeated id 0 with different acts, id 1 skipped) **passed** with `0 <=` removed and with `< len(titles)` removed, and **failed** with `and item.id not in by_id` removed. | The build records "each mutation turns it red" for a mutation that survives, or spends time hunting a test that can't exist. | **Fixed.** C1 gets a note that the range half is redundant by construction; A7-M1 is the duplicate-id mutation only (with a line saying the bound mutation is not valid); the range check is listed under "What is not covered". No production change. |
+| 3 | should-fix | **C2a has no mutation, and the count is off.** The Test approach says the new tests are "proved able to fail by mutation instead (M1–M7)" and "each mutation turns exactly its test red", but M1–M7 map to C1, C2c, C2b, C3, C4, C5, C6: nothing breaks `_is_event`'s `isinstance(item, dict)` guard (`jsonld.py:67–68`). Fix: add a mutation (delete that guard; a string or number in `@graph` then raises `AttributeError` on `.get`) and renumber or append it. Also reconcile "seven unpinned rules" (Context point 3, the delivers table, Departure 4) with what is listed: six rule groups, eight tests (C1, C2a–c, C3–C6). | CONFIRMED (table read against §2's C-list); the proposed mutation's effect is PLAUSIBLE (`str.get` doesn't exist). | One new test is never shown able to fail, which is the standard build plan §3 and A6's mutation table set. | **Fixed.** A7-M10 added for C2a (delete `_is_event`'s `isinstance(item, dict)` guard); the Test approach row, Step 1.3, Verification step 3 and the Designations paragraph now say M1–M10. The count is reconciled to "six groups, eight tests" in Context, the delivers table, Departure 4, D1, the Test approach and the §2 heading. |
+| 4 | should-fix | **D2's scenario misdescribes `test_routers.py`.** It says the 13 tests' "expected values … come from `sample_data`, which is exactly what A1b removes", and that comments would be "written against behavior A1b is about to replace". The module docstring says the opposite: the tests deliberately avoid data and pin "the behavior that A1b must not break when it swaps the bodies for real queries: the URLs, the filter semantics, and the error codes". Several are data-free (`test_non_integer_id_is_422`, `test_invalid_ranges_are_rejected`, `test_openapi_exposes_the_response_schemas`, the envelope test); a few use sample ids (`/shows/2`, artist 1 third on a bill). Fix: restate the scenario accurately (A1b changes the client and some fixture ids, not what most of these tests prove), and re-weigh A vs B for Ari on that basis. The recommendation may well stay A. | CONFIRMED: `app/tests/test_routers.py:1–13` and the 13 test bodies. | Ari decides D2 on a reason that doesn't hold; under B he'd be told the comments are wasted when most would carry over to A1b unchanged. | **Fixed.** D2's scenario restated from `test_routers.py`'s own docstring (most of what it pins survives A1b; a few tests use sample ids). With that, I changed the recommendation from A to **B** (all 14 now), and updated the decision table, the header sentence, Step 4, Step 6 and Critical files to match. Ari's choice is still open; A stays described as safe. |
+| 5 | should-fix | **`local_test.py`'s docstring becomes false** and isn't in Step 6 or Critical files: "(Not collected by pytest: `pyproject.toml` scopes `testpaths`.)" After Step 2 `testpaths` covers `agent_worker/` and the reason is `python_files`. Fix: add it to Step 6 (one sentence: not collected because `python_files` is `test_*.py`, A7). `conftest.py`'s "from A7, agent_worker/" stays true. | CONFIRMED: `agent_worker/local_test.py:9`. | The one file the setting exists to protect states the wrong mechanism, so a future reader "simplifying" `python_files` back to the default has the comment on their side. | **Fixed.** Step 6 and Critical files now list `local_test.py:9`'s docstring (comment-only edit: the reason becomes `python_files`). |
+| 6 | nit | The stale `ScriptedClient` name is in three more places than Step 6 lists: `fakes.py:5` (the sentence before the one Step 6 rewrites), `test_graph.py:7` and `test_graph_audit.py:4` (module docstrings). Add them to the `ScriptedClient` correction in Step 6 and Critical files. | CONFIRMED: `grep -rn ScriptedClient` over `.py`/`.md`. | The rename lands half-done, and Context's "no such name exists" is still contradicted in the tests. | **Fixed.** Step 6 lists `fakes.py:5`, `test_graph.py:7` and `test_graph_audit.py:4`; Critical files lists the three files' docstrings. |
+| 7 | nit | Name and line slips the build will trip over: the JSON-LD price helper is `_offer_price`, not `_price` (C2b, A7-M3); `IMAGE_SUFFIXES` is used at `nodes.py:145`, `:161` and `:176`, and A7-M7 means only the `fetch_node` one at `:145`; the 56 `run_eval.py` errors are at lines 199–206 (eight calls), not 200–206; the existing `listings_from` test is in `test_reconcile_removal.py`, so C5 may sit better there than in `test_reconcile_shows.py`. | CONFIRMED: `jsonld.py:163`, `nodes.py` grep, the mypy output by line, `test_reconcile_removal.py:21,162`. | Small: a misnamed mutation target or an M7 applied to the wrong branch (the extract-side ones change a different test). | **Fixed.** `_offer_price` in C2b and A7-M3; A7-M7 names `nodes.py:145` and says `:161` and `:176` are other tests'; the `run_eval.py` row reads 199–206; C5 moved to `test_reconcile_removal.py` (Critical files updated). The typing edit stays in `test_reconcile_shows.py` (Step 3 table). |
+| 8 | nit | **C3's fallback is a substring test.** `_on_page` checks `fold_text(a) in fold_text(page_text)`, so `["MO"]` is "on the page" of "Oct 24: Lizzo at the Armory" (`armory` contains `mo`). C3's "absent → false" text must contain no occurrence of the short name inside any word, and the test should say it pins substring semantics (or the plan should record that this is a known looseness, not pin it as word matching). | CONFIRMED: `_on_page(['MO'], 'Oct 24: Lizzo at the Armory')` → `True`; `_on_page(['U2'], 'Oct 24: Lizzo')` → `False`. | A natural-looking "absent" page makes C3 fail on correct code, or the test's comment claims a word match the code doesn't do. | **Fixed.** C3's row now says the fallback is a substring test (`['MO']` is on the page of "…at the Armory"), that the test pins that and says so in its comment, and that the "absent" text must hold no occurrence of the name inside any word. |
+| 9 | nit | **A7-M9 and local Verification step 9 need an annotated function.** mypy doesn't check the bodies of unannotated functions here (no `check_untyped_defs`), so `x: int = "a"` inside an unannotated `def` prints a note and exits 0. Say "in an annotated function (or at module level)". The same limit bounds D3 option A: an unannotated test (`test_health` has no `-> None`) isn't type-checked by the widened gate; worth one clause in D3. | CONFIRMED: a probe file with the line in an unannotated and an annotated function gave one `annotation-unchecked` note and one `[assignment]` error. | The mutation that proves the gate can fail passes by accident, or Ari's local check looks like a broken gate. | **Fixed.** A7-M9 and local Verification step 9 say module level or an annotated function, with the reason; D3 gets a bullet on the limit (unannotated bodies, `test_health`), and "Not doing" names `check_untyped_defs`. |
+| 10 | nit | The worktree protocol (Test approach §4, Known gotchas) should also say to copy `apps/api/.env` into the worktree: it's gitignored, and `Settings()` fails at import without it (nothing in the cloud shell's environment sets `DATABASE_URL`/`MODEL_NAME`). `uv` creates the worktree's own `.venv` on first run. | CONFIRMED: with `.env` moved away, `pytest app/tests/test_health.py` fails with `model_name Field required`. | The first mutation run fails for an unrelated reason. | **Fixed.** The worktree protocol (Test approach §4) and Known gotchas both say to copy `apps/api/.env` in and that `uv` creates the worktree's `.venv`. |
+| 11 | nit | D1's reason for the `.coverage` line is imprecise: the existing `.gitignore` `coverage` pattern matches any file *or* directory named `coverage`; it misses `.coverage` because the name differs, not because it only matches directories. The conclusion (add `.coverage`) is right. | CONFIRMED: `git check-ignore -v apps/api/coverage` matches `.gitignore:16`; `apps/api/.coverage` does not. | None beyond a wrong sentence in the record. | **Fixed.** D1's sentence now says the existing pattern matches a file or directory named exactly `coverage`, not `.coverage`. |
+
+**Rejected:** none. All 11 findings were reproduced by the reviewer (CONFIRMED) and are accepted.
+
+**Resolution notes.** The one change to what Ari is asked: D2's recommendation moved from A to B (finding 4). The other fixes are local to the test approach, the mutation table and the doc steps, and add no step. I did not re-run the reviewer's scratch experiments; the edits change wording and step lists, not any measured fact. A round 2 is not warranted: nothing was rejected or reworked.
 
 ## Approval
 
