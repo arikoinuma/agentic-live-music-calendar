@@ -33,6 +33,7 @@ from agent_worker.tests.fakes import (
     PAGE,
     SPLITTER,
     FakeReader,
+    FakeWriter,
     RecordingAudit,
     RecordingStager,
     completions,
@@ -71,7 +72,7 @@ async def run_graph(
         venue_id=1, calendar_url=url, venue_name="The Venue", metro_timezone="America/Chicago",
         fetched_on=fakes.FETCHED, run_id=1, **({"policy": policy} if policy else {}),
     )
-    context = WorkerContext(audit=RecordingAudit(), stager=RecordingStager(), reader=FakeReader())
+    context = WorkerContext(audit=RecordingAudit(), stager=RecordingStager(), reader=FakeReader(), writer=FakeWriter())
     return VenueGraphState(**await compiled_graph.ainvoke(state, context=context)), client
 
 

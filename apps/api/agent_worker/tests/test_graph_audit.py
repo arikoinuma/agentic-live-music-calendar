@@ -31,6 +31,7 @@ from agent_worker.tests.fakes import (
     PAGE,
     SPLITTER,
     FakeReader,
+    FakeWriter,
     RecordingAudit,
     RecordingStager,
     event,
@@ -60,7 +61,7 @@ async def run_traced(
         venue_id=1, calendar_url=url, venue_name="The Venue", metro_timezone="America/Chicago",
         fetched_on=fakes.FETCHED, run_id=RUN_ID,
     )
-    result = await compiled_graph.ainvoke(state, context=WorkerContext(audit=audit, stager=stager, reader=FakeReader()))
+    result = await compiled_graph.ainvoke(state, context=WorkerContext(audit=audit, stager=stager, reader=FakeReader(), writer=FakeWriter()))
     return VenueGraphState(**result), audit, stager
 
 
@@ -209,7 +210,7 @@ async def test_a_staging_write_that_fails_stops_the_run(tmp_path: Path, monkeypa
         fetched_on=fakes.FETCHED, run_id=RUN_ID,
     )
     with pytest.raises(RuntimeError, match="staging store is down"):
-        await compiled_graph.ainvoke(state, context=WorkerContext(audit=audit, stager=RecordingStager(fail=True), reader=FakeReader()))
+        await compiled_graph.ainvoke(state, context=WorkerContext(audit=audit, stager=RecordingStager(fail=True), reader=FakeReader(), writer=FakeWriter()))
     assert StepType.VALIDATE.value not in [s for s, _ in audit.steps()]
 
 

@@ -10,7 +10,8 @@ HOW TO READ THIS
 
   The fields are the `AuditWriter` and `Stager` protocols (audit.py, staging.py), not the concrete classes, so
   the graph tests hand in recording fakes and the real worker hands in `PostgresAuditWriter` and
-  `MongoStager`. A5 added the `CalendarReader` (reconcile's read of the stored calendar); A6 adds what commit needs to write.
+  `MongoStager`. A5 added the `CalendarReader` (reconcile's read of the stored calendar); A6 added the `CalendarWriter` (commit's
+  writes, each show in its own transaction with its audit row).
 
 docs/dev/implementations/a4-auditability.md, decision A4-D1.
 """
@@ -19,6 +20,7 @@ from dataclasses import dataclass
 
 from agent_worker.audit import AuditWriter
 from agent_worker.calendar_reader import CalendarReader
+from agent_worker.calendar_writer import CalendarWriter
 from agent_worker.staging import Stager
 
 
@@ -29,3 +31,4 @@ class WorkerContext:
     audit: AuditWriter
     stager: Stager
     reader: CalendarReader
+    writer: CalendarWriter

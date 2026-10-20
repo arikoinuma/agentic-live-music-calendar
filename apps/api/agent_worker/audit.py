@@ -11,6 +11,13 @@ HOW TO READ THIS
     `PostgresAuditWriter` is the real one; tests use `fakes.RecordingAudit`.
   * `trace.audited(step, node)` (trace.py) is the wrapper that calls the node, then `entry_for`, then the writer.
 
+  Commit (A6) adds a fourth kind of row: one per show it writes, one per artist it creates, and one per show whose
+  write failed (the builders `show_write_entry`, `artist_created_entry`, `show_failure_entry`). Those rows are not
+  written through `AuditWriter.record`: the calendar writer adds them to the SAME transaction as the change they
+  record (`calendar_writer.py`), so a rolled-back write leaves no row. They use `audit_row` to become ORM rows, the
+  one place that knows the columns. The run's `commit` summary row (`entry_for`) is written afterwards, as every
+  step's row is.
+
 WHY IT'S SHAPED THIS WAY
   * **Append-only.** `record` only ever INSERTs. A retry is another row, never an edit of the first, which is
     what preserves the retry history (arch-initial.md §7). The writer has no method that changes an audit row.
@@ -24,6 +31,7 @@ WHY IT'S SHAPED THIS WAY
 docs/dev/implementations/a4-auditability.md.
 """
 
+import dataclasses
 import decimal
 from dataclasses import dataclass, field
 from typing import Any, Protocol
@@ -32,6 +40,7 @@ from pydantic_core import to_jsonable_python
 from sqlalchemy import func, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from agent_worker.commit import CommitResult, ShowFailure, ShowOp, summary_counts
 from agent_worker.state import VenueGraphState
 from app.db.models import AgentRun, AuditLog
 from app.enums import AuditOutcome, AuditSource, EntityType, RunTrigger, StepType
@@ -43,11 +52,11 @@ from app.enums import AuditOutcome, AuditSource, EntityType, RunTrigger, StepTyp
 
 @dataclass(frozen=True)
 class AuditEntry:
-    """One `audit_log` row before it is written: the columns A4 fills.
+    """One `audit_log` row before it is written: the columns A4 fills, and (A6) the snapshots.
 
-    `previous_value` / `new_value` are absent on purpose: they are the row snapshots a future revert
-    restores, and nothing writes a per-show row until A6. `snapshot_key` is absent too (R2 is deferred; the
-    column stays NULL). `created_at` is the database's.
+    `previous_value` / `new_value` are the row snapshots a future revert restores (`commit.snapshot_of`); only
+    commit's per-show and per-artist rows carry them. `snapshot_key` is absent (R2 is deferred; the column stays
+    NULL). `created_at` is the database's.
     """
 
     run_id: int | None
@@ -60,6 +69,21 @@ class AuditEntry:
     model_used: str | None = None
     confidence: decimal.Decimal | None = None
     detail: dict[str, Any] = field(default_factory=dict)
+    previous_value: dict[str, Any] | None = None
+    new_value: dict[str, Any] | None = None
+
+
+def audit_row(entry: AuditEntry) -> AuditLog:
+    """The ORM row for an entry: the one place that maps an `AuditEntry` onto `audit_log`'s columns.
+
+    Both writers use it: `PostgresAuditWriter.record` (its own session) and the calendar writer (the write's own
+    transaction), so a column added to the table is added in one place.
+    """
+    return AuditLog(
+        run_id=entry.run_id, attempt_number=entry.attempt_number, step_type=entry.step_type, source=entry.source,
+        entity_type=entry.entity_type, entity_id=entry.entity_id, outcome=entry.outcome, model_used=entry.model_used,
+        confidence=entry.confidence, previous_value=entry.previous_value, new_value=entry.new_value, detail=entry.detail,
+    )
 
 
 def audit_confidence(value: float | None) -> decimal.Decimal | None:
@@ -86,16 +110,18 @@ def audit_confidence(value: float | None) -> decimal.Decimal | None:
 # What each step records
 # ---------------------------------------------------------------------------
 
-# The steps that act on the venue itself. Reconcile's summary row (A5) is venue-level; its model decisions
-# about artists are separate rows (`model_decision_entries`). Commit acts on no entity until A6 writes per-show rows,
-# so its placeholder row names none.
-_VENUE_LEVEL = {StepType.FETCH, StepType.EXTRACT, StepType.VALIDATE, StepType.RECONCILE, StepType.ESCALATE}
+# The steps that act on the venue itself. Reconcile's summary row (A5) and commit's (A6) are venue-level; reconcile's
+# model decisions about artists are separate rows (`model_decision_entries`), and commit's rows about a show or an
+# artist are built below, written by the calendar writer.
+_VENUE_LEVEL = {
+    StepType.FETCH, StepType.EXTRACT, StepType.VALIDATE, StepType.RECONCILE, StepType.COMMIT, StepType.ESCALATE,
+}
 # The two steps where a language model made the judgement being recorded: extract (reads the page or
 # splits titles) and validate (the verdict weighs the model's own confidence).
 _MODEL_STEPS = {StepType.EXTRACT, StepType.VALIDATE}
 
 
-def _attempt_number(step: StepType, state: VenueGraphState) -> int:
+def attempt_number(step: StepType, state: VenueGraphState) -> int:
     """Fetch is one row per run (its transient retries happen inside the step), so always 1. Every later
     step takes the attempt it belongs to, floored at 1: an escalation straight after a failed fetch has an
     attempt count of 0, and the column's default (1) means "first"."""
@@ -138,8 +164,7 @@ def _detail(step: StepType, state: VenueGraphState, staging_id: str | None) -> d
         case StepType.RECONCILE:
             detail = _reconcile_detail(state)
         case StepType.COMMIT:
-            # A6 replaces this stub; until then the row says so, so nobody reads it as a decision.
-            detail = {"stub": True}
+            detail = _commit_detail(state)
         case StepType.ESCALATE:
             detail = {"reason": state.escalation_reason}
     # `to_jsonable_python` turns dates, StrEnums and dataclasses into JSON types: a `date` reaching JSONB
@@ -180,6 +205,72 @@ def _reconcile_detail(state: VenueGraphState) -> dict[str, Any]:
     }
 
 
+def _failure_dict(failure: ShowFailure) -> dict[str, Any]:
+    """A failed show as plain data: the same identity keys in the failure row and in the summary's `failed` list."""
+    return dataclasses.asdict(failure)
+
+
+def _commit_detail(state: VenueGraphState) -> dict[str, Any]:
+    """Commit's summary row (A6): what was written, what failed, and what the guard held back.
+
+    Keys (also listed in docs/dev/audit-queries.sql): `counts` (exactly `inserted`, `updated`, `removed`, `no_op`,
+    `skip`; the first three are what was written, the last two what reconcile left alone), `artists_created`,
+    `failed` (a list of the shows whose write was refused, each with its date, time, stored id, SQLSTATE and error;
+    failures are never a key of `counts`), `all_failed` (true when three or more operations all failed, which looks like
+    a bug and not bad listings) and `withheld` (how many removals the guard held back; they are never written).
+    """
+    plan = state.reconcile_plan
+    result = state.commit_result or CommitResult()
+    return {
+        "counts": summary_counts(plan, result) if plan else {
+            "inserted": 0, "updated": 0, "removed": 0, "no_op": 0, "skip": 0,
+        },
+        "artists_created": result.artists_created,
+        "failed": [_failure_dict(f) for f in result.failures],
+        "all_failed": result.all_failed,
+        "withheld": len(plan.withheld) if plan else 0,
+    }
+
+
+def show_write_entry(
+    op: ShowOp, *, run_id: int | None, attempt_number: int, show_id: int,
+    previous: dict[str, Any] | None, new: dict[str, Any],
+) -> AuditEntry:
+    """The row for a show commit wrote (A6-D1: only writes get one): the outcome, the two snapshots a revert restores,
+    and in `detail` why (the reconcile reason), which columns changed, and whether a guess was involved."""
+    changed = sorted(op.values) + (["lineup"] if op.lineup is not None else [])
+    return AuditEntry(
+        run_id=run_id, attempt_number=attempt_number, step_type=StepType.COMMIT, source=AuditSource.AGENT,
+        entity_type=EntityType.SHOW, entity_id=show_id, outcome=op.outcome, previous_value=previous, new_value=new,
+        detail=to_jsonable_python({
+            "action": op.action, "reconcile_reason": op.reconcile_reason, "changed": changed,
+            "needs_review": op.needs_review,
+        }),
+    )
+
+
+def artist_created_entry(
+    *, run_id: int | None, attempt_number: int, artist_id: int, name: str, key: str,
+) -> AuditEntry:
+    """The row for an artist commit created, in the same transaction as the show that first needed it. Name only
+    (requirements: all other artist fields are left for a human)."""
+    return AuditEntry(
+        run_id=run_id, attempt_number=attempt_number, step_type=StepType.COMMIT, source=AuditSource.AGENT,
+        entity_type=EntityType.ARTIST, entity_id=artist_id, outcome=AuditOutcome.INSERTED,
+        new_value={"id": artist_id, "name": name}, detail={"name": name, "key": key},
+    )
+
+
+def show_failure_entry(failure: ShowFailure, *, run_id: int | None, attempt_number: int) -> AuditEntry:
+    """The row for a show whose write the database refused. It has no outcome and no snapshots (nothing was written),
+    and its `detail` says WHICH show failed (an insert has no id yet) and why. Written outside the rolled-back
+    transaction, through `AuditWriter.record`."""
+    return AuditEntry(
+        run_id=run_id, attempt_number=attempt_number, step_type=StepType.COMMIT, source=AuditSource.AGENT,
+        entity_type=EntityType.SHOW, entity_id=failure.stored_id, detail=to_jsonable_python(_failure_dict(failure)),
+    )
+
+
 def model_decision_entries(state: VenueGraphState) -> list[AuditEntry]:
     """One reconcile row for each artist the MODEL decided (A5-D11), with `model_used` and `confidence`.
 
@@ -194,7 +285,7 @@ def model_decision_entries(state: VenueGraphState) -> list[AuditEntry]:
         return []
     return [
         AuditEntry(
-            run_id=state.run_id, attempt_number=_attempt_number(StepType.RECONCILE, state),
+            run_id=state.run_id, attempt_number=attempt_number(StepType.RECONCILE, state),
             step_type=StepType.RECONCILE, source=AuditSource.AGENT, entity_type=EntityType.ARTIST,
             entity_id=resolution.artist_id, model_used=resolution.model_used,
             confidence=audit_confidence(resolution.confidence),
@@ -217,7 +308,7 @@ def entry_for(step: StepType, state: VenueGraphState, staging_id: str | None = N
     on_venue = step in _VENUE_LEVEL
     return AuditEntry(
         run_id=state.run_id,
-        attempt_number=_attempt_number(step, state),
+        attempt_number=attempt_number(step, state),
         step_type=step,
         source=AuditSource.AGENT,
         entity_type=EntityType.VENUE if on_venue else None,
@@ -271,12 +362,7 @@ class PostgresAuditWriter:
 
     async def record(self, entry: AuditEntry) -> int:
         async with self._session_factory() as session:
-            row = AuditLog(
-                run_id=entry.run_id, attempt_number=entry.attempt_number, step_type=entry.step_type,
-                source=entry.source, entity_type=entry.entity_type, entity_id=entry.entity_id,
-                outcome=entry.outcome, model_used=entry.model_used, confidence=entry.confidence,
-                detail=entry.detail,
-            )
+            row = audit_row(entry)
             session.add(row)
             await session.flush()
             row_id = row.id  # before commit, for the reason in `start_run`

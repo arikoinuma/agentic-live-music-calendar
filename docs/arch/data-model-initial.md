@@ -331,6 +331,14 @@ the two review rounds are in `docs/dev/implementations/a1-data-layer.md`.
   reasons, fetch's error, extract's route/tier and MongoDB staging-document id, escalate's reason. It is not
   `new_value`, which is what a future revert restores. The keys per step are listed in
   `agent_worker/audit.py` and read by `docs/dev/audit-queries.sql`.
+- **`previous_value` / `new_value` are written by A6's commit** (`a6-commit.md`, A6-D3), one row per show written. Each is the
+  show as JSON: every `show` column except `created_at` / `updated_at` (`id`, `venue_id`, `event_id`, `date`, `start_time`,
+  `end_time`, `age_restriction`, `serves_alcohol`, `setting`, `seating`, `admission_advance`, `admission_day`,
+  `free_admission`, `image_url`, `original_url`, `status`) plus `lineup`, a list of `{artist_id, start_time, sequence_number}`
+  in performance order. A price is a decimal string (`"20.00"`), times and dates are ISO strings. `previous_value` is null for
+  an insert. A show that did not change writes no row (so `no_op` is not used by commit), a new artist gets a row of its own
+  (`entity_type = artist`, `outcome = inserted`, `new_value = {id, name}`), and a show the database refused gets a row with no
+  outcome and no snapshots whose `detail` names the show, the SQLSTATE and the error.
 - **Precisions:** `show.admission_advance` / `admission_day` are `Numeric(10, 2)`;
   `audit_log.confidence` is `Numeric(4, 3)`.
 - **Extra indexes:** `show (venue_id, date)` and `audit_log (run_id)`, plus the GIN indexes on

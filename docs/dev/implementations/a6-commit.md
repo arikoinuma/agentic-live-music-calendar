@@ -1,8 +1,8 @@
 # A6 — commit
 
-**Status:** Awaiting approval
-**Date:** October 19, 2026 (plan)
-**Author model:** Claude Sonnet 5.5 (plan and plan-review resolution, October 19, 2026)
+**Status:** Code review
+**Date:** October 19, 2026 (plan); October 20, 2026 (decisions, implementation)
+**Author model:** Claude Sonnet 5.5 (plan and plan-review resolution, October 19 to 20, 2026; implementation, October 20, 2026)
 **Reviewer model:** Claude Opus 5.5 (plan review round 1, October 19, 2026; round 2, targeted at D2 and K2, October 20, 2026); Claude Opus 5.5 (plan review round 2, targeted at D2 / K2, October 20, 2026)
 **Spec:** `docs/dev/alpha-build-plan.md` §5 A6 (and §2 points 2 and 3); `docs/arch/arch-initial.md` §7 ("Reconcile (insert /
 update / delete / no-op)", "Audit trail extensions", "Revert"); `docs/arch/requirements-initial.md` ("Agent
@@ -109,9 +109,9 @@ to Postgres. *A snapshot* is a copy of a show as a JSON object, stored in `audit
 
 | # | Question | Kind | Recommendation | Status |
 |---|---|---|---|---|
-| D1 | Does a show that didn't change get an audit row? | ★ | A: no, count it in the summary | Open |
-| D2 | If one show's write fails, do the other shows still get written? | ★ | A: yes, past a data error; stop on a connection error | Open |
-| D3 | What does a snapshot hold? | technical | A: the whole `show` row (minus timestamps) plus its lineup | Open |
+| D1 | Does a show that didn't change get an audit row? | ★ | A: no, count it in the summary | **Decided A** (Ari, Oct 20) |
+| D2 | If one show's write fails, do the other shows still get written? | ★ | A: yes, past a data error; stop on a connection error | **Decided A** (Ari, Oct 20) |
+| D3 | What does a snapshot hold? | technical | A: the whole `show` row (minus timestamps) plus its lineup | **Decided A** (Ari, Oct 20) |
 
 ---
 
@@ -789,7 +789,7 @@ build plan's gate for schema changes is "their own early PR".
 
 ## Approval
 
-*(Awaiting Ari's decisions. Plan review rounds 1 and 2 are resolved. Ari moves the status to `Approved`.)*
+**Ari, October 20, 2026:** decided D1, D2 and D3 as recommended (option A): an unchanged show writes no audit row; a data error on one show is recorded and the others are still written; a snapshot is the whole `show` row (minus timestamps) plus its lineup. **Ari, October 20, 2026: approved the plan** ("I am aligned with the recommendations on D1-3. Approved to proceed to implementation. /build-milestone docs/dev/implementations/a6-commit.md"). `/build-milestone` set the status to `Approved` at step 0. Ari did not comment separately on the one non-numbered question (about 31 existing graph tests red while K2 is open); approving the plan as written keeps K2 in `write_plan`'s loop, and that is how it is built. No [written] item was re-marked [fill-in] or the reverse.
 
 **For Ari to decide before approving:** D1, D2 and D3 above, and one more that is not a numbered decision: while K2 is open,
 **about 31 existing graph tests are red** (not only the new ones), because `write_plan` is real code on every path to commit
@@ -930,3 +930,103 @@ D2 on. Findings 3 and 4 are a failure row that can't say which show failed, and 
 worth Ari's eye: the optional all-fail breaker (row 2) is a flag and a log line, not a raised error; and `failed_commits` keys on
 `detail ->> 'error'` (row 3), not on a missing outcome. No round 3 was run. D2's recommendation is unchanged, but its wording now
 says what its rule does and does not separate, and its cost list has three entries.
+
+## Implementation log
+
+### Round 1 — Claude Sonnet 5.5, October 20, 2026
+
+**Scope.** `git diff e6008cd` (the last plan commit, "A6: plan review round 2 (D2 and K2) and its resolution") plus the new untracked
+files: the working tree, uncommitted at the time the reviewer is spawned. Branch `claude/nifty-sagan-gan2i1` (assigned by the
+session; `AGENTS.md` names `a6-commit`). No migration, no schema change, `app/schemas.py` untouched.
+
+*New:* `agent_worker/commit.py`, `agent_worker/calendar_writer.py`; tests `test_commit_ops.py`, `test_calendar_writer.py`,
+`test_graph_commit.py`, `test_commit_db.py`.
+*Changed:* `audit.py` (`previous_value` / `new_value`, `audit_row`, the commit builders and summary `detail`, `attempt_number`
+public, `COMMIT` venue-level), `state.py` (`commit_ops`, `commit_result`), `context.py` (`writer`), `nodes.py` (`commit_node`
+prepares operations), `trace.py` (the commit branch), `main.py` (the writer; `run_all` counts commit failures), `local_test.py`
+(the writer; prints what was written; exits 1 on failures); tests `fakes.py` (`FakeWriter`, the real driver error shapes),
+`test_audit_entries.py`, `test_audit_queries.py`, `test_graph.py`, `test_graph_audit.py`, `test_graph_reconcile.py`,
+`test_reconcile_db.py` (`seed_calendar` extracted), `test_run_venue.py`; docs `audit-queries.sql` (header keys,
+`unfinished_runs`, the sixth query `failed_commits`), `alpha-build-plan.md`, `arch-initial.md` §7, `data-model-initial.md`,
+`conventions.md`, `apps/api/AGENTS.md`, `notes.md`.
+
+**Departures from the plan, each with its reason.**
+
+1. **The order of work.** Tests for the pure layer (`test_commit_ops.py`) were written first and watched fail (the module did not
+   exist). The writer, loop and graph tests were written with the code, with both gaps filled, to get a known-good version to
+   derive the scaffold from; the "watched fail" step for them is the scaffold itself (69 red results, all `TODO(Ari)`), as in A4
+   and A5. Expected values were still written from the requirements and decisions, not read from the code.
+2. **`venue_id` travels in the operation's `values`**, set by `build_ops(plan, venue_id, original_url)`; `write_show` and
+   `write_plan` do not take it (the plan's sketch passed it twice). K1's code block lost its `venue_id` argument.
+3. **K1's block uses one combined `async with self._session_factory() as session, session.begin():`** (ruff SIM117 rejects the
+   nested form). Same behaviour, one line shorter.
+4. **`MIN_OPS_FOR_ALL_FAILED` and the `all_failed` property live in `commit.py`** (`CommitResult.all_failed`), not
+   `calendar_writer.py`, so the flag is a pure function of the result and the summary row can be built without the writer.
+5. **`ShowFailure` carries `reconcile_reason`** as well as the plan's fields (the failure row's `detail` lists it).
+6. **The seeded calendar is shared as `seed_calendar` in `test_reconcile_db.py`**, not in `reconcile_support.py` as the plan said:
+   `test_calendar_reader.py` imports `reconcile_support`, and `reconcile_support` importing `make_show` from it would be a cycle.
+   `test_commit_db.py` imports it from `test_reconcile_db.py`, the pattern `test_reconcile_db.py` already uses for `test_calendar_reader`.
+7. **A6-M4's named test is the unit test**, `test_prices_are_converted_at_the_write_not_carried_as_floats`, not
+   `test_the_second_run_is_all_no_ops`. The plan's reasoning was wrong: Postgres rounds `Decimal(19.99)` to `19.99` in a
+   `Numeric(10, 2)` column, and reconcile compares with `to_price` either way, so a `Decimal(float)` write is invisible to a
+   database-level test; only the unit test sees the unconverted value. The plan file keeps its text (the plan is the plan);
+   `test_commit_db.py` still has the end-to-end price round trip.
+8. **A6-M2 needed an extra test** (`test_a_write_uses_exactly_one_session`). In savepoint mode a second session's "committed"
+   work nests inside the first's savepoint and rolls back with it, so the "own session" mutation was NOT caught by the plan's
+   test. Recorded in `notes.md`. Also added `fakes.client_side_error()` (an `InterfaceError` with `sqlstate = None` that is not
+   invalidated): with the invalidated flag checked first, the lost-connection helper no longer exercised the SQLSTATE expression alone
+   (the `getattr(..., "")` mutation survived until this case existed).
+9. **Layer 5's refused-show test uses the test-only CHECK constraint only.** The plan also named "a scripted page with one
+   overflowing price"; the JSON-LD route carries no prices, and the overflow is covered at layer 3
+   (`test_an_overflowing_price_fails_only_its_show`, through the real writer).
+10. **`audit.attempt_number`** is public (the plan said so); `_attempt_number` is gone. `local_test.main` returns an exit status.
+
+**`TODO(Ari)` gaps** (both open; review the code as it stands, they are not findings):
+
+| Key | Where | Lesson |
+|---|---|---|
+| A6-K1 | `calendar_writer.py` `PostgresCalendarWriter.write_show` | A write and its record are one transaction; `previous` before the change, `new` after the flush; nothing outlives the transaction but the return value |
+| A6-K2 | `calendar_writer.py` `write_plan` | One show's problem is what the database says about the row (SQLSTATE 22 / 23), not a Python class; a lost connection or a bug propagates |
+
+Fill order K1, K2. Every test that uses the real writer is red until K1; every test that reaches `write_plan` with a non-empty plan
+is red until K2, fakes included.
+
+**Verification.**
+
+- **Baseline** before A6, measured October 19: 790 passed, 15 skipped, ruff clean.
+- **As delivered (gaps open):** `REQUIRE_DB=1 uv run pytest`: **798 passed, 51 failed, 18 errors, 15 skipped**. All 69 red results
+  are `NotImplementedError: TODO(Ari)` (checked by grepping every failure). Red by file: `test_calendar_writer.py` 22,
+  `test_graph.py` 10, `test_commit_db.py` 9 (3 failed + 6 errors), `test_audit_queries.py` 8 (errors), `test_graph_audit.py` 6,
+  `test_graph_commit.py` 5, `test_reconcile_db.py` 4 (errors), `test_graph_reconcile.py` 3, `test_run_venue.py` 2. That is
+  36 new tests and 33 existing ones (the plan review measured 31; `test_audit_queries.py` has two more tests that use the
+  real-commit fixture).
+- **Gaps filled on a scratch copy** (a temporary directory outside the repo, with the working tree copied and the filled
+  `calendar_writer.py`): **867 passed, 15 skipped**, ruff clean, and the two new modules pass `mypy` (the one reported error is
+  `act_split.py:109`, which A7 owns). That is the 790 baseline plus 77 new tests.
+- **Mutation checks** (on the scratch copy, each restored afterwards): A6-M1 caught (3 tests). A6-M2: the "own session" variant
+  was **not caught** by `test_audit_rows_roll_back_with_the_write` (savepoint nesting, see departure 8) and is caught by
+  `test_a_write_uses_exactly_one_session`; the "commit before the audit rows" variant is caught (10 tests). A6-M3 caught
+  (`test_a_rolled_back_artist_is_not_remembered`). A6-M4 caught by the unit test only (departure 7). A6-M5 caught (2 tests: the
+  query test and the real crash). A6-M6 caught for both `except Exception` (4 tests) and "any `DBAPIError`" (3 tests). The
+  `getattr(..., "")` default was not caught until `client_side_error()` was added, then caught.
+- `uv run ruff check .` clean. `make lint`, `make typecheck` (mypy `app/` and tsc), `make contract-check` and
+  `make designation-check BASE=e6008cd` exit 0; `pnpm turbo run test` passes (the JS suite is untouched).
+- `make check` as a whole stops at its Python test stage, red by design; every stage after it was run separately and is green.
+- **Not run here:** `make worker` and `local_test` (no Ollama, no Docker, no MongoDB in the cloud sandbox), so Verification 6 to 10
+  are Ari's. The real lost-connection error shape and the real-database behaviour of `FOR UPDATE` under concurrency were
+  measured by the plan review, not re-measured here.
+
+**Where to look hardest.**
+
+1. **`is_decision_error` and K2's `except (DBAPIError, ShowGone)`** (`calendar_writer.py`): whether the SQLSTATE rule matches what the
+   installed driver really does, in particular `err.orig.sqlstate` on errors other than the three the DB tests raise for real
+   (check, foreign key, overflow); the lost-connection case rests on the plan review's measurement and on `fakes.lost_connection()`.
+2. **`_snapshot` and `_apply`** together: the `populate_existing` select, the `FOR UPDATE` lock taken by the first read, and
+   `_apply` finding the row through `session.get`; and whether a lineup replace (a Core `delete` then `add_all` of rows with the same
+   primary keys) can collide with the identity map (the lineup is read as columns for that reason).
+3. **`build_ops`**: `new_artist_names` for an update whose lineup did not change (empty by construction), and the removals-last
+   ordering.
+4. **`trace.audited`'s commit branch**: that the summary row is written last, and that a raised connection error leaves no summary.
+5. **The test harness's limits**: savepoint mode hides a second session's commit (departure 8); whether any other mutation of K1
+   could survive; `test_commit_db.py`'s parity comparison masks `original_url` and artist spelling, by design.
+6. Anything in the tests whose expected value I may have taken from the code instead of the requirements.

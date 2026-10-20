@@ -4,7 +4,8 @@ Each is a plain function of `VenueGraphState` (state.py); graph.py wires them. A
 real: fetch records a failure instead of raising, extract records a failed model call as an attempt
 instead of crashing the graph (v0.1-G2), and validate reads the evidence from validation.py and the
 policy from policy.py to produce a verdict. A5 made reconcile real (its rules are in reconcile.py and
-artist_match.py; this file's node only wires them to the state); commit is still a stub (A6).
+artist_match.py; this file's node only wires them to the state). A6 made commit real: its rules are in commit.py, the
+writes in calendar_writer.py; this file's node only turns the plan into operations.
 
 A4 writes the audit trail around these functions, not inside them: `graph.py` registers each through
 `trace.audited`, which runs the node and then appends its `audit_log` row (what each step records is
@@ -21,6 +22,7 @@ import httpx
 import structlog
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
+from agent_worker.commit import build_ops
 from agent_worker.extraction import (
     PIPELINE_CONFIG,
     PIPELINE_OPTIONS,
@@ -296,16 +298,20 @@ def reconcile_node(state: VenueGraphState) -> VenueGraphState:
 
 
 def commit_node(state: VenueGraphState) -> VenueGraphState:
-    """Writes reconcile_node's plan to Postgres. Kept separate from reconcile_node because "decide what should
-    happen" and "make it happen" are different failure modes worth attributing separately in the audit trail —
-    a bad reconcile decision is a logic bug, a failed commit is a database/connectivity problem.
+    """Turns reconcile_node's plan into the writes to make: `state.commit_ops`. Kept separate from reconcile_node
+    because "decide what should happen" and "make it happen" are different failure modes worth attributing separately
+    in the audit trail — a bad reconcile decision is a logic bug, a failed commit is a database/connectivity problem.
 
-    PLACEHOLDER (A6): the real version executes `state.reconcile_plan` against `show`, `show_artist` and `artist`,
-    one transaction per decision, with a per-show audit row carrying `previous_value` / `new_value`. This stub
-    just logs what it would have written, so the graph's shape is provable end to end.
+    This body is a plain function and touches no database (A4-D1): the writes are awaited by `trace.audited` right
+    after it returns, through the `CalendarWriter` on the worker context, one transaction per show with its audit row
+    inside it. What counts as a write, and what its columns are, is `commit.build_ops` (A6-D1).
     """
     plan = state.reconcile_plan
-    log.info("commit is a placeholder until A6", venue_id=state.venue_id, counts=plan.counts() if plan else None)
+    state.commit_ops = build_ops(plan, state.venue_id, state.calendar_url) if plan else ()
+    log.info(
+        "commit prepared", venue_id=state.venue_id, writes=len(state.commit_ops),
+        counts=plan.counts() if plan else None,
+    )
     return state
 
 

@@ -11,7 +11,9 @@ HOW TO READ THIS
     1. runs the sync node in a worker thread (`asyncio.to_thread`), so the blocking model call and HTTP fetch
        don't stall the event loop that the database and MongoDB clients live on (plan A4-D1);
     2. for an extract step, stages the attempt's raw record in MongoDB (**A4-K3**, below);
-    3. appends this step's audit row through the context's writer, and for reconcile one more row per model
+    3. for a commit step, awaits the writes the node prepared (A6): `calendar_writer.write_plan`, each show its own
+       transaction with its own audit row inside it, so those rows exist before step 4's summary row;
+    4. appends this step's audit row through the context's writer, and for reconcile one more row per model
        decision about an artist (A5-D11).
 
   Keeping this apart from the node bodies is the point of A4-D1: "do the step" stays a pure state transform that
@@ -37,8 +39,9 @@ from collections.abc import Awaitable, Callable
 from langgraph.runtime import Runtime
 
 from agent_worker import staging
-from agent_worker.audit import entry_for, model_decision_entries
+from agent_worker.audit import attempt_number, entry_for, model_decision_entries
 from agent_worker.calendar_reader import CalendarReader
+from agent_worker.calendar_writer import write_plan
 from agent_worker.context import WorkerContext
 from agent_worker.nodes import metro_today
 from agent_worker.reconcile import load_request, prepare_inputs
@@ -97,8 +100,19 @@ def audited(step: StepType, node: Node) -> Callable[..., Awaitable[VenueGraphSta
             #   describes what that attempt produced.
             staging_id = await runtime.context.stager.stage(staging.document_for(state))
 
-        # (3) The audit row. If the stager above raised, we never get here: a run whose raw record can't be
-        # kept stops, it doesn't continue unaudited.
+        # (3) Commit's writes (A6). The node only prepared the operations (it can't await); they are done here, on the
+        # event loop that owns the database, each show in its own transaction with its audit row inside it. A failure
+        # about one show is recorded and skipped; a lost connection or a bug raises out of here, so NO summary row is
+        # written and the run is closed by `run_venue`'s finally (the `unfinished_runs` query finds it).
+        if step is StepType.COMMIT:
+            state.commit_result = await write_plan(
+                state.commit_ops, runtime.context.writer, runtime.context.audit,
+                run_id=state.run_id, attempt_number=attempt_number(step, state),
+            )
+
+        # (4) The audit row. If the stager above raised, we never get here: a run whose raw record can't be
+        # kept stops, it doesn't continue unaudited. For commit this is the run's summary row, written LAST, after
+        # every per-show row: it is the sign that commit reached its end.
         await runtime.context.audit.record(entry_for(step, state, staging_id))
         if step is StepType.RECONCILE:
             # One row per model decision about an artist, after the summary row (A5-D11): the one place a model
