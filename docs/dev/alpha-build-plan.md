@@ -341,7 +341,8 @@ Scope agreed with Ari on October 17, 2026. Two things come out of it: the access
 - [ ] **[fill-in]** B6-K1: the clock pin, `Date.now = () => FROZEN` in `e2e/support/fake-now.mjs` *(scaffolded, open)*
 - [ ] **[fill-in]** B6-K2: the focus-not-obscured predicate in `e2e/support/focus.ts` *(scaffolded, open)*
 - [ ] **[fill-in]** B6-K3: the page-reflow predicate in `e2e/support/reflow.ts` *(scaffolded, open)*
-- [ ] Ari marks findings B6-F1–B6-F7; the fix round fixes the marked ones, each in its own commit (the plan's Step 8); manual keyboard and screen-reader pass; sign-off.
+- [x] **[written]** Findings marked by Ari and the fix round done (the plan's Step 8, October 20, 2026): B6-F1 (lineup link target size), B6-F3 (focus ring contrast) and B6-F7 (a half-visible focused link in a venue row; `ScrollRow`) fixed, each in its own commit; B6-F2 (Base UI popup hides the page) accepted as upstream behaviour; B6-F4 not reproduced; B6-F6 a nit, kept; B6-F5 fixed in round 1 (D8).
+- [ ] Manual keyboard and screen-reader pass (Ari), the three `TODO(Ari)` gaps, sign-off.
 
 **Implementation strategy.** One test first, green, then the rest. Each step ends with its own green result before the next starts.
 

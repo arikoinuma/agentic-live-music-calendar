@@ -1,6 +1,6 @@
 # B6 — accessibility and end-to-end tests
 
-**Status:** Awaiting sign-off (Step 8 done for F1 and F3; F2 awaits Ari's decision, F7 awaits his mark; the three `TODO(Ari)` gaps and the manual pass remain)
+**Status:** Awaiting sign-off (Step 8 done: F1, F3 and F7 fixed, F2 accepted, F4 and F6 left; the three `TODO(Ari)` gaps, the manual pass and a decision on a further review round remain)
 **Date:** October 19, 2026
 **Author model:** Claude Sonnet 5.5
 **Reviewer model:** Claude Opus 5.5 (plan review round 1; code review round 1)
@@ -339,7 +339,7 @@ Three blocks, all in test-support code, **independent of each other and of every
 - **K2 — `isFocusObscured` in `e2e/support/focus.ts`** (Step 6, [fill-in]).
   *Lesson:* WCAG 2.4.11 (Focus Not Obscured, minimum, new in 2.2): a focused control must not be **entirely** hidden by author-created content, here the sticky date headings (requirements: "not covered by sticky headers"). Playwright's `toBeVisible()` and `toBeInViewport()` ignore overlap, so ask the browser what is on top **at the control's centre**. That is *stricter* than the criterion (a control whose centre is covered but whose corner shows still passes 2.4.11): it is a sufficient check, not the definition, and if it ever goes red at 375px for a control that is partly visible, Ari decides whether to loosen it. Read it after the Tab keypress has resolved, which is after the browser has scrolled the control into view.
   *Code:* `return page.evaluate(() => { const el = document.activeElement as HTMLElement; const r = el.getClientRects()[0] ?? el.getBoundingClientRect(); const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !(top && (top === el || el.contains(top))); });`
-  *Check:* `keyboard.spec.ts` "no Tab stop is newly hidden, under a sticky heading or anything else" is red until filled (the placeholder throws) and green on the real page at 1280 and 375, on `/` and on `/venue/1`, **with the baseline row for B6-F7** (one stop on `/` at 375 is reported, by name; found when the plan's code was run, not in the prototype); mutation B6-M6 (a fixed bar over the top of the page) turns it red. `getClientRects()[0]` is the first line box: a wrapped inline link's bounding-box centre can fall between its lines and report a false "obscured" (PLAUSIBLE). Likeliest mistake: `toBeVisible()`; also accepting `top.contains(el)` (a covering ancestor passes). The prototype used a looser three-clause predicate; this stricter one is **unverified until the build runs it** in a throwaway worktree (Verification 4).
+  *Check:* `keyboard.spec.ts` "no Tab stop is newly hidden, under a sticky heading or anything else" is red until filled (the placeholder throws) and green on the real page at 1280 and 375, on `/` and on `/venue/1`, with an **empty hidden-stop baseline** (the plan's code, run strictly, once reported one stop on `/` at 375px, finding B6-F7; fixed in Step 8 by `ScrollRow`, so nothing is baselined); mutation B6-M6 (a fixed bar over the top of the page) turns it red. `getClientRects()[0]` is the first line box: a wrapped inline link's bounding-box centre can fall between its lines and report a false "obscured" (PLAUSIBLE). Likeliest mistake: `toBeVisible()`; also accepting `top.contains(el)` (a covering ancestor passes). The prototype used a looser three-clause predicate; this stricter one is **unverified until the build runs it** in a throwaway worktree (Verification 4).
 - **K3 — `expectNoPageReflow` in `e2e/support/reflow.ts`** (Step 6, [fill-in]; the weakest gap, see D10).
   *Lesson:* WCAG 1.4.10 (Reflow): at 320 CSS px wide the **page** must not need a horizontal scrollbar. The venue rows scroll sideways on purpose inside their own regions (D6), so measure the **document**, not `body` (which `overflow-x: hidden` would hide) and not the scrollers. Set the viewport before navigating, so the layout is computed at that width.
   *Code:* `const { w, c } = await page.evaluate(() => ({ w: document.documentElement.scrollWidth, c: document.documentElement.clientWidth })); expect(w).toBeLessThanOrEqual(c);`
@@ -747,4 +747,43 @@ The self-tests still pass (a black outline about 21:1, no focus style reads noth
 **Not verified:** the three fixes by eye (the plan's manual pass should now look at the focus rings and the lineup links); that `py-1` on lineup links looks right in a real browser; the CI job (still never run).
 
 **Where to look hardest:** the instrument changes above (their only review is mine); the F2 conclusion (read from source and one Tab probe, not tested in a screen reader); and that darkening `--ring` also changes every `border-ring` and `ring-ring/50` in `packages/ui` (the form controls' focus look), which the scans cannot judge.
+
+### Round 5 — Step 8 continued: F7 fixed, F2 accepted (Claude Sonnet 5.5, October 20, 2026)
+
+**Ari's marks:** F2: accept the recommendation (accept as upstream behaviour, document). F7: "I can't reproduce F7, but if you can, I agree it's a should-fix."
+
+**F2: accepted, closed.** The cause is documented (the baseline comment and `notes.md`: Base UI 1.7.0 forces the popup modal when the input is outside it, so the `modal` prop does nothing for our layout). The two baseline rows (`aria-hidden-focus` on the Venues and Artists popups, 5 elements each) stay, so a change either way shows. Revisit if Base UI adds an option.
+
+**F7: reproduced and fixed** (`f07084a`). Ari could not reproduce it by hand; here it reproduces deterministically in the harness (Chromium build 1194, real Tab key presses), and the mechanism was measured, not guessed. **The first report undersold it, and the code review's diagnosis was half right:**
+
+| Fact | Measured |
+|---|---|
+| It is not one link | At every phone width the row's `scrollLeft` stays **0 for every Tab stop** in a venue row, so every stop in the second and later columns stays where it is: 6 stops not fully visible at 390px, 9 at 375, 12 at 360 and 320, 2 at 412, 1 at 430. At 320px a link was 5% visible and its centre covered |
+| The row can scroll | `scrollLeft = 120` by script lands on 181 (the last snap point) |
+| Focus does not scroll it | `link.focus()` leaves `scrollLeft` at 0 with snapping `mandatory`, `proximity` **and `none`**: Chromium does not scroll a nested scroller for a focused element that is already partly visible |
+| Snapping undoes a nudge | `scrollIntoView({inline: "nearest"})` scrolls 25px and shows the link with snapping off, and scrolls nothing with `proximity` or `mandatory` (the row snaps back to the nearest column start). The code review had tested the Tab path (where focus scrolls nothing), so "no snapping leaves it hidden" was true, but snapping is a second obstacle, not the cause |
+
+**The fix:** `ScrollRow` (`app/_components/scroll-row.tsx`), the same `<div>` the grid always rendered plus an `onFocus`: when the focused control is not fully inside the row, scroll the row to the control's whole *column* (`scrollTo({ left: row.scrollLeft + column.left - row.left })`). A column's left edge is a snap point, so the scroll is not undone. Nothing happens when the control is already fully visible. It is a Client Component only for the handler; everything inside is still server-rendered.
+
+**Test first:** (1) a Playwright journey, "tabbing keeps the focused control fully inside its venue row" at 1280, 375 and 320 (`keyboard.spec.ts`): **red at 375 and 320**, green at 1280, with `ScrollRow` as a no-op stub; (2) three unit tests for the decision (scroll to the column; nothing when fully visible; relative to the row's current scroll), two red against the stub; (3) the F7 baseline row deleted. All green after: the journey 3 of 3, the unit tests 3 of 3. The K2 sticky-heading tests, run with K2 filled in a worktree, are green against an empty hidden-stop baseline.
+
+**Mutation B6-M12:** `ScrollRow`'s `onFocus` removed (the no-op stub): the 375 and 320 journeys go red (seen as the red state above).
+
+**Departures:** the journey checks "fully inside the row", stricter than the criterion (WCAG 2.4.11 only fails an entirely hidden control), because that is the property the fix is for and the one a keyboard user needs. The proposed fix in the findings table (`scroll-padding`, `proximity`) was wrong and is retracted (Round 4).
+
+**`TODO(Ari)` gaps:** still all three open.
+
+**Verification** (Node 22.22.0, `E2E_CHROMIUM_PATH=/opt/pw-browsers/chromium`)
+- `make check`: exit 2, red only through the three open gaps: ruff clean, ESLint zero warnings, typecheck passed, pytest 669 passed and 15 skipped, Vitest **355 passed** (26 files; +3 for `scroll-row`), contract current, e2e **65 passed, 35 failed** (the same 1 + 4 + 30), no `destination stream closed early` line.
+- Gaps filled in a fresh throwaway worktree (removed afterwards): **100 of 100** green, `pnpm lint` clean.
+
+**Not verified:**
+- **That it helps on Ari's browser.** He could not reproduce the problem, and the behaviour measured here is Chromium build 1194's. Newer Chrome, Safari and Firefox may scroll a half-visible focused element themselves; `ScrollRow` is harmless there (it does nothing when the control is already fully visible, and otherwise aims at the same place the browser would).
+- A real phone, or a screen reader.
+- That scrolling the row on focus feels right (the plan's manual keyboard pass should try it).
+- The CI job, as before.
+
+**Where to look hardest:** that `ScrollRow` only changes behaviour on focus (no scroll position changes at load or on pointer events); that it fires for *mouse* focus too (a click on a partly visible link scrolls the row before navigating; harmless, but not what the keyboard fix strictly needs); and that the `closest("section")` assumption (a column is a `<section>`) will break silently if `calendar-grid.tsx` changes its column element (the e2e journey would then go red).
+
+**Finding status after Step 8:** F1 fixed, F2 accepted (upstream), F3 fixed, F4 not reproduced and not addressed, F5 fixed (D8), F6 nit (kept), F7 fixed.
 
