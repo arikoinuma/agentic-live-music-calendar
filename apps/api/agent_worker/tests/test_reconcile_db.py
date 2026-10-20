@@ -36,6 +36,7 @@ from agent_worker.state import VenueGraphState
 from agent_worker.tests import fakes
 from agent_worker.tests.fakes import (
     SPLITTER,
+    FakeWriter,
     RecordingStager,
     event,
     jsonld_page,
@@ -66,15 +67,11 @@ def factory(db_conn: AsyncConnection) -> async_sessionmaker[AsyncSession]:
     return async_sessionmaker(bind=db_conn, join_transaction_mode="create_savepoint", expire_on_commit=False)
 
 
-@pytest_asyncio.fixture(loop_scope="session")
-async def venue_run(
-    factory: async_sessionmaker[AsyncSession], tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> tuple[VenueGraphState, dict[str, int], VenueFacts]:
-    """Seed the calendar above, run venue A through the real graph on the page, return the final state, the artists'
-    ids and the venue."""
-    page = tmp_path / "page.html"
-    page.write_text(PAGE)
-    url = str(page)  # reconcile compares each show's stored `original_url` with this
+async def seed_calendar(factory: async_sessionmaker[AsyncSession], url: str) -> tuple[VenueFacts, dict[str, int]]:
+    """Seed the calendar in the module docstring (venue A and its artists and five shows) and return venue A and the ids
+    (`Nona`, `Zhora`, `Prince`, `Polica` for the artists; `show_nona`, `show_zhora`, `show_prince`, `show_back`,
+    `show_later` for the shows). Every show's `original_url` is `url`, because reconcile compares it with the run's URL and
+    a different one would be a change. Shared with test_commit_db.py (A6), which commits this plan for real."""
     async with factory() as session:
         await seed(session)
         venue = (await load_venues(session))[0]
@@ -103,9 +100,23 @@ async def venue_run(
         ])
         await session.commit()
         ids.update({f"show_{k}": s.id for k, s in shows.items()})
+    return venue, ids
+
+
+@pytest_asyncio.fixture(loop_scope="session")
+async def venue_run(
+    factory: async_sessionmaker[AsyncSession], tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> tuple[VenueGraphState, dict[str, int], VenueFacts]:
+    """Seed the calendar above, run venue A through the real graph on the page, return the final state, the artists'
+    ids and the venue."""
+    page = tmp_path / "page.html"
+    page.write_text(PAGE)
+    url = str(page)  # reconcile compares each show's stored `original_url` with this
+    venue, ids = await seed_calendar(factory, url)
     monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [ACTS]}))
     ctx = WorkerContext(
-        audit=PostgresAuditWriter(factory), stager=RecordingStager(), reader=PostgresCalendarReader(factory)
+        audit=PostgresAuditWriter(factory), stager=RecordingStager(), reader=PostgresCalendarReader(factory),
+        writer=FakeWriter(),  # reconcile decides and writes nothing; this file proves that, so commit writes nothing either
     )
     state = await run_venue(venue, ctx, calendar_url=url, fetched_on=fakes.FETCHED)
     return state, ids, venue

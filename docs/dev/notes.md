@@ -528,3 +528,41 @@ empty branch "unreachable through sample data"; that was true on the day it was 
 
 Browser tests (B6) pin the clock to a date inside the sample window. **Whenever `sample_data.py` changes, move
 that pinned date in the same change.** See `alpha-build-plan.md`, B6, "Standing rule: the test clock".
+
+---
+
+## With asyncpg, only integrity violations are an `IntegrityError`; an overflow is a plain `DBAPIError`, and a dropped connection has `sqlstate = None`
+
+**Symptom (found in A6 plan review, before any code):** a handler that caught `(IntegrityError, DataError)` to mean "the
+database refused this row" did not catch a `Numeric(10, 2)` overflow, and a `getattr(err.orig, "sqlstate", "")[:2]` raised
+`TypeError` on a real lost connection.
+
+**Cause:** SQLAlchemy's asyncpg dialect maps `asyncpg.exceptions.IntegrityConstraintViolationError` to `IntegrityError` and every
+other server error to the generic `Error` (`dialects/postgresql/asyncpg.py`, `_asyncpg_error_translate`), so `DataError`
+never occurs, and a SQLSTATE class 22 error (a data exception: overflow, a NUL byte, a bad enum text) is a plain
+`DBAPIError`. The dialect always SETS `orig.sqlstate`, to `None` for a client-side error, so a dropped connection (an
+`InterfaceError`, `connection_invalidated = True`) has an attribute that exists and is `None`: a `getattr` default is never used.
+
+**Fix / lesson:** classify by the SQLSTATE class the database reports (`calendar_writer.is_decision_error`: 22 or 23 is about the
+row, anything else is about the connection or us), and read it as `getattr(err.orig, "sqlstate", None) or ""`. Measured on
+SQLAlchemy 2.0.52 / asyncpg 0.32.0. `tests/fakes.py` builds the real shapes.
+
+---
+
+## In the DB tests a second session's "separate" commit is not separate: it nests inside the first session's savepoint
+
+The test factories bind every session to one connection in `create_savepoint` mode, so a session opened while another is mid-
+transaction creates a savepoint INSIDE the first's, and rolling the outer one back undoes the inner one's "committed" work. A test
+that asserts "a rolled-back write left no audit row" cannot tell a writer that used one transaction from one that wrote the audit
+row through a second session (the A6-M2 mutation). Only counting the sessions catches that (`test_a_write_uses_exactly_one_session`),
+or a test on a real engine instead of savepoint mode. A failure raised AFTER the rows were produced
+(`test_audit_rows_roll_back_with_the_write`) catches a different mistake, a `commit()` before the rows are added, and passes a
+writer that used a second session.
+
+---
+
+## Inside a test transaction `now()` never moves, so `updated_at` assertions need a literal past value
+
+`TimestampMixin.updated_at` is `server_default=now()` / `onupdate=func.now()`, and `now()` is the start of the OUTER test transaction.
+Two readings of it are equal, so "did this row get rewritten" cannot compare before with after (the same trap as `finished_at`, A4-CR1-5).
+Seed the rows with a literal past `updated_at` and assert the value against that literal.

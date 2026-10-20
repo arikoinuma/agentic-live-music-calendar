@@ -29,6 +29,7 @@ from agent_worker.tests.fakes import (
     PAGE,
     SPLITTER,
     FakeReader,
+    FakeWriter,
     RecordingAudit,
     RecordingStager,
     event,
@@ -59,7 +60,7 @@ async def run_reconcile(
         venue_id=1, calendar_url=str(page), venue_name="The Venue", metro_timezone="America/Chicago",
         fetched_on=fakes.FETCHED, run_id=RUN_ID,
     )
-    context = WorkerContext(audit=audit, stager=RecordingStager(), reader=reader)
+    context = WorkerContext(audit=audit, stager=RecordingStager(), reader=reader, writer=FakeWriter())
     return VenueGraphState(**await compiled_graph.ainvoke(state, context=context)), audit
 
 
@@ -153,7 +154,7 @@ async def test_an_unreadable_calendar_stops_the_run_with_no_reconcile_row(
         venue_id=1, calendar_url=str(page), venue_name="The Venue", metro_timezone="America/Chicago",
         fetched_on=fakes.FETCHED, run_id=RUN_ID,
     )
-    context = WorkerContext(audit=audit, stager=RecordingStager(), reader=FakeReader(fail=True))
+    context = WorkerContext(audit=audit, stager=RecordingStager(), reader=FakeReader(fail=True), writer=FakeWriter())
     with pytest.raises(RuntimeError, match="unreadable"):
         await compiled_graph.ainvoke(state, context=context)
     assert [step for step, _ in audit.steps()] == ["fetch", "extract", "validate"]

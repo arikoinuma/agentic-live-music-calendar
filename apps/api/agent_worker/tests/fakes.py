@@ -19,6 +19,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from pydantic import BaseModel
+from sqlalchemy.exc import DBAPIError, IntegrityError, InterfaceError
 
 from agent_worker import act_split, artist_match, schemas, status_check
 
@@ -189,3 +190,104 @@ class FakeReader:
         if self.fail:
             raise RuntimeError("the calendar is unreadable")
         return list(self.known)
+
+
+# ---------------------------------------------------------------------------
+# A6: the calendar writer, recorded instead of written; and the errors a real database raises
+# ---------------------------------------------------------------------------
+
+
+class _DriverError(Exception):
+    """Stands in for the exception the database driver wraps: it carries the `sqlstate` the dialect copies onto `orig`.
+
+    On the real driver (SQLAlchemy 2.0 with asyncpg) this attribute is ALWAYS present: a server error has its five
+    character SQLSTATE and a client-side error (a lost connection) has `None` (A6-PR2-1)."""
+
+    def __init__(self, message: str, sqlstate: str | None) -> None:
+        super().__init__(message)
+        self.sqlstate = sqlstate
+
+
+# The shapes below were measured against the installed driver (the A6 plan reviews), not guessed: only an integrity
+# violation arrives as `IntegrityError`; an overflow is a plain `DBAPIError`; a real lost connection is an
+# `InterfaceError` whose `orig.sqlstate` is None and whose `connection_invalidated` is True. Tests build every database
+# error from these helpers so none invents a shape the driver never produces.
+
+
+def overflow() -> DBAPIError:
+    """A price too large for `Numeric(10, 2)`: SQLSTATE 22003 (class 22, a data exception), a plain `DBAPIError`."""
+    return DBAPIError("INSERT INTO show ...", {}, _DriverError("numeric field overflow", "22003"))
+
+
+def check_violation() -> IntegrityError:
+    """A CHECK constraint refusing a row: SQLSTATE 23514 (class 23), an `IntegrityError`."""
+    return IntegrityError("INSERT INTO show ...", {}, _DriverError('violates check constraint "show_tmp_check"', "23514"))
+
+
+def foreign_key_violation() -> IntegrityError:
+    """A foreign key with no target (a lineup naming an artist that doesn't exist): SQLSTATE 23503."""
+    return IntegrityError("INSERT INTO show_artist ...", {}, _DriverError("violates foreign key constraint", "23503"))
+
+
+def lost_connection() -> InterfaceError:
+    """What a dropped connection really is: an `InterfaceError` with `orig.sqlstate = None`, `connection_invalidated`."""
+    return InterfaceError("SELECT 1", {}, _DriverError("connection is closed", None), connection_invalidated=True)
+
+
+def client_side_error() -> InterfaceError:
+    """A client-side driver error that is NOT an invalidated connection (for example a second operation started on a busy
+    connection): an `InterfaceError` with `orig.sqlstate = None` and `connection_invalidated` False. It is not about a row
+    either, and it exercises the SQLSTATE test on its own: with the invalidated flag clear, only `sqlstate or ""` stands
+    between a `None` and a `None[:2]` crash."""
+    return InterfaceError("SELECT 1", {}, _DriverError("another operation is in progress", None))
+
+
+def connection_failure(sqlstate: str = "08006") -> DBAPIError:
+    """A server-side connection error (class 08, or 57P01 for an admin shutdown): a `DBAPIError` that is NOT about a row."""
+    return DBAPIError("SELECT 1", {}, _DriverError("connection failure", sqlstate))
+
+
+class FakeWriter:
+    """A `CalendarWriter` that records the operations it is given and writes nothing (A6).
+
+    `fail` maps the position of a call (0 for the first operation) to the exception to raise for it, for the tests of
+    the failure path. With an `audit` (a `RecordingAudit`) it also appends the rows a real write would, so a graph test
+    can see the whole trail in order: one per artist it "created", then the show's. Ids are made up, counting up from
+    values no real test row uses. Typed loosely and importing the audit builders only inside the method, like the other
+    fakes, so this module stays loadable for tests that only need the model fakes.
+    """
+
+    def __init__(self, audit: Any = None, *, fail: dict[int, BaseException] | None = None) -> None:
+        self.audit = audit
+        self.fail = fail or {}
+        self.ops: list[Any] = []  # every operation handed in, including ones made to fail
+        self.artist_ids_seen: list[dict[str, int]] = []  # the `artist_ids` each call was given (a copy)
+        self._next_show = 1000
+        self._next_artist = 5000
+
+    async def write_show(self, op: Any, artist_ids: Any, *, run_id: int | None, attempt_number: int) -> Any:
+        from agent_worker.audit import artist_created_entry, show_write_entry
+        from agent_worker.calendar_writer import ShowWritten
+
+        position = len(self.ops)
+        self.ops.append(op)
+        self.artist_ids_seen.append(dict(artist_ids))
+        if position in self.fail:
+            raise self.fail[position]
+        created: dict[str, int] = {}
+        for key in op.new_artist_names:
+            if key not in artist_ids:
+                created[key] = self._next_artist
+                self._next_artist += 1
+        show_id = op.stored_id if op.stored_id is not None else self._next_show
+        self._next_show += 1
+        if self.audit is not None:
+            for key, artist_id in created.items():
+                await self.audit.record(artist_created_entry(
+                    run_id=run_id, attempt_number=attempt_number, artist_id=artist_id, name=op.new_artist_names[key], key=key,
+                ))
+            await self.audit.record(show_write_entry(
+                op, run_id=run_id, attempt_number=attempt_number, show_id=show_id,
+                previous=None if op.stored_id is None else {"fake": True}, new={"fake": True},
+            ))
+        return ShowWritten(show_id, op.outcome, created)

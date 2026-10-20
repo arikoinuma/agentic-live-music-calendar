@@ -121,4 +121,15 @@ Reconcile (A5) is two pure modules plus a reader: `reconcile.py` (pairing, chang
 functions take plain arguments. The stored calendar is read in `trace.audited` before `reconcile_node` runs, and **a read
 that fails stops the run**; never turn an unreadable calendar into an empty list, or every listing becomes an insert.
 `validation.excluded` and `Finding.show_index` are positions in `state.extraction.shows` (the raw list), not in
-`validated_extraction.shows`. Reconcile only decides: it writes no show, artist or lineup row (A6's `commit_node` does).
+`validated_extraction.shows`. Reconcile only decides: it writes no show, artist or lineup row.
+
+Commit (A6) is one pure module plus a writer: `commit.py` (which writes a plan asks for, the snapshot shape) and
+`calendar_writer.py` (`CalendarWriter`, `PostgresCalendarWriter`, the `write_plan` loop). Import order is `reconcile`,
+`artist_match` ← `commit` ← `state` ← `audit` ← `calendar_writer` ← `context` ← `trace`: `commit.py` must not import `state.py`
+or `audit.py` (a test enforces it). `commit_node` only prepares the operations; `trace.audited` awaits the writes. **The
+audit rows for a show or artist commit writes are added to the write's own session**, never through `AuditWriter.record`
+(which commits on its own): a rolled-back write must leave no audit row. A show the database refuses is classified by its
+**SQLSTATE class** (22 or 23, `is_decision_error`), not by Python exception class: with asyncpg only integrity violations are
+an `IntegrityError`, an overflow is a plain `DBAPIError`, and a real lost connection is an `InterfaceError` whose
+`orig.sqlstate` is `None` (use `getattr(err.orig, "sqlstate", None) or ""`, never a `getattr` default). `tests/fakes.py` builds
+each of those shapes (`overflow()`, `check_violation()`, `lost_connection()`); use them instead of inventing an error.

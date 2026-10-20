@@ -15,14 +15,25 @@ import dataclasses
 import datetime
 import json
 from decimal import Decimal
+from typing import Any
 
 import pytest
 
 from agent_worker import extraction
-from agent_worker.audit import AuditEntry, audit_confidence, entry_for
+from agent_worker.audit import (
+    AuditEntry,
+    artist_created_entry,
+    audit_confidence,
+    audit_row,
+    entry_for,
+    show_failure_entry,
+    show_write_entry,
+)
+from agent_worker.commit import CommitResult, ShowFailure, ShowOp, build_ops
 from agent_worker.policy import AttemptPlan, AttemptRecord
 from agent_worker.reconcile import Action, Coverage, ReconcilePlan, ShowDecision
 from agent_worker.state import VenueGraphState
+from agent_worker.tests.reconcile_support import URL, at, day, listed, plan_for, stored
 from agent_worker.validation import (
     CheckCode,
     FailureReason,
@@ -80,22 +91,14 @@ def test_every_step_is_an_agent_row_for_the_run_in_the_state(step: StepType) -> 
     assert entry.step_type is step and entry.source is AuditSource.AGENT and entry.run_id == 9
 
 
-@pytest.mark.parametrize(
-    "step", [StepType.FETCH, StepType.EXTRACT, StepType.VALIDATE, StepType.RECONCILE, StepType.ESCALATE]
-)
+@pytest.mark.parametrize("step", list(StepType))
 def test_the_venue_level_steps_act_on_the_venue(step: StepType) -> None:
-    # Proves: fetch, extract, validate, reconcile (A5's summary row) and escalate name the venue as the entity they
-    # acted on
-    # (`entity_type=venue`, `entity_id=venue_id`; data-model-initial.md §3).
+    # Proves: all six steps' own rows name the venue as the entity they acted on (`entity_type=venue`,
+    # `entity_id=venue_id`; data-model-initial.md §3). Reconcile's and commit's are SUMMARY rows (A5, A6); the rows
+    # about one show or one artist are separate (see "Commit's other rows" below).
     entry = entry_for(step, base_state(attempt_count=1))
     assert (entry.entity_type, entry.entity_id) == (EntityType.VENUE, 4)
 
-
-def test_the_commit_stub_names_no_entity_yet() -> None:
-    # Proves: commit acts on no row until A6 writes per-show rows, so its placeholder row carries no entity
-    # rather than a venue it did not change.
-    entry = entry_for(StepType.COMMIT, base_state(attempt_count=1))
-    assert entry.entity_type is None and entry.entity_id is None and entry.outcome is None
 
 
 # ---------------------------------------------------------------------------
@@ -245,10 +248,123 @@ def test_validate_detail_records_verdict_reasons_messages_and_counts() -> None:
     assert (detail["warnings"], detail["repairs"], detail["excluded"]) == (1, 1, 1)
 
 
-def test_the_commit_stub_says_it_is_a_stub() -> None:
-    # Proves (A4-D5): until A6, the commit row is an explicit placeholder, so nobody reads it as a real write.
-    # (Reconcile stopped being a stub in A5: its row is tested in test_reconcile_audit.py.)
-    assert entry_for(StepType.COMMIT, base_state(attempt_count=1)).detail == {"stub": True}
+# ---------------------------------------------------------------------------
+# Commit's summary row (A6)
+# ---------------------------------------------------------------------------
+
+
+def test_the_commit_summary_names_the_venue_and_has_no_outcome() -> None:
+    # Proves (A6 "Audit rows"): the run's commit row is a venue-level summary with no outcome of its own (each
+    # write has its own row); that is what `unfinished_runs` looks for as "commit reached its end" (A6-M5).
+    entry = entry_for(StepType.COMMIT, base_state(attempt_count=1))
+    assert (entry.entity_type, entry.entity_id, entry.outcome) == (EntityType.VENUE, 4, None)
+    assert entry.previous_value is None and entry.new_value is None
+
+
+def a_commit_state(**result: Any) -> VenueGraphState:
+    """A state after commit: reconcile's plan (A_PLAN: one insert) and the result of writing it."""
+    return base_state(attempt_count=1, reconcile_plan=A_PLAN, commit_result=CommitResult(**result))
+
+
+def test_the_summary_detail_has_the_five_counts_the_artists_the_failures_and_the_withheld() -> None:
+    # Proves (A6-PR2-8): exactly the keys the plan lists, `counts` with exactly five keys (written: from the result; no_op
+    # and skip: from reconcile's plan), and failures only in `failed`, never a sixth `counts` key.
+    state = a_commit_state(written={"inserted": 1, "updated": 0, "removed": 0}, artists_created=2, total_ops=1)
+    detail = entry_for(StepType.COMMIT, state).detail
+    assert set(detail) == {"counts", "artists_created", "failed", "all_failed", "withheld"}
+    assert detail["counts"] == {"inserted": 1, "updated": 0, "removed": 0, "no_op": 0, "skip": 0}
+    assert (detail["artists_created"], detail["failed"], detail["all_failed"], detail["withheld"]) == (2, [], False, 0)
+
+
+def test_a_failed_show_is_listed_with_its_identity_and_the_flag_is_set_for_an_all_fail_run() -> None:
+    # Proves (A6-PR2-3, A6-PR2-2): a failure in the summary says WHICH show (date, time, stored id), its SQLSTATE and
+    # the error; and three writes that all failed set `all_failed`. The keys are the plan's, pinned as a set.
+    failures = tuple(
+        ShowFailure("insert", datetime.date(2026, 10, 20 + n), datetime.time(21, 0), None, "new show", "22003", "boom")
+        for n in range(3)
+    )
+    detail = entry_for(StepType.COMMIT, a_commit_state(failures=failures, total_ops=3)).detail
+    assert detail["all_failed"] is True and len(detail["failed"]) == 3
+    assert set(detail["failed"][0]) == {"action", "date", "time", "stored_id", "reconcile_reason", "sqlstate", "error"}
+    assert detail["failed"][0]["date"] == "2026-10-20" and detail["failed"][0]["time"] == "21:00:00"
+
+
+# ---------------------------------------------------------------------------
+# Commit's other rows (A6): a show written, an artist created, a show that failed
+# ---------------------------------------------------------------------------
+
+
+def an_insert_op(**fields: Any) -> ShowOp:
+    """The operation for one new Sunny Day show on the 20th at 8 PM (an artist nobody has stored, so a new artist)."""
+    plan = plan_for([listed(0, day(20), at(20), acts=["Sunny Day"], **fields)])
+    [op] = build_ops(plan, 4, URL)
+    return op
+
+
+def test_a_written_show_row_has_the_outcome_both_snapshots_and_the_reason() -> None:
+    # Proves (A6 "Audit rows"): outcome follows the action (insert -> inserted), the snapshots are carried through as
+    # given (previous is None for an insert), and `detail` says why, which columns, and whether a guess was involved.
+    op = an_insert_op()
+    snapshot = {"id": 5, "status": "active", "lineup": []}
+    entry = show_write_entry(op, run_id=9, attempt_number=1, show_id=5, previous=None, new=snapshot)
+    assert (entry.step_type, entry.entity_type, entry.entity_id, entry.outcome) == (
+        StepType.COMMIT, EntityType.SHOW, 5, AuditOutcome.INSERTED,
+    )
+    assert entry.previous_value is None and entry.new_value == snapshot and entry.run_id == 9
+    assert entry.detail["action"] == "insert" and entry.detail["reconcile_reason"] == "new show"
+    assert entry.detail["needs_review"] is False and "lineup" in entry.detail["changed"]
+
+
+def test_an_update_and_a_removal_are_named_updated_and_removed() -> None:
+    # Proves (data-model-initial.md §3): `AuditOutcome` for the other two writes. A stored Nona show gains an opener
+    # (update); another stored show is absent from the page (remove).
+    plan = plan_for(
+        [listed(0, day(20), at(20), acts=["Zhora", "Nona"])],
+        [stored(1, day(20), at(20), acts=[(7, "Nona")]), stored(2, day(20), at(22), acts=[(9, "Prince")])],
+    )
+    entries = {op.action: show_write_entry(op, run_id=1, attempt_number=1, show_id=op.stored_id or 0, previous={}, new={})
+               for op in build_ops(plan, 4, URL)}
+    assert entries[Action.UPDATE].outcome is AuditOutcome.UPDATED and entries[Action.UPDATE].detail["changed"] == ["lineup"]
+    assert entries[Action.REMOVE].outcome is AuditOutcome.REMOVED and entries[Action.REMOVE].detail["changed"] == ["status"]
+
+
+def test_a_created_artist_row_is_name_only() -> None:
+    # Proves (requirements, "Agent Artist Creation & Matching"): the artist row names the artist, outcome inserted, no
+    # previous value, and `new_value` is just the id and the name.
+    entry = artist_created_entry(run_id=9, attempt_number=1, artist_id=31, name="Sunny Day", key="sunny day")
+    assert (entry.entity_type, entry.entity_id, entry.outcome) == (EntityType.ARTIST, 31, AuditOutcome.INSERTED)
+    assert entry.previous_value is None and entry.new_value == {"id": 31, "name": "Sunny Day"}
+
+
+def test_a_failure_row_has_no_outcome_no_snapshots_and_says_which_show_failed() -> None:
+    # Proves (A6-PR2-3): nothing was written, so no outcome and no snapshots; an insert has no id yet, so the show is
+    # identified by `detail`: pinned keys.
+    failure = ShowFailure("insert", datetime.date(2026, 10, 20), datetime.time(20, 0), None, "new show", "22003", "boom")
+    entry = show_failure_entry(failure, run_id=9, attempt_number=2)
+    assert (entry.entity_type, entry.entity_id, entry.outcome) == (EntityType.SHOW, None, None)
+    assert entry.previous_value is None and entry.new_value is None and entry.attempt_number == 2
+    assert entry.detail == {
+        "action": "insert", "date": "2026-10-20", "time": "20:00:00", "stored_id": None, "reconcile_reason": "new show",
+        "sqlstate": "22003", "error": "boom",
+    }
+
+
+def test_every_commit_row_is_json_serializable_and_becomes_an_orm_row() -> None:
+    # Proves: a date, time, Decimal or enum reaching JSONB unconverted would raise at insert, mid-run; and `audit_row`
+    # (the one mapping from an entry to the ORM row, shared by both writers) carries every column, snapshots included.
+    op = an_insert_op()
+    entries = [
+        show_write_entry(op, run_id=9, attempt_number=1, show_id=5, previous=None, new={"id": 5}),
+        artist_created_entry(run_id=9, attempt_number=1, artist_id=31, name="Sunny Day", key="sunny day"),
+        show_failure_entry(
+            ShowFailure("update", datetime.date(2026, 10, 20), None, 3, "details changed", None, "gone"),
+            run_id=9, attempt_number=1,
+        ),
+    ]
+    for entry in entries:
+        json.dumps(entry.detail)
+    row = audit_row(entries[0])
+    assert (row.run_id, row.step_type, row.entity_id, row.outcome, row.new_value) == (9, StepType.COMMIT, 5, AuditOutcome.INSERTED, {"id": 5})
 
 
 def test_escalate_is_a_real_row_with_the_reason_and_the_escalated_outcome() -> None:
@@ -277,6 +393,10 @@ def test_every_entrys_detail_is_json_serializable(step: StepType) -> None:
     state = base_state(
         attempt_count=1, last_plan=PLAN, route_attempted="model", validation=passed_validation(),
         attempt_history=[record], escalation_reason="why", reconcile_plan=A_PLAN, confidence=0.9,
+        commit_result=CommitResult(
+            failures=(ShowFailure("insert", datetime.date(2026, 10, 20), datetime.time(20, 0), None, "new show", "22003", "x"),),
+            total_ops=1,
+        ),
     )
     entry = entry_for(step, state, staging_id="doc-1")
     assert isinstance(entry, AuditEntry)

@@ -12,12 +12,14 @@ Needs (A4): Postgres seeded (`make db-up && make migrate && make seed`), MongoDB
 import asyncio
 import datetime
 import json
+import sys
 from pathlib import Path
 
 from pymongo import AsyncMongoClient
 
 from agent_worker.audit import PostgresAuditWriter
 from agent_worker.calendar_reader import PostgresCalendarReader
+from agent_worker.calendar_writer import PostgresCalendarWriter
 from agent_worker.context import WorkerContext
 from agent_worker.main import load_venues, run_venue
 from agent_worker.staging import COLLECTION, MongoStager
@@ -32,7 +34,7 @@ FIXTURE = "agent_worker/eval/fixtures/Archives_ Events - The White Squirrel Bar.
 FETCHED_ON = datetime.date(2026, 8, 17)
 
 
-async def main() -> None:
+async def main() -> int:
     configure_logging()
     assert settings.mongodb_uri, "set MONGODB_URI in .env (docker compose's mongo is mongodb://localhost:27017)"
     mongo: AsyncMongoClient = AsyncMongoClient(settings.mongodb_uri)
@@ -41,6 +43,7 @@ async def main() -> None:
             audit=PostgresAuditWriter(SessionFactory),
             stager=MongoStager(mongo[settings.mongodb_database][COLLECTION]),
             reader=PostgresCalendarReader(SessionFactory),
+            writer=PostgresCalendarWriter(SessionFactory),
         )
         async with SessionFactory() as session:
             [venue] = await load_venues(session, venue_id=1)  # The White Squirrel Bar (app/db/seed.py)
@@ -75,8 +78,8 @@ async def main() -> None:
     if state.escalation_reason:
         print(f"escalated: {state.escalation_reason}")
 
-    # A5: what reconcile decided. Nothing writes to the calendar until A6, so against a seeded database every show is an
-    # insert, and a second run is still all inserts; seed a stored show by hand to see an update or a removal.
+    # A5: what reconcile decided. Since A6 commit writes it, so a second run on the same page should find nothing left to
+    # do (every show a no-op); change a stored show by hand (`make db-shell`) to see an update or a removal.
     if state.reconcile_plan is not None:
         plan = state.reconcile_plan
         window = f"{plan.coverage.start} to {plan.coverage.end}" if plan.coverage else "none (no dates on the page)"
@@ -85,14 +88,25 @@ async def main() -> None:
             flag = " (look at this one)" if decision.needs_review else ""
             print(f"  {decision.date} {decision.start_time or 'no time'}: {decision.action.value} - {decision.reason}{flag}")
 
+    # A6: what commit wrote (shows by outcome, artists created) and which shows the database refused. Exits 1 when any
+    # were refused, as the scheduled worker does (`main.run_all`), so a script running this can tell.
+    failures = 0
+    if state.commit_result is not None:
+        result = state.commit_result
+        failures = len(result.failures)
+        print(f"commit: wrote {result.written}; created {result.artists_created} artist(s); {failures} show(s) refused")
+        for failure in result.failures:
+            print(f"  refused {failure.date} {failure.time or 'no time'} ({failure.action}): {failure.error}")
+
     # A4: the run is in the database now. These are the questions to ask it (docs/dev/audit-queries.sql).
     # Piped in from the host: psql runs inside the container, where the repo's files aren't visible, so `\i` can't find the file.
-    print(f"\nrun {state.run_id} is in the audit trail. From the repo root (runs all five queries):")
+    print(f"\nrun {state.run_id} is in the audit trail. From the repo root (runs all six queries):")
     print(
         f"  cat docs/dev/audit-queries.sql | docker compose exec -T postgres psql -U postgres -d calendar_dev"
         f" -v run_id={state.run_id} -v show_id=0 -f -"
     )
+    return 1 if failures else 0
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    sys.exit(asyncio.run(main()))

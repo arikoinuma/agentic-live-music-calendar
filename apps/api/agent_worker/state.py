@@ -4,6 +4,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from agent_worker.artist_match import KnownArtist
+from agent_worker.commit import CommitResult, ShowOp
 from agent_worker.policy import (
     DEFAULT_POLICY,
     AttemptPlan,
@@ -170,3 +171,14 @@ class VenueGraphState(BaseModel):
     # removes one. `commit_node` (A6) executes it. None until reconcile has run, so it also tells a test which
     # node a run finished at.
     reconcile_plan: ReconcilePlan | None = None
+
+    # ---------------------------------------------------------------------
+    # A6: commit (docs/dev/implementations/a6-commit.md)
+    # ---------------------------------------------------------------------
+
+    # commit_ops — the writes reconcile's plan asks for, in the order to do them (`commit.build_ops`). Set by
+    # `commit_node`, a plain function that touches no database; `trace.audited` then awaits the writes (A4-D1).
+    # commit_result — what the writes did (shows written by outcome, artists created, shows that failed). Set by the
+    # wrapper after the writes; None until commit has run, and the source of commit's summary audit row.
+    commit_ops: tuple[ShowOp, ...] = ()
+    commit_result: CommitResult | None = None
