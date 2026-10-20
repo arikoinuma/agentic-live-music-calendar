@@ -8,8 +8,7 @@
  * `<artists> at <venue>, <weekday, month day, year>`) and the sample data (apps/api/app/
  * sample_data.py), never copied from what a page printed. A mismatch is investigated.
  */
-import type { Page } from "@playwright/test";
-import { expect } from "./test";
+import { expect, type Page } from "@playwright/test";
 
 export const SITE = "Agentic Live Music Calendar";
 export const WIDTHS = [1280, 375]; // desktop; a phone

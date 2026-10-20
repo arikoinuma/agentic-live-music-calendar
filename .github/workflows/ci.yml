@@ -139,7 +139,10 @@ jobs:
   e2e:
     name: E2E (Playwright, real API on sample data)
     runs-on: ubuntu-latest
-    # B6 (docs/dev/implementations/b6-accessibility-and-e2e.md, D1 and D4). Playwright starts
+    # The suite takes about two minutes; a hang outside Playwright's own timeouts (an install, a
+    # server that never answers) would otherwise hold the runner for the 6-hour default.
+    timeout-minutes: 20
+    # B6 (docs/dev/implementations/b6-accessibility-and-e2e.md, B6-D1 and B6-D4). Playwright starts
     # the whole stack itself (apps/calendar/playwright.config.ts): the real FastAPI app on its
     # sample data, a pass-through proxy and `next start` on a production build. No Postgres:
     # the routers still serve sample_data.py until A1b. A separate job from `js` so a JS-only

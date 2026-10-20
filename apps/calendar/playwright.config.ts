@@ -33,6 +33,9 @@ export default defineConfig({
   // and the ports are fixed, so parallel tests would interfere.
   fullyParallel: false,
   workers: 1,
+  // A committed `test.only` would make CI pass on ONE test and switch every scan off, so
+  // under CI it is an error rather than a filter.
+  forbidOnly: !!process.env.CI,
   // No retries. A retry that turns a flaky red into green hides exactly what the
   // "three green runs in a row" rule exists to catch.
   retries: 0,

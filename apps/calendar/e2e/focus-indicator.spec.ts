@@ -10,6 +10,7 @@
  */
 import { contrastRatio } from "./support/contrast";
 import { expectMatchesBaseline } from "./support/a11y";
+import { FOCUS_LABEL } from "./support/labels";
 import { measureControlBorder, measureFocusIndicator } from "./support/focus";
 import { expect, test } from "./support/test";
 
@@ -50,6 +51,34 @@ test.describe("the measuring method, on pages built for the purpose", () => {
 
     expect(ratio).toBeCloseTo(1.6, 1);
     expect(ratio).toBeLessThan(3);
+  });
+
+  // Proves: a change nobody can SEE is not credited as a focus indicator. Text that goes
+  // from #000 to #222 is a different colour pixel for pixel, and against the white page
+  // each such pixel is "high contrast", but it contrasts 1.1:1 with what it replaced and
+  // no keyboard user could find the focused control by it. Review round 1 found the first
+  // version of the measurement scoring this as an excellent indicator (15.9:1), which could
+  // have turned finding B6-F3 green in the fix round on an invisible change.
+  test("does not count a text colour change nobody can see", async ({ page }) => {
+    await page.setContent(withFocusStyle("outline:none;color:#222"));
+    const { ratio } = await measureFocusIndicator(page, page.locator("#b"));
+
+    expect(ratio).toBeLessThan(3);
+  });
+
+  // Proves: a speck is not an indicator either. A 2px black square appearing beside the
+  // button changes a handful of pixels that are individually maximum contrast, but too few
+  // to outline anything: the measurement asks for an outline's worth (a 1px ring around
+  // the control's box, less 10% for rounded corners), and reads less as no indicator (1:1).
+  test("does not count a speck smaller than an outline", async ({ page }) => {
+    await page.setContent(
+      `<body style="margin:0;background:#fff;padding:24px"><button id="b" style="margin:12px;padding:6px 12px;position:relative">Button</button>
+       <style>#b:focus{outline:none}#b:focus::after{content:"";position:absolute;left:0;top:-6px;width:2px;height:2px;background:#000}</style></body>`,
+    );
+    const { changedPixels, ratio } = await measureFocusIndicator(page, page.locator("#b"));
+
+    expect(changedPixels).toBeGreaterThan(0); // something DID change
+    expect(ratio).toBe(1); // but not enough to count
   });
 
   // Proves: the control-border measurement sees a border and reports its contrast. Expected
@@ -117,7 +146,7 @@ test.describe("the app's focus indicators and control borders", () => {
     // A focus indicator that paints nothing at all is its own failure, whatever the ratio.
     for (const m of measured) expect(m.changedPixels, `${m.name} paints no focus indicator`).toBeGreaterThan(0);
 
-    const label = "focus indicators and borders @1280";
+    const label = FOCUS_LABEL;
     expectMatchesBaseline(label, [
       { page: label, ruleId: "b6-focus-indicator-3to1", nodes: measured.filter((m) => m.ratio < MIN).length },
       { page: label, ruleId: "b6-control-border-3to1", nodes: borders.filter((b) => b.ratio < MIN).length },

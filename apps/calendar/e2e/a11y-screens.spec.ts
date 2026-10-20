@@ -10,6 +10,7 @@
  * The screens, and where their expected titles come from, are in support/screens.ts.
  */
 import { expectBaseline } from "./support/a11y";
+import { apiDownLabel, screenLabel } from "./support/labels";
 import { SCREENS, SITE, WIDTHS } from "./support/screens";
 import { expect, test } from "./support/test";
 
@@ -24,7 +25,7 @@ for (const width of WIDTHS) {
       await screen.ready(page);
 
       await expect(page).toHaveTitle(screen.title);
-      await expectBaseline(page, `${screen.path} @${width}`);
+      await expectBaseline(page, screenLabel(screen.path, width));
     });
   }
 
@@ -40,6 +41,6 @@ for (const width of WIDTHS) {
     await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
 
     await expect(page).toHaveTitle(SITE);
-    await expectBaseline(page, `/ (API down) @${width}`);
+    await expectBaseline(page, apiDownLabel(width));
   });
 }

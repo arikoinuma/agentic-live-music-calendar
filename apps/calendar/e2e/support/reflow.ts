@@ -8,7 +8,7 @@ import type { Page } from "@playwright/test";
  *
  * TODO(Ari) — Lesson: WCAG 1.4.10 (Reflow): at 320 CSS pixels wide (the width of a
  *   1280px window at 400% zoom) the PAGE must not need a horizontal scrollbar. The venue
- *   rows scroll sideways ON PURPOSE, inside their own regions (B6 plan, D6), so this
+ *   rows scroll sideways ON PURPOSE, inside their own regions (B6-D6), so this
  *   measures the DOCUMENT, not `body` (which `overflow-x: hidden` can hide) and not the
  *   scrollers. Set the viewport BEFORE navigating, so the layout is computed at that width
  *   (the spec does).

@@ -1,5 +1,5 @@
 /**
- * Reflow at phone widths (WCAG 2.2 success criterion 1.4.10; B6 plan, Step 6 and D6).
+ * Reflow at phone widths (WCAG 2.2 success criterion 1.4.10; B6 plan, Step 6 and B6-D6).
  */
 import { expectNoPageReflow } from "./support/reflow";
 import { SCREENS } from "./support/screens";

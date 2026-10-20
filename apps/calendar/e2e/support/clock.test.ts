@@ -1,5 +1,5 @@
 /**
- * The pinned clock must sit inside the sample data's window (B6 plan, D2).
+ * The pinned clock must sit inside the sample data's window (B6-D2).
  *
  * The browser tests pin the Next server's clock to ONE instant (`E2E_NOW`) so the
  * "Today" row is deterministic. That instant is only useful if its date falls

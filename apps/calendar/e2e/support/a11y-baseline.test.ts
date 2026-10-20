@@ -1,5 +1,5 @@
 /**
- * The ratchet's comparison (B6 plan, "The ratchet" and D5), with no browser.
+ * The ratchet's comparison (B6 plan, "The ratchet" and B6-D5), with no browser.
  *
  * A "finding" is one row: how many elements on one page break one accessibility
  * rule. The baseline is the committed list of rows we already know about, and a
@@ -11,7 +11,8 @@
  * bug in the comparison cannot hide behind its own output.
  */
 import { describe, expect, it } from "vitest";
-import { compareToBaseline, type Finding } from "./a11y-baseline";
+import { BASELINE, compareToBaseline, type Finding } from "./a11y-baseline";
+import { ALL_LABELS } from "./labels";
 
 const row = (page: string, ruleId: string, nodes: number): Finding => ({ page, ruleId, nodes });
 
@@ -87,5 +88,19 @@ describe("compareToBaseline", () => {
       added: [["button-name@/ @1280", 2]],
       stale: [["target-size@/ @1280", 6]],
     });
+  });
+});
+
+describe("the committed BASELINE", () => {
+  // Proves: every baseline row belongs to a page label that some spec actually produces.
+  // The comparison only looks at the rows whose label the running test passes in, so a row
+  // whose label no test builds (a screen removed from the list, a width dropped, one side
+  // of a label reworded) would never be compared, never go "stale", and sit in the file
+  // looking like an enforced known problem: exactly the drift the "stale" half exists to
+  // prevent. The labels come from `labels.ts`, the one place the specs build them.
+  it("has no row that no spec exercises", () => {
+    const orphans = BASELINE.filter((row) => !ALL_LABELS.has(row.page)).map((row) => row.page);
+
+    expect(orphans).toEqual([]);
   });
 });

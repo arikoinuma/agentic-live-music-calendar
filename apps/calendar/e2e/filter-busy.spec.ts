@@ -25,6 +25,13 @@ test("a filter change shows the busy state, then settles", async ({ page, stack 
   await expect(page.locator('[aria-busy="true"]')).toHaveCount(1);
   await expect(page.getByText("Updating…")).toBeVisible();
   await expect(page.getByRole("button", { name: "Remove The White Squirrel Bar" })).toBeVisible();
+  // ...and the request is STILL in flight now. Without this the chip assertion above proves
+  // nothing about being optimistic: it retries until the chip appears, and the server's own
+  // new props put it there 1.5 s later, so the test passes whether or not `useOptimistic`
+  // showed it at once. Re-checking `aria-busy` inside a tight bound closes that: the chip was
+  // visible while the page was still waiting. (Review round 1, mutation B6-M11: removing
+  // `setOptimistic(next)` left the unstrengthened test green.)
+  await expect(page.locator('[aria-busy="true"]')).toHaveCount(1, { timeout: 100 });
 
   // Settled.
   await expect(page.getByRole("article")).toHaveCount(8);

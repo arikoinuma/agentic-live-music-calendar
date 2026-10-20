@@ -1,5 +1,5 @@
 /**
- * The accessibility ratchet's data and comparison (B6 plan, "The ratchet", D5).
+ * The accessibility ratchet's data and comparison (B6 plan, "The ratchet", B6-D5).
  *
  * A FINDING is one row: how many elements on one page break one rule. The BASELINE
  * is the committed list of findings we already know about, each tied to the
@@ -58,8 +58,8 @@ export const BASELINE: BaselineEntry[] = [
   { page: "/day/2026-10-07?sort=time @375", ruleId: "target-size", nodes: 2, finding: "B6-F1" },
   { page: "/artist/1 @1280", ruleId: "target-size", nodes: 2, finding: "B6-F1" },
   { page: "/artist/1 @375", ruleId: "target-size", nodes: 2, finding: "B6-F1" },
-  // With a popup open (Step 5). The Month popup leaves the page readable, so F1 shows
-  // through; the two combobox popups mark the rest of the page aria-hidden instead (F2).
+  // With a popup open (Step 5). The Month popup leaves the page readable, so B6-F1 shows
+  // through; the two combobox popups mark the rest of the page aria-hidden instead (B6-F2).
   { page: "/ venues popup open @1280", ruleId: "aria-hidden-focus", nodes: 5, finding: "B6-F2" },
   { page: "/ artists popup open, option highlighted @1280", ruleId: "aria-hidden-focus", nodes: 5, finding: "B6-F2" },
   { page: "/ month popup open @1280", ruleId: "target-size", nodes: 6, finding: "B6-F1" },
@@ -70,7 +70,8 @@ export const BASELINE: BaselineEntry[] = [
   { page: "focus indicators and borders @1280", ruleId: "b6-control-border-3to1", nodes: 2, finding: "B6-F6" },
   // B6-F7: at 375px, tabbing the home page lands on show 2's time link (9:00 PM - 11:30 PM)
   // at the right edge of its venue row, half cut off by the row's own scroll container: the
-  // point at its centre is in the page padding beyond the scroller. Not a sticky heading, and
+  // point at its centre is in the page padding beyond the scroller. Held BY NAME (the stop's own
+  // text is in the rule id) so a different hidden stop cannot hide behind a fix. Not a sticky heading, and
   // WCAG 2.4.11 only fails an ENTIRELY hidden control, but a half-clipped focus is a defect.
-  { page: "tab stops hidden / @375", ruleId: "b6-focus-obscured", nodes: 1, finding: "B6-F7" },
+  { page: "tab stops hidden / @375", ruleId: "b6-focus-obscured: 9:00 PM – 11:30 PM, show details", nodes: 1, finding: "B6-F7" },
 ];

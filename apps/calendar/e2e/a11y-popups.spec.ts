@@ -8,6 +8,7 @@
  * ratchet baseline. Desktop width only: the popups are the same component at every width.
  */
 import { expectBaseline } from "./support/a11y";
+import { POPUP_LABELS } from "./support/labels";
 import { expect, test } from "./support/test";
 
 test.beforeEach(async ({ page }) => {
@@ -21,7 +22,7 @@ test("the Venues popup open has no new accessibility violations", async ({ page 
   await page.getByLabel("Venues").click();
   await expect(page.getByRole("option").first()).toBeVisible();
 
-  await expectBaseline(page, "/ venues popup open @1280");
+  await expectBaseline(page, POPUP_LABELS.venues);
 });
 
 // Proves: the Artists popup with one option HIGHLIGHTED by the keyboard (ArrowDown) is
@@ -34,7 +35,7 @@ test("the Artists popup open, an option highlighted, has no new accessibility vi
   await expect(page.getByRole("option").first()).toBeVisible();
   await page.keyboard.press("ArrowDown");
 
-  await expectBaseline(page, "/ artists popup open, option highlighted @1280");
+  await expectBaseline(page, POPUP_LABELS.artists);
 });
 
 // Proves: the Month select's popup, open, has no accessibility violation beyond the
@@ -44,5 +45,5 @@ test("the Month popup open has no new accessibility violations", async ({ page }
   await page.getByLabel("Month").click();
   await expect(page.getByRole("option").first()).toBeVisible();
 
-  await expectBaseline(page, "/ month popup open @1280");
+  await expectBaseline(page, POPUP_LABELS.month);
 });

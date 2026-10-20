@@ -5,7 +5,7 @@
  * rough shape; no data, no interactivity.
  *
  * The bars are decoration and stay `aria-hidden`. The one thing exposed is a
- * visually hidden status, "Loading shows" (B6 plan D8, finding B6-F5): without it the
+ * visually hidden status, "Loading shows" (B6-D8, finding B6-F5): without it the
  * skeleton had no text at all, so a screen-reader user met nothing while the
  * calendar loaded and a browser test had no role-based way to find it. Be exact about
  * what it buys: it is READABLE if a user goes looking; a live region that is already

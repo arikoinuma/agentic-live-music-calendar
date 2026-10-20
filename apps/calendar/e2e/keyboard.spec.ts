@@ -10,6 +10,7 @@
  */
 import { expectMatchesBaseline } from "./support/a11y";
 import { isFocusObscured } from "./support/focus";
+import { TAB_STOP_PAGES, TAB_STOP_WIDTHS, tabStopsLabel } from "./support/labels";
 import { SCREENS } from "./support/screens";
 import { expect, test } from "./support/test";
 
@@ -17,22 +18,27 @@ import { expect, test } from "./support/test";
 // Focus is never hidden behind the sticky date headings (2.4.11)
 // ---------------------------------------------------------------------------
 
-// Both pages render the calendar grid and its sticky date headings. 1280 is a desktop,
-// 375 a phone (where the sticky heading takes the most room).
-const STICKY_PAGES = ["/", "/venue/1"];
+// The pages and widths are in labels.ts, shared with the baseline's orphan check. Both pages
+// render the calendar grid and its sticky date headings; 1280 is a desktop, 375 a phone
+// (where the sticky heading takes the most room).
 const MAX_STOPS = 300; // the home page has about 160; this only stops a runaway loop
 
-for (const width of [1280, 375]) {
-  for (const path of STICKY_PAGES) {
+for (const width of TAB_STOP_WIDTHS) {
+  for (const path of TAB_STOP_PAGES) {
     // Proves: tabbing from the top of the page to the end never lands on a control that is
     // hidden at its centre behind something else (WCAG 2.4.11; the requirement says
     // visible focus "not covered by sticky headers"). The calendar has sticky date
     // headings, so a link scrolled to the top edge could sit under one. The visited
-    // order is attached to the report as the evidence for 2.4.3 (Focus Order). The stops
-    // that ARE hidden are held to the ratchet baseline: one is known (finding B6-F7: at
-    // 375px a time link at the right edge of a venue row is half cut off by the row's own
-    // scroll container), so a NEW hidden stop, such as one under a sticky heading, fails.
-    test(`no Tab stop is hidden under a sticky heading on ${path} @${width}`, async ({ page }) => {
+    // order is attached to the report as the evidence for 2.4.3 (Focus Order), and the page
+    // URL is checked at the end because merely FOCUSING about 160 controls must change
+    // nothing (3.2.1, On Focus). The stops that ARE hidden are held to the ratchet baseline
+    // BY NAME, each stop its own finding: one is known (B6-F7: at 375px a time link at the
+    // right edge of a venue row is half cut off by the row's own scroll container), so a
+    // DIFFERENT hidden stop, such as one under a sticky heading, fails even in the same
+    // change that fixes B6-F7.
+    test(`no Tab stop is newly hidden, under a sticky heading or anything else, on ${path} @${width}`, async ({
+      page,
+    }) => {
       const screen = SCREENS.find((s) => s.path === path)!;
       await page.setViewportSize({ width, height: 700 });
       await page.goto(path);
@@ -55,8 +61,17 @@ for (const width of [1280, 375]) {
       await test.info().attach(`tab order: ${path} @${width}`, { body: visited.join("\n"), contentType: "text/plain" });
       expect(visited.length, "the page has far more than ten Tab stops").toBeGreaterThan(10);
       await test.info().attach(`hidden tab stops: ${path} @${width}`, { body: hidden.join("\n"), contentType: "text/plain" });
-      const label = `tab stops hidden ${path} @${width}`;
-      expectMatchesBaseline(label, hidden.length > 0 ? [{ page: label, ruleId: "b6-focus-obscured", nodes: hidden.length }] : []);
+      await expect(page, "focusing controls must not navigate (WCAG 3.2.1)").toHaveURL(path);
+
+      // One finding per hidden stop NAME (and how many times that name was hidden), so the
+      // baseline says WHICH stop is known, not just how many.
+      const label = tabStopsLabel(path, width);
+      const byName = new Map<string, number>();
+      for (const name of hidden) byName.set(name, (byName.get(name) ?? 0) + 1);
+      expectMatchesBaseline(
+        label,
+        [...byName].map(([name, nodes]) => ({ page: label, ruleId: `b6-focus-obscured: ${name}`, nodes })),
+      );
     });
   }
 }

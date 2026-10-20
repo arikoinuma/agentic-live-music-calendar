@@ -1,5 +1,5 @@
 /**
- * The one instant the end-to-end suite pins the Next server's clock to (B6 plan, D2).
+ * The one instant the end-to-end suite pins the Next server's clock to (B6-D2).
  *
  * Why pinned: the home page marks the row for "today" (`aria-current="date"` and a
  * "Today" badge), and "today" is decided by the Next SERVER's clock in the metro's

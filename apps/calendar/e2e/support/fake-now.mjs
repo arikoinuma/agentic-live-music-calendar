@@ -7,7 +7,7 @@
  *
  * TODO(Ari) — Lesson: Server Components run on the Next SERVER, so which row says
  *   "Today" is decided by the server's clock. Playwright's `page.clock` fakes only
- *   the BROWSER's clock and cannot reach it (B6 plan, K1). The pin therefore goes on
+ *   the BROWSER's clock and cannot reach it (B6-K1). The pin therefore goes on
  *   the server process, as this preload, and it patches `Date.now` and ONLY
  *   `Date.now`: the Temporal polyfill reads `Date.now()` for `Temporal.Now`, so one
  *   line is enough, and replacing or subclassing `Date` crashes the app at import
@@ -24,9 +24,13 @@
  * throw in a preload kills the Next process, and with it every browser test, so one
  * open gap would redden the whole suite. home.spec.ts is the loud part.
  */
-// The lint disable below goes away with the gap: once `Date.now = () => FROZEN` is
-// written, FROZEN is used.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const FROZEN = Date.parse(process.env.E2E_FROZEN_NOW);
+
+// Fail LOUDLY at startup if the pin is missing or not a date. Otherwise `Date.now()` would
+// return NaN once the gap below is written, `Temporal.Now` would throw on every page, and
+// the whole suite would go red far from the cause.
+if (Number.isNaN(FROZEN)) {
+  throw new Error(`E2E_FROZEN_NOW must be an ISO instant (see e2e/support/clock.ts); got ${process.env.E2E_FROZEN_NOW}`);
+}
 
 // The gap goes here.

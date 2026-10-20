@@ -96,6 +96,13 @@ export const test = base.extend<{ stack: Stack }>({
     await expect
       .poll(() => inFlight.size, { timeout: 5_000, message: "requests still in flight at test end" })
       .toBe(0)
-      .catch(() => {});
+      .catch(() => {
+        // Do not fail the test, but leave a trace: a request that is still going after five
+        // seconds is itself worth knowing about, and would otherwise be invisible.
+        test.info().annotations.push({
+          type: "requests still in flight at teardown",
+          description: [...inFlight].map((r) => r.url()).join("\n"),
+        });
+      });
   },
 });

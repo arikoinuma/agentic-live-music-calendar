@@ -84,10 +84,18 @@ async function clipAround(area: Locator, pad: number) {
  * The indicator is the set of pixels that CHANGE between a screenshot taken before and one
  * taken after focusing the control: exactly what focus adds, whether a ring, an outline or a
  * border colour, and nothing else (the control's own text and underline are in both shots).
- * The result is the strongest contrast, against the page background, of any pixel it added.
  * (WCAG 1.4.11 asks 3:1 of the visual information that identifies a focused component.)
  * `area` is the box to photograph when it is not the focused element itself, such as the
  * wrapper that draws a combobox's ring while its inner input holds focus.
+ *
+ * Two guards keep a change nobody can see from counting as an indicator (code review round
+ * 1 of B6 found the first version, "the strongest changed pixel against the page", crediting
+ * both). Each changed pixel is scored by the LOWER of its contrast with the page background
+ * and its contrast with the pixel it replaced: text going from #000 to #222 is "high contrast"
+ * against a white page but 1.1:1 against what it replaced, so it scores 1.1. And the result is
+ * the score that an outline's worth of pixels reaches (one pixel around the control's box,
+ * the smallest outline, less 10% for rounded corners): a speck of a few maximum-contrast pixels outlines nothing and
+ * reads as 1:1. `changedPixels` is how many pixels changed at all.
  */
 export async function measureFocusIndicator(
   page: Page,
@@ -96,25 +104,29 @@ export async function measureFocusIndicator(
 ): Promise<{ changedPixels: number; ratio: number }> {
   await target.evaluate((el) => (el as HTMLElement).blur());
   await page.mouse.move(0, 0); // no hover: it would be a second thing that changes
-  const { clip } = await clipAround(area, 8);
+  const { clip, box } = await clipAround(area, 8);
 
   const before = await readPixels(page, clip);
   await target.focus();
   const after = await readPixels(page, clip);
 
   const background: Pixel = [before.data[0]!, before.data[1]!, before.data[2]!];
-  let changedPixels = 0;
-  let ratio = 1;
+  const scores: number[] = [];
   for (let i = 0; i < before.data.length; i += 4) {
-    const same =
-      before.data[i] === after.data[i] &&
-      before.data[i + 1] === after.data[i + 1] &&
-      before.data[i + 2] === after.data[i + 2];
-    if (same) continue;
-    changedPixels++;
-    ratio = Math.max(ratio, contrastRatio([after.data[i]!, after.data[i + 1]!, after.data[i + 2]!], background));
+    const was: Pixel = [before.data[i]!, before.data[i + 1]!, before.data[i + 2]!];
+    const now: Pixel = [after.data[i]!, after.data[i + 1]!, after.data[i + 2]!];
+    if (was[0] === now[0] && was[1] === now[1] && was[2] === now[2]) continue;
+    scores.push(Math.min(contrastRatio(now, background), contrastRatio(now, was)));
   }
-  return { changedPixels, ratio };
+
+  // The least that could outline the control: a one-pixel ring around its box has
+  // 2 * (width + height) - 4 pixels, and rounded corners (these controls have them) leave
+  // the corner pixels half-painted, so ask for 90% of that. Without the allowance a thin
+  // full-strength border that fills the perimeter to within a few corner pixels is
+  // counted or not by luck.
+  const outline = Math.ceil(0.9 * (2 * (box.width + box.height) - 4));
+  scores.sort((a, b) => b - a);
+  return { changedPixels: scores.length, ratio: scores.length >= outline ? scores[outline - 1]! : 1 };
 }
 
 /**

@@ -11,11 +11,12 @@ import { describe, expect, it } from "vitest";
 import { CalendarSkeleton } from "./calendar-skeleton";
 
 describe("CalendarSkeleton", () => {
-  // Proves: the skeleton says it is loading, in text, as a status. This is what a
+  // Proves: the skeleton exposes a "Loading shows" status, in text. This is what a
   // screen-reader user can find while the calendar streams in, and what the browser
-  // test (skeleton.spec.ts) locates it by. Fails if the status text is removed or
-  // the whole component goes back to being aria-hidden.
-  it("announces that shows are loading", () => {
+  // test (skeleton.spec.ts) locates it by. It does not promise an ANNOUNCEMENT: whether a
+  // screen reader speaks it unprompted is a manual-pass question (B6-D8). Fails if the
+  // status text is removed or the whole component goes back to being aria-hidden.
+  it("exposes a 'Loading shows' status", () => {
     render(<CalendarSkeleton />);
 
     expect(screen.getByRole("status")).toHaveTextContent("Loading shows");
@@ -27,8 +28,10 @@ describe("CalendarSkeleton", () => {
   it("keeps the decorative bars out of the accessibility tree", () => {
     const { container } = render(<CalendarSkeleton />);
 
-    const bars = container.querySelector(".animate-pulse");
-    expect(bars).not.toBeNull();
-    expect(bars).toHaveAttribute("aria-hidden", "true");
+    // Found by the ARIA state, not by a class: `aria-hidden` is what assistive technology
+    // reads (the same exception the browser suite makes for `aria-busy`).
+    const hidden = container.querySelectorAll('[aria-hidden="true"]');
+    expect(hidden.length).toBeGreaterThan(0);
+    expect(screen.getByRole("status").closest('[aria-hidden="true"]')).toBeNull();
   });
 });
