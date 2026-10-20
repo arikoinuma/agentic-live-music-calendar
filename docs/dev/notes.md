@@ -539,6 +539,10 @@ Chromium reports `9:00 PM – 11:30 PM , show details` (a space before the comma
 **While a combobox popup is open, the whole page behind it is `aria-hidden`** (Base UI marks everything outside the popup;
 finding B6-F2), so `getByRole` finds nothing there and a screen reader cannot read it. A multi-select's popup stays open
 after a pick: press Escape before asserting on the page.
+Cause (B6 Step 8): Base UI 1.7.0 forces the popup modal when the combobox's input is outside it (`focusManagerModal =
+!inputInsidePopup || modal`), so the `modal` prop does nothing for our layout, and its focus manager `aria-hidden`s everything
+else while the popup is open. Tab is not trapped: focus moves on into the page and the popup stays open. The only way to
+remove the flag is the "input inside the popup" pattern, a different control.
 
 **A test that ends mid-prefetch makes Next log `⨯ Error: The destination stream closed early.`** A production page
 prefetches the pages its links point to as streamed responses; closing the browser on one makes React abort that render

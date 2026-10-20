@@ -1,6 +1,6 @@
 # B6 — accessibility and end-to-end tests
 
-**Status:** Awaiting sign-off (code review round 1 resolved; Ari's findings gate, the three `TODO(Ari)` gaps and the manual pass remain)
+**Status:** Awaiting sign-off (Step 8 done for F1 and F3; F2 awaits Ari's decision, F7 awaits his mark; the three `TODO(Ari)` gaps and the manual pass remain)
 **Date:** October 19, 2026
 **Author model:** Claude Sonnet 5.5
 **Reviewer model:** Claude Opus 5.5 (plan review round 1; code review round 1)
@@ -716,4 +716,35 @@ Rejected: #10 (a build-only tsconfig is more to maintain than the risk it remove
 **Verification:** as in the line above ("Test-suite result after the fixes").
 
 **Where to look hardest:** (1) the focus measurement's 90% allowance and the rule "lower of two contrasts" (`e2e/support/focus.ts`): the F3 numbers moved with it (1.54 to 2.58 became 1.54 to 2.05), and the baseline holds counts, so a ring near 3:1 is now sensitive to both choices; (2) F7 is still undiagnosed; (3) the CI job has still never run.
+
+### Round 4 — Step 8, the fix round (Claude Sonnet 5.5, October 20, 2026)
+
+**Ari's marks (October 20, 2026):** F1, F2 and F3 accepted as proposed (fix); **F4 not addressed** (Ari tried to reproduce the "partially obscured" state and could not); **F6 is a nit** (logged, keeps its baseline row); F5 was already fixed by D8. **F7 was not marked**, so it is untouched.
+
+**Scope:** commits `02839e6` (F1) and `88ec40d` (F3), plus the F2 documentation commit, on top of `e488a1d`. One commit per finding, test first: each finding's baseline rows were deleted, the scans went red, the fix turned them green.
+
+| ID | Mark | Outcome |
+|---|---|---|
+| B6-F1 | fix | **Fixed** (`02839e6`). `show-block.tsx`: the lineup artist link is `inline-block py-1`, the pattern the day view's show links already use. Deleting the 9 F1 baseline rows turned 9 scans red; with the fix 41 of 41 scans and lineup-reading journeys pass. Only multi-act lineups were flagged (single links have enough spacing) |
+| B6-F2 | fix | **Investigated, not fixed; needs Ari's decision.** Cause found in the source: Base UI 1.7.0 forces a combobox popup modal when the input is outside it (`focusManagerModal = !inputInsidePopup \|\| modal`, `ComboboxPopup.js:111`), so the `modal` prop does nothing for our layout, and its focus manager `aria-hidden`s everything else while the popup is open (`FloatingFocusManager.js:345`), leaving focusable links inside hidden regions. No supported switch exists. Probed: **Tab is not trapped** (focus moves to the Month select and on into the calendar, and the focused elements are not `aria-hidden`), so the practical impact looks small. Options: (a) accept as upstream behaviour and document it (done: baseline comment, `notes.md`; the two baseline rows stay); (b) change the pickers to the "input inside the popup" pattern, a different control and a design decision of its own; (c) exclude the rule in the popup scans (hides the finding; not recommended). Recommendation: (a) now, revisit if Base UI adds an option |
+| B6-F3 | fix | **Fixed** (`88ec40d`). `globals.css`: `--ring` darkened from `oklch(0.708 0 0)` (2.58:1) to `oklch(0.556 0 0)` (the dark theme's own value, 4.74:1), and the global outline is `outline-ring` at full strength, not shadcn's `outline-ring/50`, which painted links at 1.54:1. All six measured controls are now **4.74:1** (from 1.54 to 2.58). The F3 baseline row is deleted. Confirmed the instrument still flags the original CSS |
+| B6-F4 | not addressed | Left in the log. Ari could not reproduce the state; hit-testing found nothing covering the links either |
+| B6-F5 | n/a | Fixed in round 1 by D8 |
+| B6-F6 | nit | Logged; the baseline row stays (`b6-control-border-3to1`, 2 controls, 1.26:1) |
+| B6-F7 | **unmarked** | Untouched. Still proposed should-fix, cause unknown; needs Ari's mark |
+
+**The measuring instrument changed during F3, twice, and no second model has seen it.** Be sceptical of it.
+1. The code review's version scored each changed pixel by the *lower* of its contrast with the page and with the pixel it replaced. With F3's fix, the Month select's border (faint grey to a 4.74:1 dark one) read 2.47:1, because the old and new border differ by only 2.47:1. That is the AAA same-pixel idea of 2.4.13, not what AA's 1.4.11 asks (indicator against the page). It now counts a pixel only if it is *visibly* different from what it replaced (`VISIBLE_CHANGE` 1.5:1, a floor that separates a real change from the reviewer's #000-to-#222 no-op at 1.1:1) and scores it against the page.
+2. The area bar was 90% of a one-pixel ring, which a real rounded border (about 85% solid) missed by a few pixels (the Month select read 2.92:1 for that reason). It is now **half** a one-pixel ring: a speck is about 4 pixels and a ring hundreds, so the bar sits well inside the gap.
+The self-tests still pass (a black outline about 21:1, no focus style reads nothing, a pale ring about 1.6:1, a text colour change and a speck both do not count), and the original CSS still reads all six below 3:1. The 1.5 floor and the one-half bar are judgement calls, not WCAG numbers.
+
+**`TODO(Ari)` gaps:** still all three open; no gap was filled on the branch.
+
+**Verification** (Node 22.22.0, `E2E_CHROMIUM_PATH=/opt/pw-browsers/chromium`)
+- `make check`: exit 2, red only through the three open gaps: ruff clean, ESLint zero warnings, typecheck passed, pytest 669 passed and 15 skipped, Vitest 352 passed, contract current, e2e **62 passed, 35 failed** (the same 1 + 4 + 30, all `TODO(Ari)` or the Today row on the real clock), no `destination stream closed early` line.
+- Gaps filled in a fresh throwaway worktree (removed afterwards): **97 of 97 green** on the fixed code, so the colour change broke no scan or journey.
+
+**Not verified:** the three fixes by eye (the plan's manual pass should now look at the focus rings and the lineup links); that `py-1` on lineup links looks right in a real browser; the CI job (still never run).
+
+**Where to look hardest:** the instrument changes above (their only review is mine); the F2 conclusion (read from source and one Tab probe, not tested in a screen reader); and that darkening `--ring` also changes every `border-ring` and `ring-ring/50` in `packages/ui` (the form controls' focus look), which the scans cannot judge.
 
