@@ -11,7 +11,7 @@ import { contrastRatio, type Rgb } from "./contrast";
 /**
  * Is the element that currently has keyboard focus covered at its centre by something else?
  *
- * TODO(Ari) — Lesson: WCAG 2.4.11 (Focus Not Obscured, minimum, new in 2.2): a focused
+ *   WCAG 2.4.11 (Focus Not Obscured, minimum, new in 2.2): a focused
  *   control must not be ENTIRELY hidden by author-created content, here the sticky date
  *   headings (requirements-initial.md: "not covered by sticky headers"). Playwright's
  *   `toBeVisible()` and `toBeInViewport()` ignore overlap, so ask the browser what is on
@@ -20,24 +20,17 @@ import { contrastRatio, type Rgb } from "./contrast";
  *   the definition; if it ever goes red at 375px for a control that is partly visible, Ari
  *   decides whether to loosen it. Read it after the Tab keypress has resolved, which is
  *   after the browser has scrolled the control into view.
- * Code:
- *   return page.evaluate(() => {
- *     const el = document.activeElement as HTMLElement;
- *     const r = el.getClientRects()[0] ?? el.getBoundingClientRect();
- *     const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
- *     return !(top && (top === el || el.contains(top)));
- *   });
+ * 
  *   `getClientRects()[0]` is the first line box: a wrapped inline link's bounding-box centre
  *   can fall between its lines and report a false "obscured".
- * Check: `pnpm --filter calendar exec playwright test e2e/keyboard.spec.ts -g "sticky"`: 4
- *   tests, red until this is written, green on the real pages. (Written strictly as above, it
- *   once reported a link half cut off by its venue row's scroll container at 375px; that was
- *   finding B6-F7, fixed by `ScrollRow`, and the baseline now holds no hidden stop.) Likeliest
- *   mistakes: `toBeVisible()`; accepting `top.contains(el)` (a covering ANCESTOR then passes).
  */
 export async function isFocusObscured(page: Page): Promise<boolean> {
-  void page;
-  throw new Error("TODO(Ari)");
+  return page.evaluate(() => {
+    const el = document.activeElement as HTMLElement;
+    const r = el.getClientRects()[0] ?? el.getBoundingClientRect();
+    const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return !(top && (top === el || el.contains(top)));
+  });
 }
 
 /** A colour read from a screenshot: what is painted, not what the CSS says. */
