@@ -1,6 +1,6 @@
 # A6 — commit
 
-**Status:** Awaiting sign-off
+**Status:** Done (Ari sign off) - Oct 20, 2026
 **Date:** October 19, 2026 (plan); October 20, 2026 (decisions, implementation)
 **Author model:** Claude Sonnet 5.5 (plan and plan-review resolution, October 19 to 20, 2026; implementation, October 20, 2026)
 **Reviewer model:** Claude Opus 5.5 (plan review round 1, October 19, 2026; round 2, targeted at D2 and K2, October 20, 2026; code review round 1, October 20, 2026); Claude Opus 5.5 (plan review round 2, targeted at D2 / K2, October 20, 2026); Claude Opus 5.5 (code review round 1, October 20, 2026)
@@ -797,6 +797,13 @@ build plan's gate for schema changes is "their own early PR".
 accept a different gap placement. Also veto-or-accept the Settled details, in particular the two the review corrected:
 removals-last (it helps a run that stops, not one that carries on) and the SQLSTATE rule for what counts as one show's failure.
 
+**Ari, October 20, 2026: signed off. A6 is Done.** Ari filled the two key points himself (A6-K1 and A6-K2, commit `5204c38`, whose message
+says A5 by mistake), looked over the key parts of the code and ran the local verification (Verification steps 6 to 10: Postgres,
+MongoDB and Ollama), which found everything in order. Plan review rounds 1 and 2 (19 findings) and code review round 1 (7
+findings) are all resolved. The scaffold was cleaned up on October 20 (Implementation log round 3). Not verified, and not claimed:
+concurrent workers on one venue, a stale plan overwriting a human edit (there are none yet), and revert itself (only that a snapshot
+suffices); the artist-match thresholds still wait for A8.
+
 ## Plan review
 
 ### Round 1 — Claude Opus 5.5, October 19, 2026
@@ -1063,6 +1070,23 @@ failing-test check first: the `ShowGone` test and the half-cent price were run a
 
 **Where to look hardest.** The corrected `-k` selections (do they select what the gap's lesson names?), and `failure_for`'s single
 branch.
+
+### Round 3 — Claude Sonnet 5.5, October 20, 2026 (Ari's fills; cleanup of the closed gaps)
+
+**What arrived.** Ari filled A6-K1 and A6-K2 in `calendar_writer.py` (commit `5204c38`; it also removed the `audit_row` import's
+suppression, as K1's block said). His code is the plan's `Code:` block for each, line for line. With it the suite is **868 passed,
+15 skipped**, ruff clean, the number the scratch copy gave with the gaps filled.
+
+**Cleanup pass (`AGENTS.md` "[fill-in] tasks" step 4).** The two lesson blocks, which Ari's commit had partly stripped, were rewritten
+as plain why-comments in the style of their neighbours: the `Lesson`/`Code`/`Check` labels, the test-command pointers and the "likeliest
+mistake" lists are gone, and the reasoning (why the audit rows share the transaction, why `previous` is read before the change, why
+nothing outlives the transaction but the return value, why SQLSTATE and not the Python class, why never `except Exception`) is kept as
+sentences of rationale with the plan references (`A6-K1`, `A6-K2`, `A6-D2`). **Comment-only, verified as such:** syntax trees (docstrings
+stripped) identical before and after. No placeholder helper existed to delete, and no `noqa` remained.
+
+**Verification.** `make check` end to end: **exit 0**. Python 868 passed, 15 skipped; JS 337 passed; ruff, mypy (`app/`), eslint, tsc,
+`make contract-check` and `make designation-check` clean. Both gaps are filled (by Ari) and cleaned; no `TODO(Ari)` remains in the A6
+files. Verification steps 6 to 10 (local: Docker, Ollama) were run by Ari.
 
 ## Code review
 

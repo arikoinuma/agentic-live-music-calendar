@@ -160,14 +160,14 @@ class PostgresCalendarWriter:
     async def write_show(
         self, op: ShowOp, artist_ids: Mapping[str, int], *, run_id: int | None, attempt_number: int
     ) -> ShowWritten:
-        #   A write and its record are ONE unit (a6-commit.md, A6-K1; arch-initial.md §7). The audit
-        #   rows go in the SAME session and transaction as the change, so they commit or roll back together: a rolled-back
-        #   show leaves no audit row, and a committed one can't lose its record. The snapshots are taken in a deliberate
-        #   order: `previous` BEFORE the change (the ORM hands back the same, mutated object after it), `new` AFTER the
-        #   flush (so it holds what the database holds). They are what a future revert restores (data-model-initial.md §3).
-        #   And nothing outlives the transaction except the return value: the artists this show created go back only in
-        #   `ShowWritten`, and the lineup uses a fresh merge `{**artist_ids, **created}`, never a write into the caller's
-        #   map or a cache on the writer (an id remembered from a transaction that rolls back is a lie the next show links to).
+        # A write and its record are one unit (a6-commit.md, A6-K1; arch-initial.md §7): the audit rows are added to this same
+        # session and transaction as the change, so they commit or roll back together. A rolled-back show leaves no audit
+        # row, and a committed one can't lose its record. The snapshots are taken in a deliberate order: `previous` before
+        # the change (afterwards the ORM hands back the same, mutated object) and `new` after the flush, so it holds what
+        # the database holds. They are what a future revert restores (data-model-initial.md §3). Nothing outlives the
+        # transaction except the return value: the artists this show created go back only in `ShowWritten`, and the
+        # lineup uses a fresh merge, `{**artist_ids, **created}`, never a write into the caller's map or a cache on the
+        # writer, because an id remembered from a transaction that later rolls back is a lie the next show would link to.
         async with self._session_factory() as session, session.begin():
             created = await self._create_artists(session, op, artist_ids)
             previous = await self._snapshot(session, op.stored_id, lock=True) if op.stored_id is not None else None
@@ -275,13 +275,13 @@ async def write_plan(
     tally = {"inserted": 0, "updated": 0, "removed": 0}
     failures: list[ShowFailure] = []
     for op in ops:
-        #   A failure about ONE show is not a reason to stop, and a failure about the RUN is, and the
-        #   line between them is what the DATABASE says about this row, not which Python class the driver raised (a6-commit.md,
-        #   A6-K2, A6-D2). SQLSTATE class 22 (a data exception: the overflow) and 23 (an integrity violation) are about the
-        #   row; a lost connection, or a bug in our code, must propagate. `is_decision_error` (written) holds that rule, so the
-        #   `except` clause names the broad types and re-raises when the rule says no: never `except Exception`
-        #   (apps/api/AGENTS.md), and never `except SQLAlchemyError` that swallows a dead connection. The artist map is
-        #   extended only from what `write_show` returned, after the write, so a failed show contributes nothing to it.
+        # A failure about one show is not a reason to stop, and a failure about the run is (a6-commit.md, A6-K2, A6-D2).
+        # The line between them is what the database says about this row, not which Python class the driver raised: SQLSTATE
+        # class 22 (a data exception, such as the overflow) and 23 (an integrity violation) are about the row, while a lost
+        # connection or a bug in our code must propagate. `is_decision_error` holds that rule, so the `except` clause names the
+        # broad types and re-raises when the rule says no: never `except Exception` (apps/api/AGENTS.md), and never
+        # `except SQLAlchemyError`, which would swallow a dead connection. The artist map is extended only from what
+        # `write_show` returned, after the write, so a failed show contributes nothing to it.
         try:
             written = await writer.write_show(op, artist_ids, run_id=run_id, attempt_number=attempt_number)
         except (DBAPIError, ShowGone) as err:
