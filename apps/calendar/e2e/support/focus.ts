@@ -11,18 +11,17 @@ import { contrastRatio, type Rgb } from "./contrast";
 /**
  * Is the element that currently has keyboard focus covered at its centre by something else?
  *
- *   WCAG 2.4.11 (Focus Not Obscured, minimum, new in 2.2): a focused
- *   control must not be ENTIRELY hidden by author-created content, here the sticky date
- *   headings (requirements-initial.md: "not covered by sticky headers"). Playwright's
- *   `toBeVisible()` and `toBeInViewport()` ignore overlap, so ask the browser what is on
- *   top AT THE CONTROL'S CENTRE. That is stricter than the criterion (a control whose
- *   centre is covered but whose corner shows still passes 2.4.11): a sufficient check, not
- *   the definition; if it ever goes red at 375px for a control that is partly visible, Ari
- *   decides whether to loosen it. Read it after the Tab keypress has resolved, which is
- *   after the browser has scrolled the control into view.
- * 
- *   `getClientRects()[0]` is the first line box: a wrapped inline link's bounding-box centre
- *   can fall between its lines and report a false "obscured".
+ * WCAG 2.4.11 (Focus Not Obscured, minimum, new in 2.2, B6-K2): a focused control must not
+ * be ENTIRELY hidden by author-created content, here the sticky date headings
+ * (requirements-initial.md: "not covered by sticky headers"). Playwright's `toBeVisible()`
+ * and `toBeInViewport()` ignore overlap, so this asks the browser what is on top AT THE
+ * CONTROL'S CENTRE. That is stricter than the criterion (a control whose centre is covered
+ * but whose corner shows still passes 2.4.11): a sufficient check, not the definition; if it
+ * ever goes red for a control that is partly visible, loosen it deliberately. Call it after
+ * the Tab keypress has resolved, which is after the browser has scrolled the control into view.
+ *
+ * `getClientRects()[0]` is the first line box: a wrapped inline link's bounding-box centre
+ * can fall between its lines and report a false "obscured".
  */
 export async function isFocusObscured(page: Page): Promise<boolean> {
   return page.evaluate(() => {

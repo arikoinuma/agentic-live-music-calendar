@@ -1,6 +1,6 @@
 # B6 — accessibility and end-to-end tests
 
-**Status:** Awaiting sign-off (Step 8 done: F1, F3 and F7 fixed, F2 accepted, F4 and F6 left; the three `TODO(Ari)` gaps, the manual pass and a decision on a further review round remain)
+**Status:** Code review
 **Date:** October 19, 2026
 **Author model:** Claude Sonnet 5.5
 **Reviewer model:** Claude Opus 5.5 (plan review round 1; code review round 1)
@@ -786,4 +786,35 @@ The self-tests still pass (a black outline about 21:1, no focus style reads noth
 **Where to look hardest:** that `ScrollRow` only changes behaviour on focus (no scroll position changes at load or on pointer events); that it fires for *mouse* focus too (a click on a partly visible link scrolls the row before navigating; harmless, but not what the keyboard fix strictly needs); and that the `closest("section")` assumption (a column is a `<section>`) will break silently if `calendar-grid.tsx` changes its column element (the e2e journey would then go red).
 
 **Finding status after Step 8:** F1 fixed, F2 accepted (upstream), F3 fixed, F4 not reproduced and not addressed, F5 fixed (D8), F6 nit (kept), F7 fixed.
+
+### Round 6 — Ari's gap fills, the scaffold cleanup, and the scope for code review round 2 (Claude Sonnet 5.5, October 20, 2026)
+
+**What happened:** Ari filled the three `TODO(Ari)` gaps (commit `72cd2b3`, October 20, 2026) and did his own checks. His fills equal the plan's code for each (K1 `Date.now = () => FROZEN;`, K2 the `elementFromPoint` predicate, K3 the `documentElement` width comparison), and he took the Lesson/Code/Check blocks out of the three files himself. A Claude pass then removed the residue (a stray "The gap goes here." comment, a comment saying "once the gap below is written", loose label text, a stray blank comment line, one missing semicolon on an import), as `AGENTS.md` ("[fill-in] tasks", step 4) asks. **Verified comment-only:** each of `fake-now.mjs`, `focus.ts` and `reflow.ts` compiles to identical code (comments removed) before and after; lint and typecheck clean; `make check` below.
+
+**Scope for code review round 2:** `git diff e488a1d` (the commit that closed code review round 1) on `claude/sharp-euler-uoi339`. That is Step 8 and what followed, none of it second-model reviewed:
+
+| Commit | What |
+|---|---|
+| `02839e6` | F1: lineup artist links `inline-block py-1` (`show-block.tsx`); 9 F1 baseline rows deleted |
+| `88ec40d` | F3: `--ring` darkened and the global outline full strength (`globals.css`); the F3 row deleted; **two refinements to the focus measurement** (`e2e/support/focus.ts`) |
+| `8e0243a` | F2 cause documented (baseline comment, `notes.md`), Round 4 log |
+| `f07084a` | F7: `ScrollRow` (`app/_components/scroll-row.tsx`, its unit test, the Playwright journey in `keyboard.spec.ts`, `calendar-grid.tsx` uses it); the F7 baseline row deleted |
+| `0e17dd9` | Round 5 log, build plan |
+| `72cd2b3` | **Ari's** gap fills and a `.gitignore` tweak (adds `test-results/` under "Testing"; Step 1 had already ignored it, so the entry is now listed twice, harmless) |
+| (this round) | the scaffold cleanup, comment-only |
+
+Review the three filled gaps as ordinary code now (none is open). Earlier rounds' findings (plan review round 1, code review round 1) are resolved and need not be re-reviewed except where Step 8 changed what they covered.
+
+**`TODO(Ari)` gaps:** **all three filled by Ari** (K1, K2, K3).
+
+**Verification** (Node 22.22.0, `E2E_CHROMIUM_PATH=/opt/pw-browsers/chromium`)
+- `make check` on Ari's commit `72cd2b3`: **exit 0**, fully green: ruff clean, ESLint zero warnings, typecheck passed, pytest 669 passed and 15 skipped, Vitest 355 passed, contract current, e2e **100 of 100 passed**, no `destination stream closed early` line, nothing left on 8101, 8102 or 3100. (The 35 tests that were red while the gaps were open are green.)
+- After the cleanup pass, on the final tree: **`make check` exit 0**, the same totals (pytest 669 passed and 15 skipped, Vitest 355 passed, contract current, e2e 100 of 100), nothing left on 8101, 8102 or 3100.
+
+**Where to look hardest** (the reviewer should weigh these, because no other model has):
+1. **The focus measurement** (`e2e/support/focus.ts`, `measureFocusIndicator`): the `VISIBLE_CHANGE` floor (1.5:1) and the half-of-a-one-pixel-ring area bar are judgement calls made while fixing F3, after the first version failed on a real border. Do they let a bad indicator through, or fail a good one? The self-tests in `focus-indicator.spec.ts` are the evidence, and the original CSS still reads all six below 3:1.
+2. **`ScrollRow`**: fires on every focus event that bubbles from the row (mouse and keyboard), assumes a column is a `<section>`, and its unit tests stub every rectangle (jsdom has no layout). Does it ever scroll when it should not, or fight the browser's own scrolling in a browser that scrolls correctly?
+3. **The F3 token change**: `--ring` also drives `border-ring` and `ring-ring/50` on every form control in `packages/ui`; the scans cannot judge how they look.
+4. **The F2 conclusion** (accepted as upstream): read from Base UI's source plus one Tab probe.
+5. The CI `e2e` job has still never run.
 
