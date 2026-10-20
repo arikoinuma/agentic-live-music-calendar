@@ -1,7 +1,7 @@
 """Tests that the real compiled graph writes the audit trail and the staging records.
 
 Milestone A4 (docs/dev/implementations/a4-auditability.md, Test approach §2). The graph is the real one
-(`compiled_graph`), the model is `fakes.ScriptedClient`, and the stores are the recording fakes
+(`compiled_graph`), the model is `fakes.scripted_client()`, and the stores are the recording fakes
 (`fakes.RecordingAudit`, `fakes.RecordingStager`), so no Postgres or MongoDB is involved. What these prove is
 the wiring: every node's run is followed by one audit row, every extract attempt (failed ones too) by one
 staging document, retries add rows instead of replacing them, and a store that fails stops the run.

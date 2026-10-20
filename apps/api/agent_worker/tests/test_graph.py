@@ -4,7 +4,7 @@ Milestone A3 (docs/dev/implementations/a3-validation-and-retry.md, "test_graph.p
 decision on its own; these prove the pieces are wired so that a failure becomes a retry, a retry
 becomes a different request, and a cap becomes an escalation — end to end through `compiled_graph`,
 with no model server and no network. The page is a file in `tmp_path` (fetch_node's local-file branch)
-and the model is `fakes.ScriptedClient`, swapped in for `nodes.instructor_client`.
+and the model is `fakes.scripted_client()`, swapped in for `nodes.instructor_client`.
 
 How to read it: each test names the situation (a model call that raises, an empty page, a bad record at
 high confidence…), scripts what the model returns on each call, runs the graph, and asserts on the
