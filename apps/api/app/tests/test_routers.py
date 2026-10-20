@@ -129,8 +129,8 @@ def test_artist_filter_matches_anywhere_in_the_lineup() -> None:
 
 def test_shows_are_ordered_by_date_then_time() -> None:
     # Proves: /shows returns shows ordered by date, then start time, with a show that has no time after the timed ones on
-    # its date. That is the router's own rule, which A1b's ORDER BY must keep. The expected order is the response sorted by
-    # that key, so this checks order only.
+    # its date. That is the router's own rule (`shows._ordering`'s docstring explains why), which A1b's ORDER BY must
+    # keep. The expected order is the response sorted by that key, so this checks order only.
     shows = client.get("/shows").json()["shows"]
     keys = [(s["date"], s["start_time"] is None, s["start_time"] or "") for s in shows]
     assert keys == sorted(keys)
@@ -144,8 +144,9 @@ def test_shows_are_ordered_by_date_then_time() -> None:
     ],
 )
 def test_invalid_ranges_are_rejected(query: str) -> None:
-    # Proves (api-contract.md §2): an end before the start, and a range wider than `MAX_RANGE`, are each a 422 rather than an
-    # empty or an unbounded answer. Both queries are written out in the parameters above.
+    # Proves: an end before the start, and a range wider than `MAX_RANGE`, are each a 422 rather than an empty or an
+    # unbounded answer. The rules are the router's (`app/routers/shows.py`, the two `HTTPException(422)` checks), not
+    # the contract's, which mentions `MAX_RANGE` only for `upcoming=true` (§2). Both queries are written out above.
     assert client.get(f"/shows?{query}").status_code == 422
 
 

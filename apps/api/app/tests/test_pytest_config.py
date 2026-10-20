@@ -3,7 +3,8 @@
 HOW TO READ THIS FILE
   The two settings that decide what pytest runs live in `pyproject.toml`: `testpaths` (which directories it
   walks) and `python_files` (which file names it treats as test modules). Both fail quietly. A test file
-  outside `testpaths` is never run and nothing says so (v0.1-G14, the original gap). A file whose name matches
+  outside `testpaths` (or under a directory `norecursedirs` skips) is never run and nothing says so (v0.1-G14, the
+  original gap). A file whose name matches
   `python_files` is *imported* by pytest on every run, even if it holds no tests: `agent_worker/local_test.py`
   is a manual script against a real database, and pytest's default `*_test.py` glob matches it.
 
@@ -51,10 +52,25 @@ def python_files_under(root: Path) -> list[Path]:
     return sorted(found)
 
 
-def uncollected(files: list[Path], testpaths: list[str], root: Path) -> list[Path]:
-    """The `test_*.py` files in `files` that lie outside every directory in `testpaths` (relative to `root`)."""
+def uncollected(
+    files: list[Path], testpaths: list[str], root: Path, norecursedirs: list[str] | tuple[str, ...] = ()
+) -> list[Path]:
+    """The `test_*.py` files in `files` that pytest would never collect: outside every directory in `testpaths`
+    (relative to `root`), or under a directory whose name matches a `norecursedirs` glob.
+
+    The second case matters because pytest skips directories such as `build`, `dist` and `*.egg` by default even
+    inside `testpaths`, so a test dropped in `agent_worker/build/` would pass a testpaths-only check and still never
+    run (A7-CR1-5).
+    """
     roots = [root / testpath for testpath in testpaths]
-    return [f for f in files if f.name.startswith("test_") and not any(f.is_relative_to(r) for r in roots)]
+
+    def skipped_dir(f: Path) -> bool:
+        return any(fnmatch.fnmatch(part, glob) for part in f.relative_to(root).parts[:-1] for glob in norecursedirs)
+
+    return [
+        f for f in files
+        if f.name.startswith("test_") and (not any(f.is_relative_to(r) for r in roots) or skipped_dir(f))
+    ]
 
 
 def would_import(name: str, patterns: list[str]) -> str | None:
@@ -71,13 +87,15 @@ def would_import(name: str, patterns: list[str]) -> str | None:
 
 
 def test_every_test_module_is_inside_a_test_path(pytestconfig: pytest.Config) -> None:
-    # Proves (v0.1-G14): no `test_*.py` file in `apps/api` lies outside `testpaths`. A test added under `scripts/`
-    # or a new top-level package would otherwise be written, committed and never run, with a green suite as the
-    # only evidence. The expected set is empty by construction, so the failure message names the stray files.
+    # Proves (v0.1-G14): no `test_*.py` file in `apps/api` lies outside `testpaths` or under a directory pytest's
+    # `norecursedirs` skips (`build`, `dist`, ...). A test added under `scripts/`, a new top-level package or an
+    # `agent_worker/build/` would otherwise be written, committed and never run, with a green suite as the only
+    # evidence. The expected set is empty by construction, so the failure message names the stray files.
     files = python_files_under(pytestconfig.rootpath)
     testpaths = [str(p) for p in pytestconfig.getini("testpaths")]
-    stray = uncollected(files, testpaths, pytestconfig.rootpath)
-    assert stray == [], f"test files outside testpaths {testpaths} would never run: {[str(f) for f in stray]}"
+    skipped_dirs = [str(p) for p in pytestconfig.getini("norecursedirs")]
+    stray = uncollected(files, testpaths, pytestconfig.rootpath, skipped_dirs)
+    assert stray == [], f"test files pytest would never collect (testpaths {testpaths}): {[str(f) for f in stray]}"
 
 
 def test_the_file_pattern_matches_only_test_modules(pytestconfig: pytest.Config) -> None:
@@ -108,6 +126,12 @@ def test_the_guards_can_fail(tmp_path: Path) -> None:
     outside = tmp_path / "scripts" / "test_x.py"
     inside = tmp_path / "app" / "tests" / "test_y.py"
     assert uncollected([outside, inside], ["app", "agent_worker"], tmp_path) == [outside]
+
+    # A file inside `testpaths` but under a directory pytest never recurses into (`build`, by default) is not
+    # collected either: it counts as uncollected too (A7-CR1-5).
+    skipped = tmp_path / "agent_worker" / "build" / "test_z.py"
+    assert uncollected([skipped, inside], ["app", "agent_worker"], tmp_path, norecursedirs=["build", "*.egg"]) == [skipped]
+    assert uncollected([skipped], ["app", "agent_worker"], tmp_path, norecursedirs=[]) == []
 
     assert would_import("local_test.py", ["test_*.py", "*_test.py"]) == "*_test.py"
     assert would_import("local_test.py", ["test_*.py"]) is None

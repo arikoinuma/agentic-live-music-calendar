@@ -1,9 +1,9 @@
 # A7 — testing
 
-**Status:** Code review
+**Status:** Awaiting sign-off
 **Date:** October 20, 2026
 **Author model:** Claude Sonnet 5.5 (plan, October 20, 2026)
-**Reviewer model:** Claude Opus 5.5 (plan review round 1, October 20, 2026)
+**Reviewer model:** Claude Opus 5.5 (plan review round 1, October 20, 2026; code review round 1, October 20, 2026)
 **Spec:** `docs/dev/alpha-build-plan.md` §5 A7 (gaps v0.1-G14, v0.1-G15, v0.1-G16) and §2 point 5; `AGENTS.md`
 ("Conventions": *Tests state what they prove*, *Comment-only passes must not change code*);
 `docs/references/fastapi-style-guide.md` ("Testing", "Linting", Anti-patterns); `apps/api/AGENTS.md`
@@ -100,9 +100,9 @@ no behavior of either. All three change what the repo asks of future work, so th
 
 | # | Question | Recommendation | Status |
 |---|---|---|---|
-| D1 | Add a report-only coverage tool (`make coverage`)? | A: yes, no threshold, not in CI | Open |
-| D2 | Which older tests get a `Proves:` comment now? | B: all 14 now (revised in plan review; A was `test_health.py` only) | Open |
-| D3 | Does the mypy gate cover tests and the eval harness, or only production code? | A: everything under `agent_worker/` | Open |
+| D1 | Add a report-only coverage tool (`make coverage`)? | A: yes, no threshold, not in CI | **Decided A** (Ari, Oct 20) |
+| D2 | Which older tests get a `Proves:` comment now? | B: all 14 now (revised in plan review; A was `test_health.py` only) | **Decided B** (Ari, Oct 20) |
+| D3 | Does the mypy gate cover tests and the eval harness, or only production code? | A: everything under `agent_worker/` | **Decided A** (Ari, Oct 20) |
 
 ---
 
@@ -597,6 +597,75 @@ package). Files touched, by area:
 5. **The `pyproject.toml` comments** (they are the only record, in code, of why `python_files` is narrowed), and the build
    plan's A7 paragraph (its numbers: 881/15, 896, 104, 99%, 17 and 27).
 6. **The mypy gate's limit** (unannotated bodies unchecked): documented in `pyproject.toml` and `apps/api/AGENTS.md`, not fixed.
+
+## Code review
+
+### Round 1 — Claude Opus 5.5, October 20, 2026
+
+**Scope.** Implementation log round 1: `git diff e52ec4c..HEAD` on `claude/adoring-maxwell-7i6de2` (HEAD `132ae29`; the six step
+commits `bc5ce0b`..`dc98f05` plus the log commit), 31 files. Read in full: every changed file except `uv.lock` (checked with
+`uv lock --check` and by its one new package, `coverage 7.16.2`). No `TODO(Ari)` gaps exist, so none is reported.
+
+**What was checked and how.**
+- **Docs read:** root `AGENTS.md` (Conventions; Implementation plans); `apps/api/AGENTS.md`; `docs/references/fastapi-style-guide.md`
+  (Testing, Anti-patterns); `docs/dev/api-contract.md` §2–§5 (for the router `Proves:` citations); `docs/dev/conventions.md`;
+  the A7 section of `alpha-build-plan.md`; this plan in full, including plan review round 1 and the Implementation log.
+- **`make check BASE=e52ec4c` on the branch:** exit 0. ruff clean; `uv run mypy` **no issues in 104 source files**; pytest
+  **881 passed, 15 skipped**; Vitest 337 passed; contract "current"; `make designation-check BASE=e52ec4c` exit 0. CONFIRMED.
+- **In a throwaway `git worktree` of HEAD** (`apps/api/.env` copied in; removed afterwards, `git worktree list` shows only the
+  main tree), one pytest at a time:
+  - **Baseline:** with `apps/api` checked out at `e52ec4c`, `uv run mypy agent_worker/` → **Found 75 errors in 8 files**. CONFIRMED.
+  - **Mutations, each against the full suite (`REQUIRE_DB=1 uv run pytest`):** A7-M1 (drop `and item.id not in by_id`) → only C1
+    red; the range-only mutation → **881 passed** (stays green, as A7-PR1-2 said); A7-M2 → both C2c cases red; A7-M3 (line 171
+    `continue` → `return None`) → only C2b red; A7-M4 (fallback `return True`) → only C3 red; A7-M5 → both C4 cases red; A7-M6,
+    run as two separate mutations (the `listings_from` guard, then the `excluded_listing_dates` guard) → only C5 red each time;
+    A7-M7 (`if False:` for `fetch_node`'s image branch) → only C6 red; A7-M10 → only C2a red. Every one "exactly its test, nothing
+    else" (880 or 879 passed beside it). CONFIRMED.
+  - **A7-M8a** (delete the `python_files` line) → the pattern test red, naming `agent_worker/local_test.py (matches '*_test.py')`;
+    **A7-M8b** (`scripts/test_probe.py`) → `test_every_test_module_is_inside_a_test_path` red; **A7-M9** (`PROBE_M9: int = "a"`
+    appended to `nodes.py`) → `uv run mypy` exit 1, one `[assignment]` error. CONFIRMED.
+  - `uv run pytest --collect-only` → **896 tests collected**; the only non-`tests/` matches for `test_*.py` / `*_test.py` /
+    `conftest.py` in `apps/api` are the root `conftest.py` and `local_test.py`. CONFIRMED.
+  - **`make coverage`:** 881 passed, 15 skipped; **TOTAL 2518 statements, 17 missed, 9 partial branches, 99%**; the missed lines
+    are exactly `main.py:187–193,197,201`, `calendar_writer.py:226`, `app/main.py:44–46`, `sample_data.py:241,256`,
+    `testing/db.py` (7), and the four partials named in "What is not covered". `.coverage` shows as ignored (`!!`). CONFIRMED.
+- **Comment-only edits, by AST comparison with docstrings stripped** (a scratch script, not in the repo): `test_health.py`,
+  `test_routers.py`, `local_test.py`, `fakes.py`, `test_graph.py` (`e52ec4c` vs HEAD), `test_graph_audit.py` (`dc98f05~1` vs
+  `dc98f05`, since step 3 also typed it) and `test_routers.py` (`8ac991a~1` vs `8ac991a`): **all MATCH**. `act_split.py` differs,
+  as it should (the rename). CONFIRMED.
+- **`Proves:` scan** (AST, every `test_*` function in `app/` and `agent_worker/`): **594 functions, 0 missing**. CONFIRMED.
+- **"Where to look hardest":** (1) the walk's skip list: see finding 5; the strictness of flagging any `*_test.py` anywhere is
+  right (it is the convention `apps/api/AGENTS.md` now states). (2) the router comments: finding 2; "999 and 99 are above every
+  id" holds (max show/venue/artist ids in `sample_data` are 26/4/10), and the untimed-last rule is the router's own
+  (`shows._ordering`'s docstring), not overstated as a rule, only uncited. (3) C3: finding 1. (4) the three `reconcile_support`
+  asserts: every `ShowDecision` construction in `reconcile.py` was read: inserts come only from `plan_for_listing.decide`,
+  which always passes `listing=listing`; updates and removals always pass `stored_id=stored.id` / `show.id` (`StoredShow.id:
+  int`); the two hand-built `ShowDecision`s in tests (`test_audit_entries.py:54`, `test_reconcile_audit.py:40`) never reach
+  `apply_plan`. The invariants hold. CONFIRMED. (5) `pyproject.toml` comments are accurate; the build-plan numbers check out
+  except one word (finding 3). (6) the gate's limit: four unannotated functions remain outside it (`app/main.py` `health`,
+  `health_db`; `test_health`; `test_commit_ops.a_mixed_plan`), consistent with "Not doing". Not a finding.
+- **Anti-patterns table:** no DB mocks added, no `TestClient`→async change, no production `assert`; the new `# type: ignore`
+  carries its reason. Nothing applies.
+
+**Counts.** 0 blocker, 0 should-fix, 5 nit.
+
+**Verdict: proceed.** Every number in the log reproduces (75 → 0 mypy errors on 104 files, 881/15, 896 collected, 594 functions,
+17/9 coverage), every mutation turns exactly its test red, and the comment-only edits are comment-only. The nits are wording and
+one edge of the location guard.
+
+| # | Sev | Finding | Evidence | What goes wrong | Resolution |
+|---|---|---|---|---|---|
+| 1 | nit | **C3 pins the substring looseness, but the code still claims the opposite.** `_on_page`'s docstring says it is "the check that keeps a status answer from ever adding a show the page doesn't list", and C3's third case now asserts that it *does* add one (`['MO']` against "…at the Armory"). The looseness is recorded only inside a test. For a two-letter name it guards almost nothing: "mo" is in "more", "month", "Mortimer's". Fix (comment-only): a sentence in `_on_page`'s docstring saying the short-name fallback is a substring test, plus where the follow-up lives if Ari wants one (A8 or H1). | CONFIRMED: `status_check.py:93–101` (docstring and fallback); A7-M4 run above; `normalize.identifying_words` keeps words of three letters or more. | A reader of `status_check.py` trusts a guarantee the code doesn't give, and the only record of the gap is a test that will look "wrong" to whoever fixes the fallback. | **Fixed.** `_on_page`'s docstring now says the short-name fallback is a substring test ("mo" is on the page of "more", "month", "Armory"), that C3 pins it as it is, and that tightening it to whole words is a follow-up for A8 or H1. Docstring only; syntax trees match. |
+| 2 | nit | **Two router `Proves:` comments cite a source that doesn't state the rule.** `test_invalid_ranges_are_rejected` says "(api-contract.md §2)", but §2 states no 422 for an end before the start and mentions `MAX_RANGE` only for `upcoming=true`. The rules are `app/routers/shows.py:105–111`. `test_shows_are_ordered_by_date_then_time` says "A1b's ORDER BY must keep" the untimed-last rule and cites nothing; its source is `shows._ordering`'s docstring. Fix: cite the router (and, for ordering, `_ordering`) in place of, or beside, the contract. | CONFIRMED: `api-contract.md:27–56` read; `grep -n "422\|MAX_RANGE" docs/dev/api-contract.md` matches only lines 47–48 (the `upcoming` paragraph). | A1b reads these comments as the spec and goes looking in the contract for a rule that isn't there. The convention is "cite the source of a decision". | **Fixed.** `test_invalid_ranges_are_rejected` now cites the router (`app/routers/shows.py`'s two 422 checks) and says the contract mentions `MAX_RANGE` only for `upcoming=true`; the ordering test cites `shows._ordering`'s docstring. Comment-only; syntax trees match. |
+| 3 | nit | The build plan's A7 paragraph says "pin **eight unpinned rules**"; the bullet beneath it and this plan say eight tests for **six** rules. | CONFIRMED: `alpha-build-plan.md:254` vs `:262`. | A wrong count in the record, which A7-PR1-3 had already reconciled once in the plan. | **Fixed.** `alpha-build-plan.md`'s A7 paragraph reads "six unpinned rules (eight tests)". |
+| 4 | nit | **The "Decisions for Ari" table still reads `Open`** for D1–D3, though "Approval" records all three as decided (Ari, October 20). A6's table was updated to "**Decided A** (Ari, Oct 20)". Fix: set the Status column to Decided A / Decided B / Decided A. | CONFIRMED: this file, lines 103–105 and the "Approval" section; `a6-commit.md:112–114`. | Someone skimming the table (or the sign-off) sees three open decisions on a milestone that is built. | **Fixed.** The decision table's Status column reads Decided A / Decided B / Decided A (Ari, Oct 20). |
+| 5 | nit | **The location guard doesn't model pytest's `norecursedirs`.** pytest skips directories named `build`, `dist`, `venv`, `*.egg` (and others) by default, so a `test_*.py` under, say, `agent_worker/build/` is inside `testpaths`, passes the guard, and is never collected. Fix: in `uncollected` (or the walk), treat a file whose path has a part matching any `pytestconfig.getini("norecursedirs")` glob as uncollected, and add that case to the negative control. | CONFIRMED in the worktree: `agent_worker/build/test_probe.py` holding a failing test → `test_pytest_config.py` 3 passed, and `--collect-only` lists no `build/test_probe`. | Narrow (a directory with one of those names inside a package is unlikely), but it is exactly the "silently never run" failure the guard exists for, and the guard's docstring promises it can't happen. | **Fixed, test first.** The negative control gained a `build/` case with `norecursedirs` and was red (`TypeError`: no such parameter); then `uncollected` gained a `norecursedirs` parameter, the location guard passes `pytestconfig.getini("norecursedirs")`, and its docstring and `Proves:` say so. With a probe `agent_worker/build/test_probe.py` the location guard is now red (A7-M11); probe removed. |
+
+**Rejected:** none. All five nits were reproduced or confirmed by the reviewer and are accepted.
+
+**Test-suite result after the fixes:** `make check BASE=e52ec4c` exit 0: ruff clean; `uv run mypy` no issues in 104 source files; pytest **881 passed, 15 skipped** (same count as before the fixes: finding 5 extended an existing test, it added none); Vitest 337 passed; `make contract-check` current; `make designation-check BASE=e52ec4c` exit 0. Comment-only edits (findings 1 and 2) checked by syntax trees, docstrings ignored: `status_check.py` and `test_routers.py` match. A7-M11 (a probe `test_*.py` under `agent_worker/build/`) turns `test_every_test_module_is_inside_a_test_path` red; the probe was removed. Not re-run: the other mutations (the code under them did not change).
+
+Round 2 is not warranted: 0 blocker and 0 should-fix, nothing rejected or reworked.
 
 ## Approval
 
