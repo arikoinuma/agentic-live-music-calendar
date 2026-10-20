@@ -14,7 +14,7 @@ WEB := calendar
 
 .DEFAULT_GOAL := help
 .PHONY: help setup dev api web db db-up db-down db-reset db-shell db-wait worker \
-        migrate migration seed fixtures types contract-check designation-check test lint typecheck \
+        migrate migration seed fixtures types contract-check designation-check test coverage lint typecheck \
         check clean
 
 help: ## Show this help
@@ -180,7 +180,12 @@ test: ## pytest (DB tests required) + vitest
 	cd $(API_DIR) && REQUIRE_DB=1 uv run pytest
 	pnpm turbo run test
 
+# Report only, not part of `make check` or CI (A7-D1): read the Missing column; there is no threshold on purpose.
+coverage: ## pytest with branch coverage of app/ and agent_worker/ (report only; needs Postgres)
+	cd $(API_DIR) && REQUIRE_DB=1 uv run coverage run -m pytest
+	cd $(API_DIR) && uv run coverage report
+
 clean: ## Remove caches and build output
 	rm -rf .turbo apps/*/.turbo apps/*/.next
 	find . -name '__pycache__' -type d -prune -exec rm -rf {} +
-	rm -rf $(API_DIR)/.mypy_cache $(API_DIR)/.pytest_cache $(API_DIR)/.ruff_cache
+	rm -rf $(API_DIR)/.mypy_cache $(API_DIR)/.pytest_cache $(API_DIR)/.ruff_cache $(API_DIR)/.coverage $(API_DIR)/htmlcov

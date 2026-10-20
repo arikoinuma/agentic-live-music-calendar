@@ -36,6 +36,7 @@ package = false
 
 [dependency-groups]
 dev = [
+    "coverage>=7.16.2",
     "mypy>=2.3.0",
     "polyfactory>=3.3.0",
     "pytest>=9.1.1",
@@ -74,6 +75,20 @@ addopts = "-rs"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
+
+[tool.coverage.run]
+# Report-only (`make coverage`; A7-D1). Branch coverage, because a line that runs can still have a branch that never
+# does (a guard clause is one line, taken one way). Tests are the measuring stick, not the thing measured; eval/ is
+# the experiment harness and local_test.py a manual script, neither run by the suite.
+branch = true
+source = ["app", "agent_worker"]
+omit = ["*/tests/*", "agent_worker/eval/*", "agent_worker/local_test.py"]
+
+[tool.coverage.report]
+# Read the "Missing" column, not the percentage: there is deliberately no threshold or CI gate, because a percentage
+# gate invites tests that touch lines instead of proving behavior (the point of the `Proves:` convention).
+show_missing = true
+skip_empty = true
 
 [tool.ruff.lint.per-file-ignores]
 # Broad except is deliberate here: one fixture/model failing outright
