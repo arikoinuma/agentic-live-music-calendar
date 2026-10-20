@@ -287,7 +287,10 @@ websites** (Trusted network access only). So a cloud session cannot run live ext
 eval harness, `local_test`, or fixture capture, and 14 tests in
 `agent_worker/tests/test_validation_on_real_pages.py` skip there. Don't try to work around
 this; leave that work for a local session and say so in the PR. The sandbox has Node 22 and
-CI uses 24, so a green JS check there is not quite a green CI.
+CI uses 24, so a green JS check there is not quite a green CI. The Playwright suite
+(`make e2e`, part of `make check`) runs there too: Chromium is at `/opt/pw-browsers/chromium`,
+`scripts/cloud-setup.sh` exports it as `E2E_CHROMIUM_PATH`, and it needs no Postgres, because the
+API it starts serves the sample data.
 
 Suited to cloud: deterministic, DB-tested work (reconcile, commit, audit writes, routes onto
 the DB), the Next.js track, plan and code review rounds, docs. Needs local: anything that

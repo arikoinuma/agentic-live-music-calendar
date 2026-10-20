@@ -90,7 +90,7 @@ Per the Cost Summary ([Section 10](#10-cost-summary)), this entire stack is roug
 | Data fetching (mutations) | TanStack Query, scoped to edit/flag/retrigger actions; the main calendar browse stays server-rendered |
 | Server-to-server calls | Native `fetch` |
 | Component testing | `vitest`, `@testing-library/react` |
-| End-to-end testing | Playwright — already a dependency for the agent pipeline's headless fetch |
+| End-to-end testing | Playwright, `@playwright/test` in `apps/calendar` (B6): a separate JS dependency from the Python `playwright` package the agent pipeline uses for headless fetch |
 | Icons | `lucide-react`, matching shadcn's own examples |
 
 **Deferred:** true micro-frontend federation. See [Section 1](#1-scope-and-constraints). Client-side state management (e.g. Zustand) is also not yet decided — no concrete use case has earned it so far; revisit once the detailed requirements surface one.

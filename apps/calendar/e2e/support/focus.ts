@@ -30,7 +30,10 @@ import { contrastRatio, type Rgb } from "./contrast";
  *   `getClientRects()[0]` is the first line box: a wrapped inline link's bounding-box centre
  *   can fall between its lines and report a false "obscured".
  * Check: `pnpm --filter calendar exec playwright test e2e/keyboard.spec.ts -g "sticky"`: 4
- *   tests, red until this is written, green on the real pages. Likeliest mistakes:
+ *   tests, red until this is written, green on the real pages WITH the baseline row for
+ *   B6-F7: written strictly as above, one stop on `/` at 375px is reported (a link half cut
+ *   off by its row's scroll container, not a sticky heading; the plan's worktree check found
+ *   exactly that), and the baseline already lists it. Likeliest mistakes:
  *   `toBeVisible()`; accepting `top.contains(el)` (a covering ANCESTOR then passes).
  */
 export async function isFocusObscured(page: Page): Promise<boolean> {

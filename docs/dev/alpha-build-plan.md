@@ -332,12 +332,16 @@ Plan and review: `docs/dev/implementations/b5-frontend-testing.md` (decisions B5
 
 ### B6. Accessibility and end-to-end tests
 
-Scope agreed with Ari on October 17, 2026. Two things come out of it: the accessibility requirement (WCAG 2.2 AA, `requirements-initial.md` Global Requirements; `arch-initial.md` Section 4), and the Playwright suite that B5 deferred, which also runs the automated accessibility checks. Built in its own thread. Its implementation plan, `docs/dev/implementations/b6-accessibility-and-e2e.md`, is written first under the usual cycle (`AGENTS.md`, "Implementation plans"). Nothing below is built yet.
+Scope agreed with Ari on October 17, 2026. Two things come out of it: the accessibility requirement (WCAG 2.2 AA, `requirements-initial.md` Global Requirements; `arch-initial.md` Section 4), and the Playwright suite that B5 deferred, which also runs the automated accessibility checks. Built in its own thread. Its implementation plan, `docs/dev/implementations/b6-accessibility-and-e2e.md`, is written first under the usual cycle (`AGENTS.md`, "Implementation plans"). **Built October 19–20, 2026** (decisions B6-D1–B6-D11 settled by Ari October 19; the plan file has the findings, the measurements and the departures). Three `TODO(Ari)` gaps (B6-K1–B6-K3) are open, so their [fill-in] boxes below stay unticked. Departures from the original wording are marked *Departure*.
 
 - [x] **[written]** WCAG 2.2 AA recorded as the accessibility requirement. *Done October 17, 2026.*
 - [x] **[written]** Scope and implementation strategy (below) approved by Ari, October 17, 2026.
-- [ ] **[written]** Playwright and `@axe-core/playwright` added to `apps/calendar` (Step 1). *Dependencies approved October 17, 2026.*
-- [ ] Steps 1–5 below, built and reviewed in the B6 thread.
+- [x] **[written]** Playwright and `@axe-core/playwright` added to `apps/calendar` (Step 1). *Dependencies approved October 17, 2026; installed in the plan's Steps 1 and 3 (`@playwright/test` 1.64.1, `@axe-core/playwright` 4.14.0). Departure: a real FastAPI app on the sample data is the stack (B6-D1), neither of the two options the strategy listed.*
+- [x] **[written]** The harness, 11 journeys, the axe scan of every screen and of the open popups against a ratchet baseline, and the reflow, keyboard and painted-focus checks (the plan's Steps 1–7). *Departures: dark mode is not scanned because the app has none (B6-D7); "report-only" became a ratchet baseline that fails on anything new from the first commit (B6-D5); the scan covers every screen at two widths, not one page.*
+- [ ] **[fill-in]** B6-K1: the clock pin, `Date.now = () => FROZEN` in `e2e/support/fake-now.mjs` *(scaffolded, open)*
+- [ ] **[fill-in]** B6-K2: the focus-not-obscured predicate in `e2e/support/focus.ts` *(scaffolded, open)*
+- [ ] **[fill-in]** B6-K3: the page-reflow predicate in `e2e/support/reflow.ts` *(scaffolded, open)*
+- [ ] Ari marks findings B6-F1–B6-F7; the fix round fixes the marked ones, each in its own commit (the plan's Step 8); manual keyboard and screen-reader pass; sign-off.
 
 **Implementation strategy.** One test first, green, then the rest. Each step ends with its own green result before the next starts.
 
@@ -358,11 +362,11 @@ Scope agreed with Ari on October 17, 2026. Two things come out of it: the access
 5. **Run, review, resolve.** Run the full suite, axe scan included, at the end of each step, and review the results with Ari. Every finding Ari marks should-fix or must-fix is fixed in B6 before the step closes, in its own commit, with a test that fails before the fix and passes after. Findings Ari marks nit, or leaves unmarked, are logged in the B6 implementation log and don't block the step.
 6. **Manual passes.** A keyboard and screen-reader pass (VoiceOver or NVDA), recorded in the B6 implementation log, done by Ari. The automated suite doesn't replace it.
 
-**Not in B6:** visual snapshots (until the UI settles), a browser matrix beyond Chromium, and API or agent tests (those stay in pytest). Open for the B6 plan, not this document: where the Playwright job runs in CI, and the stack option in Step 1.
+**Not in B6:** visual snapshots (until the UI settles), a browser matrix beyond Chromium, and API or agent tests (those stay in pytest). The CI job is a separate `e2e` job in `ci.yml` (B6-D4), and `make e2e` is part of `make check`.
 
-**Standing rule: the test clock.** The default home window is "today plus 27 days" (`apps/api/app/routers/shows.py`, `DEFAULT_WINDOW`). The sample data is fixed to a `START` date in `apps/api/app/sample_data.py`, and the fixtures are generated from it. So a test on the real clock finds an empty page once the window moves past the sample's last show. The suite pins the clock to a date inside the sample window, held as a single constant. **Every time the sample data generation changes, move the pinned date in the same change** (a new `START` means a new pin inside the new window), and check the suite still finds at least one show. The mechanism (a fake-clock wrapper for the test servers, or an override read by the app) is chosen in the B6 plan.
+**Standing rule: the test clock.** *(Rewritten October 19, 2026: the original paragraph said the home window rolls with the clock and the page would thin out after October 25. That was wrong for the code as written.)* Only one thing in the app reads the real clock: the Next server's `metroToday` (`lib/dates.ts`), which decides which row says "Today". The API's window does not follow the clock: `shows.py` starts it at `data.START`, a pinned constant in `apps/api/app/sample_data.py` (September 28 – October 25, 2026), whatever the date is. The suite pins the Next server's `Date.now` to one instant, `E2E_NOW` in `apps/calendar/e2e/support/clock.ts`, with a preload (`fake-now.mjs`; Playwright's `page.clock` fakes only the browser's clock and cannot reach a Server Component). `e2e/support/clock.test.ts` fails in `pnpm test` if the pin falls outside the window the fixtures echo, or on a day with no show, so "whenever `START` moves, the pin moves in the same change" is a red test and not a memo.
 
-**Known date cliff (outside B6).** With the current sample, `START` is September 28, 2026, so the last sample show falls on October 25 (`START` plus 27 days). The live home page's default window will hold very little from about **October 26, 2026** unless the sample is regenerated. This is a sample-data decision for Ari, and the clock rule above is what keeps tests from inheriting it.
+**Known date cliff (not yet real).** Against the sample API there is none: the window stays September 28 – October 25 on any date, and only the Today row changes (it disappears once today leaves the window). The real cliff arrives with A1b: once the routers read Postgres, the API reads the metro's real clock, the sample data must be re-based or reloaded, and the pin must reach the API too (B6 plan, "Follow-ups").
 
 ---
 

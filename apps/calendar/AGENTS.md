@@ -165,6 +165,15 @@ orderings, and the new `/show/[id]` with Event JSON-LD; `/venues` and `/artists`
   synchronous part out instead, as B5 did with `CalendarResults`, and test that. A JSON-LD-style test
   that depends on how the SERVER's HTML is parsed must render with `react-dom/server` and parse the
   result with `DOMParser`, not use Testing Library's client `render` (`json-ld.test.tsx`).
+- **End-to-end and accessibility** (B6): `make e2e` (from the repo root) builds the app and runs `playwright test`, which
+  starts its own stack: the real FastAPI app on the sample data (8101), a pass-through proxy that tests can slow or break
+  (8102), and `next start` (3100), so it never touches a running `make dev`. Specs are `e2e/*.spec.ts` (never `*.test.ts`,
+  which are Vitest unit tests of `e2e/support/`); every spec imports `test` from `e2e/support/test.ts`. The Next server's
+  clock is pinned (`e2e/support/clock.ts`; Playwright's `page.clock` cannot reach a Server Component). Accessibility: axe
+  with the WCAG 2.2 AA tags on every screen and popup, held to a **ratchet baseline** (`e2e/support/a11y-baseline.ts`: the
+  known problems, which the scan must match exactly, so anything new fails and each fix is "delete the row, watch it go red,
+  fix it"). Locate by role and name, never a class; the one exception is the ARIA state `aria-busy`. In a sandbox set
+  `E2E_CHROMIUM_PATH=/opt/pw-browsers/chromium`. Plan: `docs/dev/implementations/b6-accessibility-and-e2e.md`.
 - Shared-package imports go through `packages/ui/package.json` `exports`, not its
   tsconfig `paths` — a new folder of `.ts` files under `packages/ui/src` needs its own
   `exports` entry (`docs/dev/notes.md`).

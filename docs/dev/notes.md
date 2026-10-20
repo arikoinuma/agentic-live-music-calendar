@@ -501,13 +501,52 @@ strip `<script>`, and print the article and skeleton counts beside the verdict s
 pass. Also: a bundle grep for `jsdom` always hits Base UI's own user-agent sniffing; grep for
 `testing-library` and `user-event` instead.
 
-## The home page's window moves with the clock, but the sample data doesn't
+## Only the "Today" row follows the real clock; the home window is pinned
 
-**A fixed sample plus a rolling window goes empty on a date.** The default window is "today plus 27 days"
-(`apps/api/app/routers/shows.py`, `DEFAULT_WINDOW`), and the sample data is generated from a fixed `START` in
-`apps/api/app/sample_data.py` (deliberately, so the fixtures diff cleanly). With `START` on September 28, 2026,
-the last sample show is October 25, so the default home view thins out from about October 26. B5 called the
-empty branch "unreachable through sample data"; that was true on the day it was written, not for good.
+**The sample API's window is fixed, so there is no date on which the home page empties.** `apps/api/app/routers/shows.py`
+starts the default window at `data.START`, a constant in `app/sample_data.py` (September 28, 2026), and serves 28 days
+from it whatever today is. What reads the real clock is the Next server's `metroToday` (`lib/dates.ts`), which marks the
+"Today" row; once today is past October 25 no row is marked. (This section used to say the window rolls with the clock
+and the page thins out after October 25. That was wrong; it was caught while planning B6 by running the API and the page
+under a frozen and a real clock.) The cliff the old text feared arrives with A1b, when the API reads the metro's real clock.
 
-Browser tests (B6) pin the clock to a date inside the sample window. **Whenever `sample_data.py` changes, move
-that pinned date in the same change.** See `alpha-build-plan.md`, B6, "Standing rule: the test clock".
+The browser tests pin the Next server's `Date.now` (`apps/calendar/e2e/support/clock.ts`), and `clock.test.ts` fails if
+`sample_data.py`'s `START` moves the window away from the pin. See `alpha-build-plan.md`, B6, "Standing rule: the test clock".
+
+**Freeze the clock by patching `Date.now` and nothing else.** `globalThis.Date = class extends Date { … }` crashes the
+Next server at import (`TypeError: Date.UTC is not a function`, thrown while the Temporal polyfill loads), and the whole
+app 500s. The Temporal polyfill reads `Date.now()` for `Temporal.Now`, so `Date.now = () => FROZEN` in a
+`NODE_OPTIONS=--import` preload is enough (`e2e/support/fake-now.mjs`). Playwright's `page.clock` fakes only the browser's
+clock; a Server Component never sees it.
+
+## Playwright and the end-to-end suite (B6)
+
+**`next build` type-checks `e2e/`.** The calendar's tsconfig includes `**/*.ts`, so a type error in a Playwright spec fails
+the production build (and so a Vercel build), not just `pnpm check-types`. A throwaway probe file left in `e2e/` does it
+too: delete probes before you build.
+
+**Playwright's default `testMatch` also collects `*.test.ts`.** Those are Vitest files here, which import `vitest` and
+cannot load under Playwright (it lists 0 tests). `playwright.config.ts` sets `testMatch: "**/*.spec.ts"`; keep specs
+`*.spec.ts` and unit tests of the support code `*.test.ts`.
+
+**Playwright's `getByRole` has no `current` option** (Testing Library's does). Find "today's row" by the "Today" badge and
+assert `aria-current="date"` on it.
+
+**A real browser's accessible name differs from jsdom's.** The "…, show details" suffix is a visually hidden block, so
+Chromium reports `9:00 PM – 11:30 PM , show details` (a space before the comma); jsdom, with no layout, gave B5
+`…PM, show details`. Match such names with `\s*`.
+
+**While a combobox popup is open, the whole page behind it is `aria-hidden`** (Base UI marks everything outside the popup;
+finding B6-F2), so `getByRole` finds nothing there and a screen reader cannot read it. A multi-select's popup stays open
+after a pick: press Escape before asserting on the page.
+
+**A test that ends mid-prefetch makes Next log `⨯ Error: The destination stream closed early.`** A production page
+prefetches the pages its links point to as streamed responses; closing the browser on one makes React abort that render
+and log it. Harmless, but alarming. `e2e/support/test.ts` waits for the page's in-flight requests before the browser closes.
+
+**eslint-plugin-react-hooks mistakes Playwright's fixture callback `use` for React's `use()` hook.** The rule is switched
+off for `e2e/**/*.ts` in `eslint.config.js`. Also, `eslint-plugin-turbo` (with `--max-warnings 0`) rejects any
+`process.env.X` it has not been told about: `turbo.json` declares the e2e ones under `globalPassThroughEnv`.
+
+**The sandbox cannot download Playwright's browser** and ships an older Chromium (`/opt/pw-browsers/chromium`) than
+Playwright 1.64 expects; it works. `scripts/cloud-setup.sh` exports `E2E_CHROMIUM_PATH` for it.
