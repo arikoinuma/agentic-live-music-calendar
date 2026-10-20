@@ -43,7 +43,7 @@ from agent_worker.audit import (
     AuditEntry,
     AuditWriter,
     artist_created_entry,
-    audit_row,  # noqa: F401  (used by A6-K1's block; the noqa goes when the gap is filled)
+    audit_row,
     show_failure_entry,
     show_write_entry,
 )
@@ -160,7 +160,7 @@ class PostgresCalendarWriter:
     async def write_show(
         self, op: ShowOp, artist_ids: Mapping[str, int], *, run_id: int | None, attempt_number: int
     ) -> ShowWritten:
-        # TODO(Ari) A6-K1 — Lesson: a write and its record are ONE unit (a6-commit.md, A6-K1; arch-initial.md §7). The audit
+        #   A write and its record are ONE unit (a6-commit.md, A6-K1; arch-initial.md §7). The audit
         #   rows go in the SAME session and transaction as the change, so they commit or roll back together: a rolled-back
         #   show leaves no audit row, and a committed one can't lose its record. The snapshots are taken in a deliberate
         #   order: `previous` BEFORE the change (the ORM hands back the same, mutated object after it), `new` AFTER the
@@ -168,27 +168,15 @@ class PostgresCalendarWriter:
         #   And nothing outlives the transaction except the return value: the artists this show created go back only in
         #   `ShowWritten`, and the lineup uses a fresh merge `{**artist_ids, **created}`, never a write into the caller's
         #   map or a cache on the writer (an id remembered from a transaction that rolls back is a lie the next show links to).
-        # Code (the helpers are written; the gap is the block that orders them):
-        #   async with self._session_factory() as session, session.begin():
-        #       created = await self._create_artists(session, op, artist_ids)
-        #       previous = await self._snapshot(session, op.stored_id, lock=True) if op.stored_id is not None else None
-        #       show_id = await self._apply(session, op, {**artist_ids, **created})
-        #       new = await self._snapshot(session, show_id)
-        #       session.add_all(
-        #           audit_row(e) for e in self._audit_rows(op, created, show_id, previous, new, run_id, attempt_number)
-        #       )
-        #   return ShowWritten(show_id, op.outcome, created)
-        #   Then delete the suppression comment on the `audit_row` import above: the name is used now, and `ruff` (RUF100)
-        #   rejects a suppression that suppresses nothing, which would fail `make check`'s lint stage.
-        # Check: uv run pytest agent_worker/tests/test_calendar_writer.py -k "insert or update or removal or previous or roll_back or rolls_back or one_session or check_constraint or overflowing_price_is or vanished or restoring"
-        #   (the loop's tests, and the "remembered" test, which runs through `write_plan`, go green only once A6-K2 is filled too).
-        #   The likeliest mistake is taking `previous` after `_apply` (it equals `new_value`: test_previous_value_is_the_row_before_the_change
-        #   goes red). The second is writing the audit rows through another session (only test_a_write_uses_exactly_one_session
-        #   goes red: in these tests a second session nests inside the first's savepoint and rolls back with it) or calling
-        #   `session.commit()` before they are added (test_audit_rows_roll_back_with_the_write goes red; the foreign-key test
-        #   fails earlier, before the audit rows exist, so it cannot see either). The third is keeping created ids anywhere
-        #   but the return value (test_a_rolled_back_artist_is_not_remembered goes red once A6-K2 is filled).
-        raise NotImplementedError("TODO(Ari)")
+        async with self._session_factory() as session, session.begin():
+            created = await self._create_artists(session, op, artist_ids)
+            previous = await self._snapshot(session, op.stored_id, lock=True) if op.stored_id is not None else None
+            show_id = await self._apply(session, op, {**artist_ids, **created})
+            new = await self._snapshot(session, show_id)
+            session.add_all(
+                audit_row(e) for e in self._audit_rows(op, created, show_id, previous, new, run_id, attempt_number)
+            )
+        return ShowWritten(show_id, op.outcome, created)
 
     async def _create_artists(self, session: AsyncSession, op: ShowOp, artist_ids: Mapping[str, int]) -> dict[str, int]:
         """Create the artists this show's lineup needs that don't exist yet: name only (requirements, "Agent Artist
@@ -287,31 +275,22 @@ async def write_plan(
     tally = {"inserted": 0, "updated": 0, "removed": 0}
     failures: list[ShowFailure] = []
     for op in ops:
-        # TODO(Ari) A6-K2 — Lesson: a failure about ONE show is not a reason to stop, and a failure about the RUN is, and the
+        #   A failure about ONE show is not a reason to stop, and a failure about the RUN is, and the
         #   line between them is what the DATABASE says about this row, not which Python class the driver raised (a6-commit.md,
         #   A6-K2, A6-D2). SQLSTATE class 22 (a data exception: the overflow) and 23 (an integrity violation) are about the
         #   row; a lost connection, or a bug in our code, must propagate. `is_decision_error` (written) holds that rule, so the
         #   `except` clause names the broad types and re-raises when the rule says no: never `except Exception`
         #   (apps/api/AGENTS.md), and never `except SQLAlchemyError` that swallows a dead connection. The artist map is
         #   extended only from what `write_show` returned, after the write, so a failed show contributes nothing to it.
-        # Code:
-        #   try:
-        #       written = await writer.write_show(op, artist_ids, run_id=run_id, attempt_number=attempt_number)
-        #   except (DBAPIError, ShowGone) as err:
-        #       if not is_decision_error(err):
-        #           raise
-        #       failures.append(await record_failure(audit, op, err, run_id, attempt_number))
-        #       continue
-        #   artist_ids.update(written.created_artists)
-        #   tally[written.outcome.value] += 1
-        # Check: uv run pytest agent_worker/tests/test_calendar_writer.py -k "created_once or remembered or overflowing or connection or failing_show or show_gone or all_failed or created_so_far"
-        #   and agent_worker/tests/test_graph_commit.py -k failing. The likeliest mistake is catching `Exception`, `SQLAlchemyError`
-        #   or any `DBAPIError` without the SQLSTATE test (test_a_connection_error_stops_the_run goes red, with `08006` and with
-        #   the real lost-connection shape); the second is forgetting that the overflow is NOT an `IntegrityError` (catching
-        #   only `IntegrityError` makes test_an_overflowing_price_fails_only_its_show, the A6-D2 scenario, go red); the third is
-        #   catching only `DBAPIError`, which lets `ShowGone` (a show deleted by hand) stop the run
-        #   (test_a_show_gone_error_in_the_loop_is_recorded_and_skipped_like_a_refused_row goes red).
-        raise NotImplementedError("TODO(Ari)")
+        try:
+            written = await writer.write_show(op, artist_ids, run_id=run_id, attempt_number=attempt_number)
+        except (DBAPIError, ShowGone) as err:
+            if not is_decision_error(err):
+                raise
+            failures.append(await record_failure(audit, op, err, run_id, attempt_number))
+            continue
+        artist_ids.update(written.created_artists)
+        tally[written.outcome.value] += 1
     result = CommitResult(tally, len(artist_ids), tuple(failures), len(ops))
     if result.all_failed:
         log.error(
