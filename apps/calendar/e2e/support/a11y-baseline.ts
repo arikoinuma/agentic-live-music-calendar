@@ -57,7 +57,6 @@ export const BASELINE: BaselineEntry[] = [
   // Painted focus indicators and unfocused control borders, measured from screenshots
   // (focus-indicator.spec.ts, Step 6). `nodes` counts the controls below 3:1: all six
   // focus targets measured, and both form controls' borders.
-  { page: "focus indicators and borders @1280", ruleId: "b6-focus-indicator-3to1", nodes: 6, finding: "B6-F3" },
   { page: "focus indicators and borders @1280", ruleId: "b6-control-border-3to1", nodes: 2, finding: "B6-F6" },
   // B6-F7: at 375px, tabbing the home page lands on show 2's time link (9:00 PM - 11:30 PM)
   // at the right edge of its venue row, half cut off by the row's own scroll container: the

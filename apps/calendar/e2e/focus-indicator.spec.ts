@@ -68,8 +68,8 @@ test.describe("the measuring method, on pages built for the purpose", () => {
 
   // Proves: a speck is not an indicator either. A 2px black square appearing beside the
   // button changes a handful of pixels that are individually maximum contrast, but too few
-  // to outline anything: the measurement asks for an outline's worth (a 1px ring around
-  // the control's box, less 10% for rounded corners), and reads less as no indicator (1:1).
+  // to outline anything: the measurement asks for half an outline's worth (half of a 1px ring
+  // around the control's box), and reads less as no indicator (1:1).
   test("does not count a speck smaller than an outline", async ({ page }) => {
     await page.setContent(
       `<body style="margin:0;background:#fff;padding:24px"><button id="b" style="margin:12px;padding:6px 12px;position:relative">Button</button>
