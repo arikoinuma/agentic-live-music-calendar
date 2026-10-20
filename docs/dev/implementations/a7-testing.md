@@ -1,6 +1,6 @@
 # A7 — testing
 
-**Status:** Approved
+**Status:** Code review
 **Date:** October 20, 2026
 **Author model:** Claude Sonnet 5.5 (plan, October 20, 2026)
 **Reviewer model:** Claude Opus 5.5 (plan review round 1, October 20, 2026)
@@ -503,6 +503,100 @@ configuration, bookkeeping or a pinning test, and none of them is where a concep
 **Rejected:** none. All 11 findings were reproduced by the reviewer (CONFIRMED) and are accepted.
 
 **Resolution notes.** The one change to what Ari is asked: D2's recommendation moved from A to B (finding 4). The other fixes are local to the test approach, the mutation table and the doc steps, and add no step. I did not re-run the reviewer's scratch experiments; the edits change wording and step lists, not any measured fact. A round 2 is not warranted: nothing was rejected or reworked.
+
+## Implementation log
+
+### Round 1 — Claude Sonnet 5.5, October 20, 2026
+
+**Scope.** Diff base **`e52ec4c`** (the plan with its review round and resolution, the commit before the build began).
+Commit range `e52ec4c..HEAD`, six commits, one per plan step: `bc5ce0b` (step 1, tests first), `1a64894` (2, collection
+setting), `2d319c1` (3, mypy gate), `8ac991a` (4, `Proves:` pass), `630f584` (5, coverage target), `dc98f05` (6, docs). The
+reviewer's scope is the committed tree; `git diff e52ec4c..HEAD` is 31 files, +493 −43 (the `uv.lock` change is +86 for one
+package). Files touched, by area:
+- **Config and CI:** `apps/api/pyproject.toml` (`testpaths`, `python_files`, `[tool.mypy] files`, `[tool.coverage.*]`,
+  `coverage` dev dependency), `apps/api/uv.lock`, `Makefile` (`typecheck`, new `coverage` target, `clean`),
+  `.github/workflows/ci.yml` (mypy step), `.gitignore`.
+- **New test file:** `apps/api/app/tests/test_pytest_config.py` (3 tests).
+- **New coverage-gap tests:** `test_act_split.py` (C1), `test_jsonld.py` (C2a–c), `test_status_check.py` (C3), `test_normalize.py`
+  (C4), `test_reconcile_removal.py` (C5), `test_extraction.py` (C6).
+- **Typing edits (tests):** `reconcile_support.py`, `test_validation.py`, `test_reconcile_shows.py`, `test_commit_ops.py`,
+  `test_graph_audit.py`, `test_commit_db.py`.
+- **Production code:** `agent_worker/act_split.py` (one rename, `item` → `answered`), `agent_worker/eval/run_eval.py` (one
+  annotation, one `# type: ignore[arg-type]` with its reason). Nothing else in `app/` or `agent_worker/` outside `tests/`.
+- **Comment-only:** `app/tests/test_health.py` and `test_routers.py` (`Proves:` comments, 14 tests); docstrings in
+  `agent_worker/local_test.py`, `tests/fakes.py`, `tests/test_graph.py`, `tests/test_graph_audit.py`.
+- **Docs:** `docs/dev/alpha-build-plan.md` (A7 section), `docs/dev/conventions.md`, `docs/dev/env-setup.md`,
+  `docs/dev/notes.md`, `apps/api/AGENTS.md`, and this file (Status, Approval).
+
+**Departures from the plan.**
+1. **Commits.** The `build-milestone` skill says not to commit unless Ari asks; the repository's stop hook asks for work to
+   be committed and pushed to the session branch, and the plan said "one commit per numbered step". So the steps are six
+   commits on `claude/adoring-maxwell-7i6de2`, and the reviewer gets the commit range. Nothing is merged and no PR is open.
+2. **Counts differ from the plan's by the new test file.** mypy checks **104** files (the plan's 103 plus
+   `test_pytest_config.py`). Items collected: **896** = 883 + 13 (3 guard tests, 8 gap-test functions, +2 from parametrized
+   cases in C2c and C4). Test functions: 594 (583 + 11).
+3. **`run_eval.py` got a two-line comment** on the `flag: dict[str, Any]` annotation (the plan said "annotate"); and the
+   `# type: ignore[arg-type]` has to sit on the line with the `extraction=result` argument (mypy reports the argument's line),
+   so the call stays on one line.
+4. **A7-M8 and A7-M9 were run as described, with two details.** M8's regression was tried on a worktree copy of the final
+   `pyproject.toml` with the `python_files` line deleted; M9's probe was at module level (`PROBE_M9: int = "a"` appended to
+   `nodes.py`), the form the plan's review allowed.
+5. **D2 = B** (decided by Ari), so A1b's bullet in the build plan is unchanged (the sentence was option A's).
+6. **The build plan's A7 section says "in code review, awaiting sign-off"** and has an unticked `Sign-off — Ari` line, to be
+   changed when Ari signs off.
+7. **The mutation runner is not in the repo.** It was a throwaway script in the session scratchpad; its results are below.
+
+**`TODO(Ari)` gaps.** None. Every A7 item is [written] (plan, "Settled details"). Nothing is open for Ari to fill.
+
+**Verification** (cloud sandbox: Postgres up, no MongoDB, no Ollama, no gitignored fixtures; Node 22, CI uses 24):
+- **Baselines before any change:** `REQUIRE_DB=1 uv run pytest` 868 passed, 15 skipped; `uv run mypy agent_worker/` **75 errors
+  in 8 files**; `uv run mypy app/` clean (31 files); ruff clean. As the plan said.
+- **Tests first:** the guard's pattern test was **red** on the old config, naming `agent_worker/local_test.py (matches
+  '*_test.py')`; the other two passed. The eight gap tests passed at once and were proved able to fail by mutation, in a
+  throwaway worktree (removed afterwards, `apps/api/.env` copied in), each turning exactly its test red and nothing else:
+
+  | # | Mutation | Test that went red |
+  |---|---|---|
+  | A7-M1 | `act_split`: drop `and item.id not in by_id` | `test_the_first_answer_for_an_id_wins_and_ids_outside_the_range_are_ignored` |
+  | A7-M1 (range) | `act_split`: drop both bounds | **stayed green**, as the plan's review (A7-PR1-2) said it would |
+  | A7-M2 | `jsonld._end_time`: delete the zone-mismatch return | both cases of `test_an_end_whose_zone_differs_from_the_starts_is_not_taken` |
+  | A7-M3 | `jsonld._offer_price`: `continue` → `return None` | `test_an_unparseable_offer_price_is_skipped_for_the_next_offer` |
+  | A7-M4 | `status_check._on_page`: fallback `return True` | `test_an_answer_with_only_short_names_is_added_only_if_the_page_contains_them` |
+  | A7-M5 | `normalize_time`: delete the non-string raise | both cases of `test_a_time_that_is_not_text_is_refused_with_a_value_error` |
+  | A7-M6 | `listings_from` / `excluded_listing_dates`: delete each `None` guard (two runs) | `test_no_extraction_or_no_validation_means_no_listings_and_no_protected_dates` (both runs) |
+  | A7-M7 | `fetch_node` (`nodes.py:145`): `if False:` for the image branch | `test_fetch_node_reads_a_local_image_as_base64_and_leaves_the_html_unset` |
+  | A7-M10 | `jsonld._is_event`: delete the `isinstance(item, dict)` guard | `test_a_non_object_entry_in_a_block_is_skipped_not_fatal` |
+  | A7-M8a | `python_files` back to the default | `test_the_file_pattern_matches_only_test_modules`; and an import probe printed once (imported) under it, zero times under the built config |
+  | A7-M8b | a stray `scripts/test_probe.py` | `test_every_test_module_is_inside_a_test_path` |
+  | A7-M9 | `PROBE_M9: int = "a"` appended to `nodes.py` | `uv run mypy` exits non-zero: `nodes.py:350 ... [assignment]` |
+
+- **mypy:** `uv run mypy` → **no issues in 104 source files** (was 75 errors); `make typecheck` (mypy + `next typegen` and
+  `tsc`) green.
+- **`make check BASE=e52ec4c`, exit 0:** ruff clean; mypy 0/104; pytest **881 passed, 15 skipped** (the one Mongo test and 14 real-page
+  tests skip here); Vitest 337 passed; `make contract-check` "current"; `make designation-check BASE=e52ec4c` exit 0.
+- **Comment-only passes verified by syntax trees** (docstrings and comments ignored, snapshot before, compare after): step 4
+  (`test_health.py`, `test_routers.py`) and the four docstring edits in step 6 (`local_test.py`, `fakes.py`, `test_graph.py`,
+  `test_graph_audit.py`): all match. A scan of all 594 test functions finds **0 without `Proves:`** (was 14).
+- **`make coverage`:** 99% total, **17 missed statements (was 27) and 9 partial branches (was 17)**; what is still missed is
+  exactly the list under "What is not covered". No `.coverage` or `htmlcov/` residue in `git status` (ignored).
+- **Not verified here:** the draft PR's CI (the Python job's mypy step now runs a bare `uv run mypy`; `ci.yml` parses as
+  YAML), a local run with Docker up (14 skips instead of 15), and `make coverage` on Ari's machine.
+
+**Where to look hardest.**
+1. **`app/tests/test_pytest_config.py`:** is the walk's skip-list right (hidden directories, `node_modules`, `__pycache__`)? The
+   pattern test deliberately walks all of `apps/api`, not `testpaths`; it would flag any future `*_test.py` helper module outside
+   `tests/` too. Is that the right strictness?
+2. **The `Proves:` comments in `test_routers.py`.** I wrote them from the tests and the contract; two make claims about future
+   work ("A1b's seed must leave 999 and 99 unused", "A1b's ORDER BY must keep" the untimed-last rule). The ordering rule is the
+   router's own (api-contract.md has no ordering section), so check I haven't overstated it.
+3. **C3 pins the substring looseness** of `_on_page`'s fallback (`['MO']` passes against "…at the Armory"). That was in the plan
+   (A7-PR1-8), but a test that asserts a known weakness could be read as endorsing it; the comment says it doesn't.
+4. **`reconcile_support.py` asserts** (three `assert … is not None`): they add failure modes to a helper many tests share. The
+   suite is unchanged, but a reviewer should confirm each invariant (an insert carries its listing; an update or removal names
+   a stored show) holds for every caller.
+5. **The `pyproject.toml` comments** (they are the only record, in code, of why `python_files` is narrowed), and the build
+   plan's A7 paragraph (its numbers: 881/15, 896, 104, 99%, 17 and 27).
+6. **The mypy gate's limit** (unannotated bodies unchecked): documented in `pyproject.toml` and `apps/api/AGENTS.md`, not fixed.
 
 ## Approval
 
