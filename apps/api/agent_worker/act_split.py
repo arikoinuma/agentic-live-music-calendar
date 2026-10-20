@@ -106,12 +106,12 @@ def split_titles(
 
     result = SplitResult(acts=[])
     for i, title in enumerate(titles):
-        item = by_id.get(i)
-        if item is None:
+        answered = by_id.get(i)
+        if answered is None:
             result.acts.append([])
             result.missing_ids.append(i)
             continue
-        if fold_text(item.title) != fold_text(title):
+        if fold_text(answered.title) != fold_text(title):
             result.title_mismatches.append(i)
-        result.acts.append([a.strip() for a in item.acts if a.strip()])
+        result.acts.append([a.strip() for a in answered.acts if a.strip()])
     return result

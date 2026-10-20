@@ -264,7 +264,7 @@ def test_a_snapshot_is_restorable_json_with_the_lineup_in_performance_order() ->
     # Proves (data-model-initial.md §3, "what a revert restores"): the exact JSON. A price is the string "20.00" (not
     # the float 20.0, which cannot carry cents without a binary tail), times and dates are ISO, the enum is its value,
     # the timestamps are absent, and the lineup is in sequence order whatever order it was read in.
-    lineup = [
+    lineup: list[dict[str, Any]] = [
         {"artist_id": 8, "start_time": None, "sequence_number": 2},
         {"artist_id": 7, "start_time": datetime.time(20, 30), "sequence_number": 1},
     ]

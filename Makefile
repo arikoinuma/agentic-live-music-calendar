@@ -171,7 +171,7 @@ lint: ## ruff + eslint
 	pnpm turbo run lint
 
 typecheck: ## mypy + tsc
-	cd $(API_DIR) && uv run mypy app/
+	cd $(API_DIR) && uv run mypy
 	pnpm turbo run check-types
 
 # REQUIRE_DB=1: the DB tests skip when Postgres is down, and `make check` is the

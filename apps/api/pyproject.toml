@@ -48,6 +48,11 @@ dev = [
 # at runtime, not from constructor args — without this plugin mypy treats
 # `database_url`/`model_name` as missing arguments to Settings().
 plugins = ["pydantic.mypy"]
+# What a bare `uv run mypy` checks, so the Makefile, CI and a person at a prompt all check the same
+# thing. Both packages are held to one bar: the worker, its tests and the eval harness included
+# (v0.1-G15; A7-D3). Bodies of unannotated functions are not checked (no check_untyped_defs), so
+# annotate a function to put its body under the gate. scripts/ and migrations/ are outside it.
+files = ["app", "agent_worker"]
 
 [tool.pytest.ini_options]
 # Both packages are walked in full, so a test placed anywhere under app/ or agent_worker/ is
