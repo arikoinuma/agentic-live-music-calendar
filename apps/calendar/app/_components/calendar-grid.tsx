@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { formatDayHeading } from "@/lib/dates";
 import type { CalendarRow } from "@/lib/calendar";
+import { ScrollRow } from "./scroll-row";
 import { ShowBlock } from "./show-block";
 
 /**
@@ -59,6 +60,10 @@ export function CalendarGrid({ rows }: { rows: CalendarRow[] }) {
               // the whole PAGE scrolls sideways instead of this row. (If a
               // wrapper is ever needed: `min-w-0` on it.) B3-K5.
               //
+              // That div is `ScrollRow`: the same element, plus an `onFocus` that scrolls the row to the
+              // focused control's column (B6-F7: the browser leaves a half-visible focused link half
+              // visible, and scroll-snap undoes a nudge). It renders this exact div, so the rule above holds.
+              //
               // Deliberately NO `tabIndex`, `role="region"` or `aria-label`
               // here (B3-CR1-4; Ari tried it and it was noise). A
               // scrollable area must be keyboard-reachable, but every venue
@@ -74,9 +79,7 @@ export function CalendarGrid({ rows }: { rows: CalendarRow[] }) {
               // reaches the row's end from chaining into the browser's Back
               // gesture; scroll-snap keeps columns aligned after a flick.
               // Without them the page itself overflows sideways.
-              <div
-                className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2"
-              >
+              <ScrollRow className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2">
                 {row.venues.map((column) => (
                   <section
                     key={column.venue.id}
@@ -97,7 +100,7 @@ export function CalendarGrid({ rows }: { rows: CalendarRow[] }) {
                     </div>
                   </section>
                 ))}
-              </div>
+              </ScrollRow>
             )}
           </li>
         );

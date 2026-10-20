@@ -31,11 +31,10 @@ for (const width of TAB_STOP_WIDTHS) {
     // headings, so a link scrolled to the top edge could sit under one. The visited
     // order is attached to the report as the evidence for 2.4.3 (Focus Order), and the page
     // URL is checked at the end because merely FOCUSING about 160 controls must change
-    // nothing (3.2.1, On Focus). The stops that ARE hidden are held to the ratchet baseline
-    // BY NAME, each stop its own finding: one is known (B6-F7: at 375px a time link at the
-    // right edge of a venue row is half cut off by the row's own scroll container), so a
-    // DIFFERENT hidden stop, such as one under a sticky heading, fails even in the same
-    // change that fixes B6-F7.
+    // nothing (3.2.1, On Focus). Any stop that IS hidden is held to the ratchet baseline BY
+    // NAME, each stop its own finding. The baseline holds none today (B6-F7, a link half cut off
+    // by its venue row's scroll container at 375px, was the one it held; `ScrollRow` fixed it),
+    // so any hidden stop, including one under a sticky heading, fails.
     test(`no Tab stop is newly hidden, under a sticky heading or anything else, on ${path} @${width}`, async ({
       page,
     }) => {
@@ -74,6 +73,49 @@ for (const width of TAB_STOP_WIDTHS) {
       );
     });
   }
+}
+
+// ---------------------------------------------------------------------------
+// A venue row scrolls so the focused control is fully in view (B6-F7)
+// ---------------------------------------------------------------------------
+
+for (const width of [1280, 375, 320]) {
+  // Proves: while tabbing the home page, every focused control inside a sideways-scrolling
+  // venue row is FULLY inside the row's visible area, not just "not entirely hidden"
+  // (WCAG 2.4.11's bar, and what the check above asks). Chromium does not scroll a nested
+  // scroller for a focused element that is already partly visible, and `scroll-snap` undoes a
+  // small `scrollIntoView` nudge, so before B6-F7 was fixed every stop in a row's second and
+  // later columns stayed partly or almost wholly off-screen (at 320px a link was 5% visible).
+  // Expected value: 100% for every stop; the 1px tolerance is sub-pixel layout.
+  test(`tabbing keeps the focused control fully inside its venue row @${width}`, async ({ page }) => {
+    const screen = SCREENS.find((s) => s.path === "/")!;
+    await page.setViewportSize({ width, height: 700 });
+    await page.goto("/");
+    await screen.ready(page);
+
+    const partlyOutside: string[] = [];
+    for (let stop = 0; stop < MAX_STOPS; stop++) {
+      await page.keyboard.press("Tab");
+      const result = await page.evaluate(() => {
+        const el = document.activeElement as HTMLElement | null;
+        if (!el || el === document.body) return null; // focus left the page
+        // The sideways scroller the control lives in, if any.
+        let row: HTMLElement | null = el.parentElement;
+        while (row && getComputedStyle(row).overflowX !== "auto") row = row.parentElement;
+        if (!row) return { name: "", outside: false };
+        const rect = el.getBoundingClientRect();
+        const bounds = row.getBoundingClientRect();
+        return {
+          name: (el.textContent ?? "").trim().slice(0, 40),
+          outside: rect.left < bounds.left - 1 || rect.right > bounds.right + 1,
+        };
+      });
+      if (result === null) break;
+      if (result.outside) partlyOutside.push(result.name);
+    }
+
+    expect(partlyOutside, "focused controls not fully inside their venue row").toEqual([]);
+  });
 }
 
 // ---------------------------------------------------------------------------

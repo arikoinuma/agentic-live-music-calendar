@@ -65,10 +65,4 @@ export const BASELINE: BaselineEntry[] = [
   // (focus-indicator.spec.ts, Step 6). `nodes` counts the controls below 3:1: all six
   // focus targets measured, and both form controls' borders.
   { page: "focus indicators and borders @1280", ruleId: "b6-control-border-3to1", nodes: 2, finding: "B6-F6" },
-  // B6-F7: at 375px, tabbing the home page lands on show 2's time link (9:00 PM - 11:30 PM)
-  // at the right edge of its venue row, half cut off by the row's own scroll container: the
-  // point at its centre is in the page padding beyond the scroller. Held BY NAME (the stop's own
-  // text is in the rule id) so a different hidden stop cannot hide behind a fix. Not a sticky heading, and
-  // WCAG 2.4.11 only fails an ENTIRELY hidden control, but a half-clipped focus is a defect.
-  { page: "tab stops hidden / @375", ruleId: "b6-focus-obscured: 9:00 PM – 11:30 PM, show details", nodes: 1, finding: "B6-F7" },
 ];

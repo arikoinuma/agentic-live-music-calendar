@@ -93,8 +93,11 @@ HTTP against the API for anything else — the routes exist and serve the same d
 - `app/_components/calendar-results.tsx` is the synchronous half of the home page: the calendar, or the
   "No matches found" / "No shows listed" message. It exists so that branch is testable (B5-D1); `CalendarBody`
   in `app/page.tsx` only fetches.
-- The calendar's one Client Component is `app/_components/filter-header.tsx`. It holds no
-  results: a selection calls `router.push` with the new URL and the server page re-renders.
+- The calendar's Client Components are `app/_components/filter-header.tsx` and `app/_components/scroll-row.tsx`.
+  The header holds no results: a selection calls `router.push` with the new URL and the server page re-renders. `ScrollRow`
+  is the sideways-scrolling venue row (the same `<div>`, with an `onFocus`): on keyboard focus it scrolls the row to the
+  focused control's column, because Chromium does not scroll a nested scroller for a half-visible focused element and
+  `scroll-snap` undoes a nudge (B6-F7; its Playwright journey is in `e2e/keyboard.spec.ts`).
 - Every API call logs one line to the Next server's terminal from `send()` in `lib/api.ts`:
   `[api] GET /shows?venue_id=3 -> 200 in 41ms` (or `-> failed (timed out) in …ms`). It's how you
   see server-to-server requests the browser's Network tab can't. It
