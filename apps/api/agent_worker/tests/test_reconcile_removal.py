@@ -18,6 +18,7 @@ from agent_worker.reconcile import (
     ReconcilePolicy,
     build_plan,
     covered_window,
+    excluded_listing_dates,
     listings_from,
     load_request,
     prepare_inputs,
@@ -160,6 +161,21 @@ def test_a_listing_carries_its_status_when_the_schema_has_one_and_is_scheduled_w
     )
     page = VenuePageExtraction(page_readable=True, shows=[extracted(day(21)), with_status])
     assert [listing.status for listing in listings_from(page)] == ["scheduled", "cancelled"]
+
+
+def test_no_extraction_or_no_validation_means_no_listings_and_no_protected_dates() -> None:
+    # Proves (A7): reconcile's two page-reading helpers answer "nothing" when there is nothing to read: no extraction
+    # gives no listings, and no extraction or no validation result gives no protected dates, so a missing input can
+    # never raise or protect a stored show from the soft delete by accident. The control uses the same page as the
+    # test above (an excluded show on Oct 22), so the empty answers are not simply what the helper always returns.
+    raw, _kept, result = validated([
+        extracted(day(20), ["Nona"]), extracted(day(22), []), extracted(day(25), ["Zhora"]),
+    ])
+    assert excluded_listing_dates(raw, result, FETCHED) == frozenset({day(22)})
+
+    assert listings_from(None) == []
+    assert excluded_listing_dates(None, result, FETCHED) == frozenset()
+    assert excluded_listing_dates(raw, None, FETCHED) == frozenset()
 
 
 def test_the_window_is_none_when_every_listed_date_is_before_today() -> None:

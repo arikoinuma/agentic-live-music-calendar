@@ -179,6 +179,7 @@ async def test_an_unchanged_show_gets_no_audit_row_and_every_write_gets_one(
     assert sorted(r.outcome.value for r in show_rows if r.outcome) == ["inserted", "inserted", "removed", "updated", "updated"]
     assert run1.ids["show_nona"] not in {r.entity_id for r in show_rows}
     assert [r.entity_type for r in rows if r.entity_type is EntityType.ARTIST] == [EntityType.ARTIST]
+    assert rows[-1].detail is not None
     assert rows[-1].entity_type is EntityType.VENUE and rows[-1].detail["counts"] == {
         "inserted": 2, "updated": 2, "removed": 1, "no_op": 1, "skip": 0,
     }
@@ -229,6 +230,7 @@ async def test_the_second_run_is_all_no_ops(
     rows = await commit_rows(factory, state.run_id)
     assert [r.entity_type for r in rows] == [EntityType.VENUE]
     # five no-ops: Oct 20, 22, 24, 28 and 31 (the removed Oct 23 show is not listed; the November show is beyond the window)
+    assert rows[0].detail is not None
     assert rows[0].detail["counts"]["inserted"] == 0 and rows[0].detail["counts"]["no_op"] == 5
 
 

@@ -24,6 +24,7 @@ carries that defining document's scope.
 | `A4` | `docs/dev/implementations/a4-auditability.md` |
 | `A5` | `docs/dev/implementations/a5-reconcile.md` |
 | `A6` | `docs/dev/implementations/a6-commit.md` |
+| `A7` | `docs/dev/implementations/a7-testing.md` |
 | `B2` | `docs/dev/implementations/b2-routes-and-data-loading.md` |
 | `B3` | `docs/dev/implementations/b3-the-calendar.md` |
 | `B4` | `docs/dev/implementations/b4-detail-pages.md` |

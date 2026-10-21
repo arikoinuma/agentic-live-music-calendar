@@ -2,9 +2,10 @@
 
 What this is: `test_extraction.FakeCompletions` answers every call the same way. The retry loop
 needs the opposite — a model that fails once and then answers, or answers differently on the
-second attempt — so `ScriptedClient` answers from an ordered script *per response model*. It is the
-fake model client that milestone A7 plans, in the one shape A3 needs; `test_extraction.py` keeps
-its own.
+second attempt — so `ScriptedCompletions` (built by `scripted_client()`) answers from an ordered script *per
+response model*. It is the suite's fake model client for the graph tests (built in A3, extended in A5), and it raises
+on a call nobody scripted. `test_extraction.py` and `test_prompts.py` keep their own, which deliberately answer every
+call the same way (A7).
 
 How to read it: a script is `{response_model_class: [step, step, ...]}`. Each call to
 `client.chat.completions.create(response_model=X, ...)` takes the next step of X's list; the last

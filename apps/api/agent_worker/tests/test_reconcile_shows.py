@@ -23,6 +23,7 @@ from agent_worker.reconcile import (
     Action,
     ListedAct,
     StoredLineupEntry,
+    StoredShow,
     night_sort_key,
 )
 from agent_worker.tests.reconcile_support import (
@@ -422,7 +423,8 @@ def test_a_stated_order_that_differs_from_list_order_is_stable_run_to_run() -> N
     # Proves (A5-CR1-2): a page that lists "Zhora" first but states Zhora is 2nd and Nona 1st must not be an
     # update every night. Written, read back and reconciled again, it is a no-op, three runs in a row.
     page = [listed(0, day(20), at(20), acts=[ListedAct("Zhora", None, 2), ListedAct("Nona", None, 1)])]
-    shows, artists = [], list(KNOWN)
+    shows: list[StoredShow] = []
+    artists = list(KNOWN)
     for _ in range(3):
         plan = plan_for(page, shows, artists)
         shows, artists = apply_plan(plan, shows, artists)

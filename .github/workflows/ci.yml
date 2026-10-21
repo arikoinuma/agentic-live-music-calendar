@@ -74,9 +74,10 @@ jobs:
         run: uv run ruff check .
 
       - name: mypy
-        # Scoped to app/ — agent_worker/ (Phase 6) is still active WIP with
-        # known type errors; widen this once that settles.
-        run: uv run mypy app/
+        # No path: [tool.mypy] files in pyproject.toml names what is checked, app/ and
+        # agent_worker/ (tests and eval harness included), so CI and `make typecheck` can't
+        # disagree. Widened from app/ alone in A7 (v0.1-G15).
+        run: uv run mypy
 
       - name: pytest
         run: uv run pytest

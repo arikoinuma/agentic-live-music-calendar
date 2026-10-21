@@ -72,6 +72,18 @@ def test_an_unparseable_block_is_skipped_not_fatal() -> None:
     assert [e["name"] for e in jsonld.find_events(html)] == ["First", "Second"]
 
 
+def test_a_non_object_entry_in_a_block_is_skipped_not_fatal() -> None:
+    # Proves (A7): a list block or an @graph that holds a bare string, number or null next to real events (a
+    # hand-edited or plugin-generated block can) costs the page nothing: the real events are still read, in order. The
+    # alternative is `.get` on a string raising out of `find_events`, which would fail the whole page's extraction.
+    # The expected names are the two events the test writes.
+    html = page(
+        ["not an event", 7, event("In a list")],
+        {"@graph": ["also not an event", None, event("In a graph")]},
+    )
+    assert [e["name"] for e in jsonld.find_events(html)] == ["In a list", "In a graph"]
+
+
 def test_a_page_without_json_ld_has_no_events() -> None:
     # Proves: the common case (Terminal Bar, Mortimer's, 7th St Entry) returns nothing, so
     # routing falls back to the model route.
@@ -149,6 +161,23 @@ def test_an_end_more_than_six_hours_after_the_start_is_not_taken() -> None:
 
 
 @pytest.mark.parametrize(
+    ("start", "end"),
+    [
+        ("2026-08-17T21:00:00-05:00", "2026-08-17T23:00:00"),  # aware start, naive end
+        ("2026-08-17T21:00:00", "2026-08-17T23:00:00-05:00"),  # naive start, aware end
+    ],
+)
+def test_an_end_whose_zone_differs_from_the_starts_is_not_taken(start: str, end: str) -> None:
+    # Proves (A7): an end written with a UTC offset against a start without one (or the reverse) can't be compared, so
+    # it is dropped, as the module says an implausible end is, instead of raising a TypeError subtracting an aware time
+    # from a naive one. The show itself, and its start time, are unaffected. The expected 21:00 is the start's own
+    # wall-clock time as written (the offset form is -05:00, Chicago in August).
+    show = jsonld.to_structured_show(event(startDate=start, endDate=end), CHICAGO)
+    assert show.end_time is None
+    assert show.time == datetime.time(21, 0)
+
+
+@pytest.mark.parametrize(
     ("raw", "expected"),
     [
         ("Martin Devaney &#038; Friends", "Martin Devaney & Friends"),
@@ -193,6 +222,19 @@ def test_offer_prices(offers: Any, advance: float | None, free: bool | None) -> 
     assert show.admission_advance == advance
     assert show.admission_day is None
     assert show.free_admission is free
+
+
+def test_an_unparseable_offer_price_is_skipped_for_the_next_offer() -> None:
+    # Proves (A7): an offer whose price is not a number ("sold out") doesn't raise and doesn't end the search: the
+    # next offer's price is used. And when no offer has a usable price, every admission field stays null ("not
+    # stated", never false or free; requirements-initial.md, Show: Free Admission). Expected values are the
+    # prices written into the two events below.
+    offers = [{"@type": "Offer", "price": "sold out"}, {"@type": "Offer", "price": "15.00"}]
+    assert jsonld.to_structured_show(event(offers=offers), CHICAGO).admission_advance == 15.0
+
+    only_bad = jsonld.to_structured_show(event(offers=[{"@type": "Offer", "price": "sold out"}]), CHICAGO)
+    assert only_bad.admission_advance is None
+    assert only_bad.free_admission is None
 
 
 @pytest.mark.parametrize(

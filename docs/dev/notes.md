@@ -569,6 +569,21 @@ Seed the rows with a literal past `updated_at` and assert the value against that
 
 ---
 
+## pytest imports every file its `python_files` globs match, tests or not, and `--collect-only` won't show it
+
+pytest's default `python_files` is `test_*.py` and `*_test.py`. `agent_worker/local_test.py` (a manual script: real Postgres, MongoDB and
+Ollama) matches the second glob, so any `testpaths` that includes `agent_worker/` makes pytest **import it on every run**. It was invisible
+while `testpaths` listed only `agent_worker/tests`, and it stays invisible in `pytest --collect-only`, whose tree lists only modules that yield
+test items: a module that is imported but defines no tests doesn't appear (A7 measured this with a top-level `print("PROBE")` and `-s`).
+Today the import has no side effect because the work sits under `if __name__ == "__main__"`; a module-level call added later would run on every
+pytest.
+
+**Fix / lesson:** `python_files = ["test_*.py"]` in `pyproject.toml`, so only `test_*.py` is ever a test module, and
+`app/tests/test_pytest_config.py` fails if the glob or `testpaths` regress (it walks the whole tree, not just `testpaths`, so it is red on a
+config that only widens `testpaths`). To check whether pytest imports a file: add a top-level `print` and run `pytest --collect-only -s -q`.
+
+---
+
 ## Dependabot alerts: a cloud session can't read them, and the count overstates the work
 
 **Symptom:** the Security tab showed 117 open alerts; `gh api repos/.../dependabot/alerts` in a cloud session returned `403 Resource not
