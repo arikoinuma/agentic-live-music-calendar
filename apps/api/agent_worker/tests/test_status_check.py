@@ -64,6 +64,29 @@ def test_short_names_match_by_exact_name() -> None:
     assert shows == [(10, ["MO", "U2"], "cancelled")]
 
 
+def test_an_answer_with_only_short_names_is_added_only_if_the_page_contains_them() -> None:
+    # Proves (A7): a status answer whose acts have no identifying word ("MO" is under three letters) is checked against
+    # the page by the fallback in `_on_page`: its folded name must appear in the folded page text. Present -> added,
+    # absent -> recorded in `not_on_page` and not added ("no invented shows").
+    # This fallback is a SUBSTRING test, not a word test: "mo" is inside "armory", so a page that never lists the act
+    # still passes. That looseness is pinned here as it is today (the third case), not endorsed; it is cheap, and
+    # the main guard against an invented show is the identifying-word check every longer name goes through.
+    # The page texts are written to contain, or not contain, the letters "mo" by hand.
+    cancelled_mo = answer((18, ["MO"], "cancelled"))
+
+    on_page = merge(extraction(), cancelled_mo, page_text="Oct 18: MO cancelled")
+    assert on_page == [(18, ["MO"], "cancelled")]
+
+    merged, notes = status_check.apply(
+        extraction(), cancelled_mo, page_text="Oct 18: Lizzo cancelled", fetch_date=None, venue_name="V",
+    )
+    assert merged.shows == []
+    assert notes["not_on_page"] == [["MO"]]
+
+    inside_a_word = merge(extraction(), cancelled_mo, page_text="Oct 18: Lizzo at the Armory")
+    assert inside_a_word == [(18, ["MO"], "cancelled")]
+
+
 def test_a_one_day_date_slip_still_matches() -> None:
     # Proves: this model sometimes puts a listing on the neighbouring date ("MARIS" Oct 30 for
     # 31). The answer is matched to the show it names a day away instead of adding an invented

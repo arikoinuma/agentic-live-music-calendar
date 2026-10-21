@@ -4,12 +4,12 @@ Milestone A3 (docs/dev/implementations/a3-validation-and-retry.md, "test_graph.p
 decision on its own; these prove the pieces are wired so that a failure becomes a retry, a retry
 becomes a different request, and a cap becomes an escalation — end to end through `compiled_graph`,
 with no model server and no network. The page is a file in `tmp_path` (fetch_node's local-file branch)
-and the model is `fakes.ScriptedClient`, swapped in for `nodes.instructor_client`.
+and the model is `fakes.scripted_client()`, swapped in for `nodes.instructor_client`.
 
 How to read it: each test names the situation (a model call that raises, an empty page, a bad record at
 high confidence…), scripts what the model returns on each call, runs the graph, and asserts on the
 state it ends in: how many attempts, which route each used, the verdict, and which node it finished at.
-The finishing node is read from side effects the stub nodes leave: `reconcile_decision` is set only by
+The finishing node is read from side effects the nodes leave: `reconcile_plan` is set only by
 reconcile_node, `escalation_reason` only by escalate_node.
 
 Expected values come from the plan, not from the code under test: the cap of 3 attempts is
@@ -32,6 +32,8 @@ from agent_worker.tests import fakes
 from agent_worker.tests.fakes import (
     PAGE,
     SPLITTER,
+    FakeReader,
+    FakeWriter,
     RecordingAudit,
     RecordingStager,
     completions,
@@ -70,13 +72,13 @@ async def run_graph(
         venue_id=1, calendar_url=url, venue_name="The Venue", metro_timezone="America/Chicago",
         fetched_on=fakes.FETCHED, run_id=1, **({"policy": policy} if policy else {}),
     )
-    context = WorkerContext(audit=RecordingAudit(), stager=RecordingStager())
+    context = WorkerContext(audit=RecordingAudit(), stager=RecordingStager(), reader=FakeReader(), writer=FakeWriter())
     return VenueGraphState(**await compiled_graph.ainvoke(state, context=context)), client
 
 
 def reached_reconcile(state: VenueGraphState) -> bool:
-    """True when reconcile_node ran: it is the only node that sets `reconcile_decision`."""
-    return state.reconcile_decision is not None
+    """True when reconcile_node ran: it is the only node that sets `reconcile_plan`."""
+    return state.reconcile_plan is not None
 
 
 def reached_escalate(state: VenueGraphState) -> bool:

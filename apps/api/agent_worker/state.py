@@ -1,8 +1,10 @@
 import datetime
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, Field
 
+from agent_worker.artist_match import KnownArtist
+from agent_worker.commit import CommitResult, ShowOp
 from agent_worker.policy import (
     DEFAULT_POLICY,
     AttemptPlan,
@@ -10,6 +12,7 @@ from agent_worker.policy import (
     RetryPolicy,
     Route,
 )
+from agent_worker.reconcile import ReconcilePlan, StoredShow
 from agent_worker.schemas import VenuePageExtraction
 from agent_worker.validation import ValidationResult
 
@@ -93,19 +96,6 @@ class VenueGraphState(BaseModel):
     # against.
     attempt_count: int = 0
 
-    # reconcile_decision — the doc's own outcome table
-    # (docs/arch/arch-initial.md Section 7) names exactly five possible
-    # values: no-op, delete, insert, update, ambiguous match. A
-    # `Literal[...]` of those five (as short, code-friendly strings, e.g.
-    # "no_op", "delete", "insert", "update", "ambiguous_match") is a
-    # better fit than a bare `str` — it makes an invalid/misspelled
-    # outcome a validation error instead of a typo that silently reaches
-    # commit_node. Defaults to None, since nothing's been decided yet at
-    # graph start.
-    reconcile_decision: (
-        Literal["no_op", "delete", "insert", "update", "ambiguous_match"] | None
-    ) = None
-
     # ---------------------------------------------------------------------
     # A3: validation and retry. Everything below is defaulted, so
     # `VenueGraphState(**result)` re-wrapping still works. Who sets each field and who reads it:
@@ -164,3 +154,31 @@ class VenueGraphState(BaseModel):
     # on EVERY attempt, None where the call failed before returning it, for the same reason as the A3
     # per-attempt fields above.
     extraction_sent_text: str | None = None
+
+    # ---------------------------------------------------------------------
+    # A5: reconcile (docs/dev/implementations/a5-reconcile.md)
+    # ---------------------------------------------------------------------
+
+    # stored_shows / known_artists — the calendar as it stands, read by `trace.audited` just before reconcile runs
+    # (the wrapper awaits the database; the node body stays a plain function and only reads these). Empty until then,
+    # and empty for a venue with no stored shows yet, which is why a failed read must raise rather than leave them empty.
+    stored_shows: list[StoredShow] = Field(default_factory=list)
+    known_artists: list[KnownArtist] = Field(default_factory=list)
+
+    # reconcile_plan — what reconcile decided: per-show actions with their changes and lineups, the artist
+    # resolutions, the window it removed inside, and removals the guard withheld. It replaces the single
+    # `reconcile_decision` value of the Phase 6 stub, which could not describe a run that inserts three shows and
+    # removes one. `commit_node` (A6) executes it. None until reconcile has run, so it also tells a test which
+    # node a run finished at.
+    reconcile_plan: ReconcilePlan | None = None
+
+    # ---------------------------------------------------------------------
+    # A6: commit (docs/dev/implementations/a6-commit.md)
+    # ---------------------------------------------------------------------
+
+    # commit_ops — the writes reconcile's plan asks for, in the order to do them (`commit.build_ops`). Set by
+    # `commit_node`, a plain function that touches no database; `trace.audited` then awaits the writes (A4-D1).
+    # commit_result — what the writes did (shows written by outcome, artists created, shows that failed). Set by the
+    # wrapper after the writes; None until commit has run, and the source of commit's summary audit row.
+    commit_ops: tuple[ShowOp, ...] = ()
+    commit_result: CommitResult | None = None

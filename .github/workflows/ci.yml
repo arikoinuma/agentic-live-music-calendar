@@ -74,9 +74,10 @@ jobs:
         run: uv run ruff check .
 
       - name: mypy
-        # Scoped to app/ — agent_worker/ (Phase 6) is still active WIP with
-        # known type errors; widen this once that settles.
-        run: uv run mypy app/
+        # No path: [tool.mypy] files in pyproject.toml names what is checked, app/ and
+        # agent_worker/ (tests and eval harness included), so CI and `make typecheck` can't
+        # disagree. Widened from app/ alone in A7 (v0.1-G15).
+        run: uv run mypy
 
       - name: pytest
         run: uv run pytest
@@ -200,3 +201,22 @@ jobs:
             apps/calendar/playwright-report/
             apps/calendar/test-results/
           retention-days: 7
+
+  designations:
+    name: Designations (scoped IDs)
+    # Pull requests only: it looks at the lines a PR adds. A push to main has no base to compare with.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The whole history, so the merge-base with the PR's target branch can be found.
+          fetch-depth: 0
+
+      # A designation (a decision, key point or review item number) means something different in every plan, so
+      # outside the plan that defines it, it must carry its scope (A5-D7). docs/dev/conventions.md has the forms; `make designation-check` runs the
+      # same check locally. Fails if this PR adds a bare one to code, tests, comments or another document.
+      - name: No bare designations outside their plan
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: make designation-check BASE="$(git merge-base "origin/$BASE_REF" HEAD)"

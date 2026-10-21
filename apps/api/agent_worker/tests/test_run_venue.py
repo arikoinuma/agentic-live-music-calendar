@@ -6,10 +6,11 @@ the real Postgres writer (so the rows are real), the real graph, the scripted mo
 
 How to read it: `ctx` builds a `WorkerContext` on the test connection; `setup` seeds the venues and returns
 the first as `VenueFacts`. Expected values are the seed's literals (`app/db/seed.py`: venue 1 is The White
-Squirrel Bar, in the America/Chicago metro) and the plan's rules. The tests marked (A4-K1) stay red until Ari
-fills the `TODO(Ari)` block in `main.run_venue`.
+Squirrel Bar, in the America/Chicago metro) and the plan's rules. The tests marked (A4-K1) pin the run lifecycle that
+`main.run_venue` implements.
 """
 
+import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -22,12 +23,15 @@ from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession, async_sessionm
 
 from agent_worker import main, nodes
 from agent_worker.audit import PostgresAuditWriter
+from agent_worker.commit import CommitResult, ShowFailure
 from agent_worker.context import WorkerContext
 from agent_worker.main import VenueFacts, load_venues, run_all, run_venue
 from agent_worker.state import VenueGraphState
 from agent_worker.tests import fakes
 from agent_worker.tests.fakes import (
     SPLITTER,
+    FakeReader,
+    FakeWriter,
     RecordingStager,
     event,
     jsonld_page,
@@ -56,7 +60,9 @@ def factory(db_conn: AsyncConnection) -> async_sessionmaker[AsyncSession]:
 def ctx(factory: async_sessionmaker[AsyncSession]) -> WorkerContext:
     """What the worker hands every node: the real Postgres audit writer (on the test connection) and a
     recording stager standing in for MongoDB."""
-    return WorkerContext(audit=PostgresAuditWriter(factory), stager=RecordingStager())
+    return WorkerContext(
+        audit=PostgresAuditWriter(factory), stager=RecordingStager(), reader=FakeReader(), writer=FakeWriter(),
+    )
 
 
 @pytest_asyncio.fixture(loop_scope="session")
@@ -133,6 +139,28 @@ async def test_run_all_continues_after_one_venue_hits_an_infrastructure_error(
     monkeypatch.setattr(main, "run_venue", flaky)
     failed = await run_all(factory, ctx)
     assert failed == 1 and len(seen) == 4
+
+
+async def test_run_all_counts_a_venue_whose_commit_had_a_refused_show_as_failed(
+    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Proves (A6-D2): a venue run that returns normally but with a show the database refused counts as failed, so the
+    # process exits non-zero and a person looks (`failed_commits`); a venue whose commit was clean does not. The venues are
+    # the seeded ones in id order; only the first returns a failure.
+    seen: list[int] = []
+
+    async def commit_with_one_refusal(v: VenueFacts, *_: Any, **__: Any) -> VenueGraphState:
+        seen.append(v.id)
+        failures = (
+            ShowFailure("insert", datetime.date(2026, 10, 20), None, None, "new show", "22003", "boom"),
+        ) if len(seen) == 1 else ()
+        return VenueGraphState(
+            venue_id=v.id, calendar_url=v.calendar_url, venue_name=v.name, metro_timezone=v.metro_timezone,
+            commit_result=CommitResult(failures=failures, total_ops=1),
+        )
+
+    monkeypatch.setattr(main, "run_venue", commit_with_one_refusal)
+    assert await run_all(factory, ctx) == 1 and len(seen) == 4
 
 
 # ---------------------------------------------------------------------------

@@ -14,7 +14,7 @@ WEB := calendar
 
 .DEFAULT_GOAL := help
 .PHONY: help setup dev api web db db-up db-down db-reset db-shell db-wait worker \
-        migrate migration seed fixtures types contract-check test lint typecheck \
+        migrate migration seed fixtures types contract-check designation-check test coverage lint typecheck \
         e2e check clean
 
 help: ## Show this help
@@ -130,6 +130,14 @@ types: ## Regenerate lib/api-types.ts from FastAPI's OpenAPI schema
 	cd $(API_DIR) && uv run python -m scripts.dump_openapi
 	pnpm exec openapi-typescript $(API_DIR)/openapi.json -o apps/$(WEB)/lib/api-types.ts
 
+# The commit this branch left main at. Right in CI and for a branch of one milestone; for anything else pass
+# BASE=<commit before the work began> (a milestone's Implementation log names it). Fetch first: a stale origin/main
+# makes the base too old and the check flags other people's lines.
+BASE ?= $(shell git merge-base origin/main HEAD 2>/dev/null)
+
+designation-check: ## Fail if lines added since BASE use a bare D5/K2/PR1-3 outside their plan (docs/dev/conventions.md)
+	@python3 scripts/check_designations.py $(BASE)
+
 contract-check: ## Fail if the generated contract output is stale
 	@snap=$$(mktemp -d); \
 	cp apps/$(WEB)/lib/api-types.ts $$snap/ 2>/dev/null || true; \
@@ -156,14 +164,14 @@ contract-check: ## Fail if the generated contract output is stale
 # Checks — these mirror .github/workflows/ci.yml
 # ---------------------------------------------------------------------
 
-check: lint typecheck test contract-check e2e ## Run everything CI runs
+check: lint typecheck test contract-check designation-check e2e ## Run everything CI runs
 
 lint: ## ruff + eslint
 	cd $(API_DIR) && uv run ruff check .
 	pnpm turbo run lint
 
 typecheck: ## mypy + tsc
-	cd $(API_DIR) && uv run mypy app/
+	cd $(API_DIR) && uv run mypy
 	pnpm turbo run check-types
 
 # REQUIRE_DB=1: the DB tests skip when Postgres is down, and `make check` is the
@@ -171,6 +179,11 @@ typecheck: ## mypy + tsc
 test: ## pytest (DB tests required) + vitest
 	cd $(API_DIR) && REQUIRE_DB=1 uv run pytest
 	pnpm turbo run test
+
+# Report only, not part of `make check` or CI (A7-D1): read the Missing column; there is no threshold on purpose.
+coverage: ## pytest with branch coverage of app/ and agent_worker/ (report only; needs Postgres)
+	cd $(API_DIR) && REQUIRE_DB=1 uv run coverage run -m pytest
+	cd $(API_DIR) && uv run coverage report
 
 # End-to-end tests (B6). Playwright starts its own stack, so this needs no running
 # `make dev`: the real FastAPI app on the sample data (8101), a pass-through proxy
@@ -189,4 +202,4 @@ e2e: ## Playwright end-to-end tests (builds the app, starts API + proxy + Next)
 clean: ## Remove caches and build output
 	rm -rf .turbo apps/*/.turbo apps/*/.next
 	find . -name '__pycache__' -type d -prune -exec rm -rf {} +
-	rm -rf $(API_DIR)/.mypy_cache $(API_DIR)/.pytest_cache $(API_DIR)/.ruff_cache
+	rm -rf $(API_DIR)/.mypy_cache $(API_DIR)/.pytest_cache $(API_DIR)/.ruff_cache $(API_DIR)/.coverage $(API_DIR)/htmlcov

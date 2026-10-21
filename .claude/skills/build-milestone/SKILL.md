@@ -13,11 +13,17 @@ at Ari's sign-off gate.
    handoff. If any plan-review Resolution cell is still empty, stop and report it instead of
    building.
 
-1. **Implement.** Tests first (build plan §3), then the steps in order. [written] steps are
+1. **Implement.** Tests first (build plan §3), then the steps in order. **Cite the plan's items with the
+   milestone scope everywhere outside the plan file**: `A5-D7`, `A5-K1`, `A5-PR1-3`, `A5-CR1-4`, never a bare
+   `D7` (code, tests, comments, docstrings, section headers and other docs; a bare ID can't be searched for or told
+   apart from another plan's). Copy IDs from the plan's "Designations" paragraph in the scoped form. [written] steps are
    written complete. [fill-in] steps follow `AGENTS.md`, "[fill-in] tasks": scaffold, leave
    the `TODO(Ari)` blocks open, and don't fill them; this skill isn't a request to fill them.
    Run `make check`. Its tests for open gaps are expected to fail; anything else failing must
-   be fixed or explained. Then add a round under `## Implementation log` (scope as a diff base
+   be fixed or explained. Then run **`make designation-check BASE=<diff base>`** (the base the Implementation log
+   will name: the commit before you started) and fix every bare designation it lists; it must exit 0 before you
+   spawn the reviewer. A fix that only changes comments is a comment-only pass, so verify it as `AGENTS.md`
+   says (syntax trees before and after, then `make check`). Then add a round under `## Implementation log` (scope as a diff base
    and files touched, departures, `TODO(Ari)` status, verification results, where to look
    hardest) and set Status to `Code review`. Don't commit unless Ari has asked; give the
    reviewer the working tree as the scope instead.
@@ -28,7 +34,7 @@ at Ari's sign-off gate.
    besides the plan file.
 
 3. **Resolve.** Fix the code (failing test first where the finding is testable), fill every
-   Resolution cell, re-run `make check`, record the result at the end of the round, and set
+   Resolution cell, re-run `make check` and `make designation-check BASE=<diff base>`, record the result at the end of the round, and set
    Status to `Awaiting sign-off`. If round 2 looks warranted, don't run it; say so.
 
 4. **Stop and hand off** to Ari as `AGENTS.md` describes, plus: each open `TODO(Ari)` as a

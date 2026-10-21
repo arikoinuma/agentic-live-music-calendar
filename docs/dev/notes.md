@@ -460,6 +460,23 @@ gets `mongo:8.0` past the guard and it then answers ping, but it bypasses a chec
 incompatibility, so it was not used. Revisit the pin when Docker Desktop's kernel or a MongoDB 8.x patch
 changes.
 
+## Reconcile (A5): where "absent from the page" can go wrong
+
+- **"Not in the validated list" is not "not on the page".** `validation.excluded` and `Finding.show_index` index the RAW
+  `state.extraction.shows`, not `validated_extraction.shows` (which has the excluded shows taken out). A listing left out
+  for naming no act is still on the page and may be a real show the act splitter missed, so it protects a stored show on its
+  date from the soft delete; one left out for an implausible date is not evidence the page reached that far. Validation excludes a show for
+  naming no act BEFORE it checks the date, so an implausible-dated placeholder ("Private event", 2028) arrives as a no-act
+  exclusion too; `excluded_listing_dates` re-checks plausibility itself. Reading the wrong list protects the wrong dates,
+  silently. `reconcile.excluded_listing_dates` is the one place that does it.
+- **A reader that returns an empty list is not the same as a reader that failed.** Reconcile treats "nothing stored" as
+  "insert everything". The read therefore raises, and the run stops, rather than falling back to an empty calendar
+  (`trace.read_calendar`; test_an_unreadable_calendar_stops_the_run_with_no_reconcile_row).
+- **`None == None` is `True` in Python and not in SQL.** The null-time pairing is where this bites (a naive
+  `listing.time == stored.start_time` pairs two different untimed shows but not an untimed one with a timed one).
+- **Venue ids in DB tests are not 1, 2, 3.** Sequences don't reset when a test's transaction rolls back, so a test that
+  needs a venue reads the seeded ids (`load_venues`) rather than hard-coding them.
+
 ---
 
 ## Component tests: five things that cost time, found while setting up B5
@@ -561,3 +578,60 @@ nothing navigates. Guard such handlers with `target.matches(":focus-visible")` (
 pointer journey is `e2e/venue-row-pointer.spec.ts`. Test it with raw `page.mouse` / `page.touchscreen` coordinates on the
 VISIBLE part of a partly visible control, and with a viewport tall enough that the control is on screen (a press below the
 fold reaches nothing and the test fails for the wrong reason).
+
+Browser tests (B6) pin the clock to a date inside the sample window. **Whenever `sample_data.py` changes, move
+that pinned date in the same change.** See `alpha-build-plan.md`, B6, "Standing rule: the test clock".
+
+---
+
+## With asyncpg, only integrity violations are an `IntegrityError`; an overflow is a plain `DBAPIError`, and a dropped connection has `sqlstate = None`
+
+**Symptom (found in A6 plan review, before any code):** a handler that caught `(IntegrityError, DataError)` to mean "the
+database refused this row" did not catch a `Numeric(10, 2)` overflow, and a `getattr(err.orig, "sqlstate", "")[:2]` raised
+`TypeError` on a real lost connection.
+
+**Cause:** SQLAlchemy's asyncpg dialect maps `asyncpg.exceptions.IntegrityConstraintViolationError` to `IntegrityError` and every
+other server error to the generic `Error` (`dialects/postgresql/asyncpg.py`, `_asyncpg_error_translate`), so `DataError`
+never occurs, and a SQLSTATE class 22 error (a data exception: overflow, a NUL byte, a bad enum text) is a plain
+`DBAPIError`. The dialect always SETS `orig.sqlstate`, to `None` for a client-side error, so a dropped connection (an
+`InterfaceError`, `connection_invalidated = True`) has an attribute that exists and is `None`: a `getattr` default is never used.
+
+**Fix / lesson:** classify by the SQLSTATE class the database reports (`calendar_writer.is_decision_error`: 22 or 23 is about the
+row, anything else is about the connection or us), and read it as `getattr(err.orig, "sqlstate", None) or ""`. Measured on
+SQLAlchemy 2.0.52 / asyncpg 0.32.0. `tests/fakes.py` builds the real shapes.
+
+---
+
+## In the DB tests a second session's "separate" commit is not separate: it nests inside the first session's savepoint
+
+The test factories bind every session to one connection in `create_savepoint` mode, so a session opened while another is mid-
+transaction creates a savepoint INSIDE the first's, and rolling the outer one back undoes the inner one's "committed" work. A test
+that asserts "a rolled-back write left no audit row" cannot tell a writer that used one transaction from one that wrote the audit
+row through a second session (the A6-M2 mutation). Only counting the sessions catches that (`test_a_write_uses_exactly_one_session`),
+or a test on a real engine instead of savepoint mode. A failure raised AFTER the rows were produced
+(`test_audit_rows_roll_back_with_the_write`) catches a different mistake, a `commit()` before the rows are added, and passes a
+writer that used a second session.
+
+---
+
+## Inside a test transaction `now()` never moves, so `updated_at` assertions need a literal past value
+
+`TimestampMixin.updated_at` is `server_default=now()` / `onupdate=func.now()`, and `now()` is the start of the OUTER test transaction.
+Two readings of it are equal, so "did this row get rewritten" cannot compare before with after (the same trap as `finished_at`, A4-CR1-5).
+Seed the rows with a literal past `updated_at` and assert the value against that literal.
+
+---
+
+## pytest imports every file its `python_files` globs match, tests or not, and `--collect-only` won't show it
+
+pytest's default `python_files` is `test_*.py` and `*_test.py`. `agent_worker/local_test.py` (a manual script: real Postgres, MongoDB and
+Ollama) matches the second glob, so any `testpaths` that includes `agent_worker/` makes pytest **import it on every run**. It was invisible
+while `testpaths` listed only `agent_worker/tests`, and it stays invisible in `pytest --collect-only`, whose tree lists only modules that yield
+test items: a module that is imported but defines no tests doesn't appear (A7 measured this with a top-level `print("PROBE")` and `-s`).
+Today the import has no side effect because the work sits under `if __name__ == "__main__"`; a module-level call added later would run on every
+pytest.
+
+**Fix / lesson:** `python_files = ["test_*.py"]` in `pyproject.toml`, so only `test_*.py` is ever a test module, and
+`app/tests/test_pytest_config.py` fails if the glob or `testpaths` regress (it walks the whole tree, not just `testpaths`, so it is red on a
+config that only widens `testpaths`). To check whether pytest imports a file: add a top-level `print` and run `pytest --collect-only -s -q`.
+
