@@ -1,6 +1,6 @@
 # A7 — testing
 
-**Status:** Awaiting sign-off
+**Status:** Done (Ari sign off) - Oct 21, 2026
 **Date:** October 20, 2026
 **Author model:** Claude Sonnet 5.5 (plan, October 20, 2026)
 **Reviewer model:** Claude Opus 5.5 (plan review round 1, October 20, 2026; code review round 1, October 20, 2026)
@@ -677,3 +677,5 @@ Round 2 is not warranted: 0 blocker and 0 should-fix, nothing rejected or rework
 decisions."), then ran `/build-milestone`, which set the status to `Approved` at step 0. Decided as recommended: **D1 = A** (a
 report-only coverage target), **D2 = B** (all 14 older tests get a `Proves:` comment now; revised from A in plan review),
 **D3 = A** (mypy covers tests and `eval/`). The Settled details stand as written.
+
+**Ari, October 21, 2026: signed off. A7 is Done.** Ari ran the local verification (including the deliberate type-error check on the widened mypy gate) and flipped the milestone to Done. Code review round 1 (0 blocker, 0 should-fix, 5 nits) was resolved on October 20; no `TODO(Ari)` gaps existed.
