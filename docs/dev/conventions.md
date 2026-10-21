@@ -17,6 +17,7 @@ carries that defining document's scope.
 | Scope | Defined in |
 |---|---|
 | `v0.1` | `docs/dev/alpha-build-plan.md` (v0.1 is the alpha; the plan's header says so) |
+| `Dep` | `docs/dev/alpha-deployment-plan.md` (its plan-level decisions, `Dep-D1`; each C milestone in it gets its own scope when planned) |
 | `A1` | `docs/dev/implementations/a1-data-layer.md` |
 | `A2` | `docs/dev/implementations/a2-extraction-schema.md` |
 | `A2.1` | `docs/dev/implementations/a2.1-extraction-reliability.md` |
@@ -30,7 +31,7 @@ carries that defining document's scope.
 | `B4` | `docs/dev/implementations/b4-detail-pages.md` |
 | `B5` | `docs/dev/implementations/b5-frontend-testing.md` |
 
-Future milestones use their own IDs (`A7`, `H1`, …) the same way.
+Future milestones use their own IDs (`B6`, `C2`, …) the same way.
 
 ### Forms
 
