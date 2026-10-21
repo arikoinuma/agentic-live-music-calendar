@@ -21,6 +21,12 @@ import http from "node:http";
 
 const [listenPort, upstreamPort] = process.argv.slice(2).map(Number);
 
+// The longest delay a control request may ask for. Tests use a few seconds at most; the cap exists
+// so a mistyped or hostile `/__delay/<ms>` cannot park every request on a timer for hours (the
+// proxy listens on 127.0.0.1 only, but CodeQL rightly flags a timer whose duration comes straight
+// from a request URL).
+const MAX_DELAY_MS = 30_000;
+
 let delayMs = 0;
 let failing = false;
 
@@ -31,7 +37,7 @@ http
     if (req.method === "POST" && req.url?.startsWith("/__")) {
       const delay = req.url.match(/^\/__delay\/(\d+)$/);
       if (delay) {
-        delayMs = Number(delay[1]);
+        delayMs = Math.min(Number(delay[1]), MAX_DELAY_MS);
         failing = false;
       } else if (req.url === "/__fail") {
         failing = true;
