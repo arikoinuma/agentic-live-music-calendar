@@ -1,5 +1,5 @@
 /**
- * The loading skeleton's accessibility (B6 plan, decision D8; finding B6-F5).
+ * The loading skeleton's accessibility (B6 plan, decision B6-D8; finding B6-F5).
  *
  * The grey bars are decoration and stay hidden from assistive technology. Before B6
  * they were ALL it had: no text, so a screen-reader user got nothing while the
