@@ -1,12 +1,14 @@
 """Helpers for the `dependabot-triage` skill: turn raw alert data into a triage summary.
 
-Two subcommands, both read-only and standard-library only (run with `python3 -I` so a
+Three subcommands, all read-only and standard-library only (run with `python3 -I` so a
 stray `json.py` in the working directory can't shadow the real module):
 
+    triage.py fetch alerts.tsv          # export the open alerts with `gh`; exit 3 if gh has no access
     triage.py summarize alerts.tsv      # what the alerts are, grouped for decision-making
     triage.py chains pnpm-audit.json    # which direct dependency drags each vulnerable npm package in
 
-Reading order: `parse_alerts` -> `summarize` (the report) -> `chains` (root causes).
+Reading order: `fetch` (get the data, or learn we can't) -> `parse_alerts` -> `summarize` (the
+report) -> `chains` (root causes).
 
 Why this exists. A repo with ~120 open alerts is unreadable as a flat list, but almost all of
 them collapse into a handful of root causes (one framework pinned in three places, one CLI tool
@@ -25,9 +27,25 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
+
+# Exit codes of `fetch`. The skill branches on these, so they are part of its contract.
+EXIT_OK = 0
+EXIT_ERROR = (
+    1  # gh failed for some reason other than access (network, rate limit, bad repo)
+)
+EXIT_NO_ACCESS = 3  # gh has no right to read alerts: re-run where the user is logged in
+EXIT_NO_GH = 4  # gh is not installed
+
+# The jq filter that turns the API's JSON into the five columns `parse_alerts` expects.
+# Only open alerts: fixed and dismissed ones are history, not work.
+ALERTS_JQ = (
+    '.[]|select(.state=="open")|[.number,.security_advisory.severity,'
+    ".dependency.package.name,.dependency.scope,.dependency.manifest_path]|@tsv"
+)
 
 # Highest first, so every table reads "worst at the top".
 SEVERITIES = ("critical", "high", "medium", "low")
@@ -35,6 +53,54 @@ SEVERITIES = ("critical", "high", "medium", "low")
 # Dependabot reports the Python lockfile by path; anything else here is an npm manifest.
 # (If a new ecosystem is added to .github/dependabot.yml, extend this mapping.)
 PYTHON_MANIFEST_SUFFIXES = ("uv.lock", "requirements.txt", "pyproject.toml")
+
+
+# --- fetch --------------------------------------------------------------------------------
+
+
+def fetch(out_path: Path, repo: str) -> int:
+    """Export the open alerts to `out_path` with `gh`, or say plainly that we have no access.
+
+    Why this is a subcommand and not a line in SKILL.md: the one thing the skill must do
+    differently depending on the outcome is stop when access is missing, so the outcome
+    needs to be a number a script can't misread, not prose to interpret.
+
+    Access is missing in cloud sessions: their token is a GitHub App installation token
+    without the `vulnerability_alerts: read` permission, so GitHub answers 403 (see
+    docs/dev/notes.md). On a developer's machine `gh` carries the user's own login and works.
+    A 401 means `gh` isn't logged in at all, and has the same remedy.
+    """
+    try:
+        proc = subprocess.run(
+            [
+                "gh",
+                "api",
+                f"repos/{repo}/dependabot/alerts",
+                "--paginate",
+                "-q",
+                ALERTS_JQ,
+            ],
+            # Not `check=True`: a non-zero exit is an expected answer here, and which kind
+            # (no access vs. some other failure) is decided below from gh's message.
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except FileNotFoundError:
+        print("`gh` is not installed in this environment.", file=sys.stderr)
+        return EXIT_NO_GH
+
+    if proc.returncode != 0:
+        # `gh` prints e.g. "gh: Resource not accessible by integration (HTTP 403)".
+        status_403_or_401 = "HTTP 403" in proc.stderr or "HTTP 401" in proc.stderr
+        print(proc.stderr.strip(), file=sys.stderr)
+        return EXIT_NO_ACCESS if status_403_or_401 else EXIT_ERROR
+
+    out_path.write_text(proc.stdout)
+    rows = parse_alerts(proc.stdout)
+    print(f"Wrote {len(rows)} open alerts to {out_path}")
+    return EXIT_OK
 
 
 # --- parsing ------------------------------------------------------------------------------
@@ -204,6 +270,18 @@ def chains(audit: dict) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = parser.add_subparsers(dest="command", required=True)
+    f = sub.add_parser(
+        "fetch",
+        help="export open alerts with `gh`; exit 3 means no access (re-run locally)",
+    )
+    f.add_argument("out", type=Path, help="file to write the alert rows to")
+    # `{owner}/{repo}` is gh's own placeholder, filled in from the current git remote, so the
+    # default works in any checkout of this repo without hard-coding the name here.
+    f.add_argument(
+        "--repo",
+        default="{owner}/{repo}",
+        help="OWNER/REPO (default: this checkout's remote)",
+    )
     s = sub.add_parser(
         "summarize", help="summarize a Dependabot alert export (use - for stdin)"
     )
@@ -214,6 +292,9 @@ def main() -> int:
     )
     c.add_argument("file")
     args = parser.parse_args()
+
+    if args.command == "fetch":
+        return fetch(args.out, args.repo)
 
     raw = sys.stdin.read() if args.file == "-" else Path(args.file).read_text()
     if args.command == "summarize":

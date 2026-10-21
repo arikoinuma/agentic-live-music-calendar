@@ -583,5 +583,8 @@ and on this public repo an uploaded CSV artifact is downloadable by other signed
 places turned 9 advisories into 27 alerts. And its `runtime` / `development` label follows `dependencies` vs `devDependencies`, so the
 `shadcn` CLI (a build-time scaffolding tool) made ~48 alerts read "runtime"; 116 of 118 did. Triage by root cause (which direct dependency
 drags the vulnerable one in), not by the flat list or the label. `.claude/skills/dependabot-triage/` (`/dependabot-triage`) does this:
-export the alerts, `triage.py summarize`, then `pnpm audit` / `pip-audit` and `triage.py chains` to find the levers. Measured on the
+`triage.py fetch` tries `gh` and exits 3 on a 403/401, at which point the skill stops and tells Ari to re-run it in a local session (no paste
+step), then `triage.py summarize`, then `pnpm audit` / `pip-audit` and `triage.py chains` to find the levers. The 403 is a GitHub App token
+(GitHub's "integration") without `vulnerability_alerts: read`, not a limit on `gh` itself: PRs, check runs and the dependency-graph SBOM all
+work from a cloud session. Measured on the
 2026-10-21 export: 118 alerts reduced to about six fixes, and the lockfile audits reconstructed 114 of them.

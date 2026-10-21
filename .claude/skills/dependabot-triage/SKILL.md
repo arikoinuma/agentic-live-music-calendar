@@ -1,12 +1,12 @@
 ---
 name: dependabot-triage
-description: Turn the repo's open Dependabot alerts into a ranked fix plan. Takes an alert export (or asks Ari for one), collapses it into root causes, cross-checks the lockfiles, reads the open Dependabot PRs, and recommends an order by alerts closed per action. Read-only; changes nothing.
-argument-hint: [path to alerts TSV, e.g. /tmp/alerts.tsv; omit to be shown how to export one]
+description: Turn the repo's open Dependabot alerts into a ranked fix plan. Fetches the alerts with gh (needs a local session logged in to GitHub; in a cloud session it stops and says to re-run locally), collapses them into root causes, cross-checks the lockfiles, reads the open Dependabot PRs, and recommends an order by alerts closed per action. Read-only; changes nothing.
+argument-hint: [optional path to an existing alerts TSV; omit to fetch with gh]
 disable-model-invocation: true
 ---
 
-Triage the open Dependabot alerts for this repo. **$ARGUMENTS** is the alert export if Ari gave a
-path; otherwise start at step 1. This skill is **read-only**: it recommends, and does not edit
+Triage the open Dependabot alerts for this repo. **$ARGUMENTS** is an existing alert export if Ari
+gave a path (then skip the fetch in step 1); otherwise start at step 1. This skill is **read-only**: it recommends, and does not edit
 lockfiles, merge PRs, dismiss alerts or comment on PRs. Any of those needs Ari's say-so first.
 
 The helper is `.claude/skills/dependabot-triage/triage.py` (standard library only; always run it
@@ -21,26 +21,37 @@ The point of this skill is to find those levers and rank them by alerts closed p
 
 ## 1. Get the alerts
 
-**A cloud session cannot read the alerts API.** Verified: `gh api repos/{owner}/{repo}/dependabot/alerts`
-returns `403 Resource not accessible by integration`, and the response header
-`X-Accepted-Github-Permissions: vulnerability_alerts=read` names the missing permission. GraphQL and
-the global `/advisories` endpoints are blocked for sessions too (repo-scoped REST paths only). Do not
-try to get around either.
-
-- **Local session where `gh` is logged in as Ari:** run the command below yourself.
-- **Cloud session:** ask Ari to run it on their machine and paste the output (or save it and give
-  the path). Paste the command into the message so they can copy it:
+If `$ARGUMENTS` is a path to an existing export, use it and go to step 2. Otherwise fetch the
+open alerts with `gh` (the scratchpad directory, not `/tmp` and not the repo, is the place for the file):
 
 ```
-gh api repos/arikoinuma/agentic-live-music-calendar/dependabot/alerts --paginate -q '.[]|select(.state=="open")|[.number,.security_advisory.severity,.dependency.package.name,.dependency.scope,.dependency.manifest_path]|@tsv'
+python3 -I .claude/skills/dependabot-triage/triage.py fetch <scratchpad>/alerts.tsv
 ```
 
-Save pasted output to the scratchpad directory (not `/tmp`, not the repo) before running the helper.
+Branch on the exit code:
+
+| Exit | Meaning | What to do |
+|---|---|---|
+| 0 | Wrote the alert rows | Go on to step 2 |
+| 3 | `gh` has no access (HTTP 403 or 401) | **Stop.** See below |
+| 4 | `gh` is not installed | Stop and say so; the remedy is the same as for 3 |
+| 1 | Some other failure (network, rate limit) | Show the error and stop; don't guess |
+
+**On exit 3, stop and tell Ari to re-run `/dependabot-triage` in a local Claude Code session where
+`gh auth status` shows them logged in as themselves.** Say why in a sentence: the alerts endpoint needs
+the `vulnerability_alerts: read` permission, and a cloud session's GitHub credential is an App token
+without it (it answers `403 Resource not accessible by integration`; the response header
+`X-Accepted-Github-Permissions: vulnerability_alerts=read` names the permission). Then end the turn.
+
+Do not, on exit 3: ask Ari to paste an export unless they offer one, run the lockfile audits from step 3
+as a stand-in, or try GraphQL or the global `/advisories` endpoint (sessions block both, deliberately).
+If Ari then asks for a best-effort picture anyway, the audits in step 3 can produce one; label it an
+approximation of Dependabot's list and not the list.
 
 **Do not recommend a third-party "export alerts" GitHub Action.** It would receive a token that can
 read the repo's unpatched-vulnerability list, runs unfamiliar code from a personal repo behind a
 mutable tag, and (this repo is public) a CSV uploaded as a workflow artifact can be downloaded by
-other signed-in GitHub users. The one-liner above needs no secret and no new code.
+other signed-in GitHub users. `fetch` needs no secret and no new code.
 
 ## 2. Summarize
 
@@ -59,8 +70,7 @@ them.
 The package table says what is vulnerable. The question is **which dependency the repo chose that
 drags it in**.
 
-**npm** (works in the cloud sandbox; `pnpm audit` exits non-zero when it finds anything, which is
-expected):
+**npm** (`pnpm audit` exits non-zero when it finds anything, which is expected):
 
 ```
 pnpm audit --json > <scratchpad>/pnpm-audit.json
@@ -71,7 +81,7 @@ python3 -I .claude/skills/dependabot-triage/triage.py chains <scratchpad>/pnpm-a
 Then confirm any lever with `pnpm why <package>`. Compare the full and `--prod` reports: a package
 that is only in the full one comes from a dev dependency.
 
-**Python** (cloud sandbox has `uv`; `uvx pip-audit` reaches PyPI there, whereas the OSV API does not):
+**Python** (`uvx pip-audit` queries PyPI; the OSV API was unreachable from the cloud sandbox):
 
 ```
 cd apps/api
