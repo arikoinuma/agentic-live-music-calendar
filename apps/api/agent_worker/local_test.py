@@ -6,7 +6,7 @@ the audit trail to Postgres and staging each extraction in MongoDB.
 
 Needs (A4): Postgres seeded (`make db-up && make migrate && make seed`), MongoDB up (`make db-up`),
 `MONGODB_URI` set in `.env`, and Ollama serving the model. Run from `apps/api`:
-`uv run python -m agent_worker.local_test`. (Not collected by pytest: `pyproject.toml` scopes `testpaths`.)
+`uv run python -m agent_worker.local_test`. (Not collected by pytest: its name does not match `python_files = ["test_*.py"]` in `pyproject.toml`, A7.)
 """
 
 import asyncio

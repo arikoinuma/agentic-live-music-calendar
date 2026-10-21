@@ -264,11 +264,11 @@ def test_a_morning_start_is_a_warning_and_an_after_midnight_start_is_not() -> No
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("price", [{"admission_advance": 15.0}, {"admission_day": 10.0}])
-def test_free_together_with_a_price_is_an_error(price: dict[str, float]) -> None:
+@pytest.mark.parametrize(("advance", "day"), [(15.0, None), (None, 10.0)])
+def test_free_together_with_a_price_is_an_error(advance: float | None, day: float | None) -> None:
     # Proves: requirements, Validation: "Free Admission cannot be true at the same time as an
     # Admission Advance or Admission Day price being set".
-    result, _ = validate(page(show(free_admission=True, **price)))
+    result, _ = validate(page(show(free_admission=True, admission_advance=advance, admission_day=day)))
     assert CheckCode.FREE_WITH_PRICE in codes(result, Severity.ERROR)
     # The message is sent to the model as a retry hint, and the model was never shown a "show 0": it
     # names the show by its date (A3-CR1-5a).

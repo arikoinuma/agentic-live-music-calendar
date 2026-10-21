@@ -14,6 +14,10 @@ node_modules
 
 # Testing
 coverage
+# Python's coverage tool (make coverage): the data file and the HTML report. The pattern above matches only a
+# name of exactly `coverage`.
+.coverage
+htmlcov/
 
 # Turbo
 .turbo

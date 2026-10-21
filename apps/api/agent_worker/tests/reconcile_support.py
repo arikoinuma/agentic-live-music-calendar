@@ -228,6 +228,7 @@ def apply_plan(
         if d.action is Action.INSERT:
             # A new row built from the listing itself: reconcile's insert carries the listing and the lineup.
             listing = d.listing
+            assert listing is not None  # an insert always carries the listing it was built from
             shows[next_show] = StoredShow(
                 id=next_show, date=d.date, start_time=listing.time, end_time=listing.end_time,
                 admission_advance=to_price(listing.admission_advance), admission_day=to_price(listing.admission_day),
@@ -237,12 +238,14 @@ def apply_plan(
         elif d.action is Action.UPDATE:
             # Apply exactly the fields the decision names (new value of each `(old, new)` pair). The lineup and the
             # status are handled separately: the lineup is replaced wholesale, the status may flip back to active.
+            assert d.stored_id is not None  # an update always names the stored show it changes
             current = shows[d.stored_id]
             values = {k: v[1] for k, v in d.changes.items() if k not in ("lineup", "status")}
             new_status = d.changes["status"][1] if "status" in d.changes else current.status
             shows[d.stored_id] = dataclasses.replace(current, status=new_status, lineup=lineup(d), **values)
         elif d.action is Action.REMOVE:
             # A soft delete: the row stays, its status says removed.
+            assert d.stored_id is not None  # a removal always names the stored show it retires
             shows[d.stored_id] = dataclasses.replace(shows[d.stored_id], status=ShowStatus.REMOVED)
         # NO_OP and SKIP change nothing.
     return list(shows.values()), list(artists.values())

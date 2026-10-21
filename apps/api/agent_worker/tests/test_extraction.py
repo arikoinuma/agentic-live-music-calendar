@@ -12,6 +12,7 @@ request -> the year rule -> pipeline/harness wiring -> fetch_node. HTML snippets
 here in the fixtures' shapes; the fixtures themselves are never read.
 """
 
+import base64
 import datetime
 import json
 from dataclasses import replace
@@ -374,6 +375,21 @@ def test_fetch_node_keeps_a_fetch_date_it_was_given(tmp_path: Path) -> None:
         fetched_on=datetime.date(2026, 8, 17),
     ))
     assert state.fetched_on == datetime.date(2026, 8, 17)
+
+
+def test_fetch_node_reads_a_local_image_as_base64_and_leaves_the_html_unset(tmp_path: Path) -> None:
+    # Proves (A7): a calendar URL that is a local image file (a venue whose shows are a poster, the image route) is
+    # read as bytes and stored base64-encoded in `page_content`, which is what `extract_image` sends the model; it
+    # is not read as text (an image isn't valid UTF-8) and it leaves `page_html` unset, so the JSON-LD route has
+    # nothing to try. The expected string is computed here from the bytes the test wrote, not by the node.
+    poster = tmp_path / "poster.png"
+    poster.write_bytes(b"\x89PNG\r\n\x1a\n not really an image")
+    state = nodes.fetch_node(VenueGraphState(
+        venue_id=1, calendar_url=str(poster), venue_name="V", metro_timezone=CHICAGO,
+    ))
+    assert state.fetch_error is None
+    assert state.page_content == base64.b64encode(poster.read_bytes()).decode()
+    assert state.page_html is None
 
 
 def test_extract_node_and_the_harness_send_identical_image_requests(

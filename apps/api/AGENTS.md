@@ -23,7 +23,8 @@ Run from `apps/api`. Scripts need `-m` (`uv run python -m scripts.dump_openapi`)
 ```
 uv run uvicorn app.main:app --reload    # or `make api` from the repo root
 uv run pytest                           # DB tests skip if Postgres is down
-uv run ruff check . && uv run mypy app/
+uv run ruff check . && uv run mypy      # mypy checks app/ and agent_worker/ ([tool.mypy] files)
+make coverage                           # from the repo root: branch coverage report, no threshold
 make seed                               # metro + the four starting venues
 ```
 
@@ -97,9 +98,15 @@ build the wrapper **without `functools.wraps`** (it hides the `runtime` paramete
 (there is already a loop). What a row records is `audit.entry_for`, a pure function with its own tests; the keys
 of its `detail` are read by `docs/dev/audit-queries.sql`, so change them in both places.
 
-`agent_worker/` is active WIP and is held to a lower bar than `app/` on purpose — mypy is
-scoped to `app/` in CI because the worker still has known type errors. Widening that is
-milestone A7, not a drive-by fix.
+`agent_worker/` is held to the same type bar as `app/` (A7): a bare `uv run mypy` checks both, the worker's tests
+and eval harness included, and CI runs the same command. mypy does not check the bodies of unannotated functions, so
+annotate a test (`-> None`) to put its body under the gate. A `# type: ignore[code]` needs the reason beside it.
+
+**Where tests live and what pytest collects** (A7). `pyproject.toml` walks `app/` and `agent_worker/` in full and treats
+only `test_*.py` as a test module. Name a test module `test_*.py`; name a manual script anything else, because pytest
+*imports* every file its globs match, tests or not (`agent_worker/local_test.py` opens real databases and expects a real
+model, and pytest's default `*_test.py` glob would match it). `app/tests/test_pytest_config.py` fails if either setting
+regresses. Every test opens with a `Proves:` comment (root `AGENTS.md`).
 
 The pipeline's shape, the retry and escalation rules, and what each node must write to the
 audit trail are specified in `arch-initial.md` §7. The known gaps between that spec and the
@@ -110,7 +117,7 @@ Validation and retry (A3) live in two modules that nodes and graph only wire tog
 `validation.py` (pure checks; gathers evidence and decides nothing) and `policy.py` (the verdict,
 the router's decision, what each retry changes). Import order is `validation` ← `policy` ←
 `state` ← `nodes`/`graph`; keep it a DAG. The tests for them need no model: `tests/fakes.py`'s
-`ScriptedClient` stands in for the model. `tests/test_validation_on_real_pages.py` replays stored
+`scripted_client()` (a `ScriptedCompletions`) stands in for the model. `tests/test_validation_on_real_pages.py` replays stored
 real extractions and **skips where `eval/fixtures/` and `eval/results/` are absent** — they are
 gitignored, so CI never runs it.
 

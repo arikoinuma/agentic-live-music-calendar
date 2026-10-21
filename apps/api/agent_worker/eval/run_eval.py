@@ -168,7 +168,9 @@ def extract(
             messages=[{"role": "user", "content": content}],
             **request_kwargs(options, seed),
         )
-        return extraction.PageExtractionResult(extraction=result, source="model", sent_text="")
+        # The frozen pre-A2 schema is deliberately a different class from the live one (eval/legacy.py), so it does
+        # not fit the result's type; this path bypasses the A2.1 entry point on purpose (see the docstring).
+        return extraction.PageExtractionResult(extraction=result, source="model", sent_text="")  # type: ignore[arg-type]
 
     if not (venue_name and metro_timezone and fetch_date):
         raise ValueError("extract() needs venue_name, metro_timezone and fetch_date (labels.py)")
@@ -195,7 +197,9 @@ def add_override_flags(parser: argparse.ArgumentParser) -> None:
     field of the pipeline's configuration; none given = exactly what the pipeline runs."""
     parser.add_argument("--temperature", type=float, default=None, help="sampling temperature (rung a21-temp0)")
     parser.add_argument("--route", choices=["auto", "model"], default=None, help="auto = JSON-LD first (rung a21-structured)")
-    flag = {"action": "store_const", "const": True, "default": None}
+    # Typed as Any-valued so `**flag` is accepted for every add_argument parameter (inferred as dict[str, object],
+    # it matches none of them).
+    flag: dict[str, Any] = {"action": "store_const", "const": True, "default": None}
     parser.add_argument("--line-breaks", dest="keep_line_breaks", help="clean with line breaks (rung a21-newlines)", **flag)
     parser.add_argument("--status", dest="status_field", help="status field + cancelled sentence (rung a21-cancelled)", **flag)
     parser.add_argument("--year-rule", dest="year_rule", help="years from the fetch date (rung a21-year)", **flag)

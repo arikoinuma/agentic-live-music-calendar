@@ -15,8 +15,10 @@ the functions under test.
 import datetime
 
 import pytest
+from pydantic import TypeAdapter, ValidationError
 
-from agent_worker.normalize import fold_text, infer_year
+from agent_worker.normalize import fold_text, infer_year, normalize_time
+from agent_worker.schemas import ModelTime
 
 D = datetime.date
 
@@ -84,3 +86,21 @@ def test_fold_text_makes_spelling_variants_equal(raw: str, folded: str) -> None:
     # fold to one form (A2.1-PR1-5: NFKC alone leaves "Dan’s" != "Dan's"). Case is
     # folded too, because act names are compared, not displayed, after folding.
     assert fold_text(raw) == folded
+
+
+# ---------------------------------------------------------------------------
+# normalize_time: what is refused (A7)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(("value", "type_name"), [(["19:30"], "list"), ({"hour": 19, "minute": 30}, "dict")])
+def test_a_time_that_is_not_text_is_refused_with_a_value_error(value: object, type_name: str) -> None:
+    # Proves (A7): a list or an object where a time belongs is refused with a ValueError that names what it got, and
+    # through the real field type it becomes a Pydantic ValidationError, which `instructor` turns into a re-ask of
+    # the model. The alternative, a TypeError (or an AttributeError from calling `.strip()` on a list), would escape
+    # as a crash and cost the whole page (the reasoning is in `normalize_time`'s own comment). The expected type
+    # names come from the inputs written here.
+    with pytest.raises(ValueError, match=f"got {type_name}"):
+        normalize_time(value)
+    with pytest.raises(ValidationError):
+        TypeAdapter(ModelTime).validate_python(value)
