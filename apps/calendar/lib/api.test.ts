@@ -243,7 +243,7 @@ describe("request options", () => {
   it("never caches and always bounds the wait with a timeout signal", async () => {
     // Proves: decision B2-D1 (no persistent caching in B2) and that a hung
     // API can't hold a page open. Asserted with objectContaining on the
-    // specific values, not expect.anything() (B1 review's lesson).
+    // specific values, not expect.anything() (from B1's review).
     const fetchImpl = respondWith(venues);
     await clientFor(fetchImpl).getVenues();
     expect(fetchImpl).toHaveBeenCalledWith(

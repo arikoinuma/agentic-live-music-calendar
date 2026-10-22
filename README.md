@@ -2,13 +2,13 @@
 
 A browsable, consolidated live music calendar for Minneapolis/St. Paul. Scheduled AI agents read each venue's own calendar page once a day, extract the listed shows with a local open-weight model, validate and reconcile them against what is already stored, and a Next.js frontend renders the result.
 
-It is also a learning project: agent orchestration, validation of agentic output, auditability, plus Python and React/Next.js, learned by working with Claude Code and typing the key learning lines himself. Focus is on local and indie acts and smaller venues that national listing sites miss.
+It is also a learning project: agent orchestration, validation of agentic output, auditability, plus Python and React/Next.js. It is built with Claude Code under Ari's direction, with Ari writing the core logic at selected key points of interest. Focus is on local and indie acts and smaller venues that national listing sites miss.
 
 ## About the Owner
 
 Ari Koinuma is a software engineering leader based in St. Paul, Minnesota. He spent 15 years delivering software for enterprise clients, most recently as a Director of Software Engineering at a Big 4 consulting firm. He is also a freelance musician on the side and wanted a live music calendar that covers the small rooms and local artists. He defines the requirements, makes the architecture decisions across all layers, sets the accuracy standards and directs Claude Code. 
 
-This application is intentionally built robustly: audit trails, accuracy gates and tests that fail loudly. That discipline is how Ari is learning to run an agentic system in production. Other metro areas are possible later, once the Twin Cities version works.
+This application is intentionally built robustly: audit trails, accuracy gates and tests that fail loudly. That discipline is the point: it applies enterprise-style delivery practice (audit trails, accuracy gates, tests that fail loudly) to an agentic system. Other metro areas are possible later, once the Twin Cities version works.
 
 ## License
 

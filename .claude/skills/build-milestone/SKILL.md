@@ -32,4 +32,4 @@ at Ari's sign-off gate.
    Status to `Awaiting sign-off`. If round 2 looks warranted, don't run it; say so.
 
 4. **Stop and hand off** to Ari as `AGENTS.md` describes, plus: each open `TODO(Ari)` as a
-   file:line link with its one-line lesson, and the command that runs its tests.
+   file:line link with its one-line key point of interest, and the command that runs its tests.

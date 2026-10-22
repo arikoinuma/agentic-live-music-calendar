@@ -18,7 +18,7 @@
       "request": "launch",
       "module": "uvicorn",
       // No --reload: the reloader runs the app in a child process, and a
-      // breakpoint has to survive a restart to be useful while learning.
+      // breakpoint has to survive a restart to be useful while iterating.
       // Restart the config after editing Python.
       "args": ["app.main:app", "--port", "8000"],
       "cwd": "${workspaceFolder}/apps/api",

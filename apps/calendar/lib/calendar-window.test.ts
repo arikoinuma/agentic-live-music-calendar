@@ -14,7 +14,7 @@ import { windowHref, windowLinks, windowNavLinks } from "./calendar-window";
 describe("windowLinks", () => {
   it("steps back one window length and forward to the day after the end", () => {
     // Proves: the inclusive length (end - start + 1 = 28), not 27 — the
-    // `+ 1` is the lesson. With 27, "earlier" would be 2026-09-01 and the
+    // `+ 1` is the point. With 27, "earlier" would be 2026-09-01 and the
     // two windows would overlap by a day.
     expect(windowLinks("2026-09-28", "2026-10-25")).toEqual({
       earlier: "2026-08-31",

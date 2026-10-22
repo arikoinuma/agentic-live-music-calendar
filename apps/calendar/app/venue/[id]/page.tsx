@@ -42,7 +42,7 @@ export async function generateMetadata(props: PageProps<"/venue/[id]">): Promise
 
 // A venue: its metadata, then "the default calendar … filtered to the venue"
 // (requirements-initial.md, "Venue"): B3's calendar grid, unchanged, over
-// the shows this venue has in the window. THE RSC LESSON is in the older
+// the shows this venue has in the window. The Server Component reasoning is in the older
 // pages and in B2's plan: this is an `async` component that awaits its
 // data on the server, with no `useEffect`, no loading state and no client
 // data library.

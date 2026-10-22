@@ -24,7 +24,7 @@ The prompt says **plan review** or **code review**.
 
 - **Plan review:** check the plan against the docs it cites and the code that actually exists.
   Look for wrong assumptions, gaps versus the docs, risky steps, holes in the test approach
-  (tests come first), and whether the `TODO(Ari)` gaps sit where the concept lives.
+  (tests come first), and whether the `TODO(Ari)` gaps sit at the key points of interest.
 - **Code review:** the newest `## Implementation log` round gives you the scope (commit range
   or diff base, files touched). Run `make check`, and run the plan's verification steps where
   you can. Review the diff against the plan, the style guide's Anti-patterns table, and the

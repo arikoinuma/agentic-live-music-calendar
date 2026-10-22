@@ -12,7 +12,7 @@ then stop at Ari's approval gate. Write no code: this skill ends with a reviewed
    the relevant style guide, and the code it touches. Write
    `docs/dev/implementations/<milestone>-<slug>.md` with the header (Status, Date, Author model
    = you, Reviewer model, Spec), then context, test approach, steps (marking [written] /
-   [fill-in] and naming each `TODO(Ari)` gap with its lesson), critical files, and verification.
+   [fill-in] and naming each `TODO(Ari)` gap with its key point of interest), critical files, and verification.
    Use `b2-routes-and-data-loading.md` as the model for shape and depth. If a decision is
    genuinely Ari's to make, list it under "Decisions for the user / reviewer" with your
    recommendation rather than stopping to ask. Set Status to `Plan review`.
