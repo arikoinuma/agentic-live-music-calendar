@@ -30,6 +30,7 @@ carries that defining document's scope.
 | `B3` | `docs/dev/implementations/b3-the-calendar.md` |
 | `B4` | `docs/dev/implementations/b4-detail-pages.md` |
 | `B5` | `docs/dev/implementations/b5-frontend-testing.md` |
+| `B6` | `docs/dev/implementations/b6-accessibility-and-e2e.md` |
 
 Future milestones use their own IDs (`B6`, `C2`, …) the same way.
 
@@ -39,7 +40,7 @@ Future milestones use their own IDs (`B6`, `C2`, …) the same way.
 |---|---|---|---|
 | `<scope>-D<n>` | a decision | `A2.1-D5` | that plan's decision table |
 | `<scope>-E<n>` | an experiment or lever | `A2.1-E1` | that plan's experiment table |
-| `<scope>-F<n>` | a failure found in an eval | `A2-F9` | that plan's failure table |
+| `<scope>-F<n>` | a failure found in an eval, or a finding from a scan or check | `A2-F9`, `B6-F2` | that plan's failure table or findings table |
 | `<scope>-S<n>` | a sampling or design lever | `A2-S6` | that plan's lever list |
 | `<scope>-K<n>` | a fill-in step's key point | `A3-K2` | that plan's `[fill-in]` steps |
 | `<scope>-M<n>` | a mutation check: a deliberate break of the code under test that a named test must catch | `B5-M4` | that plan's mutation table (Verification) |

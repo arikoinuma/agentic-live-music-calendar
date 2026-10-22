@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { formatDayHeading } from "@/lib/dates";
 import type { CalendarRow } from "@/lib/calendar";
+import { ScrollRow } from "./scroll-row";
 import { ShowBlock } from "./show-block";
 
 /**
@@ -8,9 +9,10 @@ import { ShowBlock } from "./show-block";
  * scrolling row of venue columns, each column holding that venue's shows
  * that day (requirements-initial.md, "Calendar").
  *
- * A Server Component: nothing here is interactive (the sideways scroll is
- * the browser's own), so it ships no JavaScript, and the Temporal
- * formatting stays on the server.
+ * A Server Component: nothing here is interactive of its own (the sideways scroll is
+ * the browser's; `ScrollRow`, the one Client Component it renders, only adds a keyboard-focus
+ * scroll), so the grid itself ships no JavaScript, and the Temporal formatting stays on the
+ * server.
  *
  * Plan B3-D1 and B3-D2: a row lists only the venues with a show that date, and every
  * date in the served range gets a row — a date with nothing on it is a thin
@@ -59,11 +61,16 @@ export function CalendarGrid({ rows }: { rows: CalendarRow[] }) {
               // the whole PAGE scrolls sideways instead of this row. (If a
               // wrapper is ever needed: `min-w-0` on it.) B3-K5.
               //
+              // That div is `ScrollRow`: the same element, plus an `onFocus` that scrolls the row to the
+              // focused control's column (B6-F7: the browser leaves a half-visible focused link half
+              // visible, and scroll-snap undoes a nudge). It renders this exact div, so the rule above holds.
+              //
               // Deliberately NO `tabIndex`, `role="region"` or `aria-label`
               // here (B3-CR1-4; Ari tried it and it was noise). A
               // scrollable area must be keyboard-reachable, but every venue
               // column already starts with a link, so Tab lands inside the row
-              // and the browser scrolls the focused link into view. Making the
+              // (and `ScrollRow` scrolls the focused link's column into view;
+              // the browser alone leaves a partly visible link where it is). Making the
               // row itself focusable added a tab stop per date (20 on `/`)
               // before that date's first link, and `role="region"` added 20
               // near-identical landmarks to a screen reader's list.
@@ -74,9 +81,7 @@ export function CalendarGrid({ rows }: { rows: CalendarRow[] }) {
               // reaches the row's end from chaining into the browser's Back
               // gesture; scroll-snap keeps columns aligned after a flick.
               // Without them the page itself overflows sideways.
-              <div
-                className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2"
-              >
+              <ScrollRow className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2">
                 {row.venues.map((column) => (
                   <section
                     key={column.venue.id}
@@ -97,7 +102,7 @@ export function CalendarGrid({ rows }: { rows: CalendarRow[] }) {
                     </div>
                   </section>
                 ))}
-              </div>
+              </ScrollRow>
             )}
           </li>
         );
