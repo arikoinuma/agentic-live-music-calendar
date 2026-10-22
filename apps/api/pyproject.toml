@@ -36,6 +36,7 @@ package = false
 
 [dependency-groups]
 dev = [
+    "coverage>=7.16.2",
     "mypy>=2.3.0",
     "polyfactory>=3.3.0",
     "pytest>=9.1.1",
@@ -48,14 +49,23 @@ dev = [
 # at runtime, not from constructor args — without this plugin mypy treats
 # `database_url`/`model_name` as missing arguments to Settings().
 plugins = ["pydantic.mypy"]
+# What a bare `uv run mypy` checks, so the Makefile, CI and a person at a prompt all check the same
+# thing. Both packages are held to one bar: the worker, its tests and the eval harness included
+# (v0.1-G15; A7-D3). Bodies of unannotated functions are not checked (no check_untyped_defs), so
+# annotate a function to put its body under the gate. scripts/ and migrations/ are outside it.
+files = ["app", "agent_worker"]
 
 [tool.pytest.ini_options]
-# Scoped deliberately: agent_worker/ still has manual-test scripts (e.g.
-# local_test.py) that match pytest's default *_test.py discovery glob and fire live
-# model calls on import if collected. So only agent_worker/tests is collected from there
-# (added in A2 so its schema/prompt tests run under `make check`; A7 widens the rest).
-# The tests can't live in app/tests/: app/ never imports from agent_worker/.
-testpaths = ["app", "agent_worker/tests"]
+# Both packages are walked in full, so a test placed anywhere under app/ or agent_worker/ is
+# collected (v0.1-G14: a test outside the listed directories used to be silently never run).
+# What keeps that safe is python_files: pytest's default also matches *_test.py, which matches
+# agent_worker/local_test.py, a manual script that opens real databases and expects a real model.
+# pytest imports every file matching these globs, tests or not, so the script would be imported on
+# every run. Only test_*.py is a test module; name a manual script anything else. The tests for
+# agent_worker/ can't live in app/tests/ (app/ never imports from agent_worker/).
+# app/tests/test_pytest_config.py guards both settings (A7).
+testpaths = ["app", "agent_worker"]
+python_files = ["test_*.py"]
 # pytest-asyncio 1.x defaults to a fresh event loop per test, but asyncpg
 # connections are bound to the loop that created them — so the session-scoped
 # DB fixtures (app/testing/db.py) and the tests that use them must share one
@@ -65,6 +75,20 @@ addopts = "-rs"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
+
+[tool.coverage.run]
+# Report-only (`make coverage`; A7-D1). Branch coverage, because a line that runs can still have a branch that never
+# does (a guard clause is one line, taken one way). Tests are the measuring stick, not the thing measured; eval/ is
+# the experiment harness and local_test.py a manual script, neither run by the suite.
+branch = true
+source = ["app", "agent_worker"]
+omit = ["*/tests/*", "agent_worker/eval/*", "agent_worker/local_test.py"]
+
+[tool.coverage.report]
+# Read the "Missing" column, not the percentage: there is deliberately no threshold or CI gate, because a percentage
+# gate invites tests that touch lines instead of proving behavior (the point of the `Proves:` convention).
+show_missing = true
+skip_empty = true
 
 [tool.ruff.lint.per-file-ignores]
 # Broad except is deliberate here: one fixture/model failing outright

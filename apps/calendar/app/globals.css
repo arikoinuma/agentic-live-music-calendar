@@ -89,7 +89,10 @@
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  /* Darkened from shadcn's default oklch(0.708 0 0), which is 2.58:1 on white. WCAG 1.4.11
+     (Non-text Contrast) asks 3:1 of a focus indicator; this is the value the dark theme
+     already used, about 4.7:1 on white (finding B6-F3). */
+  --ring: oklch(0.556 0 0);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -142,7 +145,10 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    /* The outline every focusable element gets (links, buttons) at FULL strength. shadcn's
+       default is `outline-ring/50`, the ring colour at half opacity, which painted as a
+       1.54:1 grey on white: present, but too faint to find (finding B6-F3). */
+    @apply border-border outline-ring;
   }
   body {
     @apply bg-background text-foreground;

@@ -44,6 +44,7 @@ The full documentation map, with the implementation logs for each milestone, is 
 make setup   # first time only: install deps, start Postgres, migrate, seed
 make dev     # Postgres + FastAPI (:8000) + Next.js (:3000) together; Ctrl-C stops them
 make check   # everything CI runs — do this before calling something done
+make e2e     # just the Playwright end-to-end tests (builds the app, starts its own API and Next on other ports)
 ```
 
 `make help` lists every target. One file isn't created for you: the calendar needs

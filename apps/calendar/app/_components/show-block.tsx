@@ -83,7 +83,11 @@ export function ShowBlock({ show, withVenue }: { show: ShowSummary; withVenue: b
       <ul className="mt-1 space-y-0.5">
         {lineup.map((entry) => (
           <li key={entry.artist.id} className="font-medium">
-            <Link className="underline" href={`/artist/${entry.artist.id}`}>
+            {/* `inline-block py-1`: a lineup stacks artist links a line apart, and a link is
+                only 18px tall by itself. WCAG 2.5.8 (Target Size, minimum) wants 24px
+                unless nothing else is within reach, so the link gets vertical padding
+                (the same fix the day view's show links have; finding B6-F1). */}
+            <Link className="inline-block py-1 underline" href={`/artist/${entry.artist.id}`}>
               {entry.artist.name}
             </Link>
             {/* A per-act time only means something on a multi-act bill. */}

@@ -66,6 +66,26 @@ def test_answers_align_by_id_not_position() -> None:
     assert result.missing_ids == [1]
 
 
+def test_the_first_answer_for_an_id_wins_and_ids_outside_the_range_are_ignored() -> None:
+    # Proves (the rule stated in `split_titles`' alignment comment; A7 pins it): a model that answers one id twice
+    # has its first answer used, not the later one, and answers numbered outside 0..len(titles)-1 (-1 and 3 here,
+    # for three titles) change nothing: no extra entry appears and no title loses its acts. Without the first-wins
+    # rule a repeated id would overwrite a good answer with whatever the model said second.
+    # The expected lists are written by hand from the script below. Only the repeated-id half can fail a mutation:
+    # the range filter is redundant by construction (the alignment loop only ever reads ids 0..len(titles)-1),
+    # so the ids -1 and 3 document the rule rather than guard it (A7-PR1-2).
+    result = split(answering(
+        act_split.ActSplitItem(id=0, title=TITLES[0], acts=["Lent", "Gills", "Boomdagger"]),
+        act_split.ActSplitItem(id=0, title=TITLES[0], acts=["Someone Else"]),
+        act_split.ActSplitItem(id=-1, title="before the first", acts=["Ghost One"]),
+        act_split.ActSplitItem(id=3, title="after the last", acts=["Ghost Two"]),
+        act_split.ActSplitItem(id=2, title=TITLES[2], acts=["Martin Devaney & Friends", "Wesley Church"]),
+    ))
+    assert result.acts == [["Lent", "Gills", "Boomdagger"], [], ["Martin Devaney & Friends", "Wesley Church"]]
+    assert result.missing_ids == [1]
+    assert result.title_mismatches == []
+
+
 def test_a_requoted_echo_is_not_a_mismatch_but_a_different_title_is() -> None:
     # Proves: the echoed title is only a cross-check (A2.1-PR1-10). A model that re-quotes
     # an apostrophe hasn't changed the title; one that echoes different words has, and that

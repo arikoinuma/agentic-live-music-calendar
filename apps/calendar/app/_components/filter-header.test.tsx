@@ -7,7 +7,8 @@ import venuesFixture from "@/lib/fixtures/venues.json";
 import { FilterHeader } from "./filter-header";
 
 // What this file tests (B5, section 1 of the plan): the calendar's filter
-// header, the one Client Component in the calendar. It holds no results.
+// header, a Client Component that holds no results (`ScrollRow` is the
+// calendar's only other one, tested in scroll-row.test.tsx).
 // A pick calls `router.push` with the new URL and the server page renders
 // the answer (arch-initial.md §4: filter state lives in the URL), so the
 // header's whole behaviour is "which URL does this interaction ask for?".

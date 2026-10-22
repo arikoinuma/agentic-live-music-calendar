@@ -1,7 +1,7 @@
 """Tests that the real compiled graph writes the audit trail and the staging records.
 
 Milestone A4 (docs/dev/implementations/a4-auditability.md, Test approach §2). The graph is the real one
-(`compiled_graph`), the model is `fakes.ScriptedClient`, and the stores are the recording fakes
+(`compiled_graph`), the model is `fakes.scripted_client()`, and the stores are the recording fakes
 (`fakes.RecordingAudit`, `fakes.RecordingStager`), so no Postgres or MongoDB is involved. What these prove is
 the wiring: every node's run is followed by one audit row, every extract attempt (failed ones too) by one
 staging document, retries add rows instead of replacing them, and a store that fails stops the run.
@@ -30,6 +30,8 @@ from agent_worker.tests import fakes
 from agent_worker.tests.fakes import (
     PAGE,
     SPLITTER,
+    FakeReader,
+    FakeWriter,
     RecordingAudit,
     RecordingStager,
     event,
@@ -59,7 +61,7 @@ async def run_traced(
         venue_id=1, calendar_url=url, venue_name="The Venue", metro_timezone="America/Chicago",
         fetched_on=fakes.FETCHED, run_id=RUN_ID,
     )
-    result = await compiled_graph.ainvoke(state, context=WorkerContext(audit=audit, stager=stager))
+    result = await compiled_graph.ainvoke(state, context=WorkerContext(audit=audit, stager=stager, reader=FakeReader(), writer=FakeWriter()))
     return VenueGraphState(**result), audit, stager
 
 
@@ -112,7 +114,7 @@ async def test_a_retry_adds_rows_and_a_document_per_attempt_failed_one_included(
     # and validate rows next to attempt 1's instead of replacing them: the retry history survives. Each
     # document carries its own attempt number and error (which also catches staging before the node runs,
     # when a document would carry the previous attempt's fields).
-    script = {PAGE: [ValueError("the model server went away"), listings_answer(GOOD_LISTING)], SPLITTER: [NONA]}
+    script: dict[Any, list[Any]] = {PAGE: [ValueError("the model server went away"), listings_answer(GOOD_LISTING)], SPLITTER: [NONA]}
     _, audit, stager = await run_traced(tmp_path, monkeypatch, GOOD_PAGE, script)
     assert audit.steps() == [
         ("fetch", 1), ("extract", 1), ("validate", 1), ("extract", 2), ("validate", 2),
@@ -127,7 +129,7 @@ async def test_a_retry_adds_rows_and_a_document_per_attempt_failed_one_included(
 async def test_the_failed_attempts_rows_say_it_failed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Proves: attempt 1's extract row carries the error and its validate row a failed verdict with the
     # `extract_failed` reason, and the passing attempt 2's validate row says passed.
-    script = {PAGE: [ValueError("the model server went away"), listings_answer(GOOD_LISTING)], SPLITTER: [NONA]}
+    script: dict[Any, list[Any]] = {PAGE: [ValueError("the model server went away"), listings_answer(GOOD_LISTING)], SPLITTER: [NONA]}
     _, audit, _ = await run_traced(tmp_path, monkeypatch, GOOD_PAGE, script)
     validates = [e for e in audit.entries if e.step_type is StepType.VALIDATE]
     assert validates[0].detail["verdict"] == "failed" and validates[0].detail["reasons"] == ["extract_failed"]
@@ -208,7 +210,7 @@ async def test_a_staging_write_that_fails_stops_the_run(tmp_path: Path, monkeypa
         fetched_on=fakes.FETCHED, run_id=RUN_ID,
     )
     with pytest.raises(RuntimeError, match="staging store is down"):
-        await compiled_graph.ainvoke(state, context=WorkerContext(audit=audit, stager=RecordingStager(fail=True)))
+        await compiled_graph.ainvoke(state, context=WorkerContext(audit=audit, stager=RecordingStager(fail=True), reader=FakeReader(), writer=FakeWriter()))
     assert StepType.VALIDATE.value not in [s for s, _ in audit.steps()]
 
 

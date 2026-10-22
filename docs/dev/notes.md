@@ -460,6 +460,23 @@ gets `mongo:8.0` past the guard and it then answers ping, but it bypasses a chec
 incompatibility, so it was not used. Revisit the pin when Docker Desktop's kernel or a MongoDB 8.x patch
 changes.
 
+## Reconcile (A5): where "absent from the page" can go wrong
+
+- **"Not in the validated list" is not "not on the page".** `validation.excluded` and `Finding.show_index` index the RAW
+  `state.extraction.shows`, not `validated_extraction.shows` (which has the excluded shows taken out). A listing left out
+  for naming no act is still on the page and may be a real show the act splitter missed, so it protects a stored show on its
+  date from the soft delete; one left out for an implausible date is not evidence the page reached that far. Validation excludes a show for
+  naming no act BEFORE it checks the date, so an implausible-dated placeholder ("Private event", 2028) arrives as a no-act
+  exclusion too; `excluded_listing_dates` re-checks plausibility itself. Reading the wrong list protects the wrong dates,
+  silently. `reconcile.excluded_listing_dates` is the one place that does it.
+- **A reader that returns an empty list is not the same as a reader that failed.** Reconcile treats "nothing stored" as
+  "insert everything". The read therefore raises, and the run stops, rather than falling back to an empty calendar
+  (`trace.read_calendar`; test_an_unreadable_calendar_stops_the_run_with_no_reconcile_row).
+- **`None == None` is `True` in Python and not in SQL.** The null-time pairing is where this bites (a naive
+  `listing.time == stored.start_time` pairs two different untimed shows but not an untimed one with a timed one).
+- **Venue ids in DB tests are not 1, 2, 3.** Sequences don't reset when a test's transaction rolls back, so a test that
+  needs a venue reads the seeded ids (`load_venues`) rather than hard-coding them.
+
 ---
 
 ## Component tests: five things that cost time, found while setting up B5
@@ -501,13 +518,141 @@ strip `<script>`, and print the article and skeleton counts beside the verdict s
 pass. Also: a bundle grep for `jsdom` always hits Base UI's own user-agent sniffing; grep for
 `testing-library` and `user-event` instead.
 
-## The home page's window moves with the clock, but the sample data doesn't
+## Only the "Today" row follows the real clock; the home window is pinned
 
-**A fixed sample plus a rolling window goes empty on a date.** The default window is "today plus 27 days"
-(`apps/api/app/routers/shows.py`, `DEFAULT_WINDOW`), and the sample data is generated from a fixed `START` in
-`apps/api/app/sample_data.py` (deliberately, so the fixtures diff cleanly). With `START` on September 28, 2026,
-the last sample show is October 25, so the default home view thins out from about October 26. B5 called the
-empty branch "unreachable through sample data"; that was true on the day it was written, not for good.
+**The sample API's window is fixed, so there is no date on which the home page empties.** `apps/api/app/routers/shows.py`
+starts the default window at `data.START`, a constant in `app/sample_data.py` (September 28, 2026), and serves 28 days
+from it whatever today is. What reads the real clock is the Next server's `metroToday` (`lib/dates.ts`), which marks the
+"Today" row; once today is past October 25 no row is marked. (This section used to say the window rolls with the clock
+and the page thins out after October 25. That was wrong; it was caught while planning B6 by running the API and the page
+under a frozen and a real clock.) The cliff the old text feared arrives with A1b, when the API reads the metro's real clock.
+
+The browser tests pin the Next server's `Date.now` (`apps/calendar/e2e/support/clock.ts`), and `clock.test.ts` fails if
+`sample_data.py`'s `START` moves the window away from the pin. See `alpha-build-plan.md`, B6, "Standing rule: the test clock".
+
+**Freeze the clock by patching `Date.now` and nothing else.** `globalThis.Date = class extends Date { … }` crashes the
+Next server at import (`TypeError: Date.UTC is not a function`, thrown while the Temporal polyfill loads), and the whole
+app 500s. The Temporal polyfill reads `Date.now()` for `Temporal.Now`, so `Date.now = () => FROZEN` in a
+`NODE_OPTIONS=--import` preload is enough (`e2e/support/fake-now.mjs`). Playwright's `page.clock` fakes only the browser's
+clock; a Server Component never sees it.
+
+## Playwright and the end-to-end suite (B6)
+
+**`next build` type-checks `e2e/`.** The calendar's tsconfig includes `**/*.ts`, so a type error in a Playwright spec fails
+the production build (and so a Vercel build), not just `pnpm check-types`. A throwaway probe file left in `e2e/` does it
+too: delete probes before you build.
+
+**Playwright's default `testMatch` also collects `*.test.ts`.** Those are Vitest files here, which import `vitest` and
+cannot load under Playwright (it lists 0 tests). `playwright.config.ts` sets `testMatch: "**/*.spec.ts"`; keep specs
+`*.spec.ts` and unit tests of the support code `*.test.ts`.
+
+**Playwright's `getByRole` has no `current` option** (Testing Library's does). Find "today's row" by the "Today" badge and
+assert `aria-current="date"` on it.
+
+**A real browser's accessible name differs from jsdom's.** The "…, show details" suffix is a visually hidden block, so
+Chromium reports `9:00 PM – 11:30 PM , show details` (a space before the comma); jsdom, with no layout, gave B5
+`…PM, show details`. Match such names with `\s*`.
+
+**While a combobox popup is open, the whole page behind it is `aria-hidden`** (Base UI marks everything outside the popup;
+finding B6-F2), so `getByRole` finds nothing there and a screen reader cannot read it. A multi-select's popup stays open
+after a pick: press Escape before asserting on the page.
+Cause (B6 Step 8): Base UI 1.7.0 forces the popup modal when the combobox's input is outside it (`focusManagerModal =
+!inputInsidePopup || modal`), so the `modal` prop does nothing for our layout, and its focus manager `aria-hidden`s everything
+else while the popup is open. Tab is not trapped: focus moves on into the page and the popup stays open. The only way to
+remove the flag is the "input inside the popup" pattern, a different control.
+
+**A test that ends mid-prefetch makes Next log `⨯ Error: The destination stream closed early.`** A production page
+prefetches the pages its links point to as streamed responses; closing the browser on one makes React abort that render
+and log it. Harmless, but alarming. `e2e/support/test.ts` waits for the page's in-flight requests before the browser closes.
+
+**eslint-plugin-react-hooks mistakes Playwright's fixture callback `use` for React's `use()` hook.** The rule is switched
+off for `e2e/**/*.ts` in `eslint.config.js`. Also, `eslint-plugin-turbo` (with `--max-warnings 0`) rejects any
+`process.env.X` it has not been told about: `turbo.json` declares the e2e ones under `globalPassThroughEnv`.
+
+**The sandbox cannot download Playwright's browser** and ships an older Chromium (`/opt/pw-browsers/chromium`) than
+Playwright 1.64 expects; it works. `scripts/cloud-setup.sh` exports `E2E_CHROMIUM_PATH` for it.
+
+**A `focus` handler that scrolls runs for a mouse press or a tap too, and swallows the click.** Chromium focuses a link on
+mouse-down; if the handler moves the page (or a scroller) before the mouse-up, the release lands on something else and
+nothing navigates. Guard such handlers with `target.matches(":focus-visible")` (keyboard focus only). `ScrollRow` does; its
+pointer journey is `e2e/venue-row-pointer.spec.ts`. Test it with raw `page.mouse` / `page.touchscreen` coordinates on the
+VISIBLE part of a partly visible control, and with a viewport tall enough that the control is on screen (a press below the
+fold reaches nothing and the test fails for the wrong reason).
 
 Browser tests (B6) pin the clock to a date inside the sample window. **Whenever `sample_data.py` changes, move
 that pinned date in the same change.** See `alpha-build-plan.md`, B6, "Standing rule: the test clock".
+
+---
+
+## With asyncpg, only integrity violations are an `IntegrityError`; an overflow is a plain `DBAPIError`, and a dropped connection has `sqlstate = None`
+
+**Symptom (found in A6 plan review, before any code):** a handler that caught `(IntegrityError, DataError)` to mean "the
+database refused this row" did not catch a `Numeric(10, 2)` overflow, and a `getattr(err.orig, "sqlstate", "")[:2]` raised
+`TypeError` on a real lost connection.
+
+**Cause:** SQLAlchemy's asyncpg dialect maps `asyncpg.exceptions.IntegrityConstraintViolationError` to `IntegrityError` and every
+other server error to the generic `Error` (`dialects/postgresql/asyncpg.py`, `_asyncpg_error_translate`), so `DataError`
+never occurs, and a SQLSTATE class 22 error (a data exception: overflow, a NUL byte, a bad enum text) is a plain
+`DBAPIError`. The dialect always SETS `orig.sqlstate`, to `None` for a client-side error, so a dropped connection (an
+`InterfaceError`, `connection_invalidated = True`) has an attribute that exists and is `None`: a `getattr` default is never used.
+
+**Fix / lesson:** classify by the SQLSTATE class the database reports (`calendar_writer.is_decision_error`: 22 or 23 is about the
+row, anything else is about the connection or us), and read it as `getattr(err.orig, "sqlstate", None) or ""`. Measured on
+SQLAlchemy 2.0.52 / asyncpg 0.32.0. `tests/fakes.py` builds the real shapes.
+
+---
+
+## In the DB tests a second session's "separate" commit is not separate: it nests inside the first session's savepoint
+
+The test factories bind every session to one connection in `create_savepoint` mode, so a session opened while another is mid-
+transaction creates a savepoint INSIDE the first's, and rolling the outer one back undoes the inner one's "committed" work. A test
+that asserts "a rolled-back write left no audit row" cannot tell a writer that used one transaction from one that wrote the audit
+row through a second session (the A6-M2 mutation). Only counting the sessions catches that (`test_a_write_uses_exactly_one_session`),
+or a test on a real engine instead of savepoint mode. A failure raised AFTER the rows were produced
+(`test_audit_rows_roll_back_with_the_write`) catches a different mistake, a `commit()` before the rows are added, and passes a
+writer that used a second session.
+
+---
+
+## Inside a test transaction `now()` never moves, so `updated_at` assertions need a literal past value
+
+`TimestampMixin.updated_at` is `server_default=now()` / `onupdate=func.now()`, and `now()` is the start of the OUTER test transaction.
+Two readings of it are equal, so "did this row get rewritten" cannot compare before with after (the same trap as `finished_at`, A4-CR1-5).
+Seed the rows with a literal past `updated_at` and assert the value against that literal.
+
+---
+
+## pytest imports every file its `python_files` globs match, tests or not, and `--collect-only` won't show it
+
+pytest's default `python_files` is `test_*.py` and `*_test.py`. `agent_worker/local_test.py` (a manual script: real Postgres, MongoDB and
+Ollama) matches the second glob, so any `testpaths` that includes `agent_worker/` makes pytest **import it on every run**. It was invisible
+while `testpaths` listed only `agent_worker/tests`, and it stays invisible in `pytest --collect-only`, whose tree lists only modules that yield
+test items: a module that is imported but defines no tests doesn't appear (A7 measured this with a top-level `print("PROBE")` and `-s`).
+Today the import has no side effect because the work sits under `if __name__ == "__main__"`; a module-level call added later would run on every
+pytest.
+
+**Fix / lesson:** `python_files = ["test_*.py"]` in `pyproject.toml`, so only `test_*.py` is ever a test module, and
+`app/tests/test_pytest_config.py` fails if the glob or `testpaths` regress (it walks the whole tree, not just `testpaths`, so it is red on a
+config that only widens `testpaths`). To check whether pytest imports a file: add a top-level `print` and run `pytest --collect-only -s -q`.
+
+---
+
+## Dependabot alerts: a cloud session can't read them, and the count overstates the work
+
+**Symptom:** the Security tab showed 117 open alerts; `gh api repos/.../dependabot/alerts` in a cloud session returned `403 Resource not
+accessible by integration`.
+
+**Root cause:** the session's token lacks the `vulnerability_alerts: read` permission (the 403's `X-Accepted-Github-Permissions` header names
+it), and GraphQL and the global `/advisories` API are blocked for sessions. An export run on Ari's own machine, where `gh` is logged in as the
+owner, works. A third-party "export alerts" Action is not worth it: it would be handed a token that reads the unpatched-vulnerability list,
+and on this public repo an uploaded CSV artifact is downloadable by other signed-in users.
+
+**Fix / lesson:** the count is misleading in two ways. Dependabot raises one alert per advisory per manifest, so `next` pinned in three
+places turned 9 advisories into 27 alerts. And its `runtime` / `development` label follows `dependencies` vs `devDependencies`, so the
+`shadcn` CLI (a build-time scaffolding tool) made ~48 alerts read "runtime"; 116 of 118 did. Triage by root cause (which direct dependency
+drags the vulnerable one in), not by the flat list or the label. `.claude/skills/dependabot-triage/` (`/dependabot-triage`) does this:
+`triage.py fetch` tries `gh` and exits 3 on a 403/401, at which point the skill stops and tells Ari to re-run it in a local session (no paste
+step), then `triage.py summarize`, then `pnpm audit` / `pip-audit` and `triage.py chains` to find the levers. The 403 is a GitHub App token
+(GitHub's "integration") without `vulnerability_alerts: read`, not a limit on `gh` itself: PRs, check runs and the dependency-graph SBOM all
+work from a cloud session. Measured on the
+2026-10-21 export: 118 alerts reduced to about six fixes, and the lockfile audits reconstructed 114 of them.

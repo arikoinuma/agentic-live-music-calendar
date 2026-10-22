@@ -17,16 +17,22 @@ carries that defining document's scope.
 | Scope | Defined in |
 |---|---|
 | `v0.1` | `docs/dev/alpha-build-plan.md` (v0.1 is the alpha; the plan's header says so) |
+| `Dep` | `docs/dev/alpha-deployment-plan.md` (its plan-level decisions, `Dep-D1`; each C milestone in it gets its own scope when planned) |
 | `A1` | `docs/dev/implementations/a1-data-layer.md` |
 | `A2` | `docs/dev/implementations/a2-extraction-schema.md` |
 | `A2.1` | `docs/dev/implementations/a2.1-extraction-reliability.md` |
 | `A3` | `docs/dev/implementations/a3-validation-and-retry.md` |
+| `A4` | `docs/dev/implementations/a4-auditability.md` |
+| `A5` | `docs/dev/implementations/a5-reconcile.md` |
+| `A6` | `docs/dev/implementations/a6-commit.md` |
+| `A7` | `docs/dev/implementations/a7-testing.md` |
 | `B2` | `docs/dev/implementations/b2-routes-and-data-loading.md` |
 | `B3` | `docs/dev/implementations/b3-the-calendar.md` |
 | `B4` | `docs/dev/implementations/b4-detail-pages.md` |
 | `B5` | `docs/dev/implementations/b5-frontend-testing.md` |
+| `B6` | `docs/dev/implementations/b6-accessibility-and-e2e.md` |
 
-Future milestones use their own IDs (`A4`, `H1`, …) the same way.
+Future milestones use their own IDs (`B6`, `C2`, …) the same way.
 
 ### Forms
 
@@ -34,7 +40,7 @@ Future milestones use their own IDs (`A4`, `H1`, …) the same way.
 |---|---|---|---|
 | `<scope>-D<n>` | a decision | `A2.1-D5` | that plan's decision table |
 | `<scope>-E<n>` | an experiment or lever | `A2.1-E1` | that plan's experiment table |
-| `<scope>-F<n>` | a failure found in an eval | `A2-F9` | that plan's failure table |
+| `<scope>-F<n>` | a failure found in an eval, or a finding from a scan or check | `A2-F9`, `B6-F2` | that plan's failure table or findings table |
 | `<scope>-S<n>` | a sampling or design lever | `A2-S6` | that plan's lever list |
 | `<scope>-K<n>` | a fill-in step's key point | `A3-K2` | that plan's `[fill-in]` steps |
 | `<scope>-M<n>` | a mutation check: a deliberate break of the code under test that a named test must catch | `B5-M4` | that plan's mutation table (Verification) |
@@ -71,8 +77,9 @@ So `A3-Gap-B` (`classify_page`) is now `A3-K2`.
    defined in A2's lever list, so it is `A2-S6` even where A2.1 cites it.
 2. **Scope cross-references, not in-file items.** Inside the document that defines an ID, a
    bare ID is fine: `D3` in A1 is A1's own D3, so it stays `D3`. Only a reference to another
-   document's item carries its scope, for example `A2.1-D3` written in A1. Code and tests
-   always scope, since they cite plans rather than define them.
+   document's item carries its scope, for example `A2.1-D3` written in A1. Code, tests and code
+   comments always scope, **even when they implement the one plan in view**, since they cite plans
+   rather than define them (`A5-D7` in `reconcile.py`, never `D7`).
 3. **Write the token form:** `A2.1-D5`, with no space and no comma. It is one token, so it
    can be searched for, and a reader sees it as one thing.
 4. **Review items say which review they belong to.** A plan has two kinds of review round,
@@ -84,13 +91,27 @@ So `A3-Gap-B` (`classify_page`) is now `A3-K2`.
 
 ### Checking
 
-This search finds bare designations. It excludes the virtualenv, caches, and generated
+**For new work, run the branch check.** It looks only at the lines a branch adds, so the exceptions below don't get in
+the way. It is part of `make check` and its own CI job (pull requests only), so a bare designation fails the PR:
+
+```
+make designation-check                  # base: where this branch left origin/main
+make designation-check BASE=<commit>    # an explicit base, e.g. the diff base a milestone's Implementation log names
+```
+
+Fetch `origin/main` first; a stale one makes the base too old and the check flags other people's lines. `BASE` is the diff base the milestone's Implementation log names, if you need an explicit one. The script is `scripts/check_designations.py`: it reads
+the added lines (committed, uncommitted and new files), skips the plan files under `docs/dev/implementations/` (they
+define their own IDs, so bare is right there), and flags `D`, `E`, `F`, `S`, `G`, `K` and `PR`/`CR` tokens with no
+scope. A token that is not a designation (a ruff code, "S3") is silenced with `designation-ok` on the line, or `noqa`.
+Its default base is the merge-base with `origin/main`, which is only right when a branch holds one milestone; CI always passes the PR's own base.
+
+**To audit the whole repo,** this search finds bare designations. It excludes the virtualenv, caches, and generated
 files:
 
 ```
 grep -rnE --exclude-dir=.venv --exclude-dir=node_modules --exclude-dir=.mypy_cache \
   --exclude-dir=__pycache__ --exclude-dir=.next -I \
-  '(^|[^A-Za-z0-9._-])(D|E|F|S|G)[0-9]+([^0-9]|$)|Gap[s]? [A-E]\b' .
+  '(^|[^A-Za-z0-9._-])(D|E|F|S|G|K)[0-9]+([^0-9]|$)|Gap[s]? [A-E]\b' .
 ```
 
 A hit inside the document that defines the ID is fine. Any other hit is a cross-reference

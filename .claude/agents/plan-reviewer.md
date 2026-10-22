@@ -28,7 +28,8 @@ The prompt says **plan review** or **code review**.
 - **Code review:** the newest `## Implementation log` round gives you the scope (commit range
   or diff base, files touched). Run `make check`, and run the plan's verification steps where
   you can. Review the diff against the plan, the style guide's Anti-patterns table, and the
-  docs. Don't report open `TODO(Ari)` gaps as findings.
+  docs. Don't report open `TODO(Ari)` gaps as findings. Run `make designation-check BASE=<the diff
+  base>` as well: a bare designation (`D7` instead of `A5-D7`) outside the plan file is a nit (`docs/dev/conventions.md`).
 
 Verify, don't assume. Reproduce what you can and mark that evidence CONFIRMED; mark reasoning
 you couldn't reproduce PLAUSIBLE. Experiments go in a throwaway `git worktree` that you remove

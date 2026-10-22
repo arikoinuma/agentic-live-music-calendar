@@ -94,12 +94,17 @@ mypy, pytest) and is not in the pipeline.
   the doc and section. When it deliberately departs, say so and why.
 - **Verify, don't assume.** Claims in this repo's docs were checked against real behavior.
   Keep that standard: run it before saying it works.
-- **Cross-references carry a scope.** When a document cites an item from another document,
-  the ID carries that document's scope: `A2.1-D5` (decision), `A2-F9` (eval failure), `A3-K2`
-  (fill-in key point), `A3-PR1-3` (plan-review item), `A3-CR1-3` (code-review item), `v0.1-G6` (catalogue gap). Inside the
-  defining document, a bare ID is fine. The build-plan catalogue is written `v0.1-G<n>` in
-  every other document. The full forms, the mapping from the old gap letters, and the check
-  command are in `docs/dev/conventions.md`.
+- **Cross-references carry a scope.** A designation (`D5`, `K2`, `PR1-3`) means something different in every plan,
+  so outside the plan that defines it, it carries that plan's scope: `A2.1-D5` (decision), `A2-F9` (eval failure),
+  `A3-K2` (fill-in key point), `A3-PR1-3` (plan-review item), `A3-CR1-3` (code-review item), `v0.1-G6` (catalogue
+  gap). **Only the plan file itself writes a bare ID.** Code, tests, code comments and every other document write the
+  scoped form, always, including when you are implementing that very plan and it is the only one in view: a comment in
+  `reconcile.py` cites `A5-D7`, never `D7` (a bare `D7` can't be searched for or told apart from `A3-D7`). A
+  `TODO(Ari)` block cites its key point as `A5-K1`. The build-plan catalogue is written `v0.1-G<n>` in every other
+  document. The full forms, the mapping from the old gap letters, and the check command are in
+  `docs/dev/conventions.md`. **`make designation-check`** lists the bare ones a branch adds; it is part of `make check` and a CI job on pull requests, so
+  a bare one fails the PR. (Milestone branches that hold more than one milestone pass `BASE=<the diff base your Implementation
+  log names>`.)
 - **Commit attribution names the model.** Git commit messages end with the trailer
   `Co-Authored-By: Claude <model name>` (for example `Co-Authored-By: Claude Haiku 5.5`), with
   no email address. Model names are allowed in commits, PR titles and PR bodies.
@@ -274,7 +279,7 @@ build plan §3) and whether the `TODO(Ari)` gaps are the right ones.
   - **`TODO(Ari)` gaps:** each one listed as open, filled by Ari, or filled by Claude on
     request. Review the code as it stands; open gaps aren't findings.
   - **Verification:** the commands run and their results (`make check`, the plan's verification
-    steps).
+    steps, and `make designation-check BASE=<the diff base above>` for scoped IDs).
   - **Where to look hardest:** what the author is least sure of.
 
 A second implementation pass after code review gets its own log round, scoped to the fixes.
@@ -288,7 +293,10 @@ websites** (Trusted network access only). So a cloud session cannot run live ext
 eval harness, `local_test`, or fixture capture, and 14 tests in
 `agent_worker/tests/test_validation_on_real_pages.py` skip there. Don't try to work around
 this; leave that work for a local session and say so in the PR. The sandbox has Node 22 and
-CI uses 24, so a green JS check there is not quite a green CI.
+CI uses 24, so a green JS check there is not quite a green CI. The Playwright suite
+(`make e2e`, part of `make check`) runs there too: Chromium is at `/opt/pw-browsers/chromium`,
+`scripts/cloud-setup.sh` exports it as `E2E_CHROMIUM_PATH`, and it needs no Postgres, because the
+API it starts serves the sample data.
 
 Suited to cloud: deterministic, DB-tested work (reconcile, commit, audit writes, routes onto
 the DB), the Next.js track, plan and code review rounds, docs. Needs local: anything that

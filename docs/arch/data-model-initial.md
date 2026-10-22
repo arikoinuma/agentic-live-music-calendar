@@ -204,7 +204,7 @@ Required field: **Date**. Several fields are described as "inherited by default 
 | `free_admission` | Boolean | Yes | `CHECK (NOT (free_admission AND (admission_advance IS NOT NULL OR admission_day IS NOT NULL)))` — mirrors the internal-consistency rule agents validate against in `requirements-initial.md`. Absence of a price does *not* imply `true`. |
 | `image_url` | String | Yes | Poster link. |
 | `original_url` | Text | Yes | The venue page this show was most recently extracted from; overwritten on each successful reconcile, not a history — history lives in `audit_log`. |
-| `status` | Enum `show_status` (`active`, `removed`) | No, default `active` | Soft delete per the reconciliation rule: a show missing from a subsequent fetch, within the date range that fetch covered, is marked `removed`, never hard-deleted. |
+| `status` | Enum `show_status` (`active`, `removed`) | No, default `active` | Soft delete per the reconciliation rule: a show missing from a subsequent fetch, within the date range that fetch covered, is marked `removed`, never hard-deleted. A cancelled or postponed listing the page marks is stored as `removed` too, with `cancelled` or `postponed` in the audit trail rather than a new status (A5-D6); a removed show that is listed again is set back to `active` (A5-D7). |
 
 ### `show_artist`
 
@@ -331,6 +331,14 @@ the two review rounds are in `docs/dev/implementations/a1-data-layer.md`.
   reasons, fetch's error, extract's route/tier and MongoDB staging-document id, escalate's reason. It is not
   `new_value`, which is what a future revert restores. The keys per step are listed in
   `agent_worker/audit.py` and read by `docs/dev/audit-queries.sql`.
+- **`previous_value` / `new_value` are written by A6's commit** (`a6-commit.md`, A6-D3), one row per show written. Each is the
+  show as JSON: every `show` column except `created_at` / `updated_at` (`id`, `venue_id`, `event_id`, `date`, `start_time`,
+  `end_time`, `age_restriction`, `serves_alcohol`, `setting`, `seating`, `admission_advance`, `admission_day`,
+  `free_admission`, `image_url`, `original_url`, `status`) plus `lineup`, a list of `{artist_id, start_time, sequence_number}`
+  in performance order. A price is a decimal string (`"20.00"`), times and dates are ISO strings. `previous_value` is null for
+  an insert. A show that did not change writes no row (so `no_op` is not used by commit), a new artist gets a row of its own
+  (`entity_type = artist`, `outcome = inserted`, `new_value = {id, name}`), and a show the database refused gets a row with no
+  outcome and no snapshots whose `detail` names the show, the SQLSTATE and the error.
 - **Precisions:** `show.admission_advance` / `admission_day` are `Numeric(10, 2)`;
   `audit_log.confidence` is `Numeric(4, 3)`.
 - **Extra indexes:** `show (venue_id, date)` and `audit_log (run_id)`, plus the GIN indexes on

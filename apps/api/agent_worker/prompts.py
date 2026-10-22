@@ -209,3 +209,29 @@ def extraction_instruction(
         parts.append(_title_rule())
     parts.append(_PAGE_READABLE)
     return "\n".join(parts) + "\n"
+
+
+def artist_match_instruction(incoming: str, candidates: list[tuple[int, str]]) -> str:
+    """The question for an ambiguous artist name: is `incoming` the same act as one of the candidates?
+
+    A5 (docs/dev/implementations/a5-reconcile.md, A5-D9). The name is close to existing artists but not
+    equal to any, and a rule can't settle it ("Zhora" and "Zhora Band"), which is the one place reconcile
+    asks a model (arch-initial.md §7, `LLMMatch`). Narrow on purpose, like the act splitter's: one
+    incoming name, a few numbered candidates, and an answer that is a candidate's id or null. The id
+    is echoed back and checked against the ids that were offered (`artist_match.decide_ambiguous`), so a
+    model can't name an artist it wasn't shown. "When unsure, answer null" is the instruction that makes
+    the conservative direction the default: a duplicate artist can be merged later, a wrong merge puts two
+    acts on one page.
+    """
+    listed = "\n".join(f"{artist_id}: {name}" for artist_id, name in candidates)
+    return (
+        "A live-music venue's calendar names this performing act:\n"
+        f"{incoming}\n\n"
+        "These artists already exist in our database, each with an id:\n"
+        f"{listed}\n\n"
+        "Decide whether the act named above is the same act as one of these artists. Answer with that "
+        "artist's id as matched_artist_id, or null if it is a different act or you are not sure. A "
+        "different spelling, a leading 'The', or 'and' for '&' is the same act; an added word such as "
+        "'Band', 'Trio' or a first name may or may not be, so use null when you cannot tell. Give your "
+        "confidence from 0 to 1 and one sentence of reason.\n"
+    )

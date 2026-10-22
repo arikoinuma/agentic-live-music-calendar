@@ -37,6 +37,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agent_worker.audit import PostgresAuditWriter
+from agent_worker.calendar_reader import PostgresCalendarReader
+from agent_worker.calendar_writer import PostgresCalendarWriter
 from agent_worker.context import WorkerContext
 from agent_worker.graph import (
     compiled_graph,
@@ -121,7 +123,8 @@ async def run_all(
     session_factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, *,
     venue_id: int | None = None, trigger: RunTrigger = RunTrigger.MANUAL,
 ) -> int:
-    """Process the venues one after another. Returns how many failed with an infrastructure error.
+    """Process the venues one after another. Returns how many failed: with an infrastructure error, or with a show
+    commit could not write (A6-D2).
 
     Raises `LookupError` before opening any run when `venue_id` names no venue: an `agent_run` needs a real
     venue, and a silent no-op would look like a successful empty cycle.
@@ -140,6 +143,14 @@ async def run_all(
             # `log.exception` records the traceback. The run is already closed by run_venue's finally.
             log.exception("venue run failed", venue=venue.name)
             continue
+        if state.commit_result is not None and state.commit_result.failures:
+            # Some shows were refused by the database (A6-D2): the others were written, but a person should look (the
+            # `failed_commits` saved query lists them), so the venue counts as failed and the process exits non-zero.
+            failed += 1
+            log.error(
+                "venue commit had failures", venue=venue.name, failures=len(state.commit_result.failures),
+                all_failed=state.commit_result.all_failed,
+            )
         log.info(
             "venue run finished", venue=venue.name, escalated=state.escalation_reason is not None,
             attempts=state.attempt_count,
@@ -176,6 +187,8 @@ async def main(argv: list[str] | None = None) -> int:
         ctx = WorkerContext(
             audit=PostgresAuditWriter(SessionFactory),
             stager=MongoStager(mongo[settings.mongodb_database][COLLECTION]),
+            reader=PostgresCalendarReader(SessionFactory),
+            writer=PostgresCalendarWriter(SessionFactory),
         )
         failed = await run_all(SessionFactory, ctx, venue_id=args.venue, trigger=args.trigger)
     finally:

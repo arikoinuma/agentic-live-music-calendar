@@ -1,11 +1,12 @@
 "use client";
 
-// THE CALENDAR'S FILTER HEADER — the only Client Component in the
-// calendar, and it holds no results.
+// THE CALENDAR'S FILTER HEADER — a Client Component that holds no
+// results. (The other is `ScrollRow`, which only scrolls a venue row on
+// keyboard focus.)
 //
 // "Use client" is on this file because a combobox needs state and event
-// handlers; nothing else about the calendar does, so the grid and the show
-// blocks stay Server Components. The header never filters anything
+// handlers; nothing else about the calendar does except that one scroll
+// handler, so the grid and the show blocks stay Server Components. The header never filters anything
 // itself: a selection changes the URL, the server page re-renders from
 // `searchParams` and streams new data down (arch-initial.md §4, "filter
 // and view state: URL search params, not component state"). That is what
