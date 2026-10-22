@@ -1,6 +1,6 @@
 # B6 — accessibility and end-to-end tests
 
-**Status:** Awaiting sign-off
+**Status:** Done (Ari sign off) - Oct 22, 2026
 **Date:** October 19, 2026
 **Author model:** Claude Sonnet 5.5
 **Reviewer model:** Claude Opus 5.5 (plan review round 1; code review rounds 1 and 2)
@@ -882,3 +882,5 @@ Review the three filled gaps as ordinary code now (none is open). Earlier rounds
 2. **The instrument, third change.** It is back to the code review's lower-of-two rule plus the half-ring bar, which the reviewer measured; the self-tests now pin both directions (a small colour step does not count, a faint border turning dark does). It is judged by a model that has now seen all three versions, but this last restore has not had a review of its own.
 3. **The 25-stop floor** on the venue-row journey is a bound on "found something", not a measurement; it is far below the 84 observed, so a layout that legitimately puts fewer links in rows would still have to stay above one per show.
 4. **B6-F8** is a record only; Ari marked it a nit on October 21, 2026, so it stays logged and unfixed.
+
+**Ari, October 22, 2026: signed off. B6 is Done.** Ari did the manual keyboard pass and ran `make e2e` on his laptop (passing); the CI `e2e` job (Node 24) and every other check passed on `a9aa283`; code review round 2 (1 blocker, 1 should-fix, 7 nits) was resolved in Round 7, and Ari marked B6-F8 a nit (logged, not fixed). The three `TODO(Ari)` gaps were all filled by Ari. Still open, by design: a screen-reader pass and a real-phone check (the plan's Verification 7), and B6-F2, B6-F4, B6-F6 and B6-F8 stay logged as accepted, not reproduced or nits.

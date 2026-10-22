@@ -342,7 +342,7 @@ Plan and review: `docs/dev/implementations/b5-frontend-testing.md` (decisions B5
 
 ### B6. Accessibility and end-to-end tests
 
-Scope agreed with Ari on October 17, 2026. Two things come out of it: the accessibility requirement (WCAG 2.2 AA, `requirements-initial.md` Global Requirements; `arch-initial.md` Section 4), and the Playwright suite that B5 deferred, which also runs the automated accessibility checks. Built in its own thread. Its implementation plan, `docs/dev/implementations/b6-accessibility-and-e2e.md`, is written first under the usual cycle (`AGENTS.md`, "Implementation plans"). **Built October 19–20, 2026** (decisions B6-D1–B6-D11 settled by Ari October 19; the plan file has the findings, the measurements and the departures). The three `TODO(Ari)` gaps (B6-K1–B6-K3) were filled by Ari. Departures from the original wording are marked *Departure*.
+Scope agreed with Ari on October 17, 2026. Two things come out of it: the accessibility requirement (WCAG 2.2 AA, `requirements-initial.md` Global Requirements; `arch-initial.md` Section 4), and the Playwright suite that B5 deferred, which also runs the automated accessibility checks. Built in its own thread. Its implementation plan, `docs/dev/implementations/b6-accessibility-and-e2e.md`, is written first under the usual cycle (`AGENTS.md`, "Implementation plans"). **Done — signed off by Ari October 22, 2026.** Built October 19–20, 2026 (decisions B6-D1–B6-D11 settled by Ari October 19; the plan file has the findings, the measurements and the departures). The three `TODO(Ari)` gaps (B6-K1–B6-K3) were filled by Ari. Departures from the original wording are marked *Departure*.
 
 - [x] **[written]** WCAG 2.2 AA recorded as the accessibility requirement. *Done October 17, 2026.*
 - [x] **[written]** Scope and implementation strategy (below) approved by Ari, October 17, 2026.
@@ -352,7 +352,7 @@ Scope agreed with Ari on October 17, 2026. Two things come out of it: the access
 - [x] **[fill-in]** B6-K2: the focus-not-obscured predicate in `e2e/support/focus.ts` *(filled by Ari October 20, 2026; the scaffold then taken out by a Claude pass, verified comment-only)*
 - [x] **[fill-in]** B6-K3: the page-reflow predicate in `e2e/support/reflow.ts` *(filled by Ari October 20, 2026; the scaffold then taken out by a Claude pass, verified comment-only)*
 - [x] **[written]** Findings marked by Ari and the fix round done (the plan's Step 8, October 20, 2026): B6-F1 (lineup link target size), B6-F3 (focus ring contrast) and B6-F7 (a half-visible focused link in a venue row; `ScrollRow`) fixed, each in its own commit; B6-F2 (Base UI popup hides the page) accepted as upstream behaviour; B6-F4 not reproduced; B6-F6 a nit, kept; B6-F5 fixed in round 1 (B6-D8).
-- [ ] Second-model code review of the Step 8 changes, then sign-off. *(Ari did his manual checks October 20, 2026.)*
+- [x] Second-model code review of the Step 8 changes (code review round 2, nine findings, all fixed; Ari marked B6-F8 a nit), then sign-off — Ari, October 22, 2026. *(Ari did his manual checks October 20, 2026, and ran `make e2e` on his laptop; the CI `e2e` job passed on its first run.)*
 
 **Implementation strategy.** One test first, green, then the rest. Each step ends with its own green result before the next starts.
 
