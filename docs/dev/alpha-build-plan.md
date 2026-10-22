@@ -14,7 +14,7 @@ Read `env-setup.md` first for what exists and why. This document assumes `docs/a
 
 **Renamed October 12, 2026** from `v1-build-plan.md`: this phase was never going to be a real v1. The phase after it, which takes the app onto the hosted services and finishes the extraction accuracy work on hosted inference, is `alpha-deployment-plan.md`.
 
-**Scope migrated October 21, 2026 (Ari):** **A1b** (the read routes on the database) and **A8** (evaluating the pipeline) moved to `alpha-deployment-plan.md`, as C2 and as C5 plus C7. Both depend on hosted work: A1b has to merge only after the hosted database is migrated, and A8's tuning questions can only be answered on the model that ships. Their headings stay below as pointers, so references to "A1b" and "A8" in other documents still resolve. What is left in this plan is B6.
+**Scope migrated October 21, 2026 (Ari):** **A1b** (the read routes on the database) and **A8** (evaluating the pipeline) moved to `alpha-deployment-plan.md`, as C2 and as C5 plus C7. Both depend on hosted work: A1b has to merge only after the hosted database is migrated, and A8's tuning questions can only be answered on the model that ships. Their headings stay below as pointers, so references to "A1b" and "A8" in other documents still resolve. What was left in this plan was B6, signed off October 22, 2026.
 
 ---
 

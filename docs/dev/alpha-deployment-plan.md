@@ -1,14 +1,18 @@
 # Alpha Deployment Plan — from a working local app to a hosted alpha
 
-**Status:** Draft — sequence and milestones (C1–C11) agreed in outline with Ari on October 21, 2026. Decisions marked **[Ari]** in §3.2 are still open. No milestone has an implementation plan yet.
+**Status:** Plan review
 
-**Date:** Revised October 21, 2026 (first drafted October 12, 2026).
+**Date:** Revised October 21, 2026 (first drafted October 12, 2026); updated October 22, 2026 for B6 landing.
+
+**Author model:** Claude Sonnet 5.5
+
+**State of the plan:** sequence and milestones (C1–C11) agreed in outline with Ari on October 21, 2026. Decisions marked **[Ari]** in §3.2 are still open. No milestone has an implementation plan yet.
 
 **Purpose:** The plan for the phase after `alpha-build-plan.md`. That plan builds a working app on the local machine and deliberately leaves everything hosted alone. This one moves it onto hosted services in three environments (hosted dev, staging, production) under one domain with a subdomain per metro, and **validates the extraction on hosted inference**: the accuracy work the development laptop can't finish. It also takes over two items from the build plan that only make sense next to the hosted work: A1b (the API reading from the database) and A8 (evaluating the pipeline).
 
 Read `alpha-build-plan.md` first (what the alpha is and what it deliberately left out), and `env-setup.md` phases 7–9 (which hosted services were deployed and which skipped, with reasons; §1 below says what has drifted since). The specification is the same: `docs/arch/arch-initial.md`, `data-model-initial.md` and `requirements-initial.md`.
 
-**Starts when:** now. A7 is done (October 21, 2026), and B6 is the only item left in the build plan; B6 merges first, because C2 waits on it. C1 and the cloud-side planning of C2–C6 can start immediately. The alpha's definition of done (`alpha-build-plan.md` §2) is closed by C2's own verification step, not by a separate gate.
+**Starts when:** now. A7 (October 21, 2026) and B6 (October 22, 2026) are signed off and merged, so nothing is left in the build plan except the two items that moved here. C1 and the cloud-side planning of C2–C6 can start immediately. The alpha's definition of done (`alpha-build-plan.md` §2) is closed by C2's own verification step, not by a separate gate.
 
 **Designations in this file.** Plan-level decisions are written `Dep-D<n>` (scope `Dep`, `docs/dev/conventions.md`), because this file sits outside `docs/dev/implementations/` and `make designation-check` flags bare IDs here. Each milestone gets its own plan file and its own scope (`C2-D1`, …) when it is planned.
 
@@ -30,7 +34,9 @@ Checked from a cloud session: Vercel through its connector (read-only), the repo
 | Repo visibility | A commit message on a branch says the repo is **public** now, with CodeQL, Dependabot and a PR template added. The "branch protection needs Pro or a public repo" blocker in `env-setup.md` Phase 8 no longer applies. Whether protection is switched on is not known. | Unverified |
 | Config as code | The repo has no `Dockerfile`, `railway.*` or `vercel.json`; all Railway and Vercel configuration lives in the dashboards. | Verified |
 | API data source | Every router in `apps/api/app/routers/` still imports `app.sample_data`. A1b is open, so the hosted calendar cannot show anything a worker wrote. | Verified |
-| Sample window | The sample data's last show falls on October 25 (`alpha-build-plan.md` §6, "Known date cliff"), so the hosted calendar thins out from October 26. | Verified (from the plan) |
+| Sample window | The API's window is **pinned** to the sample data (`start = data.START`, September 28 – October 25), so the hosted calendar does not empty on October 26. An earlier draft of this plan repeated the build plan's "date cliff" claim; B6 disproved it (`b6-accessibility-and-e2e.md`, "Scrutiny of the milestone as written", P1). The only code on the real clock today is the Next server's `metroToday()`, which picks the "Today" row. | Verified |
+| What C2 changes | When the routers move onto Postgres the API's clock becomes real, and the date cliff arrives *then* (B6 plan, "Follow-ups for other milestones"). Neon holds four venues and no shows (the seed writes none), so the first production calendar after C2 is empty until a worker run populates it. | Verified (from B6's follow-ups and the seed) |
+| E2E stack | B6's end-to-end job runs the real FastAPI app on `sample_data.py`, no database (`b6-accessibility-and-e2e.md`, B6-D1). Moving the routers breaks that job unless C2 gives it a Postgres service and a deterministic show seed (B6's follow-up for A1b). | Verified |
 | Schema on Neon | Three Alembic migrations exist. `env-setup.md` left Neon with the first (metro and venue) only, the Railway start command runs no migration, and `/health/db` only runs `SELECT 1`, so drift would not show. | Unverified |
 | Model endpoint | `agent_worker/llm.py` hard-codes `localhost:11434` (C6). | Verified |
 | Worker and Mongo | `Settings` documents that the worker's entry point refuses to start without `MONGODB_URI`, so a hosted worker needs Atlas before its first run. | Verified |
@@ -84,7 +90,7 @@ Each row has a default; unless Ari changes it, the milestone plans start from th
 | Dep-D9 | **Cost and cron.** Persistent dev and staging on Railway. Only production gets a schedule; the dev and staging workers run on demand. | Accept, with a monthly ceiling set by Ari. By estimate from `arch-initial.md` §9 and §10 (not measured), the always-on API cost roughly triples, and cron workers cost only while running. On-demand workers also stop three environments from fetching the same venue sites daily. |
 | Dep-D10 | **Isolation.** One account per provider; Neon branches, Atlas databases (`MONGODB_DATABASE`), R2 buckets and DeepInfra keys per environment, with separate database users. | Accept. Cheaper to run than separate projects; the risk is one pasted connection string reaching production, which `APP_ENV` (C3) makes visible. |
 | Dep-D11 | **Audience and go-live.** Attaching `msp.<domain>` to production is the moment the site becomes public. | Make it the last step (C11), after the shared secret (C10) and branch protection. Check Vercel's current Hobby terms before then; I believe the plan is for non-commercial use, and donations are on the deferred list. |
-| Dep-D12 | **The October 26 sample cliff.** The sample data runs dry before C2 and a seeded Neon can replace it. | Accept it. Don't edit `sample_data.py` before B6 merges: the B6 test clock is pinned to it (`alpha-build-plan.md` §6, "Standing rule: the test clock"). |
+| Dep-D12 | **What production shows when C2 lands.** The API stops serving the pinned sample and serves Neon, which has venues and no shows (§1.1). | Accept an empty calendar (its empty state) until the first worker run populates Neon: production is login-gated until C11, so nobody sees it. The optional first-hosted-data step in C3 shortens the gap. The alternative, running the worker from the laptop into Neon production before the C2 merge, writes production data and is Ari's call. |
 | Dep-D13 | **When production's cron turns on.** | Only after the C6 gate passes, or after Ari explicitly accepts 56 of 60 for production. Definition of done point 4 says "on every run", so enabling it earlier is a conscious departure. |
 | Dep-D14 | **Neon–Vercel preview-branch integration.** | Skip for now: it creates a Neon branch per preview, which fights long-lived dev and staging branches. Revisit for ephemeral PR previews (`arch-initial.md` §9, Phase 2). |
 | Dep-D15 | **Task markings.** Items carried over from the build plan keep their marking. New items get `[fill-in]` or `[written]` in each milestone's plan, with the `TODO(Ari)` gaps named there (`AGENTS.md`). | Accept. Re-marking is Ari's call. |
@@ -132,7 +138,7 @@ Every milestone follows the usual cycle (`AGENTS.md`): plan, plan review by a di
 | # | Milestone | Where it runs | Waits on | Gate |
 |---|---|---|---|---|
 | C1 | Preflight: re-validate, register, accounts | Ari, dashboards | nothing | Facts recorded; Dep-D7–Dep-D14 answered |
-| C2 | The API reads from the database (was A1b) | cloud, `[written]` | B6 merged; Neon migrated and seeded | Alpha definition of done met |
+| C2 | The API reads from the database (was A1b) | cloud, `[written]` | Neon migrated and seeded | Alpha definition of done met; the e2e job green on Postgres |
 | C3 | Environments and deploy-as-code | cloud, plus dashboard steps | C1 | Previews build; three environments deploy from their branches |
 | C4 | Metro hosts and the domain | cloud, plus Namecheap and Vercel | C2, C3 | `msp.dev.<domain>` and `msp.staging.<domain>` serve behind the gate |
 | C5 | Pipeline evaluation harness (was A8, first half) | local, `[fill-in]` | nothing | Local baseline recorded |
@@ -154,7 +160,7 @@ Every milestone follows the usual cycle (`AGENTS.md`): plan, plan review by a di
 | Merging C2 before Neon is migrated | Railway deploys on push, so the production API would query tables that may not exist; every route would answer 500, and `/health/db` would not warn. | C2's gate: Neon migrated and seeded first |
 | Starting C8 before Atlas is ready | The worker refuses to start without `MONGODB_URI` | C3 provisions per-environment Atlas databases; C8 connects them |
 | Labelling twice | C5's labels and C6's held-out set are the same job | Label once; the held-out pages are captured before C6 scores anything |
-| C2 and B6 both touching the sample data | B6's test clock is pinned to `sample_data.py`; C2 may delete it | C2 waits for B6 to merge |
+| C2 breaking B6's end-to-end job | The job runs the real API on `sample_data.py` with a pinned `Date.now`; moving the routers removes both | C2 adds a Postgres service, a deterministic show seed and a Python-side clock to the job in the same change |
 | Three scheduled workers | Three daily hits on each venue site, plus inference spend three times over | Only production is scheduled (Dep-D9) |
 | Attaching the production domain early | Custom domains sit outside Vercel's protection scope, so the site goes public | It is C11's last step (Dep-D11) |
 | The Atlas M0 cluster paused | A worker's first hosted run would fail on connect | Checked in C1, again in C3 |
@@ -172,7 +178,7 @@ Each gets an implementation plan under `docs/dev/implementations/` (`c2-…md`, 
 - [ ] **Re-validate the hosted state** and record each result in `docs/dev/env-revalidation.md`, secrets redacted: Railway (`railway status`, `railway variable list --kv`, `/health`, `/health/db`, and the plan's limits on environments); Neon (`alembic current` against it, the existing branches); Atlas (is the cluster running, which database users exist); Vercel (`vercel env ls`, the Production and Preview variables); GitHub (repo visibility, branch-protection settings).
 - [ ] **Register the domain** (Namecheap, Ari's usual registrar) and, per Dep-D7, point its nameservers at Vercel. Not blocking: dev and staging can use `*.vercel.app` until it exists.
 - [ ] **Open accounts:** DeepInfra now (C6 needs it); Cloudflare (R2) can wait until C9.
-- [ ] **Branch protection on `main`** (pulled forward from the old H4), now that the repo is public: require the Python, JS, contract and designations checks; add B6's end-to-end check when it lands.
+- [ ] **Branch protection on `main`** (pulled forward from the old H4), now that the repo is public: require the five CI jobs: Python, JS, Contract, E2E (B6, landed October 22) and Designations (pull requests only).
 - [ ] **Answer Dep-D7 to Dep-D14**, or confirm the defaults.
 
 **Done when:** `env-revalidation.md` records every §1.2 item as verified or as a finding; the open decisions are answered.
@@ -181,11 +187,12 @@ Each gets an implementation plan under `docs/dev/implementations/` (`c2-…md`, 
 
 *Migrated from `alpha-build-plan.md` A1b, October 21, 2026.* Split out of A1 deliberately: A1 is the data layer, and swapping the routers is its own change with its own test migration. The routes still serve `app/sample_data.py` until this lands.
 
-**Waits on:** B6 merged (the test clock and the sample data), and a migrated, seeded Neon before the merge (§5.2).
+**Waits on:** a migrated, seeded Neon before the merge (§5.2). B6 has merged, so its end-to-end job is a consumer to keep green.
 
 - [ ] **[written]** Replace the bodies in `app/routers/` with queries, keeping every signature, response model and error code (`api-contract.md` §2). Resolve inherited show fields (age restriction, alcohol, setting, seating) server-side from the venue, per `api-contract.md` §5. Add ORM `relationship()`s here, with the first consumer, choosing cascade settings then
 - [ ] **[written]** Make the routes `async def` against a session dependency (`Annotated[AsyncSession, Depends(get_db)]` — `get_db` doesn't exist yet; it's added here, with its first consumer), and migrate `test_routers.py` from `TestClient` to `httpx.AsyncClient` + `ASGITransport` with `dependency_overrides` (the live `StarletteDeprecationWarning` is the nudge). Delete `app/sample_data.py` once nothing reads it — but note `scripts/generate_fixtures.py` builds the frontend fixtures from it, so decide first whether the fixtures keep a sample-data source of their own
 - [ ] **[written]** *(added)* Before the merge: run `alembic upgrade head` and the seed against Neon production, then check every route against it. Merging first would put the production API on tables that may not exist (§5.2).
+- [ ] **[written]** *(added, from B6's follow-ups)* Keep the end-to-end job green on the database: a Postgres service in the `e2e` CI job and in `make e2e`, a deterministic show seed that loads the same shows the fixtures hold, and a clock the Python side can fix so the pinned instant reaches the API (its window is real once it reads the database). The pin's guard test (`e2e/support/clock.test.ts`) and the fixtures' source follow from where that seed lives, which is also the answer to the "keep a sample-data source" question in the bullet above.
 - [ ] *(added)* Verify locally, as `alpha-build-plan.md` §2 points 2 and 4 require: run the worker twice against local Postgres, and check that the calendar renders the rows (insert, update and soft-delete across the two runs).
 
 **Done when:** the routers query the database; `make check` is green; Neon is migrated and seeded; the local verification passes. That closes the alpha's definition of done.
@@ -287,7 +294,7 @@ Each gets an implementation plan under `docs/dev/implementations/` (`c2-…md`, 
 **Why:** The remaining pieces of `env-setup.md` Phase 8's skipped items. **Waits on** C3.
 
 - [ ] **The FastAPI↔Next.js shared secret**, per environment, server-only: a FastAPI dependency checks the header and every Next.js call sends it (`arch-initial.md` §5). Until then the Railway API answers anyone who finds its URL.
-- [ ] Update the required checks on `main` for jobs added since C1 (B6's end-to-end job, the evaluation harness if it gets one).
+- [ ] Update the required checks on `main` for jobs added since C1 (the evaluation harness, if it gets one in CI).
 - [ ] Migrations and the seed run against Neon: done by C2 and C3; verify here that production, staging and dev all match.
 
 **Done when:** a call to the Railway API without the secret is refused, and the calendar still renders.
