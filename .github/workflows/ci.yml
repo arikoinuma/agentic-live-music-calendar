@@ -137,6 +137,71 @@ jobs:
       - name: Check generated contract output is current
         run: make contract-check
 
+  e2e:
+    name: E2E (Playwright, real API on sample data)
+    runs-on: ubuntu-latest
+    # The suite takes about two minutes; a hang outside Playwright's own timeouts (an install, a
+    # server that never answers) would otherwise hold the runner for the 6-hour default.
+    timeout-minutes: 20
+    # B6 (docs/dev/implementations/b6-accessibility-and-e2e.md, B6-D1 and B6-D4). Playwright starts
+    # the whole stack itself (apps/calendar/playwright.config.ts): the real FastAPI app on its
+    # sample data, a pass-through proxy and `next start` on a production build. No Postgres:
+    # the routers still serve sample_data.py until A1b. A separate job from `js` so a JS-only
+    # change still gets fast feedback, and so Python and a browser are installed only here.
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: apps/api/uv.lock
+
+      - run: uv python install 3.13
+
+      - run: uv sync --locked
+        working-directory: apps/api
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The browser is the slow download, so cache it per Playwright version. `install
+      # --with-deps` still runs on a cache hit: it skips the download but installs the
+      # system libraries Chromium needs, which the runner image doesn't keep between jobs.
+      - name: Playwright version (the browser cache key)
+        id: playwright
+        run: echo "version=$(pnpm --filter calendar exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      - run: pnpm --filter calendar exec playwright install --with-deps chromium
+
+      # The build's API_BASE_URL only has to exist: every route is dynamic, so nothing is
+      # fetched at build time (apps/calendar/AGENTS.md).
+      - run: pnpm --filter calendar build
+        env:
+          API_BASE_URL: http://127.0.0.1:8102
+
+      - run: pnpm --filter calendar exec playwright test
+
+      # The HTML report and the failure traces, only when something failed.
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            apps/calendar/playwright-report/
+            apps/calendar/test-results/
+          retention-days: 7
+
   designations:
     name: Designations (scoped IDs)
     # Pull requests only: it looks at the lines a PR adds. A push to main has no base to compare with.

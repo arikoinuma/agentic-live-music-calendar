@@ -138,5 +138,13 @@ if [ -n "${CLAUDE_ENV_FILE:-}" ] && ! grep -qF ".local/bin" "$CLAUDE_ENV_FILE" 2
   echo "export PATH=\"$HOME/.local/bin:\$PATH\"" >> "$CLAUDE_ENV_FILE"
 fi
 
+# The end-to-end suite (B6, `make e2e`) needs a browser. A cloud session cannot download
+# Playwright's own and ships an older Chromium at /opt/pw-browsers/chromium; tell the
+# suite where it is, the same way as PATH above. `make check` runs the suite, so without
+# this every cloud `make check` would fail on a missing browser.
+if [ -n "${CLAUDE_ENV_FILE:-}" ] && [ -x /opt/pw-browsers/chromium ] && ! grep -qF "E2E_CHROMIUM_PATH" "$CLAUDE_ENV_FILE" 2>/dev/null; then
+  echo "export E2E_CHROMIUM_PATH=/opt/pw-browsers/chromium" >> "$CLAUDE_ENV_FILE"
+fi
+
 log "ready. Next: 'make check' verifies everything. 'make dev' is not available here"
 log "(it needs Docker); run 'make api' and 'make web' in two shells instead."
