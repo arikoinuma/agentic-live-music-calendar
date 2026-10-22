@@ -8,7 +8,7 @@
 
 **Reviewer model:** Claude Opus 5.5 (plan review round 1, October 22, 2026)
 
-**State of the plan:** sequence and milestones (C1–C11) agreed in outline with Ari on October 21, 2026. Decisions marked **[Ari]** in §3.2 are still open. Plan review round 1 (Claude Opus 5.5, October 22, 2026) is resolved at the end of this file. No milestone has an implementation plan yet.
+**State of the plan:** sequence and milestones (C1–C11, plus C3.1 for feature flags) agreed in outline with Ari on October 21–22, 2026. Decisions marked **[Ari]** in §3.2 are still open. Plan review round 1 (Claude Opus 5.5, October 22, 2026) is resolved at the end of this file; the text added since (Dep-D16, C6's parts and exit, and the feature-flag additions listed under "Changes after round 1") has not been reviewed. No milestone has an implementation plan yet.
 
 **Purpose:** The plan for the phase after `alpha-build-plan.md`. That plan builds a working app on the local machine and deliberately leaves everything hosted alone. This one moves it onto hosted services in three environments (hosted dev, staging, production) under one domain with a subdomain per metro, and **validates the extraction on hosted inference**: the accuracy work the development laptop can't finish. It also takes over two items from the build plan that only make sense next to the hosted work: A1b (the API reading from the database) and A8 (evaluating the pipeline).
 
@@ -65,6 +65,7 @@ A2 and A2.1 were signed off by Ari on October 12, 2026 with this open: the extra
 5. Every row is traceable through the audit trail, as in `alpha-build-plan.md` §2 point 3, but in the hosted database, with the raw page snapshot kept (C9).
 6. Production answers at `msp.<domain>`; each metro is its own subdomain, resolved from the host; dev and staging answer at `msp.dev.<domain>` and `msp.staging.<domain>`, gated and not indexed (C4, C11).
 7. The cost and duration of a daily run are measured and recorded against `arch-initial.md` §10's estimate (C11).
+8. Behaviour that differs by environment, or has to be switched off without a code change, is a registered feature flag with its own value in each environment, not an ad-hoc variable; production's scheduled run is the first (C3.1, C8, C11).
 
 ---
 
@@ -80,6 +81,7 @@ A2 and A2.1 were signed off by Ari on October 12, 2026 with this open: the extra
 | Dep-D4 | Non-production environments are gated by an app-level password in `proxy.ts`, keyed on `APP_ENV`, and send `noindex`. | Ari accepted the recommendation, October 21, 2026. Custom domains sit outside Vercel's protection scope (§1.1), and an app-level gate works on any plan. |
 | Dep-D5 | **A1b and A8 move here.** A1b becomes C2. A8 is split: C5 (labels, harness, local baseline) and C7 (tuning and calibration on the shipped model). | Ari, October 21, 2026. A1b is a prerequisite of the hosted calendar showing real data; A8's tuning questions can only be answered on the model that ships (§5). |
 | Dep-D6 | Milestones are numbered C1–C11 and replace H1–H4 (mapping in §7). | Ari, October 21, 2026. The order is dependency-driven (§5), not the order the old names implied. |
+| Dep-D17 | **Feature flags are typed, per-environment variables behind one interface.** A registry defines each flag (name, default, scope, owner, removal condition); the value in each environment comes from that environment's `FLAG_*` variables; Python and Next.js each read it through one `is_enabled` / `isEnabled` function that already takes a metro. Database-backed flags, Vercel Flags and hosted vendors are not adopted now. The work is milestone C3.1. | Ari, October 22, 2026 (option A). Per-environment values come free from the environments Dep-D1 builds. Vercel Flags covers only the Next.js half, is not set up on the project (its settings endpoint returns 404), and with no custom environments on Hobby, dev and staging are both "preview". Nothing yet needs targeting or percentage rollouts. **Known limit:** a flag changes with a restart or redeploy, so a runaway production worker is stopped with Railway's controls, not a flag. The word is "feature flag" for these toggles; "flag" stays the user flagging a listing (`arch-initial.md` §7). |
 
 ### 3.2 Open — **[Ari]** decides
 
@@ -93,7 +95,7 @@ Each row has a default; unless Ari changes it, the milestone plans start from th
 | Dep-D10 | **Isolation.** One account per provider; Neon branches, Atlas databases (`MONGODB_DATABASE`), R2 buckets and DeepInfra keys per environment, with separate database users. | Accept. Cheaper to run than separate projects; the risk is one pasted connection string reaching production, which `APP_ENV` (C3) makes visible. |
 | Dep-D11 | **Audience and go-live.** Attaching `msp.<domain>` to production is the moment the site becomes public. | Make it the last step (C11), after the shared secret (C10) and branch protection. Check Vercel's current Hobby terms before then; I believe the plan is for non-commercial use, and donations are on the deferred list. |
 | Dep-D12 | **What production shows when C2 lands.** The API stops serving the pinned sample and serves Neon, which is expected to hold venues and no shows at best (§1.1; confirmed in C1). | Accept an empty calendar (its empty state) until the first worker run populates Neon: production is login-gated until C11, so nobody sees it. The optional first-hosted-data step in C3 shortens the gap. The alternative, running the worker from the laptop into Neon production before the C2 merge, writes production data and is Ari's call. |
-| Dep-D13 | **When production's cron turns on.** | Only after the C6 gate passes, or after Ari explicitly accepts 56 of 60 for production. Definition of done point 4 says "on every run", so enabling it earlier is a conscious departure. |
+| Dep-D13 | **When production's cron turns on.** | Only after the C6 gate passes, or after Ari explicitly accepts 56 of 60 for production. Definition of done point 4 says "on every run", so enabling it earlier is a conscious departure. Enabling it means switching on the `worker.scheduled_runs` feature flag in production (C3.1). |
 | Dep-D14 | **Neon–Vercel preview-branch integration.** | Skip for now: it creates a Neon branch per preview, which fights long-lived dev and staging branches. Revisit for ephemeral PR previews (`arch-initial.md` §9, Phase 2). |
 | Dep-D15 | **Task markings.** Items carried over from the build plan keep their marking. New items get `[fill-in]` or `[written]` in each milestone's plan, with the `TODO(Ari)` gaps named there (`AGENTS.md`). | Accept. Re-marking is Ari's call. |
 | Dep-D16 | **Which venues each environment runs.** The seed's four venues (White Squirrel, Midway, Zhora, Terminal Bar) are not the gated set (White Squirrel, 7th St Entry, Mortimer's). Midway answers a plain GET with a bot challenge this project won't get past (A2.1-D3), and Zhora is marked for a browser fetch that no worker code implements, so each would fail or under-extract every day. Terminal Bar is informational (`alpha-build-plan.md`, A2.1). | Production's list is the gated set plus any venue Ari adds on purpose. C2 adds 7th St Entry and Mortimer's to the seed; Midway and Zhora stay out of production's list until they have a route (the venue table has no active flag, and adding one is a schema change this phase would otherwise not need); Terminal Bar may run in dev only. The accuracy measurements then describe what production runs. |
@@ -116,6 +118,7 @@ The design every milestone refers to.
 | Cloudflare R2 | bucket `…-dev` | bucket `…-staging` | bucket `…-prod` |
 | DeepInfra | own API key | own key, same model as production | own key |
 | FastAPI↔Next.js secret | own value | own value | own value |
+| Feature flag values | own `FLAG_*` variables | own `FLAG_*` variables | own `FLAG_*` variables |
 
 Branch names assume Dep-D8 (A); Vercel Hobby has no custom environments (§1.1), which is why dev and staging are branch-scoped Preview configurations. The API needs no custom domain: the browser never talks to it (`arch-initial.md` §5), so Railway's default URLs serve.
 
@@ -130,6 +133,10 @@ Branch names assume Dep-D8 (A); Vercel Hobby has no custom environments (§1.1),
 
 The Next.js app resolves the metro from the request host: strip the environment's own zone (configured per environment), and the remainder is the slug; an unknown slug redirects to the chooser. The hook is `proxy.ts` (`docs/references/nextjs-style-guide.md`: `middleware.ts` is `proxy.ts` in Next.js 16). Cookies are host-only, never set on the parent domain, so the environments can't read each other's.
 
+### 4.3 Feature flags (Dep-D17)
+
+A flag is a registered boolean toggle with a default, a scope (global, environment or metro), an owner and a removal condition. Every flag is per-environment by construction: its value comes from that environment's `FLAG_<NAME>` variable (`worker.scheduled_runs` is `FLAG_WORKER_SCHEDULED_RUNS`) and falls back to the registry default. A metro override (proposed syntax `FLAG_<NAME>__<SLUG>`) beats the environment value, which beats the default. The registry lives once, in Python, and the TypeScript registry is generated from it the way `lib/api-types.ts` is, because a shared file at the repo root would not reach the Railway service, which is rooted at `apps/api` (`env-setup.md` Phase 8); C3.1's plan confirms. Evaluation is server-side only: never a `NEXT_PUBLIC_` variable, never shipped to the browser.
+
 ---
 
 ## 5. The sequence
@@ -143,20 +150,21 @@ Every milestone follows the usual cycle (`AGENTS.md`): plan, plan review by a di
 | C1 | Preflight: re-validate, register, accounts | Ari, dashboards | nothing | Facts recorded; Dep-D7–Dep-D16 answered |
 | C2 | The API reads from the database (was A1b) | cloud, plus an Ari step against Neon and a local verification | Neon migrated and seeded | Alpha definition of done met; the e2e job green on Postgres |
 | C3 | Environments and deploy-as-code | cloud, plus dashboard steps | C1 | Previews build; three environments deploy from their branches |
+| C3.1 | Feature flags (typed, per environment) | cloud | C3 | The production-cron flag evaluates in all three environments; the registry check passes |
 | C4 | Metro hosts and the domain | cloud, plus Namecheap and Vercel | C2, C3 | `msp.dev.<domain>` and `msp.staging.<domain>` serve behind the gate |
 | C5 | Pipeline evaluation harness (was A8, first half) | local (carries `[fill-in]` items) | nothing | Local baseline recorded |
 | C6 | Hosted inference and the accuracy gate (was H1) | local, against DeepInfra | DeepInfra key; part 2 waits on C5 | A2.1-D1 gate passes on gated and held-out pages |
 | C7 | Pipeline evaluation on the shipped model (was A8, second half) | local, against DeepInfra | C5, C6 | Thresholds changed or confirmed with data |
-| C8 | The agent worker on Railway (was H2, with H3's Mongo half) | cloud, plus dashboard steps | C2, C3, C6 part 1 | Worker runs hosted in dev and staging; production cron stays off |
+| C8 | The agent worker on Railway (was H2, with H3's Mongo half) | cloud, plus dashboard steps | C2, C3, C3.1, C6 part 1 | Worker runs hosted in dev and staging; production cron stays off |
 | C9 | Audit storage: R2 snapshots (was H3's R2 half) | cloud, plus Cloudflare account | C3 to build; C8 for its Done-when | `audit_log.snapshot_key` filled |
 | C10 | Wiring and guard rails (was H4) | cloud | C3 | The API refuses calls without the shared secret |
 | C11 | Go-live and burn-in | Ari | C4, C8, C9, C10, and C6's gate or Ari's Dep-D13 acceptance | Production on its domain; cost and duration recorded |
 
-**Critical paths:** C1 → C3 → C8 → C9 → C11 for the build, and C1 → C6 → C11 for the accuracy gate, whose length is not known; C6 is the milestone most likely to set the date. C2 runs beside C3 (both wait on little). C5 and C7 run beside them, and C7 does not gate go-live. C4 needs C2 because the slug lives in the database the API now serves.
+**Critical paths:** C1 → C3 → C3.1 → C8 → C9 → C11 for the build, and C1 → C6 → C11 for the accuracy gate, whose length is not known; C6 is the milestone most likely to set the date. C2 runs beside C3 (both wait on little). C5 and C7 run beside them, and C7 does not gate go-live. C4 needs C2 because the slug lives in the database the API now serves.
 
-**First tests** (`alpha-build-plan.md` §3: tests first; each milestone's plan names its own). C3: an `APP_ENV` that disagrees with the database host is reported. C4: host parsing, below. C9: a fake object-store client receives the page, and its key lands on the audit row. C10: a request without the shared-secret header is refused.
+**First tests** (`alpha-build-plan.md` §3: tests first; each milestone's plan names its own). C3: an `APP_ENV` that disagrees with the database host is reported. C3.1: an unset flag returns its registry default, and an unregistered `FLAG_*` variable is refused at startup. C4: host parsing, below. C9: a fake object-store client receives the page, and its key lands on the audit row. C10: a request without the shared-secret header is refused.
 
-**Lanes.** Cloud: C2, C3, C4, C8, C9, C10 and every plan and review round. Local (Ari, laptop and Ollama): C5, C6, C7. Dashboards and accounts (Ari): C1, the manual parts of C3, C4, C9 and C11.
+**Lanes.** Cloud: C2, C3, C3.1, C4, C8, C9, C10 and every plan and review round. Local (Ari, laptop and Ollama): C5, C6, C7. Dashboards and accounts (Ari): C1, the manual parts of C3, C4, C9 and C11.
 
 ### 5.2 Ordering traps
 
@@ -169,6 +177,7 @@ Every milestone follows the usual cycle (`AGENTS.md`): plan, plan review by a di
 | Three scheduled workers | Three daily hits on each venue site, plus inference spend three times over | Only production is scheduled (Dep-D9) |
 | Attaching the production domain early | Custom domains sit outside Vercel's protection scope, so the site goes public | It is C11's last step (Dep-D11) |
 | The Atlas M0 cluster paused | A worker's first hosted run would fail on connect | Checked in C1, again in C3 |
+| A flag that changes extraction without being recorded | The run can't be reproduced or audited, against the project's "auditable by construction" rule | C3.1 records the effective flag values on every worker run |
 
 ---
 
@@ -220,12 +229,35 @@ The added items are unmarked: their marking is set in C2's plan (Dep-D15).
 - [ ] **Migrations on deploy:** the API's pre-deploy step runs `alembic upgrade head`, with expand-contract changes because the API and worker don't redeploy together (`arch-initial.md` §5). Because the `dev` lane (Dep-D8) can point at an unmerged branch, a migration from that branch must not outlive it: reset Neon `dev` from its parent branch whenever the lane moves to a branch with a different migration set, and never apply an unmerged branch's migration to staging or production.
 - [ ] **`APP_ENV`** (`dev`, `staging`, `prod`) in `Settings`, shown by `/health`, written on `agent_run`, and checked against the database host so a wrong connection string is visible.
 - [ ] **Fix the preview build:** set `API_BASE_URL` for the Preview environment. That is the whole fix (§1.1: the missing-variable guard fails every route without request data, and no page needs changing). Keep the guard failing loudly. Then confirm a PR preview deploys.
-- [ ] **Secrets inventory:** a table of every variable per environment, no values.
+- [ ] **Secrets inventory:** a table of every variable per environment, no values. The `FLAG_*` variables (C3.1) are listed too; they are not secrets, so their values may be shown.
 - [ ] Decide the Neon–Vercel integration (Dep-D14).
 - [ ] **Comment-only pass:** change the remaining H1–H4 references in code comments and plans to the C names (§7), verified as a comment-only change (`AGENTS.md`, "Comment-only passes must not change code").
 - [ ] *(optional)* **First real hosted data:** run the worker from the laptop into the dev Neon branch and dev Atlas database, so the hosted dev calendar shows real shows before DeepInfra or the Railway worker exist. Needs C2.
 
 **Done when:** a PR preview builds; dev and staging deploy from their branches; each environment has its own database and secrets; `APP_ENV` is visible; the configuration is in the repo.
+
+### C3.1. Feature flags (typed, per environment)
+
+*New, October 22, 2026, from Ari's question; Dep-D17 records the decision (option A).* Numbered C3.1 as A2.1 sits between A2 and A3, so C4–C11 keep their numbers.
+
+**Why:** Behaviour that differs by environment, or has to be switched off without touching code, is currently a loose variable or a planned-but-unnamed switch: production's cron "left off until C11" (Dep-D13), the non-production gate (Dep-D4), the model per environment. This milestone gives those one small, typed, tested mechanism before there are three environments' worth of ad-hoc variables. It is deliberately not a flag service (Dep-D17).
+
+**Waits on:** C3 (`APP_ENV` and the per-environment variables). C4 passes the metro it resolves from the host into the same interface; nothing here waits on C4.
+
+- [ ] **Tests first** (Python and TypeScript alike): an unset variable returns the registry default; `true` and `false` are the only accepted values, anything else raises; an unknown flag name raises at the call; a `FLAG_*` variable that is not in the registry is refused at startup, as `Settings` refuses unknown keys; a metro override beats the environment value, which beats the default.
+- [ ] **The registry, once, in Python:** each flag has a name, a default (off unless the plan says otherwise), a scope, a description, an owner, a creation date and a removal condition; `is_enabled(name, *, metro=None)` is the only way to read one.
+- [ ] **The TypeScript side:** the registry generated from the Python one, as `lib/api-types.ts` is (`make types` and `make contract-check` are the pattern), and a server-only `isEnabled(name, { metro })`. If the plan finds generation too heavy, the alternative is a parity test between two hand-kept copies.
+- [ ] **First flag: `worker.scheduled_runs`**, off by default in every environment. A run started with `--trigger scheduled` (`agent_worker/main.py`) exits when the flag is off and says so; a `--trigger manual` run ignores it. C8 wires the production cron to it and C11 turns it on (Dep-D13). Whether a skipped scheduled run leaves an `agent_run` row is the plan's call.
+- [ ] **Audit:** the effective flag values are recorded on every worker run (in the run's audit detail or the staging document, as the plan decides), so a run can be reproduced, and shown by `/health` in non-production.
+- [ ] **Hygiene:** `make flags` lists every flag with its owner, creation date and removal condition; a check fails when code reads a flag that is not registered, or the registry holds a flag nothing reads.
+- [ ] **Terms:** write "feature flag" for these toggles and keep "flag" for a user flagging a wrong listing (`arch-initial.md` §7), with a short note in `docs/dev/conventions.md`.
+- [ ] **The limit, stated:** changing a flag takes a restart or redeploy (Railway redeploys on a variable change, `notes.md`; Vercel applies a changed variable to new deployments). Stopping a runaway production worker uses Railway's controls, not a flag.
+
+The items are unmarked; their marking is set in C3.1's plan (Dep-D15). One candidate lesson for Ari is the precedence rule (metro override, then environment value, then default).
+
+**Not in this milestone, and what would bring it back:** database-backed flags (a `feature_flag` table, scoped by metro), Vercel Flags, and a hosted vendor. The first returns when something needs a flag to change without a deploy or per-metro values across more than one live metro (the public edit and flag endpoints are the likeliest trigger); the others when targeting or percentage rollouts are needed. The `is_enabled` seam keeps that a change in one place.
+
+**Done when:** `worker.scheduled_runs` evaluates in dev, staging and production, each from its own `FLAG_WORKER_SCHEDULED_RUNS`; the registry check passes in CI; the effective values appear on a worker run; the Python and TypeScript tests pass.
 
 ### C4. Metro hosts and the domain
 
@@ -291,7 +323,7 @@ The added items are unmarked: their marking is set in C2's plan (Dep-D15).
 
 - [ ] Its own `Dockerfile` from Playwright's image (`mcr.microsoft.com/playwright/python`, which already includes Chromium and its system libraries), and a Railway service per environment with `python -m agent_worker.main`.
 - [ ] Environment variables point at DeepInfra, never Ollama (`localhost:11434` doesn't exist on Railway), and `MONGODB_URI` at the Atlas cluster, with the connection options checked. The staging write already exists since A4; the hosted cluster's version is this milestone's to choose (A4-D3 pinned local MongoDB to 7.0, `notes.md`).
-- [ ] **Dev and staging run on demand; production is scheduled** (Dep-D9): the per-metro 4 a.m. trigger (`arch-initial.md` §11, metro-aware scheduling, with one metro live), **left off** until C11. Railway cron expressions are UTC, so one fixed expression is 4 a.m. in Minneapolis for half the year only; C8's plan says which half it prefers (default `0 10 * * *`: 4 a.m. in winter, 5 a.m. in summer). The cron passes `--trigger scheduled` and on-demand runs `--trigger manual`, so `agent_run` records which was which.
+- [ ] **Dev and staging run on demand; production is scheduled** (Dep-D9): the per-metro 4 a.m. trigger (`arch-initial.md` §11, metro-aware scheduling, with one metro live), **left off** until C11. Railway cron expressions are UTC, so one fixed expression is 4 a.m. in Minneapolis for half the year only; C8's plan says which half it prefers (default `0 10 * * *`: 4 a.m. in winter, 5 a.m. in summer). The cron passes `--trigger scheduled` and on-demand runs `--trigger manual`, so `agent_run` records which was which. Production's schedule is configured but gated by the `worker.scheduled_runs` feature flag (C3.1), which stays off there until C11 switches it on; a scheduled run that finds the flag off exits and says so.
 - [ ] The first real run against Neon, in dev, then staging.
 
 **Done when:** the worker runs hosted in dev and staging, and the calendar at each environment's URL (its custom host once C4 has landed, otherwise its `*.vercel.app` URL) shows what the worker wrote.
@@ -318,7 +350,7 @@ The added items are unmarked: their marking is set in C2's plan (Dep-D15).
 
 ### C11. Go-live and burn-in
 
-- [ ] Enable production's cron, once Dep-D13's condition holds.
+- [ ] Enable production's cron, once Dep-D13's condition holds: switch the `worker.scheduled_runs` feature flag (C3.1) on in production.
 - [ ] Attach `msp.<domain>` to the Production environment; turn on the apex chooser (Dep-D11). Check Vercel's current plan terms first.
 - [ ] **Burn-in:** let several daily runs complete and check each run's audit trail. To score the accuracy gate on what production fetched, Ari labels a sample of the stored snapshots (C9) as labelling work in the style of A2.1-D11, since labels exist only for captured fixtures; without that it is a spot check of the audit trail, not the gate.
 - [ ] **Measure the cost and duration** of a daily run and record them against `arch-initial.md` §10's estimate.
@@ -339,6 +371,7 @@ The added items are unmarked: their marking is set in C2's plan (Dep-D15).
 | H2 | C8 | |
 | H3 | C3 (the per-environment Atlas databases), C8 (connecting the worker) and C9 (R2) | |
 | H4 | C1 (branch protection), C3 (migrations, the Neon–Vercel decision) and C10 (the shared secret) | |
+| (new) feature flags | C3.1 | Added October 22, 2026 from Ari's question; not from an earlier plan. |
 
 **References that still say H1–H4** (17 files, from `git grep` after plan review round 1): `AGENTS.md` ("Current phase"), `docs/arch/arch-initial.md` §11, `docs/dev/env-setup.md`, the A2, A2.1, A3, A4, A5 and A7 plans, `apps/api/.env.example`, `docker-compose.yml`, and comments in `app/config.py` and `agent_worker/` (`act_split.py`, `nodes.py`, `policy.py`, `status_check.py`). They resolve through this table. The rename is owned: `AGENTS.md` and its documentation map are updated in C1 (Ari approves a change to the project instructions), and the comment-only pass over code comments and plans is a step of C3, which touches `config.py` and `.env.example` anyway. The plan files record history, so a plan keeps the old name beside the new where it matters.
 
@@ -348,7 +381,7 @@ The added items are unmarked: their marking is set in C2's plan (Dep-D15).
 
 Unchanged from `alpha-build-plan.md` §8, except for what moved here (the hosted services, the larger model, throughput, the pipeline evaluation): public edit and flag endpoints with Turnstile and Resend; Playwright fetching beyond what C8's image makes possible; the deeper venue sources (A2.1-E9–A2.1-E13); image-based show listings (`arch-initial.md` §11, not yet scheduled); the MCP admin server; chat search.
 
-Also deferred, from this rewrite: **scoping every query by metro** (`arch-initial.md` §11; C4 resolves a host to a metro and stops there); **metro aliases** (`chicago` for `chi`, Dep-D3); **ephemeral PR environments** on Railway and Neon (Dep-D14); a **custom domain for the API**, which the browser never calls; **running B6's end-to-end suite against a deployed staging** (B6's follow-up for the hosted phase; its harness is built for the local stack only).
+Also deferred, from this rewrite: **scoping every query by metro** (`arch-initial.md` §11; C4 resolves a host to a metro and stops there); **metro aliases** (`chicago` for `chi`, Dep-D3); **ephemeral PR environments** on Railway and Neon (Dep-D14); a **custom domain for the API**, which the browser never calls; **running B6's end-to-end suite against a deployed staging** (B6's follow-up for the hosted phase; its harness is built for the local stack only); **database-backed, Vercel and vendor feature flags** (Dep-D17; C3.1 lists what would bring them back).
 
 ---
 
@@ -398,3 +431,7 @@ Also deferred, from this rewrite: **scoping every query by metro** (`arch-initia
 **Rejected:** the optional half of row 1 (make the missing-variable guard harmless at build time). A build that passes with `API_BASE_URL` unset would hide a missing production setting until the first request, the opposite of the fail-loudly rule `Settings` follows (`apps/api/.env.example`: "a missing config value should fail loudly at startup"). Setting the variable for Preview fixes the failure and keeps the guard. Everything else in the round is fixed.
 
 **After the fixes:** documents only, so no test suite applies. `make designation-check BASE=origin/main` passes. Status set to `Awaiting approval`. One round was run; the changes are many but none reworks the sequence or a milestone's purpose, so a round 2 is not warranted. Ari may still want one for Dep-D16 and the new C6 parts, which are new text.
+
+### Changes after round 1 (author, October 22, 2026) — not reviewed
+
+Made at Ari's request after the round was resolved: **Dep-D17** and its Dep-D13 note, definition of done point 8, §4.1's feature-flag row and §4.3, the **C3.1** milestone and its row, critical path, first-tests, lane and trap entries in §5, the secrets-inventory line in C3, the cron-gating sentences in C8 and C11, the mapping row in §7 and the deferral in §8. Text added while resolving round 1 (Dep-D16, C6's parts and exit, the C2, C3 and C4 additions) has not been reviewed either. A second round limited to this text is Ari's call.
