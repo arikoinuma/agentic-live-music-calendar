@@ -306,7 +306,7 @@ the session model is the author, and the reviewer subagent gets a different one,
 
 1. Work on a branch named `<milestone>-<slug>` (e.g. `a5-reconcile`), matching the plan
    file's name. Never commit to `main`. One milestone per branch.
-2. Open the PR as a **draft**. Ari reviews and merges; don't merge it yourself.
+2. Open the PR as a **draft**. Ari reviews and merges; don't merge it yourself. Subscribe to the PR right after opening it (`subscribe_pr_activity`). Don't ask first: Ari has asked for this to be automatic.
 3. Run `make check` before pushing and put its result in the PR description. Don't hand-edit
    generated files (`lib/api-types.ts`, `lib/fixtures/`); regenerate with `make types` /
    `make fixtures` if you change `schemas.py` or `sample_data.py`.
