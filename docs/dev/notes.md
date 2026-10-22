@@ -635,3 +635,24 @@ pytest.
 `app/tests/test_pytest_config.py` fails if the glob or `testpaths` regress (it walks the whole tree, not just `testpaths`, so it is red on a
 config that only widens `testpaths`). To check whether pytest imports a file: add a top-level `print` and run `pytest --collect-only -s -q`.
 
+---
+
+## Dependabot alerts: a cloud session can't read them, and the count overstates the work
+
+**Symptom:** the Security tab showed 117 open alerts; `gh api repos/.../dependabot/alerts` in a cloud session returned `403 Resource not
+accessible by integration`.
+
+**Root cause:** the session's token lacks the `vulnerability_alerts: read` permission (the 403's `X-Accepted-Github-Permissions` header names
+it), and GraphQL and the global `/advisories` API are blocked for sessions. An export run on Ari's own machine, where `gh` is logged in as the
+owner, works. A third-party "export alerts" Action is not worth it: it would be handed a token that reads the unpatched-vulnerability list,
+and on this public repo an uploaded CSV artifact is downloadable by other signed-in users.
+
+**Fix / lesson:** the count is misleading in two ways. Dependabot raises one alert per advisory per manifest, so `next` pinned in three
+places turned 9 advisories into 27 alerts. And its `runtime` / `development` label follows `dependencies` vs `devDependencies`, so the
+`shadcn` CLI (a build-time scaffolding tool) made ~48 alerts read "runtime"; 116 of 118 did. Triage by root cause (which direct dependency
+drags the vulnerable one in), not by the flat list or the label. `.claude/skills/dependabot-triage/` (`/dependabot-triage`) does this:
+`triage.py fetch` tries `gh` and exits 3 on a 403/401, at which point the skill stops and tells Ari to re-run it in a local session (no paste
+step), then `triage.py summarize`, then `pnpm audit` / `pip-audit` and `triage.py chains` to find the levers. The 403 is a GitHub App token
+(GitHub's "integration") without `vulnerability_alerts: read`, not a limit on `gh` itself: PRs, check runs and the dependency-graph SBOM all
+work from a cloud session. Measured on the
+2026-10-21 export: 118 alerts reduced to about six fixes, and the lockfile audits reconstructed 114 of them.
