@@ -32,9 +32,10 @@ approach — most "what should we do about X" questions have an answer with reas
 | How is it built, and why? | `docs/arch/arch-initial.md` |
 | What's the database schema? | `docs/arch/data-model-initial.md` |
 | What's the API's shape? | `docs/dev/api-contract.md` |
-| What are we building next? | `docs/dev/alpha-build-plan.md` |
-| What comes after that — the hosted alpha? | `docs/dev/alpha-deployment-plan.md` |
+| What are we building next? (the hosted alpha, C1–C11) | `docs/dev/alpha-deployment-plan.md` |
+| What did the local alpha build (A1–A7, B1–B6) cover? | `docs/dev/alpha-build-plan.md` |
 | How was the environment set up? | `docs/dev/env-setup.md` |
+| What does each hosted service actually look like today? | `docs/dev/implementations/c1-env-revalidation.md` |
 | What non-obvious thing bit us before? | `docs/dev/notes.md` |
 | How is a given milestone being implemented? | `docs/dev/implementations/` |
 | What does a designation like `A2.1-D5` or `v0.1-G6` mean, and how do I write one? | `docs/dev/conventions.md` |
@@ -111,11 +112,19 @@ mypy, pytest) and is not in the pipeline.
 
 ## Current phase
 
-`docs/dev/alpha-build-plan.md` is the active plan: get the whole thing running locally, with
-real agent writes and a real calendar UI. Two tracks (Python/agent, Next.js) meeting at the
-API contract. Nothing hosted is in scope — Vercel, Railway, and Neon are deployed and left
-alone. Hosted work, including the extraction accuracy work that needs a larger hosted model
-(A2.1's open gap), belongs to the next phase, `docs/dev/alpha-deployment-plan.md` (milestones H1–H4).
+`docs/dev/alpha-deployment-plan.md` is the active plan: the hosted alpha, milestones C1–C11
+(C1 is the preflight checklist, recorded in `docs/dev/implementations/c1-env-revalidation.md`). The local build
+(`docs/dev/alpha-build-plan.md`, A1–A7 and B1–B6) is finished apart from its §7 learning
+deliverables, so that plan is now history and the reference for what the local system does.
+Hosted work is in scope, including the extraction accuracy work that needs a larger hosted
+model (A2.1's open gap, C6). The old H1–H4 names still appear in older plans and comments;
+`alpha-deployment-plan.md` §7 maps them to C-numbers.
+
+Hosted services (Vercel, Railway, Neon, Atlas) hold real state that the local suite never
+sees, so check `docs/dev/implementations/c1-env-revalidation.md` for what a service actually looks like before
+assuming it. Reach a hosted database only with a one-command environment override
+(`DATABASE_URL=… uv run …`), never by editing `apps/api/.env`, and never paste a connection
+string or password into a doc, a commit or a chat.
 
 Tasks in that plan are marked **[fill-in]** or **[written]** (write it complete, then walk
 through it). Respect the marking — the next section is what [fill-in] means in practice.

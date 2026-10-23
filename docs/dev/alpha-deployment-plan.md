@@ -184,20 +184,20 @@ Every milestone follows the usual cycle (`AGENTS.md`): plan, plan review by a di
 
 ## 6. Milestones
 
-Each gets an implementation plan under `docs/dev/implementations/` (`c2-…md`, and so on) before it is built. C1 is a checklist with its result in `docs/dev/env-revalidation.md`.
+Each gets an implementation plan under `docs/dev/implementations/` (`c2-…md`, and so on) before it is built. C1 is a checklist with its result in `docs/dev/implementations/c1-env-revalidation.md`.
 
 ### C1. Preflight: re-validate, register, accounts
 
 **Why:** §1.2 lists what only Ari can check, and the cost of the three-environment design has to be known before C3 builds it (Dep-D9).
 
-- [ ] **Re-validate the hosted state** and record each result in `docs/dev/env-revalidation.md`, secrets redacted: Railway (`railway status`, `railway variable list --kv`, `/health`, `/health/db`, and the plan's limits on environments); Neon (`alembic current` against it, row counts per table, the existing branches); Atlas (is the cluster running, which database users exist); Vercel (`vercel env ls`, the Production and Preview variables); GitHub (the ruleset as it stands, read in plan review round 1); and each provider's free-tier limits (Neon compute hours and branches, Atlas M0, R2, the Railway plan), with the idle-connection question from Dep-D9.
+- [ ] **Re-validate the hosted state** and record each result in `docs/dev/implementations/c1-env-revalidation.md`, secrets redacted: Railway (`railway status`, `railway variable list --kv`, `/health`, `/health/db`, and the plan's limits on environments); Neon (`alembic current` against it, row counts per table, the existing branches); Atlas (is the cluster running, which database users exist); Vercel (`vercel env ls`, the Production and Preview variables); GitHub (the ruleset as it stands, read in plan review round 1); and each provider's free-tier limits (Neon compute hours and branches, Atlas M0, R2, the Railway plan), with the idle-connection question from Dep-D9.
 - [ ] **Choose and register the domain** when Ari has settled on a name (Namecheap, his usual registrar), then point its nameservers at Vercel (Dep-D7). Until then everything runs on `*.vercel.app`. It becomes a bottleneck at C4's DNS and hosts step and at C11 (§5.2).
 - [ ] **Open accounts:** DeepInfra now (C6 needs it); Cloudflare (R2) can wait until C9.
 - [ ] **Branch protection on `main`** (pulled forward from the old H4). A ruleset already blocks deletion and force-push, requires a pull request and requires Python, JS and Contract (§1.1): add the E2E (B6) and Designations (pull requests only) checks to it.
-- [ ] **Update `AGENTS.md`**: "Current phase" still says nothing hosted is in scope and points at H1–H4, and its documentation map should list `docs/dev/env-revalidation.md`. This changes the project instructions, so it is Ari's to approve.
+- [ ] **Update `AGENTS.md`**: "Current phase" still says nothing hosted is in scope and points at H1–H4, and its documentation map should list `docs/dev/implementations/c1-env-revalidation.md`. This changes the project instructions, so it is Ari's to approve.
 - [ ] **Cost finding (Dep-D9).** The budget is Railway Hobby plus DeepInfra usage, with no further monthly commitment. Estimate the recurring cost of §4.1 before C3 builds it: read the existing API service's actual monthly usage from Railway's dashboard, project it for each always-on service the design adds (the API in each environment; workers only bill while running), and check what the Railway plan includes and whether an idle service can sleep (not verified here). Check Neon, Atlas M0 and R2's free limits against the environments, the idle-connection question included. Write the design's cost against the budget as a table. If it doesn't fit, list the cheaper shapes (for example hosted dev folded into staging through Dep-D8's `dev` lane, or a dev deployed only on demand) and Ari decides before C3 starts.
 
-**Done when:** `env-revalidation.md` records every §1.2 item as verified or as a finding; the domain is registered and its nameservers set; the DeepInfra account exists; the `main` ruleset lists all five checks; `AGENTS.md` names the hosted phase; the cost finding is written and Ari has decided how many hosted environments there are (Dep-D9).
+**Done when:** `c1-env-revalidation.md` records every §1.2 item as verified or as a finding; the domain is registered and its nameservers set; the DeepInfra account exists; the `main` ruleset lists all five checks; `AGENTS.md` names the hosted phase; the cost finding is written and Ari has decided how many hosted environments there are (Dep-D9).
 
 ### C2. The API reads from the database (was A1b)
 
