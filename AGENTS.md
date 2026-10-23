@@ -312,8 +312,16 @@ the session model is the author, and the reviewer subagent gets a different one,
 
 ### Branches and PRs
 
-1. Work on a branch named `<milestone>-<slug>` (e.g. `a5-reconcile`), matching the plan
-   file's name. Never commit to `main`. One milestone per branch.
+1. **Branch procedure.** Work on a branch named `<milestone>-<slug>` (e.g. `a5-reconcile`),
+   matching the plan file's name. Never commit to `main`. One milestone per branch.
+   - **Local session:** create the branch before starting the agent:
+     `git checkout -b <milestone>-<slug>`.
+   - **Cloud session:** the session's own instructions name the branch it develops on, and those
+     take precedence over this rule. If the session was started with an outcome branch, that name
+     is what it pushes to. Use the designated name, don't rename it, and say in the PR's Review notes
+     that the name came from the session. Ari chooses the name when he starts the session.
+   - **First push:** `git push -u origin <branch>`. The `-u` is needed on a new branch, or a plain
+     `git push` fails with "no upstream branch".
 2. Open the PR as a **draft**. Ari reviews and merges; don't merge it yourself. Subscribe to the PR right after opening it (`subscribe_pr_activity`). Don't ask first: Ari has asked for this to be automatic.
 3. Run `make check` before pushing and put its result in the PR description. Don't hand-edit
    generated files (`lib/api-types.ts`, `lib/fixtures/`); regenerate with `make types` /
