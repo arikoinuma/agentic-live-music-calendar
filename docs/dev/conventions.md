@@ -50,7 +50,7 @@ Future milestones use their own IDs (`B6`, `C2`, …) the same way.
 
 ### Why `K` and `v0.1-G`
 
-- **`K` is for key points.** A fill-in step's gap is the point of the lesson, so it's a key
+- **`K` is for key points.** A fill-in step's gap is a key point of interest, so it's a key
   point. Numbering makes the order visible, so `A3-K2` is the second key point in A3.
 - **`v0.1-G` ties the catalogue to a version.** The catalogue lives in the alpha plan, so its
   gaps belong to v0.1. A later version can keep its own catalogue without renumbering.

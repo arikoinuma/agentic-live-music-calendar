@@ -1,7 +1,7 @@
 """Tests for the one extraction entry point (`agent_worker/extraction.py`) and its wiring.
 
 A2.1 adds a routing decision (JSON-LD first, the model as fallback — A2.1-D4), a second model
-call (the act splitter) and the experiment switches (`ExtractionConfig`). A2's lesson was that
+call (the act splitter) and the experiment switches (`ExtractionConfig`). A2 found that
 the pipeline and the eval drift apart when each builds its own request, so both now call
 `extract_page`, and these tests prove (a) the route is chosen correctly, (b) every switch
 reaches what is actually *sent*, and (c) the pipeline and the harness send the same thing.

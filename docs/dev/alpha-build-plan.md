@@ -101,14 +101,14 @@ Point 3 is the one worth being strict about. "Auditable" is a stated requirement
 Two tracks, alternating rather than strictly ordered:
 
 - **Track A — Python, the agent, the data layer.** Depth on orchestration, validation, and auditability.
-- **Track B — Next.js and React from scratch.** The calendar UI, built up from an empty page rather than edited down from a template.
+- **Track B — Next.js and React.** The calendar UI, built up from a minimal shell rather than edited down from a template.
 
 They meet at one place: **the API contract**. Track 0 below defines it once, up front, and is the only genuinely blocking work — after it, either track can move without waiting on the other. Track B can build against a static fixture of that contract's JSON long before Track A produces real rows, which is exactly what makes the parallelism work rather than just being context-switching.
 
 **Notation for who writes what** (per the split-by-area decision):
 
-- **[fill-in]** — I write the file around its lesson and leave the 1–3 critical spots as `TODO(Ari)` blocks: what the lesson is, the near-exact code to type, and the test that proves it. You type those lines; everything else is done. Full protocol: `AGENTS.md`, "[fill-in] tasks". [UPDATE OCT 8, revised] Speed still matters, so the code in each gap is spelled out and should take minutes. But a gap stays open until you fill it or ask for that specific gap to be filled — "go ahead with the plan" produces the scaffold, not the filled-in file. (B1 got this wrong: its fill-in items were implemented outright.) [UPDATE OCT 15] Once a gap is filled, its `TODO(Ari)` block is rewritten as an ordinary why-comment and the scaffold language comes out of the code and its tests; the lesson stays in the milestone's implementation plan, which is the paper trail (`AGENTS.md`, "[fill-in] tasks", step 4).
-- **[written]** — I write it complete and walk you through the non-obvious parts. Reserved for mechanical work where typing it out teaches little: model definitions, migrations, seed data, test fixtures, config.
+- **[fill-in]** — I write the file around its key points of interest and leave the 1–3 critical spots as `TODO(Ari)` blocks: what each key point is, the near-exact code to copy in, and the test that proves it. You inspect each one, copy the code in by hand, and run its check; everything else is done. Full protocol: `AGENTS.md`, "[fill-in] tasks". [UPDATE OCT 8, revised] Speed still matters, so the code in each gap is spelled out and should take minutes. But a gap stays open until you fill it or ask for that specific gap to be filled — "go ahead with the plan" produces the scaffold, not the filled-in file. (B1 got this wrong: its fill-in items were implemented outright.) [UPDATE OCT 15] Once a gap is filled, its `TODO(Ari)` block is rewritten as an ordinary why-comment and the scaffold language comes out of the code and its tests; the key point stays in the milestone's implementation plan, which is the paper trail (`AGENTS.md`, "[fill-in] tasks", step 4).
+- **[written]** — I write it complete and note the non-obvious parts. Reserved for mechanical work where typing it out adds little: model definitions, migrations, seed data, test fixtures, config.
 
 ALWAYS write tests first.  Discuss how you plan to approach unit tests.
 
@@ -173,7 +173,7 @@ Plan: `docs/dev/implementations/a2.1-extraction-reliability.md` (approved by Ari
 - [x] **[written]** One extraction entry point (`extraction.py`, `llm.py`) shared by `extract_node` and the eval harness; the experiment switches (`ExtractionConfig`)
 - [x] **[written]** Fixtures captured with the pipeline's own fetch (`eval/capture.py`) — the A2 fixtures were browser captures
 - [x] **[written]** Labels for the gated and informational pages (`eval/labels.py`), each row with the page text it was read from
-- [x] **[fill-in]** Ari labels the Mortimer's page — the ground-truth lesson (A2.1-D11; A8's labelling item, pulled forward)
+- [x] **[fill-in]** Ari labels the Mortimer's page — the ground-truth key point (A2.1-D11; A8's labelling item, pulled forward)
 - [x] **[fill-in]** What counts as correct: `scoring.match_shows` (date is identity, time a field) — A2.1-K2
 - [x] **[fill-in]** Convert, don't drop: `jsonld.local_wall_clock` — A2.1-K1
 - [x] **[fill-in]** Deterministic first: the routing branch in `extract_page` — A2.1-K3
@@ -276,9 +276,9 @@ The four items kept their `[fill-in]` marking.
 
 ---
 
-## 6. Track B — Next.js and React from scratch
+## 6. Track B — Next.js and React
 
-The stated goal is a primer on starting a React/Next.js app from scratch. `apps/calendar` isn't from scratch — it's `create-turbo`'s template with a health check bolted on. B1 fixes that by stripping it back to nothing and building up, which teaches more than editing a template down.
+The goal is to understand each part of a React/Next.js app by building it up step by step. `apps/calendar` started as `create-turbo`'s template with a health check added. B1 strips it back to a minimal shell and builds up from there, so each piece is understood before it is used.
 
 ### B1. Strip to bare, then rebuild the shell
 
@@ -290,7 +290,7 @@ The stated goal is a primer on starting a React/Next.js app from scratch. `apps/
 
 **B1 was done before the implementation-plan rule existed** (root `AGENTS.md`: written plan, different-model review, user approval). It has no file under `docs/dev/implementations/`; its review happened afterwards, and the findings were resolved in place. B2 onward follows the rule.
 
-**The primer this produces.** Worth writing down as you go, because these are the questions that are genuinely confusing coming to Next.js fresh, and the answers are load-bearing for everything after: what the App Router does with the filesystem; why `page.tsx`, `layout.tsx`, and `loading.tsx` are special names; what "Server Component by default" actually means for where your code runs and what it can touch; what `'use client'` costs; and why `page.tsx` already has `export const dynamic = "force-dynamic"` on it.
+**Notes on the App Router.** Worth writing down as you go, because these are the questions the calendar's structure depends on, and the answers are load-bearing for everything after: what the App Router does with the filesystem; why `page.tsx`, `layout.tsx`, and `loading.tsx` are special names; what "Server Component by default" actually means for where your code runs and what it can touch; what `'use client'` costs; and why `page.tsx` already has `export const dynamic = "force-dynamic"` on it.
 
 ### B2. Routes and data loading
 
@@ -325,7 +325,7 @@ Plan and reviews: `docs/dev/implementations/b3-the-calendar.md` (decisions B3-D1
 Plan and reviews: `docs/dev/implementations/b4-detail-pages.md` (decisions B4-D1–B4-D8 settled by Ari October 14, 2026; B4-D2 and B4-D4 took the alternative). **Built October 14, 2026; Ari filled the four gaps (B4-K1–B4-K4), the scaffold was cleaned out, and Ari signed off October 16, 2026.** Departures from the original wording are marked *Departure*.
 
 - [x] **[fill-in]** Venue page: metadata plus the calendar filtered to that venue. *Built (`app/venue/[id]/page.tsx`): readable metadata, a Google Maps link, B3's `CalendarGrid` over the venue's shows, Earlier/Later paging through `?from=` (the server picks the window; `lib/calendar-window.ts`), and Event JSON-LD. B4-K2 (`windowLinks`) filled by Ari.*
-- [x] **[written]** Artist page: metadata plus upcoming shows as a list. *Departure (B4-D2, B4-D5): re-marked [written] (no new line carries a lesson), and "upcoming" is literal: a new `GET /shows?upcoming=true` (from the server's today, no upper limit; 422 with `start`/`end` and without a venue or artist) feeds an unpaged list. The API change is its own early commit (step 0), with one sample show added outside the default window so the parameter is observable.*
+- [x] **[written]** Artist page: metadata plus upcoming shows as a list. *Departure (B4-D2, B4-D5): re-marked [written] (no new line carries a key point), and "upcoming" is literal: a new `GET /shows?upcoming=true` (from the server's today, no upper limit; 422 with `start`/`end` and without a venue or artist) feeds an unpaged list. The API change is its own early commit (step 0), with one sample show added outside the default window so the parameter is observable.*
 - [x] **[written]** `/venues` and `/artists` — flat alphabetical lists, deliberately simple per the requirements. *Departure (B4-D5): re-marked [written]; B2 had already built exactly this and B4 changed no code there.*
 - [x] **[fill-in]** `/day/[date]` with its three sort modes (venue-alpha, venue-time, artist-alpha), also in URL params. *Built: `?sort=time|artist`, the default is the bare URL, switched with plain links (`lib/show-order.ts`). B4-K3 (`artistRows`) and B4-K4 (the two venue-mode comparators) filled by Ari.*
 - [x] **[written]** `schema.org` Event JSON-LD on show and venue pages, per `arch-initial.md` Section 4's SEO reasoning. *Departure (B4-D3): `/show/[id]` did not exist, so B4 builds it (and `getShow()`, and the link to it from every show block's time line). Departure (B4-D8): one line of this item, `withOffset` in `lib/json-ld.ts`, is B4-K1 (filled by Ari): a wall-clock time becomes an instant only with the metro's zone.*
@@ -382,7 +382,7 @@ Scope agreed with Ari on October 17, 2026. Two things come out of it: the access
 
 ---
 
-## 7. Learning deliverables
+## 7. Write-ups
 
 Three short documents, written as the corresponding work lands rather than at the end. These are the "solid overview" goal made concrete — if they can't be written clearly, the thing they describe probably isn't clear yet either.
 

@@ -6,7 +6,7 @@
 
 This document assumes familiarity with `project-overview.md` (problem statement and functional requirements). This file covers *how* it gets built, not *what* it does.
 
-This project began as a small, cost-conscious learning exercise. That origin shaped a few of the early infrastructure choices below; the architecture is otherwise documented on its own merits.
+This project began as a focused personal project. Its early infrastructure choices favored low cost; the architecture is otherwise documented on its own merits.
 
 ---
 

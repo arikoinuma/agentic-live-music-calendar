@@ -25,7 +25,7 @@ the Railway CLI: `railway variables` (linked project) showed `MODEL_NAME`
 completely absent and `DATABASE_URL` still missing `+asyncpg`, despite both
 looking correct in the dashboard.
 
-**Fix / lesson:** don't trust the dashboard's raw editor as a source of truth.
+**Fix / takeaway:** don't trust the dashboard's raw editor as a source of truth.
 Verify (and set) variables through the CLI instead, which writes and reads
 directly against the real service:
 
@@ -282,7 +282,7 @@ into three acts on most multi-act listings. With `acts: list[ActExtraction]` (an
 `name`, plus optional per-act time and order) and the description "The act(s) performing", it
 almost always returned **one** act named with the whole title: Zhora went from ~17 of 23 shows
 split to 0 in every run. The richer schema was measured for completions and leaks, and this
-slipped past because nobody compared act counts across labels. Lesson for schema changes: when a
+slipped past because nobody compared act counts across labels. Takeaway for schema changes: when a
 field's *shape* changes, re-check the field's own content, not just whether the output parses.
 Cause not yet isolated (the shape or the lost "name(s)"); A2.1 tests it
 (`docs/dev/implementations/a2-extraction-schema.md`, Eval results › Addendum).

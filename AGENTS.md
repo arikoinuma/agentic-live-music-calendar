@@ -4,7 +4,7 @@ An agentic live music calendar for Minneapolis/St. Paul: scheduled agents read v
 calendar pages, extract show listings with a local open-weight model, validate and
 reconcile them, and a Next.js frontend renders the result. Also a deliberate learning
 project — agent orchestration, validation of agentic output, auditability, Python, and
-React/Next.js from scratch.
+React/Next.js.
 
 ## Read before writing code
 
@@ -129,18 +129,18 @@ string or password into a doc, a commit or a chat.
 Tasks in that plan are marked **[fill-in]** or **[written]** (write it complete, then walk
 through it). Respect the marking — the next section is what [fill-in] means in practice.
 
-## [fill-in] tasks — Ari types the lines that carry the lesson
+## [fill-in] tasks — Ari copies and pastes the lines at the key points of interest
 
-A task is marked [fill-in] because a few lines in it teach something that reading finished code
+A task is marked [fill-in] because a few lines in it carry a decision that reading finished code
 doesn't. **The deliverable for a [fill-in] task is a scaffold with deliberate gaps, not working
 code.**
 
-1. **Write everything around the lesson** — imports, types, signatures, wiring, markup,
+1. **Write everything around the key points of interest** — imports, types, signatures, wiring, markup,
    boilerplate, and the tests (which stay red).
-2. **Leave the 1–3 spots where the concept lives as `TODO(Ari)` blocks**, each a few lines at
+2. **Leave the 1–3 spots where the design decision lives as `TODO(Ari)` blocks**, each a few lines at
    most. Every block has three parts:
-   - **Lesson** — the idea, and why it's done this way *here*, citing the doc that decided it.
-   - **Code** — the near-exact lines, in a comment, complete enough to type or paste. Speed
+   - **Key point of interest** — the idea, and why it's done this way *here*, citing the doc that decided it. Ari reads it, then aligns his own code with it.
+   - **Code** — the near-exact lines, in a comment, complete enough to copy and paste by hand. Speed
      matters (Oct 8 update): a gap should cost minutes, not research.
    - **Check** — the test that goes green when it's right (if it's a testable area), 
    and the most likely way to get it wrong.
@@ -148,18 +148,18 @@ code.**
    The placeholder must fail loudly (`raise NotImplementedError("TODO(Ari)")` /
    `throw new Error("TODO(Ari)")`) so the tests stay red rather than passing by accident, if it makes
    sense for the line of code to have tests against them. But it is not a firm requirement that
-   every `TODO(Ari)` be testable. Prioritize learning higher. 
-3. **Stop and hand off**: list each `TODO(Ari)` as a file:line link with its one-line lesson,
+   every `TODO(Ari)` be testable. Prefer the gaps with the most design weight.
+3. **Stop and hand off**: list each `TODO(Ari)` as a file:line link with its one-line key point of interest,
    plus the command that runs its tests. Don't fill them in. Tell Ari the cleanup in step 4 follows
    once the gaps are closed.
-4. **After a gap is filled, take the scaffold out.** The lesson blocks are teaching aids, not
+4. **After a gap is filled, take the scaffold out.** The key-point blocks are scaffolding, not
    documentation: once the code is real they come out, and the code keeps only ordinary comments.
-   The lesson, the code and the check stay on record in the implementation plan (its `TODO(Ari)`
+   The key point, the code and the check stay on record in the implementation plan (its `TODO(Ari)`
    gaps section and the Implementation log), so the source doesn't need to carry them. Whoever
    fills a block does this in the same change; when Ari fills them himself, a Claude pass follows
    his commit and comes before sign-off ("clean up the closed gaps in `<milestone>`"). The pass:
    - Rewrite each block as a plain why-comment in the style of its neighbours: drop `TODO(Ari)`,
-     the `Lesson:` / `Code:` / `Check:` labels, test-command pointers, the "likeliest mistake"
+     the `Key point of interest:` / `Code:` / `Check:` labels, test-command pointers, the "likeliest mistake"
      list and any "replace the `todo` line" instructions. **Keep the reasoning** (why it is done
      this way here, the doc that decided it, what goes wrong otherwise) as sentences of rationale.
    - Keep the plan-level references, written as K-forms (`A3-K4`; see `docs/dev/conventions.md`).
@@ -175,8 +175,9 @@ code.**
 A scaffolded block (step 2) looks like this:
 
 ```python
-# TODO(Ari) — Lesson: the soft delete only considers shows inside the window this fetch covered
+# TODO(Ari) — Key point of interest: the soft delete only considers shows inside the window this fetch covered
 #   (data-model-initial.md, set-diff). A page listing two weeks must not "remove" week three.
+# To align: copy the Code lines below by hand, then run the Check.
 # Code:
 #   covered = {s.key for s in stored if window.start <= s.date <= window.end}
 #   removed = covered - {e.key for e in extracted}
@@ -190,13 +191,13 @@ raise NotImplementedError("TODO(Ari)")
 blocks. Fill a block only when Ari asks for that block (or file) by name — "fill in the TODOs in
 `reconcile.py`", "complete it for me". When you do, clean up the block as step 4 below says.
 
-**Picking the gaps:** choose lines where the concept lives, not where most of the typing is.
+**Picking the gaps:** choose lines where the design decision lives, not where most of the typing is.
 Good gaps: the `searchParams` → API-query mapping, the composite-key match that decides insert
 vs. update, the routing function's branch conditions. Bad gaps: JSX markup, import lists,
 Pydantic field declarations. If no line in a [fill-in] task meets that bar, say so in the
 implementation plan and propose re-marking it [written] — don't invent a gap.
 
-Implementation plans (below) name each [fill-in] step's `TODO(Ari)` blocks and their lessons, so
+Implementation plans (below) name each [fill-in] step's `TODO(Ari)` blocks and their key points of interest, so
 the reviewer can check that the gaps are the right ones.
 
 ## Implementation plans — written down, reviewed by a different model
@@ -320,16 +321,24 @@ the session model is the author, and the reviewer subagent gets a different one,
 
 ### Branches and PRs
 
-1. Work on a branch named `<milestone>-<slug>` (e.g. `a5-reconcile`), matching the plan
-   file's name. Never commit to `main`. One milestone per branch.
-2. Open the PR as a **draft**. Ari reviews and merges; don't merge it yourself.
+1. **Branch procedure.** Work on a branch named `<milestone>-<slug>` (e.g. `a5-reconcile`),
+   matching the plan file's name. Never commit to `main`. One milestone per branch.
+   - **Local session:** create the branch before starting the agent:
+     `git checkout -b <milestone>-<slug>`.
+   - **Cloud session:** the session's own instructions name the branch it develops on, and those
+     take precedence over this rule. If the session was started with an outcome branch, that name
+     is what it pushes to. Use the designated name, don't rename it, and say in the PR's Review notes
+     that the name came from the session. Ari chooses the name when he starts the session.
+   - **First push:** `git push -u origin <branch>`. The `-u` is needed on a new branch, or a plain
+     `git push` fails with "no upstream branch".
+2. Open the PR as a **draft**. Ari reviews and merges; don't merge it yourself. Subscribe to the PR right after opening it (`subscribe_pr_activity`). Don't ask first: Ari has asked for this to be automatic.
 3. Run `make check` before pushing and put its result in the PR description. Don't hand-edit
    generated files (`lib/api-types.ts`, `lib/fixtures/`); regenerate with `make types` /
    `make fixtures` if you change `schemas.py` or `sample_data.py`.
 4. The plan file stays the only channel between author and reviewer: update its `Status` and
    append your rounds **on the same branch**, so they arrive with the code.
 5. For a **[fill-in]** task, push the scaffold with its tests red, and list each
-   `TODO(Ari)` gap in the PR description as a file:line link with its lesson and the test
+   `TODO(Ari)` gap in the PR description as a file:line link with its key point of interest and the test
    command, exactly as "[fill-in] tasks" above says. Ari fills the gaps locally by checking
    out the branch (or `claude --teleport`) and pushing to it.
 6. At an Ari gate (plan approval, sign-off) or a decision that is his to make, stop and say so

@@ -50,7 +50,7 @@ Repo conventions this follows: AGENTS.md ("Implementation plans" and
 
 ## Open gaps and decisions
 
-<!-- Any `TODO(Ari)` blocks left in the diff, each as file:line with its lesson,
+<!-- Any `TODO(Ari)` blocks left in the diff, each as file:line with its key point of interest,
      and any decision that needs Ari's call. Write "none" if there are none. -->
 
 - None
