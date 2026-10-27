@@ -1,12 +1,13 @@
 # C2 — the API reads from the database
 
 **Status:** Awaiting approval
+**Revised:** October 27, 2026, after Ari's answers on the decisions (see "Ari's answers, October 27"); no new review round, Ari to decide whether one is wanted
 **Date:** October 23, 2026
 **Author model:** Claude Sonnet 5.5
 **Reviewer model:** Claude Opus 5.5 (plan review round 1, October 23, 2026)
 **Spec:** `docs/dev/alpha-deployment-plan.md` §6 C2 (and §1.1 rows "API data source", "Sample window", "What C2 changes", "E2E stack", "Schema on Neon"; §5.2 traps "Merging C2 before Neon is migrated" and "C2 breaking B6's end-to-end job"; Dep-D12, Dep-D15, Dep-D16), `docs/dev/alpha-build-plan.md` §2 points 2 and 4 and the A1b pointer, `docs/dev/api-contract.md` §2–§5 and §8, `docs/dev/implementations/b6-accessibility-and-e2e.md` "Follow-ups for other milestones", `docs/dev/implementations/c1-env-revalidation.md` (Neon), `docs/arch/data-model-initial.md` (show, soft delete), `docs/references/fastapi-style-guide.md`, `apps/api/AGENTS.md`
 
-**Designations.** Inside this plan the decisions are `D1`–`D10` and the mutation checks `M1`–`M10`; there are no `TODO(Ari)` key points (D9). Elsewhere they are written `C2-D1`, `C2-M1` and so on (`docs/dev/conventions.md`); code, tests, comments and other documents must use the scoped form, and the build step copies from this file, so copy the scoped form. Review items are `C2-PR<round>-<n>` for the plan review and `C2-CR<round>-<n>` for the code review. The deployment plan's decisions keep their own scope (`Dep-D12`), the build plan's catalogue is `v0.1-G<n>`, and other plans' IDs carry theirs (`B6-D2`, `A6-M2`).
+**Designations.** Inside this plan the decisions are `D1`–`D11` and the mutation checks `M1`–`M10`, and the fill-in key points `K1` (the `/shows` filter predicate) and `K2` (the eager loads). Elsewhere they are written `C2-D1`, `C2-M1`, `C2-K1` and so on (`docs/dev/conventions.md`); code, tests, comments and other documents must use the scoped form, and the build step copies from this file, so copy the scoped form. Review items are `C2-PR<round>-<n>` for the plan review and `C2-CR<round>-<n>` for the code review. The `TODO(Ari)` blocks cite their key point as `C2-K1` / `C2-K2`. The deployment plan's decisions keep their own scope (`Dep-D12`), the build plan's catalogue is `v0.1-G<n>`, and other plans' IDs carry theirs (`B6-D2`, `A6-M2`).
 
 ## Context
 
@@ -38,7 +39,7 @@ What C2 does **not** change: `schemas.py` and the OpenAPI document (so `lib/api-
 
 ## Decisions
 
-Recommended; Ari approves them by approving the plan. **D1, D2 and D8 are the ones that need Ari's eyes.**
+Recommended; Ari approves them by approving the plan. Ari answered the open ones on October 27 (below); **D1, D2, D8, D9, D10 and D11 are settled by those answers**, and the rest stand unless Ari objects at approval.
 
 | ID | Decision | Reason | Alternative and cost |
 |---|---|---|---|
@@ -50,8 +51,19 @@ Recommended; Ari approves them by approving the plan. **D1, D2 and D8 are the on
 | D6 | **Inherited fields are resolved in Python with `is None`**, not truthiness and not `or`. | `serves_alcohol=False` on a show overriding a venue's `True` is the case `show.x or venue.x` gets wrong (it falls through to the venue). `api-contract.md` §5 is explicit that the resolved value is returned. | `COALESCE` in SQL is also correct; Python keeps the rule in one named helper that a test can call. |
 | D7 | **The e2e job gets its own database, `calendar_e2e`**, dropped, created, migrated and loaded on every run by `python -m app.testing.e2e_database`, run as the first half of the API's `webServer` command. Its guard refuses any URL whose database is not `calendar_e2e` or whose host is not local; `e2e_app` repeats the name check at import. Playwright passes `DATABASE_URL` explicitly, so a developer's `apps/api/.env` (which may point at Neon, `c1-env-revalidation.md`) is never read. | The same reasoning as `app/testing/db.py` (`calendar_test`): a fixed name that no mistyped variable can redirect a `DROP DATABASE` at something real. A separate database from `calendar_test` lets `make check` run pytest and Playwright without either dropping the other's. | Reuse `calendar_dev`: wipes the developer's data. Reuse `calendar_test`: two suites contend for one database. |
 | **D8** | **The seed's venue list** (Dep-D16), provisionally: The White Squirrel Bar, 7th St Entry, Mortimer's, The Terminal Bar, in that insert order. The Midway Saloon and Zhora Darling leave the list. Ari's further venues are added as rows to `VENUES` by Ari or by a one-line request. | Dep-D16: one list for every environment; Midway and Zhora wait for a route because the venue table has no active flag, so a seeded venue would be fetched by the worker and listed by the API. Terminal Bar is Ari's call (Dep-D16); the plan keeps it so the list is not smaller than the one already extracted. **What Ari must supply or confirm:** the two new rows' `fetch_strategy` (the plan assumes `http` for both and has not checked: the cloud cannot reach venue sites, so confirm with a plain GET as `seed.py`'s Midway comment did), whether Terminal Bar stays, and the further venues and URLs. URLs for the two new rows are already in the repo: `https://first-avenue.com/shows/?venues=59161` and `https://www.mortimerscalendar.com/` (`agent_worker/eval/labels.py`). | A list Ari assembles later is the same one-line-per-venue edit; C2 does not wait for it. |
-| D9 | **Every C2 item is `[written]`; there are no `TODO(Ari)` gaps** (Dep-D15). | The milestone text marks the two main bullets `[written]` and the rest are infrastructure. If Ari wants one gap for the SQLAlchemy practice, the best candidate is the predicate that composes the `/shows` filters (OR within a type, AND across types, artist anywhere in the lineup, via `EXISTS`): that is where the concept lives. Say so at approval and the plan re-marks it. | — |
-| D10 | **Local verification replays White Squirrel's two captures and reads them back through the month filter; update and soft delete are covered by A5's and A6's tests plus a hand-edit-and-re-run on the laptop** (Verification, Ari step 2). | Two live runs show inserts then no-ops (`a6-commit.md`). The two captures cover disjoint windows (August 17–22, October 10–14), so replaying both is inserts only (C2-PR1-4). The captures are from August and October, and the home page now starts at the real today, so the rows are reached with `/?month=2026-08` (a hand-edited past month shows what it says, `B2-D2`), not the default window. | Rely on A5's and A6's database tests alone, which the deployment plan allows if stated; the plan adds the hand-edit re-run for live evidence. |
+| D9 | **Two `[fill-in]` steps with `TODO(Ari)` gaps: `C2-K1` and `C2-K2`** (Ari, October 27: "they are fine"). Everything else is `[written]`. | Dep-D15 expects most infrastructure milestones to have none; these two are where the concept lives. **K1**, the `/shows` filter predicate: OR within one filter type, AND across types, an artist anywhere in the lineup via `EXISTS`. **K2**, the eager loads: naming what each query loads so there is no N+1 and no `MissingGreenlet` under asyncio (D4). Details under "`TODO(Ari)` gaps". The cost: the scaffold ships with the tests for those two red, and C2 cannot merge until Ari fills them. | `[written]` throughout. Rejected by Ari. |
+| D10 | **Local verification replays White Squirrel's two captures and reads them back through the month filter; update and soft delete are covered by A5's and A6's tests plus a hand-edit-and-re-run on the laptop. Live runs against the venue pages wait until the accuracy gap is closed** (Ari, October 27). | Captures are predictable input: the laptop model does not pass the accuracy gate (`alpha-deployment-plan.md` §1.3) and the hosted model is untested, so a live run would mix extraction noise into a check whose subject is the plumbing from database to API to page. The two captures cover disjoint windows (August 17–22, October 10–14), so replaying both is inserts only (C2-PR1-4); the captures are from August and October and the home page starts at the real today, so the rows are reached with `/?month=2026-08` (a hand-edited past month shows what it says, `B2-D2`). Two live runs show inserts then no-ops (`a6-commit.md`). A live-run check is added to C8's verification (the hosted worker, after C6's gate). | Live runs now: it is what the definition of done literally says, but it tests the model as much as the plumbing. Rely on A5's and A6's tests alone: allowed by the deployment plan; the plan adds the hand-edit re-run for live evidence. |
+| D11 | **Showing cancelled and postponed shows with their status is deferred** (Ari, October 27). C2 keeps `removed` shows out of every read. | The October 10 requirement ("not shows to display") was an off-hand call, not a considered one. Showing them needs a stored reason (today `removed` conflates cancelled, postponed and vanished-from-the-page; the reason lives only in the audit trail, `A5-D6`), an API field, a badge, a reconcile change and labels for the accuracy gate: a milestone of its own, not a side effect of moving the routes. It is additive, so C2 does not block it. Recorded in `arch-initial.md` §11 (step 9). | Do it in C2: widens the contract, `schemas.py`, the OpenAPI document and the extraction schema in the milestone that is meant to leave all of them alone. |
+
+### Ari's answers, October 27
+
+| Question | Answer | Where it landed |
+|---|---|---|
+| Keep the e2e anchor (API at September 28, Next at October 7)? | Keep it for now. | D2 stands. The year-boundary and DST cases are inline Python tests instead (T1, T3), as recommended. |
+| Which two gaps? | K1 and K2 are fine. | D9. |
+| Live listings or captures for the laptop check? | Live is preferable, but the laptop model fails the accuracy gate and the hosted one is untested, so captures until the gap is closed. | D10. |
+| Cancelled and postponed shows? | The October 10 note was off-hand; defer. | D11. |
+| D8's venues? | Fine for now; more to come. | D8: adding a venue is one `VENUES` row, then `make seed` against each database (the seed inserts what is missing). |
 
 ### D5 — the read rules
 
@@ -59,7 +71,7 @@ Recommended; Ari approves them by approving the plan. **D1, D2 and D8 are the on
 |---|---|---|
 | Which metro? | The lowest-id `metro` row (`current_metro`); every venue, show and month query is scoped to it. Artists are global. No metro row: 503, `detail` says to run the seed. | `api-contract.md` §2: every response is implicitly scoped to the single live metro. Scoping now means C4's slug adds a lookup instead of rewriting every query. |
 | "Today"? | `get_now()` converted to the metro's timezone, `.date()` (`metro_today`). Not UTC's date. | At 22:30 in Minneapolis on October 7 it is already October 8 in UTC; a UTC date shows tomorrow's window on every evening show-goer's phone. |
-| Removed shows? | `status != 'active'` never appears: not in `/shows`, not in `/calendar/months`, and `/shows/{id}` answers 404. | `api-contract.md` §2, "Soft-deleted shows". The detail route is not mentioned there; 404 is the only answer that does not leak a row the reader is told does not exist. |
+| Removed shows? | (Showing cancelled and postponed ones is deferred, D11.) `status != 'active'` never appears: not in `/shows`, not in `/calendar/months`, and `/shows/{id}` answers 404. | `api-contract.md` §2, "Soft-deleted shows". The detail route is not mentioned there; 404 is the only answer that does not leak a row the reader is told does not exist. |
 | Months? | Months that have at least one active show on or after the metro's today; `show_count` counts those same upcoming shows. Sorted by (year, month). | Requirements: "future facing, only months with shows". The count is not rendered anywhere (`show_count` appears only in the generated types), so the stricter reading costs nothing. |
 | Order of shows? | The existing `_ordering` key (date, then no-time last, then time, then venue name), plus the show id as the last tie-break, applied in Python to the fetched rows. This departs from the style guide's "SQL-first, Pydantic-second" on purpose. | Postgres collation differs between a laptop's Docker image, the cloud sandbox (Postgres 16), CI (18) and Neon, and none is verified to sort like Python. A key the tests state in Python is the same everywhere. The row count is bounded by `MAX_RANGE`. |
 | Order of lists? | `/venues` and `/artists`: `(name.casefold(), id)` in Python. The test's expectation changes from `sorted(names)` to the same key. | Same collation reason, plus "alphabetical" should not put `iPhone` after `Zebra`. |
@@ -90,6 +102,8 @@ Proves: no module under `app/` outside `app/tests/` and `app/testing/`, and none
 - `2026-10-08T03:30Z` in `America/Chicago` is October 7 (the UTC date is the 8th). The test that separates "metro-local" from "UTC". (M3.)
 - `2026-10-08T05:00Z` is October 8 (midnight CDT exactly).
 - A winter instant (`2027-01-15T05:59Z`, CST, UTC−6) is January 14: the offset is read from the zone, not hard-coded to −5.
+- `2027-01-01T05:59Z` is December 31 and `2027-01-01T06:00Z` is January 1 (the year turn, UTC−6).
+- `2026-11-02T05:59Z` is November 1: daylight time ended that morning, so the offset is −6, and a hard-coded −5 would say November 2 (the DST turn).
 - A naive datetime is rejected (`ValueError`) rather than silently treated as local or UTC.
 
 Expected values: arithmetic from the stated UTC offsets (CDT −5 until November 1, 2026; CST −6 after).
@@ -112,6 +126,7 @@ Loader, against an empty migrated database:
 **New, each with its own hand-derived expectation:**
 - *A removed show is invisible everywhere.* Mark show 2 `removed`: gone from `/shows`, `/shows/2` is 404, and its month count drops by one. A second case removes the only show of a month and the month disappears from `/calendar/months`. (M1.)
 - *The default window starts at the metro's today.* With the clock at `2026-09-29T03:30Z` (still September 28 in Minneapolis), the echoed `start` is `2026-09-28`, not the 29th. (M3.)
+- *The year turn.* With the clock at `2026-12-28T18:00Z` and shows on December 30 and January 2: the default window is December 28 – January 24 and holds both; `/calendar/months` lists December 2026 then January 2027, in that order; the echoed `end` is `2027-01-24`. Expected dates are calendar arithmetic written out in the test.
 - *Months are future-facing.* With the clock at `2026-10-20T17:00Z`, September is absent and October's count covers only shows from the 20th on.
 - *Inheritance.* A show with `serves_alcohol=False` at a venue with `True` returns `False`; a show with `NULL` returns the venue's; both `NULL` returns `null`. Same shape for `age_restriction`, `setting`, `seating`. (M2.)
 - *The event.* A show with `event_id` set returns `event: {id, name}` in `/shows/{id}`; a show without one returns `null` (C2-PR1-3). Expected values are the two rows the test inserts.
@@ -156,7 +171,7 @@ A deliberate break of the code under test that a named test must catch. A mutati
 
 ## Implementation steps
 
-Branch `c2-api-reads-database` (matches the plan file, `AGENTS.md` "Branches and PRs"). Everything is `[written]` (D9). Tests for a step are written and watched fail before the step's code.
+Branch `c2-api-reads-database` (matches the plan file, `AGENTS.md` "Branches and PRs"). Everything is `[written]` except the two gaps in step 4 (D9). Tests for a step are written and watched fail before the step's code.
 
 ### 1. The sample world moves, and gains a loader — `[written]`
 
@@ -175,9 +190,9 @@ Branch `c2-api-reads-database` (matches the plan file, `AGENTS.md` "Branches and
 - `app/db/session.py`: `get_db()`, yielding one `SessionFactory()` session per request. Update the docstring that said no `get_db` exists yet.
 - `app/dependencies.py`: `current_metro` (the lowest-id metro, 503 when absent) and the `Annotated` aliases the routers use.
 
-### 4. Queries and routers — `[written]`
+### 4. Queries and routers — `[written]`, except `C2-K1` and `C2-K2` (`[fill-in]`)
 
-- `app/queries.py`: `list_venues`, `get_venue`, `list_artists`, `get_artist`, `list_shows`, `get_show`, `list_months`, each taking the session (and metro and today where they need them) and returning `schemas.py` models. One `_summary(show)` builder is the single place an ORM show becomes a `ShowSummary`; `resolve_inherited` is the D6 helper. Loads are explicit (`joinedload(Show.venue)`, `selectinload(Show.lineup).joinedload(ShowArtist.artist)`). The `venue_id` / `artist_id` predicate is the OR-within, AND-across rule from the contract; the artist test is `EXISTS` over the lineup.
+- `app/queries.py`: `list_venues`, `get_venue`, `list_artists`, `get_artist`, `list_shows`, `get_show`, `list_months`, each taking the session (and metro and today where they need them) and returning `schemas.py` models. One `_summary(show)` builder is the single place an ORM show becomes a `ShowSummary`; `resolve_inherited` is the D6 helper. Loads are explicit, in a helper `_show_loads()` (**gap K2**). The `venue_id` / `artist_id` predicate is the OR-within, AND-across rule from the contract, in a helper `_apply_filters()` (**gap K1**). Both helpers are written as a signature, a docstring and a `TODO(Ari)` block that raises, and are called from `list_shows` / `get_show`; everything around them is complete.
 - Each router: `async def`, signature and `responses=NOT_FOUND` unchanged, the `upcoming` and `MAX_RANGE` rules kept where they are (they are request validation, not data), `data.START` replaced by `today`. Docstrings lose "TEMPORARY IMPLEMENTATION".
 - `app/main.py` and `/health/db`: unchanged (D3; the schema-aware health check is C3's, with `APP_ENV`).
 
@@ -207,6 +222,7 @@ Branch `c2-api-reads-database` (matches the plan file, `AGENTS.md` "Branches and
 - `api-contract.md`: §2 intro and the "Milestone" column (the routes read the database; `/metro` too); §3 "The server owns now" gains the concrete rule (D5: the metro's timezone); §8 says where the fixtures' source now lives (D1) and that the window is the sample's because the fixture test pins the clock to `START`.
 - `notes.md`: rewrite the B6-owned section "Only the 'Today' row follows the real clock" (the API's clock is real now; the e2e job pins both, deliberately apart, D2). Add the entries this milestone earns once the build has: `viewonly`/`lazy="raise"`, collation-proof ordering, and anything the build finds.
 - `docs/dev/conventions.md`: add the `C2` scope row. `alpha-build-plan.md`: the A1b pointer says done. `alpha-deployment-plan.md`: tick C2's boxes and update the §1.1 rows "API data source", "Sample window", "What C2 changes" and "E2E stack" to their new state.
+- `arch-initial.md` §11 (deferred decisions): add "Showing cancelled and postponed shows with their status" (D11), noting that `requirements-initial.md`'s October 10 paragraph ("not shows to display") is the current rule only until then. The requirement itself is Ari's to reword.
 - `c1-env-revalidation.md`: append a dated "C2" line under Neon recording what Ari found and did (it is the document `AGENTS.md` points at for what hosted services look like today).
 - **`AGENTS.md` (Ari approves):** the "Never hand-edit" paragraph names `app/sample_data.py` (now `app/testing/sample_data.py`); the Cloud sessions paragraph says `make e2e` "needs no Postgres, because the API it starts serves the sample data" (now it needs Postgres, which the sandbox has); "Suited to cloud" already lists "routes onto the DB" and stays. These change project instructions, so the build proposes the edit and Ari signs it off, as C1 did.
 
@@ -225,7 +241,35 @@ The Neon branch in question is whichever branch the *current* production Railway
 
 ## `TODO(Ari)` gaps
 
-None (D9). The nearest candidate, if Ari wants one: the `/shows` filter predicate in `queries.list_shows` (OR within a type, AND across types, artist anywhere in the lineup through `EXISTS`). Mutation M9 and the existing OR / AND tests are its check.
+Two (D9). Per `AGENTS.md`, the build delivers the scaffold, the tests for both stay red, and it stops: the PR description lists each gap as a file:line link with its one-line lesson and the test command. The build does not fill them. After Ari fills them, the lesson blocks are rewritten as plain why-comments (a comment-only pass, verified as one).
+
+### K1. The `/shows` filter predicate (`app/queries.py`, `_apply_filters`)
+
+- **Lesson:** filters are OR-ed within one type and AND-ed across types (`api-contract.md` §2, "Filtering"), and an artist matches if *any* act on the bill does. In SQL that is `IN (…)` for the venue, and an `EXISTS` subquery over the lineup for the artist, because joining the lineup would repeat a show once per matching act.
+- **Code:**
+  ```python
+  if venue_ids:
+      stmt = stmt.where(Show.venue_id.in_(venue_ids))
+  if artist_ids:
+      stmt = stmt.where(Show.lineup.any(ShowArtist.artist_id.in_(artist_ids)))
+  return stmt
+  ```
+- **Placeholder:** `raise NotImplementedError("TODO(Ari)")`, reached only when a filter is present, so the unfiltered tests stay green and only the filtered ones are red.
+- **Check:** `pytest app/tests/test_routers.py -k "filter or artist or upcoming"`. Mutation M9 (OR turned into AND) and the existing OR / AND / lineup tests. Likeliest mistake: joining `ShowArtist` instead of `any()`, which returns a show twice when two of its acts match.
+
+### K2. The eager loads (`app/queries.py`, `_show_loads`)
+
+- **Lesson:** under asyncio a relationship cannot load itself on access (D4, `lazy="raise"`), so each query names what it loads. A to-one side (venue, event, an entry's artist) is a `joinedload`, one query with a join; a to-many side (the lineup) is a `selectinload`, a second query for the whole batch, because a join on the many side multiplies rows. The statement count then does not grow with the number of shows.
+- **Code:**
+  ```python
+  return (
+      joinedload(Show.venue),
+      joinedload(Show.event),
+      selectinload(Show.lineup).joinedload(ShowArtist.artist),
+  )
+  ```
+- **Placeholder:** `raise NotImplementedError("TODO(Ari)")`. Every show route is red until it is filled.
+- **Check:** `pytest app/tests/test_routers.py` (every show route) and the statement-count test, which compares 26 shows with 226 and requires the same number of statements. Mutation M6. Likeliest mistake: a `joinedload` on the lineup, which duplicates parent rows and needs `.unique()` on the result.
 
 ## Critical files
 
@@ -268,13 +312,14 @@ None (D9). The nearest candidate, if Ari wants one: the `/shows` filter predicat
 | `GET /venues/9999`, `/artists/9999`, `/shows/9999` | 404 |
 | `alembic current` | the latest revision (`67609c405218`) |
 
-**Ari, step 2 — local, the worker on the laptop (needs Ollama, Docker, the venue sites).** `make db-reset` for a clean `calendar_dev`, then replay the White Squirrel captures under `agent_worker/eval/fixtures/` (names and dates from `agent_worker/eval/labels.py`, C2-PR1-4):
+**Ari, step 2 — local, the worker on the laptop (needs Ollama and Docker; the captures are replayed from disk, so no venue site is fetched).** `make db-reset` for a clean `calendar_dev`, then replay the White Squirrel captures under `agent_worker/eval/fixtures/` (names and dates from `agent_worker/eval/labels.py`, C2-PR1-4):
 
 1. `uv run python -m agent_worker.local_test --fixture "agent_worker/eval/fixtures/Archives_ Events - The White Squirrel Bar.html" --fetched-on 2026-08-17` (the August capture, shows August 17–22).
 2. The same with `--fixture agent_worker/eval/fixtures/white_squirrel-2026-10-10.html --fetched-on 2026-10-10` (shows October 10–14).
 
 **These two cannot produce an update or a soft delete.** Reconcile only updates or removes stored shows inside the window the new page covers (`A5-K2`), and the two windows are disjoint, so the second run is inserts only. The plan therefore treats update and soft delete as covered by A5's and A6's database tests (`a5-reconcile.md`, `a6-commit.md`), as the deployment plan allows, and gets the live evidence the way `local_test.py` documents (its comment near line 82): after the second run, change one stored show by hand with `make db-shell` (its start time, then its status), re-run the October capture, and read the audit trail to see reconcile put it back (update) and restore or re-remove it. State in the implementation log which of these Ari actually did.
 
+- **Live runs wait (D10).** Once C6's gate has closed the accuracy gap, the same check against the live pages belongs to C8's verification (the hosted worker); add it there when C8 is planned.
 - Read the audit trail with the queries in `docs/dev/audit-queries.sql`: each run's decisions per show.
 - `make dev`, then open `/?month=2026-08` and `/?month=2026-10` (the home page's default window starts at the real today, and the captures are from August and October). The venue, show and artist pages open through their links.
 - Two things this will show that are not bugs: `show.original_url` is the fixture's file path (`local_test` passes it as the URL), so the "source" link is a path; and the page shows a whole month, not four weeks.
@@ -283,6 +328,7 @@ None (D9). The nearest candidate, if Ari wants one: the `/shows` filter predicat
 
 ## Not doing in C2
 
+- Showing cancelled and postponed shows with their status (D11, deferred; recorded in `arch-initial.md` §11).
 - A schema-aware `/health/db`, `APP_ENV`, migrations on deploy, and environments (C3). Merging C2 does not make future migrations run themselves.
 - An index on `show(date)` or `show(status)`. The window query filters by date across venues and `show(venue_id, date)` leads with `venue_id`; at tens of venues and tens of shows a month a sequential scan is cheap. Add one when a measurement says so.
 - Pagination, caching (`arch-initial.md` §11), any new endpoint or parameter, the venue "active" flag, the metro slug (C4).
