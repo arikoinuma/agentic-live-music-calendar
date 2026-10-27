@@ -14,7 +14,7 @@ import { ShowBlock } from "./show-block";
 //
 // Where the expected values come from:
 //  - The shows are fixture rows from lib/fixtures/shows.json (generated from
-//    app/sample_data.py): show 2, Zhora Darling, 2026-09-30, 21:00–23:30,
+//    app/testing/sample_data.py): show 2, Zhora Darling, 2026-09-30, 21:00–23:30,
 //    Nooky Jones at 21:00 and Beasthead at 22:30, $18 advance / $22 door;
 //    show 22, The White Squirrel Bar, 18:00, one act, no price stated; show
 //    25, The Midway Saloon, listed under Wednesday 2026-10-07 at 01:00, free.

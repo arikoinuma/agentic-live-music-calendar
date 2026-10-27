@@ -23,8 +23,15 @@ docs/dev/implementations/a1-data-layer.md; the ones that live in this file:
 * An extra index on `show (venue_id, date)`, which the doc doesn't list.
 * `show.date` keeps its name despite the repo's `_date` suffix rule for
   dates, because the data model and the API contract both call it `date`.
-* No `relationship()`s: nothing reads them yet (the seed and the tests use
-  explicit foreign keys). Add them with their first consumer.
+* Four read-only `relationship()`s, added in C2 with their first consumer, the read API
+  (`app/queries.py`): `Venue.metro`, `Show.venue`, `Show.event` and `Show.lineup`, plus
+  `ShowArtist.artist`. All are `viewonly=True, lazy="raise"` (C2-D4). The product never
+  deletes a row (`Show.status` is a soft delete) and the worker writes through explicit
+  foreign keys (A6), so a relationship that can only be read cannot change what the worker
+  writes, and there is no cascade to choose. `lazy="raise"` turns an implicit lazy load,
+  which under asyncio is a `MissingGreenlet` at runtime, into an error naming the attribute
+  in the first test: every query says what it loads. The first thing that wants to write
+  through the object graph (an admin edit API) revisits both settings.
 
 `import datetime` rather than `from datetime import date`: inside `Show`, the
 attribute named `date` would shadow the type in later annotations.
@@ -45,7 +52,7 @@ from sqlalchemy import (
     Time,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import types
 from app.db.base import Base, TimestampMixin
@@ -115,6 +122,9 @@ class Venue(TimestampMixin, Base):
         types.FETCH_STRATEGY, server_default=FetchStrategy.HTTP.value
     )
     extra_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+
+    # Read-only, never lazy (C2-D4, module docstring): the venue detail route names it in its query.
+    metro: Mapped[Metro] = relationship(viewonly=True, lazy="raise")
 
 
 class Artist(TimestampMixin, Base):
@@ -212,6 +222,12 @@ class Show(TimestampMixin, Base):
         types.SHOW_STATUS, server_default=ShowStatus.ACTIVE.value
     )
 
+    # Read-only, never lazy (C2-D4, module docstring). `lineup` is unordered here on purpose: the
+    # read API sorts it in Python (C2-D5), because a database collation is not a rule the tests state.
+    venue: Mapped[Venue] = relationship(viewonly=True, lazy="raise")
+    event: Mapped[Event | None] = relationship(viewonly=True, lazy="raise")
+    lineup: Mapped[list["ShowArtist"]] = relationship(viewonly=True, lazy="raise")
+
 
 class ShowArtist(Base):
     """A show's lineup. No timestamps: a pure join (data-model-initial.md section 1)."""
@@ -225,3 +241,5 @@ class ShowArtist(Base):
     # Performance order; if the listing doesn't say, the agent infers it from
     # listing order (requirements-initial.md, "Agent Extraction: Fields").
     sequence_number: Mapped[int | None] = mapped_column(Integer)
+
+    artist: Mapped[Artist] = relationship(viewonly=True, lazy="raise")

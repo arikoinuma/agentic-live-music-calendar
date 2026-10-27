@@ -1,15 +1,15 @@
 """Artist routes.
 
-TEMPORARY IMPLEMENTATION — same note as app/routers/venues.py: these
-serve app/sample_data.py, and milestone A1b replaces the bodies with real
-queries without changing the signatures.
+The bodies call `app.queries`, which reads Postgres (C2). Artists are global, so these routes
+don't take the metro.
 
 Contract: docs/dev/api-contract.md section 2.
 """
 
 from fastapi import APIRouter, HTTPException
 
-from app import sample_data as data
+from app import queries
+from app.dependencies import Db
 from app.routers.common import NOT_FOUND
 from app.schemas import ArtistDetail, ArtistListResponse
 
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/artists", tags=["artists"])
 
 
 @router.get("")
-def list_artists() -> ArtistListResponse:
+async def list_artists(session: Db) -> ArtistListResponse:
     """Every artist, alphabetical.
 
     Serves the /artists page and the calendar's artist filter. Artists
@@ -30,12 +30,12 @@ def list_artists() -> ArtistListResponse:
     than with the venue count. The response envelope leaves room to
     paginate without a breaking change.
     """
-    return ArtistListResponse(artists=sorted(data.ARTISTS, key=lambda a: a.name))
+    return ArtistListResponse(artists=await queries.list_artists(session))
 
 
 @router.get("/{artist_id}", responses=NOT_FOUND)
-def get_artist(artist_id: int) -> ArtistDetail:
-    artist = data.artist_detail(artist_id)
+async def get_artist(artist_id: int, session: Db) -> ArtistDetail:
+    artist = await queries.get_artist(session, artist_id)
     if artist is None:
         raise HTTPException(status_code=404, detail="Artist not found")
     return artist

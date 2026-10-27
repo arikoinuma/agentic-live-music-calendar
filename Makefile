@@ -123,7 +123,7 @@ migration: ## Autogenerate a migration: make migration m="add show table"
 seed: ## Create the metro and starting venues (safe to re-run)
 	cd $(API_DIR) && uv run python -m scripts.seed
 
-fixtures: ## Regenerate the frontend JSON fixtures from app/sample_data.py
+fixtures: ## Regenerate the frontend JSON fixtures from app/testing/sample_data.py
 	cd $(API_DIR) && uv run python -m scripts.generate_fixtures
 
 types: ## Regenerate lib/api-types.ts from FastAPI's OpenAPI schema
@@ -150,7 +150,7 @@ contract-check: ## Fail if the generated contract output is stale
 	else \
 		echo; \
 		echo "STALE: the generated contract output did not match."; \
-		echo "app/schemas.py, the routers, or app/sample_data.py changed"; \
+		echo "app/schemas.py, the routers, or app/testing/sample_data.py changed"; \
 		echo "without a regen. It has just been regenerated in place —"; \
 		echo "review the diff and commit it."; \
 		echo; \
@@ -185,10 +185,13 @@ coverage: ## pytest with branch coverage of app/ and agent_worker/ (report only;
 	cd $(API_DIR) && REQUIRE_DB=1 uv run coverage run -m pytest
 	cd $(API_DIR) && uv run coverage report
 
-# End-to-end tests (B6). Playwright starts its own stack, so this needs no running
-# `make dev`: the real FastAPI app on the sample data (8101), a pass-through proxy
-# (8102) and `next start` on a production build (3100). Other ports than `make dev`
-# on purpose, so the two never collide. Chromium: a laptop runs
+# End-to-end tests (B6, moved onto Postgres by C2). Playwright starts its own stack, so this
+# needs no running `make dev`: the real FastAPI app on a throwaway `calendar_e2e` database
+# loaded with the sample world and a frozen clock (8101), a pass-through proxy (8102) and
+# `next start` on a production build (3100). Other ports than `make dev` on purpose, so the
+# two never collide. It does need Postgres running locally (`make db-up`; a cloud session
+# already has it): the harness rebuilds `calendar_e2e` on every run and refuses any other
+# database name or a non-local host (apps/api/app/testing/e2e_database.py). Chromium: a laptop runs
 # `pnpm --filter calendar exec playwright install chromium` once; a cloud session sets
 # E2E_CHROMIUM_PATH (scripts/cloud-setup.sh does). Extra Playwright arguments go in
 # E2E_ARGS, e.g. make e2e E2E_ARGS="--repeat-each=3".

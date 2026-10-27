@@ -9,7 +9,7 @@ import type { CalendarMonthsResponse, ShowListResponse, ShowSummary } from "./ty
 //    inclusive is 28 days (the API's default window is "start plus 27
 //    days", routers/shows.py DEFAULT_WINDOW); October has 31 days; 2028 is
 //    a leap year.
-//  - The fixture rows are read off apps/api/app/sample_data.py's
+//  - The fixture rows are read off apps/api/app/testing/sample_data.py's
 //    _SHOW_ROWS: 2026-10-04 (offset 6) is "deliberately empty", and
 //    2026-10-07 (offset 9) has The Terminal Bar at 21:00 plus the four
 //    rows B3 added (White Squirrel 18:00 and 22:00, Zhora Darling 20:00,

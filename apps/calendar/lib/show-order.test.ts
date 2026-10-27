@@ -12,7 +12,7 @@ import type { ShowListResponse, ShowSummary } from "./types";
 
 // Where the expected values come from. The "fixture day" is 2026-10-07 in
 // lib/fixtures/shows.json (a Wednesday), whose five shows were built hard
-// on purpose (B3-D5) and are listed in apps/api/app/sample_data.py:
+// on purpose (B3-D5) and are listed in apps/api/app/testing/sample_data.py:
 //
 //   id  venue                    start  lineup (per-act time)
 //    8  The Terminal Bar         21:00  Jaedyn James, Tarnation, Beasthead

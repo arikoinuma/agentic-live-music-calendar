@@ -1,9 +1,7 @@
 """Show routes — the calendar itself.
 
-TEMPORARY IMPLEMENTATION — see app/routers/venues.py. The filtering
-below happens in Python over an in-memory list; A1b (alpha-build-plan.md)
-replaces it with a WHERE clause. The query parameters and the response shape are the part
-meant to survive that.
+The request rules live here (a range must be ordered and no wider than `MAX_RANGE`; `upcoming` can't be
+combined with a range); the data comes from `app.queries`, which reads Postgres (C2).
 
 Contract: docs/dev/api-contract.md section 2.
 """
@@ -13,9 +11,10 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app import sample_data as data
+from app import queries
+from app.dependencies import Db, LiveMetro, Today
 from app.routers.common import NOT_FOUND
-from app.schemas import ShowDetail, ShowListResponse, ShowSummary
+from app.schemas import ShowDetail, ShowListResponse
 
 router = APIRouter(prefix="/shows", tags=["shows"])
 
@@ -33,7 +32,10 @@ MAX_RANGE = datetime.timedelta(days=366)
 
 
 @router.get("")
-def list_shows(
+async def list_shows(
+    session: Db,
+    metro: LiveMetro,
+    today: Today,
     start: datetime.date | None = None,
     end: datetime.date | None = None,
     # A list-valued query parameter needs the explicit Query() marker.
@@ -94,11 +96,11 @@ def list_shows(
         # below from what was actually returned. MAX_RANGE doesn't apply --
         # there is no client-supplied range to bound -- so this branch
         # stays out of the range checks that follow.
-        start = data.START
+        start = today
         end = datetime.date.max
     else:
         if start is None:
-            start = data.START
+            start = today
         if end is None:
             end = start + DEFAULT_WINDOW
 
@@ -110,48 +112,19 @@ def list_shows(
                 detail=f"Date range too wide; maximum is {MAX_RANGE.days} days",
             )
 
-    shows = [s for s in data.SHOWS if start <= s.date <= end]
-
-    if venue_id:
-        wanted = set(venue_id)
-        shows = [s for s in shows if s.venue.id in wanted]
-
-    if artist_id:
-        wanted = set(artist_id)
-        # A show matches if *any* act on its bill does — an artist's
-        # page should show a festival slot where they're third on the
-        # lineup, not only the nights they headline.
-        shows = [s for s in shows if any(e.artist.id in wanted for e in s.lineup)]
+    shows = await queries.list_shows(session, metro, start, end, venue_id, artist_id)
 
     if upcoming:
         # Echo the range actually covered: today to the last show returned,
         # or just today when nothing matched, so end >= start always holds.
         end = max((s.date for s in shows), default=start)
 
-    return ShowListResponse(start=start, end=end, shows=sorted(shows, key=_ordering))
-
-
-def _ordering(show: ShowSummary) -> tuple[datetime.date, bool, datetime.time, str]:
-    """Sort key: by date, then by start time, then by venue name.
-
-    The `start_time is None` element is why this is a function and not a
-    lambda. A show with no listed time can't be compared against one
-    that has a time, and it shouldn't silently sort as midnight either —
-    "time not stated" isn't "first thing in the morning". Sorting the
-    None-valued ones to the end of their day is a real decision, and
-    the frontend renders them differently for the same reason.
-    """
-    return (
-        show.date,
-        show.start_time is None,
-        show.start_time or datetime.time.min,
-        show.venue.name,
-    )
+    return ShowListResponse(start=start, end=end, shows=shows)
 
 
 @router.get("/{show_id}", responses=NOT_FOUND)
-def get_show(show_id: int) -> ShowDetail:
-    show = data.show_detail(show_id)
+async def get_show(show_id: int, session: Db, metro: LiveMetro) -> ShowDetail:
+    show = await queries.get_show(session, metro, show_id)
     if show is None:
         raise HTTPException(status_code=404, detail="Show not found")
     return show

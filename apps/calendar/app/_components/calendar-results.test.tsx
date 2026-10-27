@@ -14,7 +14,7 @@ import { CalendarResults } from "./calendar-results";
 //
 // Where the expected values come from:
 //  - The fixture is lib/fixtures/shows.json, generated from
-//    app/sample_data.py: the API's default window 2026-09-28 to 2026-10-25
+//    app/testing/sample_data.py: the API's default window 2026-09-28 to 2026-10-25
 //    (28 days, inclusive) and 25 shows on 20 of those dates.
 //  - 2026-10-07 is a Wednesday and holds five shows (ids 8, 22, 23, 24, 25)
 //    at four venues — B4's fixture-day table. Show 25 (The Midway Saloon,

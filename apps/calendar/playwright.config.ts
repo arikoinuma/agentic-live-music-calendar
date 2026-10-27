@@ -10,7 +10,7 @@
 import { existsSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { defineConfig, devices } from "@playwright/test";
-import { E2E_NOW } from "./e2e/support/clock";
+import { E2E_API_NOW, E2E_NOW } from "./e2e/support/clock";
 import { API_PORT, API_URL, PROXY_PORT, PROXY_URL, WEB_PORT, WEB_URL } from "./e2e/support/stack";
 
 // Fail early, with the fix in the message, rather than with a Next error buried in
@@ -64,14 +64,23 @@ export default defineConfig({
   // server that is already running: a dev stack has different data and a real clock.
   webServer: [
     {
-      // The real API on its sample data. No database is needed: the routers serve
-      // `app/sample_data.py` (B6-D1). `Settings()` insists on two variables at import,
-      // so give it placeholders; nothing ever connects to that URL.
-      command: `uv run uvicorn app.main:app --host 127.0.0.1 --port ${API_PORT}`,
+      // The real API on a real Postgres loaded with the sample world, its clock frozen (C2-D2, C2-D7). The
+      // first command rebuilds the throwaway `calendar_e2e` database (drop, migrate, load) and refuses any
+      // other database; the second starts the production app through `app.testing.e2e_app`, which pins
+      // `get_now` to E2E_API_NOW and refuses to start unpinned. `exec` makes uvicorn replace the shell, so
+      // the process tree matches the other two servers'; Playwright signals the whole group on shutdown
+      // either way. DATABASE_URL is set here, explicitly, so a developer's apps/api/.env (which may point at
+      // a real database) is never read. E2E_DATABASE_URL overrides the default for a different local port or
+      // credentials (CI's service uses the default). `Settings()` insists on MODEL_NAME at import.
+      command:
+        "uv run python -m app.testing.e2e_database && " +
+        `exec uv run uvicorn app.testing.e2e_app:app --host 127.0.0.1 --port ${API_PORT}`,
       cwd: "../api",
       env: {
-        DATABASE_URL: "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/e2e_unused",
+        DATABASE_URL:
+          process.env.E2E_DATABASE_URL ?? "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/calendar_e2e",
         MODEL_NAME: "e2e-placeholder",
+        E2E_API_FROZEN_NOW: E2E_API_NOW,
       },
       url: `${API_URL}/health`,
       reuseExistingServer: false,

@@ -1,6 +1,6 @@
 # C2 — the API reads from the database
 
-**Status:** Awaiting approval
+**Status:** Code review
 **Revised:** October 27, 2026, after Ari's answers on the decisions (see "Ari's answers, October 27"); no new review round, Ari to decide whether one is wanted
 **Date:** October 23, 2026
 **Author model:** Claude Sonnet 5.5
@@ -376,5 +376,45 @@ Two (D9). Per `AGENTS.md`, the build delivers the scaffold, the tests for both s
 **Rejected:** none. No row was rejected, so no finding needs Ari's attention as a disagreement; the blocker (PR1-1) did change a planned generated file (`shows.json`, one-time reorder), which Ari should know before approving.
 
 ## Implementation log
+
+### Round 1 — Claude Sonnet 5.5, October 27, 2026
+
+**Scope:** `git diff 668cc88` on the working tree (nothing committed yet; `668cc88` is the commit the plan was approved on). Files touched, by group:
+- API: `app/queries.py`, `app/clock.py`, `app/dependencies.py` (new); `app/db/session.py` (`get_db`), `app/db/models/calendar.py` (relationships), `app/db/seed.py` (venue list); the five `app/routers/*.py`; `app/sample_data.py` moved to `app/testing/sample_data.py` (+ loader, `fixture_payloads`); `app/testing/api_client.py`, `app/testing/e2e_database.py`, `app/testing/e2e_app.py` (new); `scripts/generate_fixtures.py`; `agent_worker/local_test.py`.
+- API tests: `app/tests/conftest.py`, `test_clock.py`, `test_no_testing_imports.py`, `test_sample_data_loader.py`, `test_fixtures_agree.py`, `test_e2e_guards.py` (new); `test_routers.py`, `test_seed.py`, `test_health.py` (migrated); `agent_worker/tests/test_local_test_args.py` (new).
+- Browser side: `playwright.config.ts`, `e2e/support/clock.ts`, `clock.test.ts`, `lib/fixtures/shows.json` (one-time reorder, generated), comment-only path edits in eight test and spec files, `turbo.json`.
+- CI and docs: `.github/workflows/ci.yml` (Postgres service in the `e2e` job), `Makefile`, `AGENTS.md`, `apps/api/AGENTS.md`, `README.md`, `.github/pull_request_template.md`, `docs/dev/{api-contract,notes,conventions,alpha-build-plan,alpha-deployment-plan}.md`, `docs/arch/arch-initial.md` (§11).
+
+**Departures from the plan, each with its reason:**
+1. *Tests first was not strict for the e2e guards.* `test_e2e_guards.py` and its two modules were written in one step, so those tests were never seen red; the mutation check C2-M10 (guard name changed, 5 tests fail) stands in for it. Everything else was written test-first or, for the route tests, before `queries.py` existed.
+2. *Added `app/testing/api_client.py`* (the `api_client` context manager). The plan named a `make_client(session, now)` helper; this is it, as a module so tests in several files import one definition.
+3. *Added a test, `test_a_two_act_match_returns_the_show_once`,* for the K1 duplicate-row trap; and `test_artists_are_global_not_metro_scoped`. Neither was listed.
+4. *Migrated `test_health.py` to the async client.* Not in the plan; it was the last user of `TestClient`, and the divergence row in `apps/api/AGENTS.md` could not be deleted while it remained.
+5. *`turbo.json` declares `E2E_DATABASE_URL`* (eslint-plugin-turbo, `--max-warnings 0`, rejected the undeclared read in `playwright.config.ts`).
+6. *`apps/api/AGENTS.md` gained a "The read API (C2)" section* (four rules a later author needs), beyond the two edits the plan names.
+7. *`list_shows` does not call `.unique()`* on its result, so that the likeliest K2 mistake (a `joinedload` on the lineup) fails loudly with SQLAlchemy's "unique() must be invoked" message rather than silently working; verified.
+8. *The `alpha-deployment-plan.md` §1.1 rows and C2 boxes are updated as "on the branch, not merged".* The Neon bullet, the local-verification bullet and "Done when" are untouched: they are Ari's.
+9. *Not done, by design:* the dated "C2" line under Neon in `c1-env-revalidation.md` (it records what Ari finds in step 10), and any use of `/health/db`.
+
+**`TODO(Ari)` gaps:** both **open**, not filled by this round.
+- `C2-K1`: `app/queries.py:80` (`_apply_filters`, the OR-within / AND-across filter predicate, `EXISTS` over the lineup). Tests: `uv run pytest app/tests/test_routers.py -k "filter or artist or upcoming"`.
+- `C2-K2`: `app/queries.py:54` (`_show_loads`, the eager loads). Tests: `uv run pytest app/tests/test_routers.py` and `test_the_statement_count_does_not_grow_with_the_number_of_shows`.
+Review the code as it stands; open gaps are not findings. Both placeholders raise `NotImplementedError("TODO(Ari)")`, and K2 sits on every show route, so 26 tests are red (below).
+
+**Verification (commands and results):**
+- Baseline before any change: `REQUIRE_DB=1 uv run pytest` 881 passed, 15 skipped.
+- **With the gaps filled in a scratch copy** (restored byte-identically afterwards with `cp`, `grep -c 'NotImplementedError("TODO(Ari)")' app/queries.py` = 2): `pytest app/tests` 124 passed; `make e2e E2E_ARGS="--repeat-each=3"` **312 passed** (104 specs x 3) on the database-backed API with the frozen clock; `ss -ltn` showed no listener left on 8101, 8102 or 3100. The e2e job was **not** run on the final tree, because the open gaps make every show page fail; the three runs above are its evidence.
+- **Final tree** (gaps open): `uv run pytest`: 915 passed, 15 skipped, **26 failed**, every one `NotImplementedError: TODO(Ari)` (checked: no other error text); `ruff`, `mypy` (117 files), `make lint`, `pnpm turbo run check-types test` (358 Vitest tests) green; `make contract-check` current; `make types` leaves `lib/api-types.ts` unchanged, `make fixtures` changes only `shows.json`, and that change is a pure reorder (same shows, same `start`/`end`; checked by sorting by id); `make designation-check BASE=668cc88` exits 0. So `make check` as a whole is red, by design, until the gaps are filled.
+- Comment-only pass (paths in eight TS test and spec files): `git diff -U0` shows only comment lines changed, and TypeScript's `transpileModule` with `removeComments` gives identical output before and after for all eight; Vitest green.
+- Mutations (plan table), each applied, run, reverted: M1, M2, M3, M4 (both halves), M5 (both queries), M6, M7, M8, M9, M10 all turn the named test red. M6 was shown with the first-route test; the statement-count test cannot be reached by removing a load (it fails earlier under `lazy="raise"`), so its own assertion is not independently exercised.
+- Verified by experiment: a `joinedload` on the lineup fails with "The unique() method must be invoked on this Result" (the K2 scaffold's stated mistake). **Not verified:** K1's stated mistake (a join on `show_artist` repeats a show per act); `test_a_two_act_match_returns_the_show_once` should catch it, but was not run against that mutation.
+- Not run here (no route to them): the `e2e` job on GitHub Actions' Postgres 18 (the sandbox runs Postgres 16), anything against Neon, the laptop verification.
+
+**Where to look hardest:**
+1. `app/queries.py`: `list_months` (count semantics, C2-D5), `_visible_shows` (the metro scope through `Show.venue.has(...)`), and that `get_show` hides a removed show.
+2. `load_sample_data` (`app/testing/sample_data.py`): the `setval` loop builds SQL from four constant table names with an f-string; the empty-database refusal; explicit ids.
+3. The e2e start command in `playwright.config.ts` (`a && exec b` under Playwright's shell) and the new `e2e` job in `ci.yml`, which could only be tried locally.
+4. `test_e2e_guards.py::test_the_e2e_app_will_not_start_*`: they import `app.testing.e2e_app`, whose module-level checks must raise before touching the shared `app`; if that order ever changed, the import would leave a `get_now` override behind for later tests.
+5. Whether `_settle` / `expunge_all` in the tests is used everywhere a test edits a row then calls a route.
 
 ## Code review

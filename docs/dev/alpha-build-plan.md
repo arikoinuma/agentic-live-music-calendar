@@ -152,7 +152,7 @@ Implemented per `docs/dev/implementations/a1-data-layer.md`, which records the t
 
 ### A1b. Move the read routes onto the database
 
-**Migrated to `alpha-deployment-plan.md` as C2 (October 21, 2026).** The scope is unchanged: replace the bodies in `app/routers/` with queries, put the routes on an async session dependency, migrate `test_routers.py`, and delete `app/sample_data.py` once nothing reads it (deciding first where the frontend fixtures come from). The items and their markings moved with it, plus two additions: migrate and seed the hosted database before the merge, since merging deploys the production API, and verify locally that two worker runs leave a calendar that renders. The routes still serve `app/sample_data.py` until C2 lands.
+**Migrated to `alpha-deployment-plan.md` as C2 (October 21, 2026), built in `docs/dev/implementations/c2-api-reads-database.md`.** The scope is unchanged: replace the bodies in `app/routers/` with queries, put the routes on an async session dependency, migrate `test_routers.py`, and delete `app/sample_data.py` once nothing reads it (deciding first where the frontend fixtures come from). The items and their markings moved with it, plus two additions: migrate and seed the hosted database before the merge, since merging deploys the production API, and verify locally that two worker runs leave a calendar that renders. The routes still serve `app/sample_data.py` until C2 lands.
 
 ### A2. The extraction schema, against the real requirements
 

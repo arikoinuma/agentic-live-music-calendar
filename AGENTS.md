@@ -56,7 +56,7 @@ make db-shell         # psql against local Postgres
 ```
 
 Never hand-edit `apps/calendar/lib/api-types.ts` or `apps/calendar/lib/fixtures/` — both
-are generated from `apps/api/app/schemas.py` and `app/sample_data.py`. `make contract-check`
+are generated from `apps/api/app/schemas.py` and `app/testing/sample_data.py`. `make contract-check`
 (part of `make check`, and its own CI job) fails if they're stale.
 
 ## Layout
@@ -303,8 +303,8 @@ eval harness, `local_test`, or fixture capture, and 14 tests in
 this; leave that work for a local session and say so in the PR. The sandbox has Node 22 and
 CI uses 24, so a green JS check there is not quite a green CI. The Playwright suite
 (`make e2e`, part of `make check`) runs there too: Chromium is at `/opt/pw-browsers/chromium`,
-`scripts/cloud-setup.sh` exports it as `E2E_CHROMIUM_PATH`, and it needs no Postgres, because the
-API it starts serves the sample data.
+`scripts/cloud-setup.sh` exports it as `E2E_CHROMIUM_PATH`, and it needs the sandbox's Postgres, because the
+API it starts reads a throwaway `calendar_e2e` database that the run rebuilds and loads with the sample world.
 
 Suited to cloud: deterministic, DB-tested work (reconcile, commit, audit writes, routes onto
 the DB), the Next.js track, plan and code review rounds, docs. Needs local: anything that
@@ -325,7 +325,7 @@ the session model is the author, and the reviewer subagent gets a different one,
 2. Open the PR as a **draft**. Ari reviews and merges; don't merge it yourself.
 3. Run `make check` before pushing and put its result in the PR description. Don't hand-edit
    generated files (`lib/api-types.ts`, `lib/fixtures/`); regenerate with `make types` /
-   `make fixtures` if you change `schemas.py` or `sample_data.py`.
+   `make fixtures` if you change `schemas.py` or `testing/sample_data.py`.
 4. The plan file stays the only channel between author and reviewer: update its `Status` and
    append your rounds **on the same branch**, so they arrive with the code.
 5. For a **[fill-in]** task, push the scaffold with its tests red, and list each

@@ -25,7 +25,7 @@ uv run uvicorn app.main:app --reload    # or `make api` from the repo root
 uv run pytest                           # DB tests skip if Postgres is down
 uv run ruff check . && uv run mypy      # mypy checks app/ and agent_worker/ ([tool.mypy] files)
 make coverage                           # from the repo root: branch coverage report, no threshold
-make seed                               # metro + the four starting venues
+make seed                               # metro + the starting venue list (inserts only: `make db-reset` to drop old venues)
 ```
 
 ## Deliberate divergences from the style guide
@@ -36,7 +36,6 @@ Don't "fix" these. Each is a decision with a reason.
 |---|---|---|
 | `src/{domain}/{router,schemas,models,service}.py` | Flat `app/` — `schemas.py`, `enums.py`, `routers/` | One bounded context. Domain packaging would be ceremony around a single domain. Revisit if a second appears. |
 | One `BaseSettings` per domain | One global `Settings` in `app/config.py` | Same reason. |
-| Test with `httpx.AsyncClient` + `ASGITransport` | `fastapi.testclient.TestClient` | Routes are still sync `def` over in-memory data. **Revisit in A1b**, when they become `async def` against a real session — and note the live `StarletteDeprecationWarning` about httpx + TestClient when you do. |
 | Don't return a Pydantic model when `response_model` is set (double construction) | Routes return constructed models via a return-type annotation | The annotation is what puts the schema into `/openapi.json` *and* what mypy checks. Re-validation is cheap; losing either of those isn't. |
 
 ## Rules that bite most often here
@@ -50,12 +49,28 @@ Don't "fix" these. Each is a decision with a reason.
 - **List query parameters need explicit `Query()`.** Without it FastAPI treats a non-scalar
   annotation as a body parameter, and on a GET the value silently never arrives.
 - **`Annotated[T, Depends(...)]`**, not default-arg `Depends(...)`. Matters from A1b onward
-  for the DB session dependency (`get_db` is added there, with its first consumer).
+  for the DB session dependency (`get_db`, `app/db/session.py`, added in C2).
 - **Async discipline.** No `time.sleep`, `requests`, or a sync DB session inside `async def`
   — it blocks the whole event loop. `httpx.AsyncClient`, or a plain `def` route that
   FastAPI runs in a threadpool.
 - **Never catch bare `Exception` around a route body.** The one scoped exception is the
   eval script, with a per-file ruff ignore and a comment saying why.
+
+## The read API (C2)
+
+The routes read Postgres. `app/routers/` is thin: it checks the request (a 422 for a bad range), calls one function in
+`app/queries.py`, and turns a miss into a 404. `queries.py` is where an ORM row becomes a `schemas.py` response. Four things
+to know before touching it (decisions in `docs/dev/implementations/c2-api-reads-database.md`):
+
+- **Relationships are read-only and never lazy** (`viewonly=True, lazy="raise"`, C2-D4). A query must name what it loads
+  (`joinedload` for a to-one side, `selectinload` for the lineup); touching an unloaded relationship raises in the first
+  test instead of a `MissingGreenlet` in production. The worker still writes by explicit foreign keys.
+- **The clock is injected.** Routes get "today" from `Today` (`app/dependencies.py`), the metro's local date from `get_now`
+  (`app/clock.py`). Tests and the e2e job override `get_now`; no environment variable freezes a real server's clock.
+- **Ordering is done in Python** (`queries._ordering`, case-folded names), not by the database, so no collation decides it.
+- **Production code never imports `app.testing`** (`test_no_testing_imports.py`). The sample world there
+  (`app/testing/sample_data.py`) is what the route tests, the frontend fixtures and the e2e job share; to add a case, insert
+  rows in the test that needs it rather than editing the shared world.
 
 ## Database and migrations
 

@@ -3,7 +3,7 @@
  */
 import { expect, test } from "./support/test";
 
-// Expected values for 2026-10-07 (apps/api/app/sample_data.py; lib/fixtures/shows.json):
+// Expected values for 2026-10-07 (apps/api/app/testing/sample_data.py; lib/fixtures/shows.json):
 // five shows. At White Squirrel 6:00 PM (Lanue) and 10:00 PM (Nooky Jones, Pert Near
 // Sandstone); Zhora Darling 8:00 PM (Charlie Parr); The Terminal Bar 9:00 PM (Jaedyn
 // James, Tarnation, Beasthead); The Midway Saloon at 1:00 AM, which is after midnight

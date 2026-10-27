@@ -138,16 +138,33 @@ jobs:
         run: make contract-check
 
   e2e:
-    name: E2E (Playwright, real API on sample data)
+    name: E2E (Playwright, real API on Postgres)
     runs-on: ubuntu-latest
     # The suite takes about two minutes; a hang outside Playwright's own timeouts (an install, a
     # server that never answers) would otherwise hold the runner for the 6-hour default.
     timeout-minutes: 20
-    # B6 (docs/dev/implementations/b6-accessibility-and-e2e.md, B6-D1 and B6-D4). Playwright starts
-    # the whole stack itself (apps/calendar/playwright.config.ts): the real FastAPI app on its
-    # sample data, a pass-through proxy and `next start` on a production build. No Postgres:
-    # the routers still serve sample_data.py until A1b. A separate job from `js` so a JS-only
+    # B6 (docs/dev/implementations/b6-accessibility-and-e2e.md, B6-D1 and B6-D4), moved onto a database
+    # by C2 (docs/dev/implementations/c2-api-reads-database.md, C2-D7). Playwright starts the whole stack
+    # itself (apps/calendar/playwright.config.ts): it rebuilds a throwaway `calendar_e2e` database on this
+    # service and loads the sample world into it, then starts the real FastAPI app on a frozen clock, a
+    # pass-through proxy and `next start` on a production build. A separate job from `js` so a JS-only
     # change still gets fast feedback, and so Python and a browser are installed only here.
+    services:
+      # The same image and credentials as the python job. The harness drops and creates the database
+      # itself, so the service only has to accept connections.
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v7
 
