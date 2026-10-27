@@ -164,6 +164,6 @@ make contract-check   # fail if the committed output is stale
 | `artist-detail.json` | `ArtistDetail` |
 | `calendar-months.json` | `CalendarMonthsResponse` |
 
-The venues are the same four the Phase 5 extraction fixtures came from, so the A1 seed script and these frontend fixtures describe one world rather than two.
+The venues are the same four the Phase 5 extraction fixtures came from. Since C2 they are the sample world's own (`app/testing/sample_data.py`), loaded into the test and end-to-end databases; the seed script (`app/db/seed.py`) carries the real venue list, which is a different set (`C2-D8`), so the fixtures no longer line up with a seeded database.
 
 The fixtures are written from the sample world's pure builders (`app/testing/sample_data.py`, `fixture_payloads()`), with no database, and the sample's dates are fixed rather than `date.today()`, so regenerating produces an empty diff unless the contract actually changed. The real endpoint computes the window from the metro's current local date; `test_fixtures_agree.py` loads the same world into Postgres, pins the API's clock to the sample's start, and requires each route to return exactly what its fixture holds, so the two paths can't drift. `shows.json` is stored in the order the API returns shows.

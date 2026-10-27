@@ -410,7 +410,11 @@ async def load_sample_data(session: AsyncSession) -> None:
 
     # Shows, then their lineups. The four inherited fields stay NULL: the sample's shows inherit
     # everything from the venue, and the API resolves that (api-contract.md section 5).
-    calendar_urls = {v.id: venue_detail(v.id).calendar_url for v in VENUES}  # type: ignore[union-attr]
+    calendar_urls: dict[int, str] = {}
+    for summary in VENUES:
+        detail = venue_detail(summary.id)
+        assert detail is not None  # every VENUES id has a detail record (written out or invented on the fly)
+        calendar_urls[summary.id] = detail.calendar_url
     for s in SHOWS:
         session.add(
             Show(

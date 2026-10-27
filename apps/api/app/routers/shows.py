@@ -22,12 +22,11 @@ router = APIRouter(prefix="/shows", tags=["shows"])
 # weeks, counted inclusively (28 days = today plus 27).
 DEFAULT_WINDOW = datetime.timedelta(days=27)
 
-# Longest range a single request may ask for. Pointless against an
-# in-memory list, and the reason it's here anyway: once this is a real
-# query, an unbounded range is an unbounded scan, and an accidental
+# Longest range a single request may ask for. The query behind this is a real
+# one, so an unbounded range is an unbounded scan: an accidental
 # ?start=2020-01-01&end=2030-01-01 from a buggy client shouldn't be able
-# to ask Postgres for a decade. Cheaper to establish the bound now, while
-# no client depends on its absence.
+# to ask Postgres for a decade. The bound was set before the routes read the
+# database (C2) so that no client ever came to depend on its absence.
 MAX_RANGE = datetime.timedelta(days=366)
 
 
@@ -78,8 +77,8 @@ async def list_shows(
     `start` when there is none), so the echoed range is always valid.
     """
     # The server decides what "now" means, not the browser — its clock
-    # and timezone aren't the metro's. Against sample data that's a
-    # pinned constant; the real version reads the metro's local date.
+    # and timezone aren't the metro's. `today` is the metro's local date, from
+    # the injected clock (app/clock.py, C2-D2).
     if upcoming:
         if start is not None or end is not None:
             raise HTTPException(

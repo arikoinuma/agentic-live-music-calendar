@@ -184,7 +184,7 @@ async def test_artist_filter_matches_anywhere_in_the_lineup(sample_client: Async
 
 
 async def test_a_two_act_match_returns_the_show_once(sample_client: AsyncClient) -> None:
-    # Proves: asking for two artists who share one bill returns that show once, not once per matching act. Show 7's bill is
+    # Proves: asking for two artists who share one bill returns that show once, not once per matching act. Show 8's bill is
     # Jaedyn James, Tarnation and Beasthead (artists 6, 10, 9; hand-read from `_SHOW_ROWS`, 2026-10-07 at The Terminal Bar).
     # A filter written as a join on the lineup repeats a row per matching act; `EXISTS` does not (C2-K1).
     shows = (await sample_client.get("/shows?artist_id=6&artist_id=10&artist_id=9&start=2026-10-07&end=2026-10-07")).json()["shows"]
@@ -594,9 +594,8 @@ async def test_months_are_future_facing(db_session: AsyncSession) -> None:
     after the metro's today is not offered, and the count covers only the shows still to come.
 
     The clock is October 20 (noon in Minneapolis). September's three shows are past, so it is gone. October's
-    shows on or after the 20th, by hand from the sample rows: the three week-four rows (offsets 22, 23 and 24 are
-    the 20th, 21st and 22nd... see below) and the 26th and the October 29 row. Offsets from 2026-09-28: 22 -> Oct 20,
-    23 -> Oct 21, 24 -> Oct 22, 26 -> Oct 24, 31 -> Oct 29: five shows.
+    shows on or after the 20th, by hand from the sample rows' day offsets from 2026-09-28: 22 -> Oct 20, 23 -> Oct 21,
+    24 -> Oct 22, 26 -> Oct 24 (week four) and 31 -> Oct 29 (the row B4 appended): five shows.
     """
     await data.load_sample_data(db_session)
     await _settle(db_session)
@@ -636,10 +635,11 @@ async def test_the_statement_count_does_not_grow_with_the_number_of_shows(
 ) -> None:
     """Proves (C2-K2): `GET /shows` runs the same number of SQL statements for 26 shows as for 226.
 
-    A route that loads each show's venue or lineup one query at a time would run a statement per show. The
-    count is taken with a cursor-level listener on the test's connection. With `lazy="raise"` (C2-D4) a missed
-    eager load fails the first route test instead; this test pins the number itself, so a loader that
-    eagerly loads in a loop (still correct, still slow) is caught too. Catches mutation C2-M6.
+    The count is taken with a cursor-level listener on the test's connection. With `lazy="raise"` (C2-D4) a
+    load that is simply missing fails the first route test instead (C2-M6); what this test adds is a loader that
+    queries once per show (a loop of awaited loads: correct, and slow), whose statement count grows with the
+    data. `small > 0` guards the listener itself: if a fixture change ever gave the app its own connection, both
+    counts would be 0 and the equality would pass for the wrong reason (C2-CR1-5).
     """
     statements: list[str] = []
 
@@ -650,6 +650,7 @@ async def test_the_statement_count_does_not_grow_with_the_number_of_shows(
     try:
         await sample_client.get("/shows")
         small = len(statements)
+        assert small > 0
 
         for i in range(200):
             show_id = await _add_show(
