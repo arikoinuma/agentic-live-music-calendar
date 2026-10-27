@@ -28,7 +28,7 @@ from collections.abc import Sequence
 
 from sqlalchemy import Select, extract, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.sql.base import ExecutableOption
 
 from app.db.models import Artist, Metro, Show, ShowArtist, Venue
@@ -58,23 +58,16 @@ def _show_loads() -> Sequence[ExecutableOption]:
     that wasn't loaded raises, which under asyncio is the difference between a clear error in a test and a
     `MissingGreenlet` in production. This is the one place a show query says what it needs (C2-K2).
     """
-    # TODO(Ari) — Lesson (C2-K2): under asyncio a relationship cannot load itself on access (C2-D4,
+    #   Under asyncio a relationship cannot load itself on access (C2-D4,
     #   lazy="raise"), so each query names what it loads. A to-one side (venue, event, an entry's artist) is a
     #   joinedload: one query with a join. A to-many side (the lineup) is a selectinload: a second query for
     #   the whole batch, because a join on the many side multiplies the show rows. The statement count then
     #   does not grow with the number of shows.
-    # Code:
-    #   return (
-    #       joinedload(Show.venue),
-    #       joinedload(Show.event),
-    #       selectinload(Show.lineup).joinedload(ShowArtist.artist),
-    #   )
-    #   (add `selectinload` to the `sqlalchemy.orm` import above)
-    # Check: `uv run pytest app/tests/test_routers.py` (every show route) and
-    #   test_the_statement_count_does_not_grow_with_the_number_of_shows. Likeliest mistake: a joinedload on the
-    #   lineup, which fails with "The unique() method must be invoked on this Result" because the join repeats
-    #   each show once per act.
-    raise NotImplementedError("TODO(Ari)")
+    return (
+        joinedload(Show.venue),
+        joinedload(Show.event),
+        selectinload(Show.lineup).joinedload(ShowArtist.artist),
+    )
 
 
 def _apply_filters(
@@ -86,19 +79,15 @@ def _apply_filters(
     "any of these" (OR), different kinds must both hold (AND), and an artist matches if *any* act on the
     bill is that artist, not only the headliner (C2-K1). Called only when at least one is given.
     """
-    # TODO(Ari) — Lesson (C2-K1): OR within one filter type, AND across types. Each `.where()` adds an AND;
+    #   OR within one filter type, AND across types. Each `.where()` adds an AND;
     #   `in_()` is the OR within a type. The artist test is an EXISTS over the lineup, not a join: joining
     #   `show_artist` repeats a show once per matching act, so a bill with two requested artists would be
     #   returned twice.
-    # Code:
-    #   if venue_ids:
-    #       stmt = stmt.where(Show.venue_id.in_(venue_ids))
-    #   if artist_ids:
-    #       stmt = stmt.where(Show.lineup.any(ShowArtist.artist_id.in_(artist_ids)))
-    #   return stmt
-    # Check: `uv run pytest app/tests/test_routers.py -k "filter or artist or upcoming"` -- the OR / AND tests
-    #   and test_a_two_act_match_returns_the_show_once. Likeliest mistake: a join on ShowArtist (duplicate rows).
-    raise NotImplementedError("TODO(Ari)")
+    if venue_ids:
+        stmt = stmt.where(Show.venue_id.in_(venue_ids))
+    if artist_ids:
+        stmt = stmt.where(Show.lineup.any(ShowArtist.artist_id.in_(artist_ids)))
+    return stmt
 
 
 # ---------------------------------------------------------------------
