@@ -38,7 +38,7 @@ Agentic Live Music Listing Discovery:
 
 ### Non-Functional Requirements
 
-I am also using this as a technical learning opportunity on multiple levels:
+I also set technical goals for the build on multiple levels:
 
 Must:
 

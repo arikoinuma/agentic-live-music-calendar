@@ -6,8 +6,8 @@
 # .github/workflows). Each gets its own entry so a noisy group can't hide a
 # security bump in another.
 #
-# Schedule is weekly, not daily: this is a learning project, and a daily feed
-# of version bumps would be more to review than to learn from.
+# Schedule is weekly, not daily: a daily feed of version bumps would be more
+# to review than this project needs.
 
 version: 2
 updates:
