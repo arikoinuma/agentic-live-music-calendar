@@ -92,16 +92,54 @@ to a branch with a different migration set, reset `dev` first (below).
   name MongoDB staging documents that exist only in production's Atlas database. Those ids dangle in staging and
   that is accepted, because nothing reads a staging document back (`test_staging_is_write_only.py`).
   `agent_run.app_env` tells a copied run from one that happened there.
-* *To confirm on the first reset, then record here:* that the connection string and compute endpoint survive,
-  whether the per-branch role (`calendar_staging`) survives, and who owns the tables afterwards. If the role or
-  its ownership does not survive, the reset procedure re-creates both.
+* **What a reset does (verified October 28, 2026, on `staging`):** the host and connection string stay the same.
+  **The role is dropped**: `select rolname from pg_roles where rolname like 'calendar_%'` returned no rows right
+  after the reset, and table ownership is back with the parent's owner (`neondb_owner`). A login attempted soon
+  after the reset appeared to work, which was misleading (probably a session or connection that still held the old
+  role), so check `pg_roles`, not a login. After every reset, run the whole "Neon roles" sequence again: create the
+  role **with the same password** (so Railway's `DATABASE_URL` for that environment stays valid), then the two
+  grants and the ownership block (the script does all of it). Without it the pre-deploy migration fails with "must be owner of table", and
+  the service cannot log in at all.
+* **A schema-only branch** (how `dev` was made) has the tables but an empty `alembic_version`, so `alembic current`
+  prints nothing. Stamp it once with the override form: `APP_ENV=dev DATABASE_URL=… uv run alembic stamp 67609c405218`.
+  Do not run `upgrade head` on it; the tables already exist.
 
 ## Neon roles (C3-D9)
 
 A role belongs to a branch, and a child branch inherits its parent's roles when created. So create each
 environment's role **after** branching, on its own branch, and make it the **owner of that branch's tables**
 (the tables belong to the role that migrated them, and a new role cannot `ALTER` them, which would fail the
-pre-deploy migration). Check as the new role with a real table query and a rolled-back DDL probe:
+pre-deploy migration).
+
+**Create the role in SQL, not the console, and use the script.** A role made in the console is a member of
+`neon_superuser` and `neondb_owner` has no admin rights over it, so `GRANT <role> TO neondb_owner` is refused
+(`permission denied to grant role`) and ownership cannot be handed over. A role created by `neondb_owner` in SQL
+is a plain role. The sequence is `restore_role` in `apps/api/app/db/neon_roles.py` (tested in
+`app/tests/test_neon_roles.py`), run from the laptop for the branch you are on:
+
+```bash
+source .hosted-env.sh && neon_restore_role staging      # or dev, prod
+```
+
+It asks for the `neondb_owner` password (to connect), then makes you type the environment name before changing
+anything. It asks for the role's password **only if the role is missing** (after a reset), and that must be the one
+the environment's `DATABASE_URL` already holds. A role that exists keeps its password; restoring ownership never
+touches it, so a typo cannot break a running service. To change a password on purpose, run the separate
+`neon_restore_role staging --set-password` and update that environment's `DATABASE_URL` to match. Under the hood,
+in this order, in one transaction:
+
+1. `create role calendar_<env> login password …`, only if the role is missing;
+2. `grant calendar_<env> to current_user`: `ALTER … OWNER TO x` needs the right to `SET ROLE x`;
+3. `grant create on schema public to calendar_<env>`: a new table owner needs `CREATE` on the schema;
+4. `alter table … owner to` and `alter type … owner to` for every table and enum type in `public`.
+
+The script is `apps/api/scripts/restore_neon_role.py`; it takes the owner connection from `NEON_OWNER_URL` in the
+shell, never from `.env`. `.hosted-env.sh` is a local, uncommitted helper (`neon_restore_role` is in it).
+
+I did not use `REASSIGN OWNED BY neondb_owner`: it also moves ownership of the database itself, which is more
+than wanted. Check as the new role with a real table query and a rolled-back DDL probe (the SQL Editor always runs
+as `neondb_owner`, so run these from the laptop with the role's URL; `.hosted-env.sh` is the local helper, not in
+the repo):
 
 ```sql
 select count(*) from venue;
