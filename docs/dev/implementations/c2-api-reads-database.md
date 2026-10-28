@@ -1,6 +1,6 @@
 # C2 — the API reads from the database
 
-**Status:** Awaiting sign-off
+**Status:** Done (Ari sign-off, October 28, 2026; the root `AGENTS.md` edits are reviewed in the pull request)
 **Revised:** October 27, 2026, after Ari's answers on the decisions (see "Ari's answers, October 27"); no new review round, Ari to decide whether one is wanted
 **Date:** October 23, 2026
 **Author model:** Claude Sonnet 5.5
