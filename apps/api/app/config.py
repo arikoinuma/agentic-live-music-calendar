@@ -13,11 +13,11 @@ docs/dev/implementations/c3-environments-and-deploy.md, C3-D3, C3-D4, C3-K1.
 """
 
 from typing import Literal, Self
-from urllib.parse import urlparse  # noqa: F401  (used by environment_problem once C3-K1 is filled)
+from urllib.parse import urlparse
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from sqlalchemy.engine import make_url  # noqa: F401  (used by environment_problem once C3-K1 is filled)
+from sqlalchemy.engine import make_url
 
 # The four places a process can be (C3-D3). `local` is a laptop (or CI); the other three are hosted
 # (Dep-D1). A `Literal`, as `log_format` below does, so a typo such as "prodution" fails at startup instead of
@@ -46,30 +46,22 @@ def environment_problem(
       d) when a HOSTED MongoDB is configured (a local one is skipped, as a local Postgres is in (a)), `prod` uses
          the `calendar` database and every other hosted value uses `calendar_<env>`.
     """
-    # TODO(Ari) — C3-K1. Key point of interest: the rule that decides whether a process may start is four independent
+    #   Key point of interest: the rule that decides whether a process may start is four independent
     #   checks, not one, because the realistic mistake is a copied variable set, not a typo (C3-D4;
     #   c3-environments-and-deploy.md). Each check must fail on its own cause and pass on its own cause.
-    # To align: copy the Code lines below by hand, then run the Check. Replace the `return None` below.
-    # Code:
-    #   url = make_url(database_url); host = url.host or ""; role = url.username or ""
-    #   local_db = host in ("localhost", "127.0.0.1", "::1")                                  # a)
-    #   if (app_env == "local") != local_db:
-    #       return f"APP_ENV={app_env} but the database host is {host!r}"
-    #   expected = {"production": "prod", "staging": "staging", "dev": "dev"}                 # b)
-    #   if railway_name and expected.get(railway_name.lower()) != app_env:
-    #       return f"APP_ENV={app_env} but Railway says this is {railway_name!r}"
-    #   if app_env != "local" and not role.endswith(f"_{app_env}"):                           # c)
-    #       return f"APP_ENV={app_env} but the database role is {role!r}"
-    #   want = "calendar" if app_env == "prod" else f"calendar_{app_env}"                     # d)
-    #   mongo_host = urlparse(mongodb_uri or "").hostname or ""
-    #   if mongo_host not in ("", "localhost", "127.0.0.1", "::1") and mongodb_database != want:
-    #       return f"APP_ENV={app_env} but the MongoDB database is {mongodb_database!r}"
-    #   return None
-    # Check: uv run pytest app/tests/test_config.py::test_environment_rule — the likeliest mistakes are treating
-    #   a missing RAILWAY_ENVIRONMENT_NAME as a mismatch (it is absent locally and on Vercel), and parsing the
-    #   host with a string split instead of make_url, which breaks on an IPv6 host or an `@` in a password.
-    # Placeholder: returns "no problem" rather than raising, because `settings = Settings()` runs at import and a
-    #   raising placeholder would turn the whole suite red (C3-PR1-3).
+    url = make_url(database_url); host = url.host or ""; role = url.username or ""
+    local_db = host in ("localhost", "127.0.0.1", "::1")                                  # a)
+    if (app_env == "local") != local_db:
+        return f"APP_ENV={app_env} but the database host is {host!r}"
+    expected = {"production": "prod", "staging": "staging", "dev": "dev"}                 # b)
+    if railway_name and expected.get(railway_name.lower()) != app_env:
+        return f"APP_ENV={app_env} but Railway says this is {railway_name!r}"
+    if app_env != "local" and not role.endswith(f"_{app_env}"):                           # c)
+        return f"APP_ENV={app_env} but the database role is {role!r}"
+    want = "calendar" if app_env == "prod" else f"calendar_{app_env}"                     # d)
+    mongo_host = urlparse(mongodb_uri or "").hostname or ""
+    if mongo_host not in ("", "localhost", "127.0.0.1", "::1") and mongodb_database != want:
+        return f"APP_ENV={app_env} but the MongoDB database is {mongodb_database!r}"
     return None
 
 
