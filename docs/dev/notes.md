@@ -714,3 +714,12 @@ Runtime is unaffected (the whole suite passes on the upgraded set); mypy fails. 
 until the lockfile changes, because it runs `uv sync --locked`; so a dependabot bump of either package is where this would
 have surfaced. Verified on both the locked set and a full upgrade (ruff, mypy, 941 tests).
 
+---
+
+## Renaming a CI job leaves the branch ruleset waiting on a check that never reports (C2)
+
+The `main` ruleset requires checks by their job `name:` string. C2 renamed the e2e job from "...on sample data" to "...on
+Postgres"; the new job ran and passed, but the PR showed "8 successful, 1 expected" because the required name no longer existed
+on the branch. GitHub does not time this out. The job name is restored; rename a required job only together with the ruleset
+(Settings > Rules), and expect every open PR to wait until both match.
+

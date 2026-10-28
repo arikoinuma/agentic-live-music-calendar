@@ -138,7 +138,10 @@ jobs:
         run: make contract-check
 
   e2e:
-    name: E2E (Playwright, real API on Postgres)
+    # The name is a contract with the `main` ruleset, which lists required checks by this exact string. C2 moved the job
+    # onto Postgres but kept the name: renaming it made the required check never report, and GitHub then waits on it
+    # forever ("expected"). Rename it only together with the ruleset (Settings > Rules).
+    name: E2E (Playwright, real API on sample data)
     runs-on: ubuntu-latest
     # The suite takes about two minutes; a hang outside Playwright's own timeouts (an install, a
     # server that never answers) would otherwise hold the runner for the 6-hour default.
