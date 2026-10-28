@@ -135,10 +135,10 @@ Every command here that touches a hosted branch names its target, because `Setti
 
 ### Step 5 — Vercel (Ari) [written]
 
-- [ ] **Diagnose before fixing:** why no preview has deployed since October 15. Look at the project's Git settings, the Ignored Build Step, the Preview environment's disabled state, and one PR's checks. Record the cause in `notes.md`.
-- [ ] Enable Preview. Set `API_BASE_URL` (production's API URL for now: read-only, and staging's does not exist until Step 6.7, which repoints it) and `APP_ENV=staging` for all preview branches, and branch-scoped overrides for `dev` (D11). Server-only; never `NEXT_PUBLIC_`.
-- [ ] Do **not** move the Production Branch yet (Step 6).
-- [ ] Check: open a PR from this branch; the preview builds and `/health` shows `staging` (after the code is deployed there; before that the build alone is the check).
+- [x] **Diagnose before fixing:** why no preview has deployed since October 15. Look at the project's Git settings, the Ignored Build Step, the Preview environment's disabled state, and one PR's checks. Record the cause in `notes.md`. **Done October 28, 2026.** Cause: preview builds had failed on `API_BASE_URL is not set` (Preview had no variable), and since October 15 none was attempted because the project's `previewDeploymentsDisabled` was `true`; both are in `notes.md`.
+- [x] Enable Preview. Set `API_BASE_URL` (production's API URL for now: read-only, and staging's does not exist until Step 6.7, which repoints it) and `APP_ENV=staging` for all preview branches, and branch-scoped overrides for `dev` (D11). Server-only; never `NEXT_PUBLIC_`. **Done October 28, 2026.** Preview enabled through the Vercel CLI; `API_BASE_URL` and `APP_ENV=staging` set for Preview. The `dev`-branch override is not set yet (the branch does not exist). A first attempt left `https://` off `API_BASE_URL` in Preview and Production, which made `/health` say "API down"; fixed and rechecked.
+- [x] Do **not** move the Production Branch yet (Step 6). (Production Branch untouched.)
+- [x] Check: open a PR from this branch; the preview builds and `/health` shows `staging` (after the code is deployed there; before that the build alone is the check). **Done October 28, 2026:** the preview of this branch builds, and `/health` shows Frontend environment `staging` with the API up (API environment `unknown` until C3 is deployed to Railway). The preview is behind Vercel's deployment protection, so it is read signed in or through `vercel curl`.
 
 ### Step 6 — The cutover, in this order (Ari) [written]
 
