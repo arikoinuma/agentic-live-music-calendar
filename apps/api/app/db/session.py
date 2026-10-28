@@ -1,9 +1,7 @@
 """The async engine and session factory.
 
-One engine for the process, used by `app/main.py` (health check) and the
-seed CLI, and — from A4 — by the worker. There is deliberately no `get_db`
-FastAPI dependency yet: nothing consumes one until the read routes move off
-`app/sample_data.py`, and this repo doesn't scaffold what has no consumer.
+One engine for the process, used by `app/main.py` (health check), the seed CLI,
+the worker (from A4) and, from C2, the read routes through `get_db` below.
 
 Resolved in A4 (docs/dev/implementations/a4-auditability.md, A4-D1): this engine
 is pooled and async, and asyncpg connections are bound to the event loop that
@@ -15,7 +13,9 @@ write on that loop and runs the synchronous node body in a thread. This
 engine is shared by every node's audit write; no second engine is needed.
 """
 
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from collections.abc import AsyncIterator
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.config import settings
 
@@ -39,3 +39,14 @@ engine = create_async_engine(settings.database_url, pool_pre_ping=True)
 # attribute after commit would trigger a lazy load, which can't happen
 # implicitly under asyncio.
 SessionFactory = async_sessionmaker(engine, expire_on_commit=False)
+
+
+async def get_db() -> AsyncIterator[AsyncSession]:
+    """FastAPI dependency: one session per request, closed when the response is done.
+
+    The read routes never write, so nothing here commits; closing the session returns its connection to
+    the pool and rolls back anything open. Tests replace this dependency to hand every route the test's
+    own rolled-back session (`app.dependency_overrides[get_db]`).
+    """
+    async with SessionFactory() as session:
+        yield session

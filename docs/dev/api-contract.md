@@ -26,18 +26,18 @@ The generator is `apps/api/scripts/generate_fixtures.py`. Its data is invented b
 
 ## 2. Endpoints
 
-Listed here as the agreed surface; each lands with its milestone. All routes exist and serve `app/sample_data.py`; "A-track, after A1b" means the body becomes a database query then. (`/metro` shipped in B2.)
+Listed here as the agreed surface; each lands with its milestone. All routes exist and, since C2, read Postgres (`app/queries.py`); the "Milestone" column records when each shape landed. (`/metro` shipped in B2.)
 
 | Method | Path | Returns | Serves | Milestone |
 |---|---|---|---|---|
-| GET | `/shows?start=&end=&venue_id=&artist_id=` | `ShowListResponse` | Home calendar, `/day/[date]`, the calendar embedded on venue and artist pages | A-track, after A1b |
-| GET | `/shows/{id}` | `ShowDetail` | `/show/[id]` | A-track, after A1b |
-| GET | `/venues` | `VenueListResponse` | `/venues`, and the calendar's venue filter | A-track, after A1b |
-| GET | `/venues/{id}` | `VenueDetail` | `/venue/[id]` | A-track, after A1b |
-| GET | `/artists` | `ArtistListResponse` | `/artists`, and the calendar's artist filter | A-track, after A1b |
-| GET | `/artists/{id}` | `ArtistDetail` | `/artist/[id]` | A-track, after A1b |
-| GET | `/calendar/months` | `CalendarMonthsResponse` | The month dropdown | A-track, after A1b |
-| GET | `/metro` | `MetroSummary` | The root layout: footer metro name and the `description` metadata | B2 (serves sample data; DB-backed in A1b) |
+| GET | `/shows?start=&end=&venue_id=&artist_id=` | `ShowListResponse` | Home calendar, `/day/[date]`, the calendar embedded on venue and artist pages | A-track; DB-backed in C2 |
+| GET | `/shows/{id}` | `ShowDetail` | `/show/[id]` | A-track; DB-backed in C2 |
+| GET | `/venues` | `VenueListResponse` | `/venues`, and the calendar's venue filter | A-track; DB-backed in C2 |
+| GET | `/venues/{id}` | `VenueDetail` | `/venue/[id]` | A-track; DB-backed in C2 |
+| GET | `/artists` | `ArtistListResponse` | `/artists`, and the calendar's artist filter | A-track; DB-backed in C2 |
+| GET | `/artists/{id}` | `ArtistDetail` | `/artist/[id]` | A-track; DB-backed in C2 |
+| GET | `/calendar/months` | `CalendarMonthsResponse` | The month dropdown | A-track; DB-backed in C2 |
+| GET | `/metro` | `MetroSummary` | The root layout: footer metro name and the `description` metadata | B2 (DB-backed since C2) |
 
 **Filtering.** `venue_id` and `artist_id` repeat for multi-select (`?venue_id=1&venue_id=3`). Both filters are AND-ed with the date range and OR-ed within themselves — picking two venues means "either venue," which is what a multi-select visibly implies.
 
@@ -53,7 +53,7 @@ none, so the echoed range is always valid. `upcoming=false` is the same as leavi
 
 **Pagination.** None. One metro has tens of venues and hundreds of artists, and a four-week window has a bounded number of shows. The envelope shapes leave room to add it without a breaking change — see below.
 
-**Soft-deleted shows.** `status = 'removed'` rows never appear in read responses. The status column exists for the audit trail and for reconcile, not for the reader.
+**Soft-deleted shows.** `status = 'removed'` rows never appear in read responses: not in `/shows` or `/calendar/months`, and `/shows/{id}` answers 404 for one. The status column exists for the audit trail and for reconcile, not for the reader. (Showing cancelled and postponed shows with their status is deferred, `arch-initial.md` §11.)
 
 ---
 
@@ -77,7 +77,7 @@ A bare top-level array has nowhere to put a total count, a pagination cursor, or
 
 `ShowListResponse` echoes back the date range it actually served rather than trusting the client to remember what it asked for.
 
-This matters most for the home page's four-week window. The browser's clock and timezone aren't the metro's, so "the next four weeks" is a question only the server can answer correctly. `MetroSummary.timezone` (an IANA name like `America/Chicago`) is carried for the same reason: a Friday show at a Minneapolis venue is Friday regardless of where the reader is sitting.
+This matters most for the home page's four-week window. The browser's clock and timezone aren't the metro's, so "the next four weeks" is a question only the server can answer correctly. Concretely (C2): "today" is the instant the API's clock reads, converted to the metro's timezone and truncated to a date (`app/clock.py`, `metro_today`), not the UTC date: at 22:30 in Minneapolis on October 7 it is already October 8 in UTC. The default window, `upcoming` and `/calendar/months` all start from it. `MetroSummary.timezone` (an IANA name like `America/Chicago`) is carried for the same reason: a Friday show at a Minneapolis venue is Friday regardless of where the reader is sitting.
 
 Render with `Temporal.PlainDate` / `Temporal.PlainTime`. Not `new Date("2026-09-28")` — that parses as UTC midnight and renders as the 27th anywhere west of Greenwich, which is the one bug a calendar can least afford.
 
@@ -164,6 +164,6 @@ make contract-check   # fail if the committed output is stale
 | `artist-detail.json` | `ArtistDetail` |
 | `calendar-months.json` | `CalendarMonthsResponse` |
 
-The venues are the same four the Phase 5 extraction fixtures came from, so the A1 seed script and these frontend fixtures describe one world rather than two.
+The venues are the same four the Phase 5 extraction fixtures came from. Since C2 they are the sample world's own (`app/testing/sample_data.py`), loaded into the test and end-to-end databases; the seed script (`app/db/seed.py`) carries the real venue list, which is a different set (`C2-D8`), so the fixtures no longer line up with a seeded database.
 
-The date window is pinned to a fixed start date rather than `date.today()`, so regenerating produces an empty diff unless the contract actually changed. The real endpoint computes the window from the metro's current local date.
+The fixtures are written from the sample world's pure builders (`app/testing/sample_data.py`, `fixture_payloads()`), with no database, and the sample's dates are fixed rather than `date.today()`, so regenerating produces an empty diff unless the contract actually changed. The real endpoint computes the window from the metro's current local date; `test_fixtures_agree.py` loads the same world into Postgres, pins the API's clock to the sample's start, and requires each route to return exactly what its fixture holds, so the two paths can't drift. `shows.json` is stored in the order the API returns shows.

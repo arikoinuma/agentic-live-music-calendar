@@ -26,7 +26,7 @@ test("the home page shows the calendar", async ({ page }) => {
 // It also pins what the calendar holds: 25 shows over the window, five of them on
 // the pinned Wednesday. Expected values (written out, not read from the code under
 // test): the pinned date is Wed, Oct 7, 2026 (clock.ts, noon in Minneapolis); the
-// counts are the sample data's (apps/api/app/sample_data.py, 25 shows in its window;
+// counts are the sample data's (apps/api/app/testing/sample_data.py, 25 shows in its window;
 // five on 2026-10-07, ids 8, 22, 23, 24, 25, per the B5 plan's fixture table and
 // re-checked against lib/fixtures/shows.json).
 test("the Today row is the pinned Wednesday", async ({ page }) => {

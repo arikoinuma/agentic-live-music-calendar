@@ -19,8 +19,6 @@ arch-initial.md §7; which route each attempt uses is plan §2-§3; the dates ar
 from pathlib import Path
 from typing import Any
 
-import httpx
-import openai
 import pytest
 
 from agent_worker import extraction, nodes
@@ -161,7 +159,7 @@ async def test_a_model_call_that_always_raises_escalates_after_the_cap(tmp_path:
     # Proves (A3-K1, v0.1-G2): a real `openai` connection error on every attempt is retried to the cap (3
     # attempts, arch-initial.md §7) and then escalated, never retried forever and never crashing; the
     # escalation reason says what failed.
-    boom = openai.APIConnectionError(request=httpx.Request("POST", "http://localhost:11434/v1"))
+    boom = fakes.connection_error()
     state, client = await run_graph(tmp_path, monkeypatch, GOOD_PAGE, {PAGE: [boom]})
     assert len(completions(client).calls_for(PAGE)) == 3
     assert state.attempt_count == 3 and len(state.attempt_history) == 3

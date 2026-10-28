@@ -19,6 +19,8 @@ import json
 from types import SimpleNamespace
 from typing import Any
 
+import httpx
+import openai
 from pydantic import BaseModel
 from sqlalchemy.exc import DBAPIError, IntegrityError, InterfaceError
 
@@ -213,6 +215,17 @@ class _DriverError(Exception):
 # violation arrives as `IntegrityError`; an overflow is a plain `DBAPIError`; a real lost connection is an
 # `InterfaceError` whose `orig.sqlstate` is None and whose `connection_invalidated` is True. Tests build every database
 # error from these helpers so none invents a shape the driver never produces.
+
+
+def connection_error() -> openai.APIConnectionError:
+    """A real `openai` connection error, as the pipeline sees when the model server is unreachable.
+
+    openai 2.x takes an `httpx.Request` and 3.x an `httpx2.Request`. The error only stores the request and the
+    tests never read it, so it is passed as `Any` and one helper builds it for both versions, instead of every
+    test choosing a library that the lockfile and a plain upgrade disagree on.
+    """
+    request: Any = httpx.Request("POST", "http://localhost:11434/v1")
+    return openai.APIConnectionError(request=request)
 
 
 def overflow() -> DBAPIError:

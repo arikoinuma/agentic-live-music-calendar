@@ -6,9 +6,11 @@ the audit trail to Postgres and staging each extraction in MongoDB.
 
 Needs (A4): Postgres seeded (`make db-up && make migrate && make seed`), MongoDB up (`make db-up`),
 `MONGODB_URI` set in `.env`, and Ollama serving the model. Run from `apps/api`:
-`uv run python -m agent_worker.local_test`. (Not collected by pytest: its name does not match `python_files = ["test_*.py"]` in `pyproject.toml`, A7.)
+`uv run python -m agent_worker.local_test`, optionally with `--fixture PATH --fetched-on YYYY-MM-DD` to replay another capture
+(C2-D10: the White Squirrel has an August and an October one, `eval/labels.py`). (Not collected by pytest: its name does not match `python_files = ["test_*.py"]` in `pyproject.toml`, A7.)
 """
 
+import argparse
 import asyncio
 import datetime
 import json
@@ -34,7 +36,18 @@ FIXTURE = "agent_worker/eval/fixtures/Archives_ Events - The White Squirrel Bar.
 FETCHED_ON = datetime.date(2026, 8, 17)
 
 
-async def main() -> int:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """The capture to replay and the date it counts as fetched on; both default to the original August capture."""
+    parser = argparse.ArgumentParser(description="Replay a saved White Squirrel capture through the real worker cycle.")
+    parser.add_argument("--fixture", default=FIXTURE, help="path of the saved page, relative to apps/api")
+    parser.add_argument(
+        "--fetched-on", type=datetime.date.fromisoformat, default=FETCHED_ON,
+        help="the date the capture was saved (YYYY-MM-DD): the year rule reads it, A2.1-D13",
+    )
+    return parser.parse_args(argv)
+
+
+async def main(fixture: str = FIXTURE, fetched_on: datetime.date = FETCHED_ON) -> int:
     configure_logging()
     assert settings.mongodb_uri, "set MONGODB_URI in .env (docker compose's mongo is mongodb://localhost:27017)"
     mongo: AsyncMongoClient = AsyncMongoClient(settings.mongodb_uri)
@@ -48,7 +61,7 @@ async def main() -> int:
         async with SessionFactory() as session:
             [venue] = await load_venues(session, venue_id=1)  # The White Squirrel Bar (app/db/seed.py)
         state = await run_venue(
-            venue, ctx, trigger=RunTrigger.MANUAL, calendar_url=FIXTURE, fetched_on=FETCHED_ON,
+            venue, ctx, trigger=RunTrigger.MANUAL, calendar_url=fixture, fetched_on=fetched_on,
         )
     finally:
         await mongo.close()
@@ -109,4 +122,5 @@ async def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(asyncio.run(main()))
+    args = parse_args()
+    sys.exit(asyncio.run(main(args.fixture, args.fetched_on)))

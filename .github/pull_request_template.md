@@ -42,7 +42,7 @@ Repo conventions this follows: AGENTS.md ("Implementation plans" and
 
 ## Generated files
 
-<!-- Edits to schemas.py or sample_data.py require regenerating the contract. -->
+<!-- Edits to schemas.py or testing/sample_data.py require regenerating the contract. -->
 
 - [ ] Not applicable
 - [ ] `make types` / `make fixtures` run, and the regenerated files are committed

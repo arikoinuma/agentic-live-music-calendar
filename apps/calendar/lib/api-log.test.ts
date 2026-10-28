@@ -12,7 +12,7 @@ import shows from "./fixtures/shows.json";
 import venues from "./fixtures/venues.json";
 
 // Where the expected values come from: the numbers in the /shows summary are
-// counted BY HAND from apps/api/app/sample_data.py's _SHOW_ROWS (25 rows
+// counted BY HAND from apps/api/app/testing/sample_data.py's _SHOW_ROWS (25 rows
 // after B3), not read back from the code under test:
 //  - without a start time: Midway (offset 2), White Squirrel (offset 10),
 //    Midway (offset 23) -> 3

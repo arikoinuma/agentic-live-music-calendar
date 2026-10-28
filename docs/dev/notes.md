@@ -518,17 +518,25 @@ strip `<script>`, and print the article and skeleton counts beside the verdict s
 pass. Also: a bundle grep for `jsdom` always hits Base UI's own user-agent sniffing; grep for
 `testing-library` and `user-event` instead.
 
-## Only the "Today" row follows the real clock; the home window is pinned
+## Two clocks in the end-to-end job, deliberately nine days apart (C2)
 
-**The sample API's window is fixed, so there is no date on which the home page empties.** `apps/api/app/routers/shows.py`
-starts the default window at `data.START`, a constant in `app/sample_data.py` (September 28, 2026), and serves 28 days
-from it whatever today is. What reads the real clock is the Next server's `metroToday` (`lib/dates.ts`), which marks the
-"Today" row; once today is past October 25 no row is marked. (This section used to say the window rolls with the clock
-and the page thins out after October 25. That was wrong; it was caught while planning B6 by running the API and the page
-under a frozen and a real clock.) The cliff the old text feared arrives with A1b, when the API reads the metro's real clock.
+**Since C2 the API's window follows a real clock, and the browser suite pins both.** The routes start the default
+window at the metro's local "today" (`app/clock.py`, `metro_today`, from the injected `get_now`). Until C2 the sample API
+ignored the clock (its window was the constant `START`, September 28), and the Next server's `metroToday` (`lib/dates.ts`)
+was the only real clock in the app. Now the end-to-end job pins both (`apps/calendar/e2e/support/clock.ts`): Next to
+October 7 (`E2E_NOW`, so the "Today" row is in the middle of the window) and the API to noon on September 28
+(`E2E_API_NOW`, so the served window is September 28 - October 25, which `lib/fixtures` and the specs expect). They differ
+on purpose; production has one clock. `clock.test.ts` fails if either pin stops agreeing with the fixture's window, and the
+Python tests (`test_routers.py`, `test_clock.py`) cover the real single clock, including the UTC-vs-Minneapolis date and the
+year and daylight-saving turns.
 
-The browser tests pin the Next server's `Date.now` (`apps/calendar/e2e/support/clock.ts`), and `clock.test.ts` fails if
-`sample_data.py`'s `START` moves the window away from the pin. See `alpha-build-plan.md`, B6, "Standing rule: the test clock".
+**The API's pin is a dependency override in a module production never imports** (`app/testing/e2e_app.py`), not an
+environment variable the real app obeys. `test_no_testing_imports.py` enforces that nothing in production imports
+`app.testing`.
+
+The old version of this section said the home page could empty on October 26 because the window rolls with the clock. That
+was wrong for the sample API (found while planning B6) and became true in C2, once the routes read the metro's real date; a
+hosted database with no recent worker run shows an empty calendar (`alpha-deployment-plan.md`, Dep-D12).
 
 **Freeze the clock by patching `Date.now` and nothing else.** `globalThis.Date = class extends Date { … }` crashes the
 Next server at import (`TypeError: Date.UTC is not a function`, thrown while the Temporal polyfill loads), and the whole
@@ -579,8 +587,8 @@ pointer journey is `e2e/venue-row-pointer.spec.ts`. Test it with raw `page.mouse
 VISIBLE part of a partly visible control, and with a viewport tall enough that the control is on screen (a press below the
 fold reaches nothing and the test fails for the wrong reason).
 
-Browser tests (B6) pin the clock to a date inside the sample window. **Whenever `sample_data.py` changes, move
-that pinned date in the same change.** See `alpha-build-plan.md`, B6, "Standing rule: the test clock".
+Browser tests (B6, C2) pin both clocks to dates that agree with the sample window. **Whenever `testing/sample_data.py` changes, move
+the pinned dates in the same change** (`clock.test.ts` fails if you don't). See `alpha-build-plan.md`, B6, "Standing rule: the test clock".
 
 ---
 
@@ -656,3 +664,62 @@ step), then `triage.py summarize`, then `pnpm audit` / `pip-audit` and `triage.p
 (GitHub's "integration") without `vulnerability_alerts: read`, not a limit on `gh` itself: PRs, check runs and the dependency-graph SBOM all
 work from a cloud session. Measured on the
 2026-10-21 export: 118 alerts reduced to about six fixes, and the lockfile audits reconstructed 114 of them.
+
+---
+
+## A `viewonly`, `lazy="raise"` relationship fails in the first test, not in production (C2)
+
+SQLAlchemy's default relationship loading is lazy: touching `show.venue` runs a query. Under asyncio that is a
+`MissingGreenlet` error, and only on the code path that touched it. The models' relationships are `viewonly=True,
+lazy="raise"` (C2-D4), so touching one that the query did not load raises immediately with the attribute's name, and every
+query names what it loads (`app/queries.py`, `_show_loads`). Load a to-one side with `joinedload`, the to-many lineup with
+`selectinload`: a `joinedload` on the lineup fails with "The unique() method must be invoked on this Result", because the
+join repeats each show once per act. `test_the_statement_count_does_not_grow_with_the_number_of_shows` pins the count.
+
+---
+
+## A route test that loads rows and reads them back in one session never sees the column types (C2)
+
+The route tests write the sample world with a session and the route reads through the same one, so without
+`session.expunge_all()` between them the route is handed the loader's in-memory objects: `Decimal('10')` where Postgres
+stores `Decimal('10.00')`. The `sample_client` fixture expunges after loading (C2-PR1-2). Any test that edits a row and then
+calls a route needs the same `await session.flush(); session.expunge_all()` (`_settle` in `test_routers.py`).
+
+---
+
+## Postgres collation is not a rule a test can state, so lists are sorted in Python (C2)
+
+`ORDER BY name` follows the database's collation, which differs between a laptop's Docker image, the cloud sandbox
+(Postgres 16), CI (18) and Neon, and none is verified to sort like Python. `app/queries.py` sorts venues and artists by
+`(name.casefold(), id)` and shows by `_ordering`, in Python, on bounded row counts. This departs from the style guide's
+"SQL-first, Pydantic-second" on purpose.
+
+---
+
+## A seed that only inserts never removes a venue (C2)
+
+`make seed` adds venues missing from `app/db/seed.py`'s list and leaves the rest. A database seeded before C2 keeps the
+Midway Saloon and Zhora Darling after the list dropped them, and the worker keeps fetching them. `make db-reset` is how a
+local database gets the current list; a hosted one needs the rows deleted by hand.
+
+---
+
+## A plain `uv lock --upgrade` moves SQLAlchemy to 2.1 and openai to 3.x, and two typing assumptions break (C2)
+
+Runtime is unaffected (the whole suite passes on the upgraded set); mypy fails. **SQLAlchemy 2.1** types `select(Show)` as
+`Select[Show]` where 2.0 says `Select[tuple[Show]]`, so a function annotated with the row type is wrong on one of them:
+`app/queries.py` annotates its statements `Select[Any]`, which both accept. **openai 3.x** builds its errors from
+`httpx2.Request`, where 2.x takes `httpx.Request` (starlette's test client now nags about `httpx2` too); the tests make an
+`APIConnectionError` through `fakes.connection_error()`, which passes the request as `Any`. CI is unaffected by an upgrade
+until the lockfile changes, because it runs `uv sync --locked`; so a dependabot bump of either package is where this would
+have surfaced. Verified on both the locked set and a full upgrade (ruff, mypy, 941 tests).
+
+---
+
+## Renaming a CI job leaves the branch ruleset waiting on a check that never reports (C2)
+
+The `main` ruleset requires checks by their job `name:` string. C2 renamed the e2e job from "...on sample data" to "...on
+Postgres"; the new job ran and passed, but the PR showed "8 successful, 1 expected" because the required name no longer existed
+on the branch. GitHub does not time this out. The job name is restored; rename a required job only together with the ruleset
+(Settings > Rules), and expect every open PR to wait until both match.
+

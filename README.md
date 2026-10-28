@@ -64,7 +64,7 @@ make migration m="…"  # autogenerate an Alembic migration
 make db-shell         # psql against local Postgres
 ```
 
-Don't hand-edit `apps/calendar/lib/api-types.ts` or `apps/calendar/lib/fixtures/`. Both are generated from `apps/api/app/schemas.py` and `app/sample_data.py`, and `make contract-check` (part of `make check`) fails if they are stale.
+Don't hand-edit `apps/calendar/lib/api-types.ts` or `apps/calendar/lib/fixtures/`. Both are generated from `apps/api/app/schemas.py` and `app/testing/sample_data.py`, and `make contract-check` (part of `make check`) fails if they are stale.
 
 ## When something looks wrong
 

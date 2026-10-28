@@ -1,29 +1,39 @@
-"""Invented calendar data, standing in for the database.
+"""The sample world: one small, deterministic calendar that tests and the end-to-end job share.
 
-TEMPORARY. Every route that serves this is a placeholder for a real
-query — see app/routers/. This module exists so the API can answer with
-correctly-shaped responses before the read routes move onto the tables created in A1 (swapped in A1b), which
-is what lets the frontend be built against real HTTP instead of against
-imported JSON files. It should be deleted once the routers read from
-Postgres; if it's still here after A6, something went wrong.
+What this is (C2-D1). Four venues, ten artists and 26 invented shows, written once as `schemas.py`
+objects. Three things read it, and nothing under `app/` outside this package may (a test enforces it):
 
-The data is invented but deliberately not tidy. It includes the cases a
-real venue calendar produces and a demo dataset usually omits: shows
-with no listed start time, multi-act bills, a free show, a day with
-nothing on it, and one artist playing two venues. A calendar UI built
-against only clean rows gets built assuming clean rows.
+  * `scripts/generate_fixtures.py` turns it into the frontend's JSON fixtures, with no database
+    (`fixture_payloads`).
+  * The route tests and the end-to-end job load it into Postgres (`load_sample_data`) and call the
+    real routes, so what they assert is the API reading a database, not this module answering.
+  * `test_fixtures_agree.py` pins the two together: the routes over the loaded world must return what
+    the fixtures hold, so neither can drift without a red test.
 
-The four venues are the same ones the Phase 5 extraction fixtures came
-from, so the A1 seed script and this describe one world rather than two.
+Until C2 this module stood in for the database and the routers served it directly; it was
+"TEMPORARY" and was to be deleted. It is not deleted because a calendar test needs a known answer
+before it runs, which a live scrape cannot give, and CI has no route to venue sites.
 
-Deterministic on purpose — a fixed START date rather than
-date.today() — so the generated JSON fixtures produce an empty diff
-unless the contract actually changed.
+The data is invented but deliberately not tidy. It includes the cases a real venue calendar produces
+and a demo dataset usually omits: shows with no listed start time, multi-act bills, a free show, a
+day with nothing on it, and one artist playing two venues. A calendar UI built against only clean
+rows gets built assuming clean rows. New awkward cases belong in the test that finds them, as rows
+that test inserts itself, not here: this world is the shared baseline and changing it moves the
+fixtures and the browser specs.
+
+Deterministic on purpose: a fixed START date rather than date.today(), and `FIXED_NOW` for the clock
+the API reads (C2-D2), so the generated JSON fixtures produce an empty diff unless the contract
+actually changed.
 """
 
 import datetime
 from decimal import Decimal
 
+from pydantic import BaseModel
+from sqlalchemy import func, select, text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.models import Artist, Metro, Show, ShowArtist, Venue
 from app.enums import (
     AgeRestriction,
     ArtistFormat,
@@ -34,19 +44,29 @@ from app.enums import (
 )
 from app.schemas import (
     ArtistDetail,
+    ArtistListResponse,
     ArtistSummary,
     CalendarMonth,
+    CalendarMonthsResponse,
     LineupEntry,
     MetroSummary,
     ShowDetail,
+    ShowListResponse,
     ShowSummary,
     VenueDetail,
+    VenueListResponse,
     VenueSummary,
 )
 
 # The window the home page covers: a pinned date plus four weeks.
 START = datetime.date(2026, 9, 28)
 END = START + datetime.timedelta(days=27)
+
+# The instant the API's clock reads in tests that want the sample's window: noon in Minneapolis
+# (CDT, UTC-5) on START. Noon rather than midnight so no timezone arithmetic can push the metro's
+# date to the neighbouring day (C2-D2). With the API's clock here, the default window is exactly
+# START..END, which is what lib/fixtures/shows.json claims.
+FIXED_NOW = datetime.datetime(2026, 9, 28, 17, 0, tzinfo=datetime.UTC)
 
 METRO = MetroSummary(id=1, name="Minneapolis/St. Paul", timezone="America/Chicago")
 
@@ -290,3 +310,133 @@ def calendar_months() -> list[CalendarMonth]:
         CalendarMonth(year=year, month=month, show_count=count)
         for (year, month), count in sorted(counts.items())
     ]
+
+
+# ---------------------------------------------------------------------
+# The fixtures' bodies (C2-D1)
+# ---------------------------------------------------------------------
+
+
+def _api_order(show: ShowSummary) -> tuple[datetime.date, bool, datetime.time, str, int]:
+    """The order `GET /shows` answers in: date, then no-time last, then time, then venue, then id.
+
+    Written out here separately from the router's own key on purpose (C2-PR1-1): a fixture is a
+    response body, so it is stored in the order the API returns, and `test_fixtures_agree.py` compares
+    the two strictly. If both sides shared one function, a change to the ordering would move both and
+    nothing would notice.
+    """
+    return (show.date, show.start_time is None, show.start_time or datetime.time.min, show.venue.name, show.id)
+
+
+def fixture_payloads() -> dict[str, BaseModel]:
+    """The eight frontend fixtures, by file name: the bodies `scripts/generate_fixtures.py` writes.
+
+    Pure (no database), so `make fixtures` and the `contract` CI job need no Postgres.
+    """
+    # shows.json is a DEFAULT-WINDOW response, so it holds only the shows inside START..END -- what
+    # GET /shows returns with no parameters. Not `SHOWS` wholesale: B4 appended one show past END (to
+    # make `?upcoming=true` observable), and a fixture claiming END while holding a later show would
+    # be lying about its own range.
+    in_window = sorted((s for s in SHOWS if START <= s.date <= END), key=_api_order)
+    detail = show_detail(2)
+    venue = venue_detail(3)
+    artist = artist_detail(1)
+    assert detail is not None and venue is not None and artist is not None  # ids written out above
+    return {
+        "metro.json": METRO,
+        "shows.json": ShowListResponse(start=START, end=END, shows=in_window),
+        "show-detail.json": detail,
+        "venues.json": VenueListResponse(venues=sorted(VENUES, key=lambda v: v.name)),
+        "venue-detail.json": venue,
+        "artists.json": ArtistListResponse(artists=sorted(ARTISTS, key=lambda a: a.name)),
+        "artist-detail.json": artist,
+        "calendar-months.json": CalendarMonthsResponse(months=calendar_months()),
+    }
+
+
+# ---------------------------------------------------------------------
+# Loading the world into Postgres (C2-D1)
+# ---------------------------------------------------------------------
+
+
+class NotAnEmptyDatabaseError(RuntimeError):
+    """The sample world was asked to load into a database that already holds calendar rows."""
+
+
+async def load_sample_data(session: AsyncSession) -> None:
+    """Write the sample world into an empty, migrated database. Flushes; the caller commits.
+
+    Ids are written explicitly, not left to the sequences, because the fixtures and the browser specs
+    name them (venue 3 is Zhora Darling, show 2 its September 30 show). Explicit ids do not advance a
+    sequence, so each is moved past the highest id afterwards; otherwise the next row the worker
+    inserts would collide with id 1 (C2-M8).
+
+    Refuses a database with any metro, venue, artist or show row in it: this must never top up a real
+    database, and the e2e database and the test database are the only places it is meant to run.
+    """
+    for model in (Metro, Venue, Artist, Show):
+        if (await session.execute(select(func.count()).select_from(model))).scalar_one():
+            raise NotAnEmptyDatabaseError(
+                f"refusing to load the sample world: {model.__tablename__} already has rows"
+            )
+
+    # Metro first: venues point at it.
+    session.add(Metro(id=METRO.id, name=METRO.name, timezone=METRO.timezone))
+    await session.flush()
+
+    # Venues and artists, each with the detail the sample writes out or invents on the fly.
+    for summary in VENUES:
+        v = venue_detail(summary.id)
+        assert v is not None
+        session.add(
+            Venue(
+                id=v.id, metro_id=v.metro.id, name=v.name, calendar_url=v.calendar_url,
+                photo_url=v.photo_url, address=v.address, phone_numbers=v.phone_numbers,
+                emails=v.emails, website=v.website, age_restriction=v.age_restriction,
+                serves_alcohol=v.serves_alcohol, venue_type=v.venue_type, setting=v.setting,
+                seating=v.seating, extra_metadata=v.extra_metadata,
+            )
+        )
+    for artist_summary in ARTISTS:
+        a = artist_detail(artist_summary.id)
+        assert a is not None
+        session.add(
+            Artist(
+                id=a.id, name=a.name, photo_url=a.photo_url, website=a.website, hometown=a.hometown,
+                format=a.format, repertoire=a.repertoire, extra_metadata=a.extra_metadata,
+            )
+        )
+    await session.flush()
+
+    # Shows, then their lineups. The four inherited fields stay NULL: the sample's shows inherit
+    # everything from the venue, and the API resolves that (api-contract.md section 5).
+    calendar_urls: dict[int, str] = {}
+    for summary in VENUES:
+        detail = venue_detail(summary.id)
+        assert detail is not None  # every VENUES id has a detail record (written out or invented on the fly)
+        calendar_urls[summary.id] = detail.calendar_url
+    for s in SHOWS:
+        session.add(
+            Show(
+                id=s.id, venue_id=s.venue.id, date=s.date, start_time=s.start_time, end_time=s.end_time,
+                admission_advance=s.admission_advance, admission_day=s.admission_day,
+                free_admission=s.free_admission, image_url=s.image_url,
+                original_url=calendar_urls[s.venue.id],
+            )
+        )
+    await session.flush()
+    for s in SHOWS:
+        for entry in s.lineup:
+            session.add(
+                ShowArtist(
+                    show_id=s.id, artist_id=entry.artist.id, start_time=entry.start_time,
+                    sequence_number=entry.sequence_number,
+                )
+            )
+    await session.flush()
+
+    # Move every sequence past the ids just written.
+    for table in ("metro", "venue", "artist", "show"):
+        await session.execute(
+            text(f"SELECT setval(pg_get_serial_sequence('{table}', 'id'), (SELECT max(id) FROM {table}))")
+        )

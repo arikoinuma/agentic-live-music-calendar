@@ -1,11 +1,19 @@
-"""Seed data: the Minneapolis/St. Paul metro and the four Phase 5 venues.
+"""Seed data: the Minneapolis/St. Paul metro and the starting venue list.
 
 The logic lives here, in `app/`, rather than in scripts/seed.py so that it
 takes a session as an argument (the tests hand it one inside a rolled-back
 transaction), and so mypy covers it. scripts/seed.py is the CLI wrapper.
 
 Only the metro and venues — no invented shows or artists. Real rows come
-from the agent (docs/dev/alpha-build-plan.md, A1).
+from the agent (docs/dev/alpha-build-plan.md, A1). The sample world the tests
+and the end-to-end job use is a separate thing, loaded into its own databases
+(app/testing/sample_data.py); this seed is what a real environment gets.
+
+The seed only inserts: running it again adds a venue that is new to the list
+and leaves the rest alone, and it never removes one. A database seeded before
+C2 therefore still has the Midway Saloon and Zhora Darling after `make seed`
+(and the worker still fetches them); `make db-reset` is how a developer gets
+the new list (C2-PR1-12).
 
 Flushes but does not commit: the caller owns the transaction, so the seed can
 be part of a larger one (and the tests can roll it back). scripts/seed.py
@@ -29,49 +37,40 @@ from app.enums import FetchStrategy
 METRO_NAME = "Minneapolis/St. Paul"
 METRO_TIMEZONE = "America/Chicago"
 
-# Same four venues, in the same order, as app/sample_data.py — so on a fresh
-# database the ids (1-4) line up with the frontend's generated fixtures
-# (docs/dev/api-contract.md: both describe "one world"). Insert order is
-# what assigns the ids, so don't reorder.
+# One venue list for every environment (Dep-D16, C2-D8): production's, and dev and
+# staging hold a copy of it. Insert order assigns the ids, so don't reorder;
+# append new venues at the end.
+#
+# The Midway Saloon and Zhora Darling are out until they have a route: the venue
+# table has no active flag, so a seeded venue is fetched by the worker and listed by
+# the API. The Midway's page answers a bot check this project won't pass (A2.1-D3) and
+# Zhora Darling's widget draws its listings client-side, so neither extracts anything
+# today. Add a venue by adding a row here and running `make seed` against each database.
 #
 # URLs are each saved fixture's `saved from url` / canonical tag
-# (agent_worker/eval/fixtures/).
+# (agent_worker/eval/fixtures/), except 7th St Entry's and Mortimer's, which are
+# agent_worker/eval/labels.py's.
 #
-# fetch_strategy is read off those same fixtures, not defaulted ("set
-# appropriately", build plan A1). Only the HTTP path exists this phase
-# (build plan section 8), so BROWSER here means "this venue will be
-# under-extracted until Playwright lands", which is the honest state.
+# fetch_strategy: only the HTTP path exists this phase (build plan section 8). The
+# two new rows are `http` as an ASSUMPTION, not a check (C2-D8): nobody has made a
+# plain GET to either page from a machine that can reach them. Confirm that the shows
+# are in the raw HTML, as the Midway comment did, and flip to BROWSER if they aren't.
 # Each entry: (venue name, URL of its live-music calendar page, how the agent
-# should fetch that page). The comments above each entry say why the strategy
-# was chosen.
+# should fetch that page).
 VENUES: list[tuple[str, str, FetchStrategy]] = [
     # The Events Calendar plugin: "Next Events" is a plain URL link, so a
     # plain GET can follow the pagination.
     ("The White Squirrel Bar", "https://whitesquirrelbar.com/calendar/", FetchStrategy.HTTP),
-    # No load-more or JS-pagination pattern found in the fixture. "Nothing
-    # found", not proof: the fixtures are Chrome "save page" captures, i.e.
-    # the DOM *after* JavaScript ran, so a page that renders only through JS
-    # (this one is a Popmenu/React site) would look identical. Confirm with a
-    # plain `httpx.get` when real fetching lands (A3/A4) and flip to BROWSER
-    # if the shows aren't in the raw HTML.
-    # Confirmed October 10, 2026 (A2.1): a plain GET gets HTTP 403 with a
-    # Cloudflare "Enable JavaScript and cookies" challenge — a bot check this
-    # project won't try to get past (A2.1-D3). BROWSER wouldn't be the
-    # honest fix either, so the strategy is left as it is; until a sanctioned
-    # route exists (asking the venue, a public feed) this venue extracts nothing.
-    ("The Midway Saloon", "https://www.themidwaysaloon.com/events", FetchStrategy.HTTP),
-    # A Dice widget with `<button type="button" class="dice_load-more">`:
-    # click-driven, which is exactly the case FetchStrategy.BROWSER exists
-    # for. Until Playwright lands only its first page is extractable.
-    # Confirmed October 10, 2026 (A2.1): worse than that — a plain GET returns
-    # no listings at all (314 characters of visible text). The widget draws
-    # every listing, and its schema.org event data, client-side.
-    ("Zhora Darling", "https://www.zhoradarling.com/events", FetchStrategy.BROWSER),
+    # First Avenue's site lists the 7th St Entry's shows under one venue id. Unverified: see above.
+    ("7th St Entry", "https://first-avenue.com/shows/?venues=59161", FetchStrategy.HTTP),
+    # Weekly comedy and karaoke between the music shows (labels.py); unverified: see above.
+    ("Mortimer's", "https://www.mortimerscalendar.com/", FetchStrategy.HTTP),
     # No pagination pattern, but the show information is inside images
     # embedded in the page. Detecting and downloading those is deferred
     # (build plan section 8). Confirmed October 10, 2026 (A2.1): the page TEXT
     # still lists each show's date and acts, so the model route extracts those;
-    # only the times (in the posters) wait for the image path.
+    # only the times (in the posters) wait for the image path. Terminal Bar stays
+    # in the list until Ari decides otherwise (Dep-D16).
     ("The Terminal Bar", "https://terminalbarmn.com/live-music/", FetchStrategy.HTTP),
 ]
 
