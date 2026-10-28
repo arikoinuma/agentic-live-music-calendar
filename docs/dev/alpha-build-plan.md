@@ -396,7 +396,7 @@ Three short documents, written as the corresponding work lands rather than at th
 
 Unchanged from `arch-initial.md` Section 11 unless noted:
 
-- Everything hosted — Railway agent worker, DeepInfra, R2, Neon–Vercel integration, branch protection, the dev and staging environments and the production domain: **planned in `alpha-deployment-plan.md`** as milestones C1–C11, replacing its earlier H1–H4 (Resend and Turnstile stay deferred beyond it)
+- Everything hosted — Railway agent worker, DeepInfra, R2, Neon–Vercel integration, branch protection, the dev and staging environments and the production domain: **planned in `alpha-deployment-plan.md`** as milestones C1–C11, replacing its earlier H1 (now C6)–H4 (Resend and Turnstile stay deferred beyond it)
 - Public edit and flag endpoints, and with them the `contributor`, `flag`, and `venue_submission` tables
 - The genre / instrument / member vocabulary tables and their join tables — no UI edits them yet
 - Playwright fetching, and with it whichever venue needs click-driven pagination. `venue.fetch_strategy` exists as a column from A1 with only the `http` path implemented. *A2.1 found (October 10) that Zhora's listings, and its schema.org data, are drawn client-side by the DICE widget, so a plain fetch gets none of them; and that Midway answers the plain fetch with a Cloudflare bot challenge, which this project will not try to get past (a sanctioned route — asking the venue, or a public feed — is the way back)*

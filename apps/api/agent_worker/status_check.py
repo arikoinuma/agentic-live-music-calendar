@@ -96,7 +96,7 @@ def _on_page(acts: list[str], page_text: str) -> bool:
 
     Weaker for names too short to have an identifying word ("MO", "U2"): those fall back to a SUBSTRING test on the
     folded text, so "mo" is "on the page" of any page with "more", "month" or "Armory" in it. The fallback is
-    pinned as it is in test_status_check.py (A7); tightening it to whole words is a follow-up for A8 or H1."""
+    pinned as it is in test_status_check.py (A7); tightening it to whole words is a follow-up for A8 or C6 (formerly H1)."""
     page = identifying_words(page_text)
     words = identifying_words(" ".join(acts))
     if words:

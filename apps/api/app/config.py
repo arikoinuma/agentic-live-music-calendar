@@ -22,13 +22,13 @@ class Settings(BaseSettings):
     # The larger model the third retry attempt escalates to (arch-initial.md §7: "larger model
     # second"; agent_worker/policy.py). Optional and unset by default: the development laptop can't
     # run a larger model (A2.1-E1), so tier 3 then reruns the same model with the full retry hint
-    # and the attempt record says no escalation happened. Until H1 makes model endpoints
+    # and the attempt record says no escalation happened. Until C6 (formerly H1) makes model endpoints
     # configurable, it must be a model name Ollama serves.
     escalation_model_name: str | None = None
 
     # MongoDB, where the worker stages each extraction attempt's raw record before validation judges it
     # (arch-initial.md §6; docs/dev/implementations/a4-auditability.md, A4-D3 and A4-D4). Locally this is the
-    # docker-compose `mongo` service; Atlas is H3's. Optional here because the API never uses it; the
+    # docker-compose `mongo` service; Atlas is C3's (the databases) and C8's (the worker). Optional here because the API never uses it; the
     # worker's entry point refuses to start without it, since an audit trail that silently skips its raw
     # record isn't auditable.
     mongodb_uri: str | None = None

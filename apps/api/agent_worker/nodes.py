@@ -128,7 +128,7 @@ def fetch_node(state: VenueGraphState) -> VenueGraphState:
     page like terminalbarmn.com, where the actual show info is inside images embedded in the HTML,
     needs its own detection-and-download logic (arch-initial.md §11), and Playwright waits for a
     venue that needs click-driven pagination. The R2 snapshot write the architecture doc calls
-    for ("each page traversed gets its own R2 snapshot") is deferred (alpha-deployment-plan.md H3);
+    for ("each page traversed gets its own R2 snapshot") is deferred (alpha-deployment-plan.md C9, formerly H3);
     `audit_log.snapshot_key` stays NULL until then.
     """
     state.fetch_error = None
