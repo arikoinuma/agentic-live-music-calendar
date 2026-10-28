@@ -193,7 +193,7 @@ jobs:
       - run: pnpm --filter calendar exec playwright test
 
       # The HTML report and the failure traces, only when something failed.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report
