@@ -46,19 +46,33 @@ def environment_problem(
       d) when a HOSTED MongoDB is configured (a local one is skipped, as a local Postgres is in (a)), `prod` uses
          the `calendar` database and every other hosted value uses `calendar_<env>`.
     """
-    #   Key point of interest: the rule that decides whether a process may start is four independent
-    #   checks, not one, because the realistic mistake is a copied variable set, not a typo (C3-D4;
-    #   c3-environments-and-deploy.md). Each check must fail on its own cause and pass on its own cause.
-    url = make_url(database_url); host = url.host or ""; role = url.username or ""
-    local_db = host in ("localhost", "127.0.0.1", "::1")                                  # a)
+    # Four independent checks rather than one, because the realistic mistake is a copied variable set, not a
+    # typo (C3-D4, C3-K1). Each fires on its own cause and passes on its own cause, so deleting one turns a
+    # distinct row of `test_environment_rule` red. `make_url` parses the connection string, so an IPv6 host or
+    # an `@` in a password cannot fool it as a string split would.
+    url = make_url(database_url)
+    host = url.host or ""
+    role = url.username or ""
+
+    # a) local vs hosted database
+    local_db = host in ("localhost", "127.0.0.1", "::1")
     if (app_env == "local") != local_db:
         return f"APP_ENV={app_env} but the database host is {host!r}"
-    expected = {"production": "prod", "staging": "staging", "dev": "dev"}                 # b)
+
+    # b) Railway's own environment name. Railway sets it per environment and "copy variables" does not copy it,
+    # so it catches a staging service holding production's variables. Absent (laptop, Vercel) is not a mismatch.
+    expected = {"production": "prod", "staging": "staging", "dev": "dev"}
     if railway_name and expected.get(railway_name.lower()) != app_env:
         return f"APP_ENV={app_env} but Railway says this is {railway_name!r}"
-    if app_env != "local" and not role.endswith(f"_{app_env}"):                           # c)
+
+    # c) the login role is the marker on a hosted database (`calendar_staging`), catching a pasted URL.
+    if app_env != "local" and not role.endswith(f"_{app_env}"):
         return f"APP_ENV={app_env} but the database role is {role!r}"
-    want = "calendar" if app_env == "prod" else f"calendar_{app_env}"                     # d)
+
+    # d) the MongoDB database name. The setting's default, `calendar`, is production's name, so a lower
+    # environment that forgets it would stage into production's database. Skipped for a local MongoDB, the same
+    # split (a) makes for Postgres, so a laptop that keeps its Docker `MONGODB_URI` is not refused (C3-CR1-1).
+    want = "calendar" if app_env == "prod" else f"calendar_{app_env}"
     mongo_host = urlparse(mongodb_uri or "").hostname or ""
     if mongo_host not in ("", "localhost", "127.0.0.1", "::1") and mongodb_database != want:
         return f"APP_ENV={app_env} but the MongoDB database is {mongodb_database!r}"

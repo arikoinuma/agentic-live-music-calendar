@@ -16,8 +16,7 @@ HOW TO READ THIS
 
   The rows of `RULE_CASES` that expect a problem are built so that exactly ONE of the four checks is wrong. That
   is what makes the table a mutation test: deleting one check turns exactly one row red. The rows that expect
-  `None` pass while the scaffold's `environment_problem` still returns `None` (C3-K1 is open), so only the
-  "refuses" rows are red until the gap is filled.
+  `None` pin the likeliest mistakes the other way (C3-K1).
 """
 
 import pytest

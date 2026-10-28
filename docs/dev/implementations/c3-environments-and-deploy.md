@@ -290,6 +290,8 @@ One, `C3-K1`. Everything else in C3 is `[written]` (Dep-D15).
 |---|---|---|---|
 | `C3-K1`, `environment_problem` in `apps/api/app/config.py` | **Open** (scaffold returns `None`, validator wired) | Four independent checks, because the realistic mistake is a copied variable set | `cd apps/api && uv run pytest app/tests/test_config.py` (9 red: 6 rows of `test_environment_rule`, 3 `Settings` tests) |
 
+*Update (October 28, 2026): `C3-K1` was filled by Ari in `192e544`; the Claude cleanup pass then took the scaffold out of `config.py` and the "C3-K1 is open" note out of `test_config.py` (comment-only, verified by syntax-tree comparison). The Key point, Code and Check above are the record.*
+
 Review the code as it stands; the open gap is not a finding. I confirmed the 9 red tests are the gap's by pasting the K1 lines into a throwaway copy: **27 of 27 in `test_config.py` pass** with them (30 of 30 with `test_railway_config.py`), and the scaffold was restored byte for byte afterward.
 
 **Verification** (run in the working tree; nothing committed):
