@@ -434,6 +434,14 @@ Review the code as it stands; open gaps are not findings. Both placeholders rais
 
 **Departures / things not done:** none new. The root `AGENTS.md` edit from round 1 (departure 10) still **awaits Ari's sign-off**, as does the status itself.
 
+### Round 3 — Claude Sonnet 5.5, October 28, 2026 (after sign-off: typing fixes for a full dependency upgrade)
+
+**Scope:** `app/queries.py` (three `Select[...]` annotations), `agent_worker/tests/fakes.py` (`connection_error()`), `test_graph.py` and `test_graph_audit.py` (use it), `docs/dev/notes.md`. Found when Ari ran a full local `uv lock --upgrade` (SQLAlchemy 2.0.52 -> 2.1.6, openai 2.54 -> 3.3.0) and `make typecheck` reported 15 errors.
+
+**Cause and fix:** 13 errors were SQLAlchemy 2.1 typing `select(Show)` as `Select[Show]` where 2.0 says `Select[tuple[Show]]`; the annotations are now `Select[Any]`, accepted by both. Two were openai 3.x building its errors from `httpx2.Request`; the tests now build the error in one helper that passes the request as `Any`. Runtime was never affected (941 passed on the upgraded set before the fix).
+
+**Verification:** locked set (the lockfile as committed) and a fully upgraded set in a throwaway worktree (removed): `ruff` clean, `mypy` clean (117 files), `pytest` 941 passed, 15 skipped, on both. The Playwright suite was not re-run: the change is type annotations and a test helper. `make designation-check BASE=668cc88` clean. The open dependabot bumps (FastAPI 0.162.0, Playwright 1.64.1, boto3) were each tried on top of the lockfile and also pass.
+
 ## Code review
 
 ### Round 1 — Claude Opus 5.5, October 27, 2026

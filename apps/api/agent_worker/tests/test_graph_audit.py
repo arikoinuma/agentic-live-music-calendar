@@ -18,8 +18,6 @@ by design; the two fetch-failure tests, which never reach extract, are green.
 from pathlib import Path
 from typing import Any
 
-import httpx
-import openai
 import pytest
 
 from agent_worker import nodes
@@ -160,7 +158,7 @@ async def test_exhausting_the_cap_ends_with_one_escalate_row_and_its_reason(
 ) -> None:
     # Proves (A4-D5, Departure 1): three failed attempts, then one `escalate` row with outcome 'escalated'
     # and the same reason text as `state.escalation_reason`, entity = the venue. No reconcile or commit.
-    boom = openai.APIConnectionError(request=httpx.Request("POST", "http://localhost:11434/v1"))
+    boom = fakes.connection_error()
     state, audit, stager = await run_traced(tmp_path, monkeypatch, GOOD_PAGE, {PAGE: [boom]})
     assert audit.steps() == [
         ("fetch", 1), ("extract", 1), ("validate", 1), ("extract", 2), ("validate", 2),

@@ -701,3 +701,16 @@ calls a route needs the same `await session.flush(); session.expunge_all()` (`_s
 `make seed` adds venues missing from `app/db/seed.py`'s list and leaves the rest. A database seeded before C2 keeps the
 Midway Saloon and Zhora Darling after the list dropped them, and the worker keeps fetching them. `make db-reset` is how a
 local database gets the current list; a hosted one needs the rows deleted by hand.
+
+---
+
+## A plain `uv lock --upgrade` moves SQLAlchemy to 2.1 and openai to 3.x, and two typing assumptions break (C2)
+
+Runtime is unaffected (the whole suite passes on the upgraded set); mypy fails. **SQLAlchemy 2.1** types `select(Show)` as
+`Select[Show]` where 2.0 says `Select[tuple[Show]]`, so a function annotated with the row type is wrong on one of them:
+`app/queries.py` annotates its statements `Select[Any]`, which both accept. **openai 3.x** builds its errors from
+`httpx2.Request`, where 2.x takes `httpx.Request` (starlette's test client now nags about `httpx2` too); the tests make an
+`APIConnectionError` through `fakes.connection_error()`, which passes the request as `Any`. CI is unaffected by an upgrade
+until the lockfile changes, because it runs `uv sync --locked`; so a dependabot bump of either package is where this would
+have surfaced. Verified on both the locked set and a full upgrade (ruff, mypy, 941 tests).
+

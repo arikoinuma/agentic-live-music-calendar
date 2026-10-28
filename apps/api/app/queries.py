@@ -25,6 +25,7 @@ production. `_show_loads` and `_apply_filters` below are where that lesson and t
 
 import datetime
 from collections.abc import Sequence
+from typing import Any
 
 from sqlalchemy import Select, extract, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -71,8 +72,8 @@ def _show_loads() -> Sequence[ExecutableOption]:
 
 
 def _apply_filters(
-    stmt: Select[tuple[Show]], venue_ids: Sequence[int] | None, artist_ids: Sequence[int] | None
-) -> Select[tuple[Show]]:
+    stmt: Select[Any], venue_ids: Sequence[int] | None, artist_ids: Sequence[int] | None
+) -> Select[Any]:
     """Narrow a show query by the `venue_id` / `artist_id` parameters.
 
     The rule is the contract's (`api-contract.md` section 2, "Filtering"): several ids of one kind mean
@@ -88,6 +89,10 @@ def _apply_filters(
         stmt = stmt.where(Show.lineup.any(ShowArtist.artist_id.in_(artist_ids)))
     return stmt
 
+
+# A note on the `Select[Any]` annotations. SQLAlchemy 2.0 types `select(Show)` as `Select[tuple[Show]]` and 2.1 as
+# `Select[Show]`, so naming the row type breaks mypy on one of them (the lockfile is on 2.0; a plain `uv lock --upgrade`
+# gets 2.1). `Any` is accepted by both; the elements are still `Show` at runtime, and `_summary` takes a `Show`.
 
 # ---------------------------------------------------------------------
 # Shapes: ORM row -> response model
@@ -192,7 +197,7 @@ def _artist_detail(artist: Artist) -> ArtistDetail:
 # ---------------------------------------------------------------------
 
 
-def _visible_shows(metro_id: int) -> Select[tuple[Show]]:
+def _visible_shows(metro_id: int) -> Select[Any]:
     """Shows a reader may see: active, at a venue in this metro. The base of every show query (C2-M1, C2-M5)."""
     return select(Show).where(
         Show.status == ShowStatus.ACTIVE,
