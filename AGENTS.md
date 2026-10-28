@@ -117,7 +117,7 @@ mypy, pytest) and is not in the pipeline.
 (`docs/dev/alpha-build-plan.md`, A1–A7 and B1–B6) is finished apart from its §7 learning
 deliverables, so that plan is now history and the reference for what the local system does.
 Hosted work is in scope, including the extraction accuracy work that needs a larger hosted
-model (A2.1's open gap, C6). The old H1–H4 names still appear in older plans and comments;
+model (A2.1's open gap, C6). The old H1–H4 names still appear in a few older plans;
 `alpha-deployment-plan.md` §7 maps them to C-numbers.
 
 Hosted services (Vercel, Railway, Neon, Atlas) hold real state that the local suite never
@@ -313,7 +313,7 @@ calls the model, and filling `TODO(Ari)` gaps.
 
 `/plan-milestone` can run in the cloud for any milestone, since it writes no code, with one
 exception: if the plan's design depends on measurements only the local model can produce
-(eval results, extraction-quality experiments such as H1's act splitter), plan it locally or
+(eval results, extraction-quality experiments such as C6's act splitter (formerly H1)), plan it locally or
 mark those facts as unverified in the plan. `/build-milestone` is cloud-suited only where
 the milestone itself is (see the list above). The skills are user-invoked, so type them;
 the session model is the author, and the reviewer subagent gets a different one, as

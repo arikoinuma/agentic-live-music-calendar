@@ -148,4 +148,33 @@ have no domain.
 
 ## Cost finding (Dep-D9)
 
-Not written yet. It needs the Railway usage numbers and Neon's limits above.
+Written October 28, 2026, from Railway's usage page (reported by Ari, read from a
+screenshot) and the limits above. **Provisional**: one week of an API with no
+worker, so it is a baseline, not a forecast.
+
+**Railway, production API, since October 22:** current usage $0.20 (memory $0.19,
+CPU $0.01, egress $0.00); Railway's own estimate for the period is $0.37, which is
+probably a straight-line extrapolation and so a floor. At Railway's memory price
+(about $10 per GB-month, from memory, unchecked) $0.19 is an average of roughly
+90 MB, or about $1 a month per always-on API. The RAM graph steps up near its right
+edge (to about 1 GB); that is recent and unexplained, most likely C2's
+database-backed routes.
+
+| Item | Monthly estimate | Basis |
+|---|---|---|
+| Railway Hobby subscription | $5.00 (includes $5.00 of usage) | `Railway` section above |
+| Production API | about $1 (floor $0.37) | measured above |
+| Staging API | about $1 | same shape, assumed |
+| Dev API | about $1 | same shape, assumed |
+| Workers | unknown | bill only while running; C8 measures |
+| Neon, Atlas M0, R2 | $0 | free-tier limits above; idle compute is not billed |
+| **Three APIs, no worker** | **about $3 of the $5 included, so no cost beyond the $5** | |
+
+**Where this breaks:** if resident memory per API settles near 1 GB instead of
+about 100 MB, each API is about $10 a month and three do not fit. The worker's
+cost is unmeasured. Railway's serverless (sleep when idle) setting is unchecked
+and could lower the figure.
+
+**Shape (Dep-D9):** all three hosted environments fit the budget on this baseline.
+Re-read this page a week after staging exists and drop `dev` to on demand
+(C3-D1) if memory per API is climbing.

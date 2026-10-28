@@ -32,7 +32,41 @@ describe("getApiHealth", () => {
     expect(await getApiHealth(BASE, fetchImpl)).toEqual({
       ok: true,
       message: "up",
+      appEnv: undefined,
     });
+  });
+
+  it("returns the API's app_env when it reports one (C3-D6)", async () => {
+    // Proves: the page can show which environment the API believes it is in, so a staging frontend pointed at
+    // the production API is visible. The value passes through untouched; the page decides how to show it.
+    const fetchImpl = respondWith(JSON.stringify({ message: "up", app_env: "staging" }));
+
+    expect(await getApiHealth(BASE, fetchImpl)).toEqual({
+      ok: true,
+      message: "up",
+      appEnv: "staging",
+    });
+  });
+
+  it("still reports ok, with no environment, when the API predates app_env (C3-D6)", async () => {
+    // Proves: during the cutover the new frontend talks to the old production API for a while (plan step 6.4),
+    // whose /health has only `message`. That must read as "up, environment unknown", not as a failure.
+    const fetchImpl = respondWith(JSON.stringify({ message: "up" }));
+
+    const result = await getApiHealth(BASE, fetchImpl);
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.appEnv).toBeUndefined();
+  });
+
+  it("ignores an app_env that is not a string", async () => {
+    // Proves: a malformed field is dropped instead of being rendered or failing the page; `message` is still
+    // what decides ok.
+    const fetchImpl = respondWith(JSON.stringify({ message: "up", app_env: 7 }));
+
+    const result = await getApiHealth(BASE, fetchImpl);
+
+    expect(result.ok && result.appEnv).toBeUndefined();
   });
 
   it("never caches, and always bounds the wait with a timeout signal", async () => {

@@ -14,8 +14,11 @@
 
 import { apiUrl } from "./api-url";
 
+// `appEnv` is the environment the API says it is in (C3-D6). Optional: an API deployed before C3 reports only
+// `message`, and during the cutover the new frontend talks to that older API for a while. Absence means "unknown",
+// not failure.
 export type ApiHealth =
-  | { ok: true; message: string }
+  | { ok: true; message: string; appEnv: string | undefined }
   | { ok: false; reason: string };
 
 // Diagnostics should answer quickly even when the API is hung. Without
@@ -77,7 +80,12 @@ export async function getApiHealth(
     "message" in body &&
     typeof body.message === "string"
   ) {
-    return { ok: true, message: body.message };
+    // `app_env` is read by hand like `message`; anything that is not a string is dropped, not rendered.
+    const appEnv =
+      "app_env" in body && typeof body.app_env === "string"
+        ? body.app_env
+        : undefined;
+    return { ok: true, message: body.message, appEnv };
   }
   return { ok: false, reason: "API response had no string `message`" };
 }

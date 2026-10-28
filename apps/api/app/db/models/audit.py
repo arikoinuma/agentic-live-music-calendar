@@ -36,7 +36,7 @@ import datetime
 import decimal
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, Numeric, func, text
+from sqlalchemy import DateTime, ForeignKey, Numeric, String, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -64,6 +64,12 @@ class AgentRun(Base):
     )
     # NULL while the run is in progress.
     finished_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+    # Which environment wrote this run ("local", "dev", "staging" or "prod"; C3-D5). A plain nullable string,
+    # not a native enum: a Postgres enum is costly to extend, and a nullable column cannot break a worker
+    # deployed before the migration (expand-only, arch-initial.md section 5). NULL means "recorded before C3"
+    # or "the writer did not know". Dev and staging data is partly copied from production, so this is how a
+    # copied run is told apart from one that happened there.
+    app_env: Mapped[str | None] = mapped_column(String(16))
 
 
 class AuditLog(Base):

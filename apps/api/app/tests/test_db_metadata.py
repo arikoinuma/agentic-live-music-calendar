@@ -68,7 +68,8 @@ EXPECTED_COLUMNS: dict[str, set[str]] = {
         "original_url", "status",
     } | _TS,
     "show_artist": {"show_id", "artist_id", "start_time", "sequence_number"},
-    "agent_run": {"id", "venue_id", "trigger", "started_at", "finished_at"},
+    # C3-D5: `app_env` is the environment that ran it (nullable; rows from before C3 stay NULL).
+    "agent_run": {"id", "venue_id", "trigger", "started_at", "finished_at", "app_env"},
     "audit_log": {
         "id", "run_id", "attempt_number", "step_type", "source", "entity_type",
         "entity_id", "outcome", "model_used", "confidence", "previous_value",

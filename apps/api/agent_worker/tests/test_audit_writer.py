@@ -69,6 +69,30 @@ async def test_start_run_inserts_an_open_run(factory: async_sessionmaker[AsyncSe
     assert run.started_at is not None and run.finished_at is None
 
 
+async def test_start_run_records_the_environment_it_was_given(
+    factory: async_sessionmaker[AsyncSession], venue_id: int,
+) -> None:
+    # Proves (C3-D5): the run row carries the environment the writer was built with. The value is INJECTED
+    # (`app_env="staging"`), not read from global settings, which are `local` in every test: a writer that
+    # hard-coded or re-read "local" would pass a test using the default and fail this one. Expected value is the
+    # literal passed in.
+    run_id = await PostgresAuditWriter(factory, app_env="staging").start_run(venue_id, RunTrigger.MANUAL)
+    async with factory() as session:
+        run = await session.get(AgentRun, run_id)
+    assert run is not None and run.app_env == "staging"
+
+
+async def test_a_writer_built_without_an_environment_writes_null(
+    factory: async_sessionmaker[AsyncSession], venue_id: int,
+) -> None:
+    # Proves (C3-D5): "unknown" is NULL, the same as a run recorded before C3, never a guessed "local". Callers
+    # that do not know their environment (older tests, a one-off script) leave an honest gap.
+    run_id = await PostgresAuditWriter(factory).start_run(venue_id, RunTrigger.MANUAL)
+    async with factory() as session:
+        run = await session.get(AgentRun, run_id)
+    assert run is not None and run.app_env is None
+
+
 async def test_finish_run_sets_finished_at(factory: async_sessionmaker[AsyncSession], venue_id: int) -> None:
     # Proves: closing a run stamps `finished_at`, so "in progress" and "ended" are distinguishable.
     writer = PostgresAuditWriter(factory)

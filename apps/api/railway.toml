@@ -1,0 +1,20 @@
+# Railway deploy configuration for the API service (C3-D8; docs/dev/implementations/c3-environments-and-deploy.md).
+#
+# Config as code: what used to live only in Railway's dashboard. Railway reads this file when the service's
+# "Config file path" setting points at it. That path is given from the REPOSITORY ROOT, not from the service's
+# root directory: /apps/api/railway.toml. `app/tests/test_railway_config.py` pins the three decisions below.
+# No [build] section: the build is whatever the service already uses (not checked from here), and this file does
+# not change it.
+[deploy]
+# $PORT is assigned by Railway. 0.0.0.0 so the proxy can reach it.
+startCommand = "uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+
+# /health, never /health/db: it answers without querying the database, so a deploy-time check does not wake Neon
+# and a database blip cannot fail an otherwise good deploy. A failing check is also what makes Railway keep the old
+# deployment when the new one refuses to start (C3-D4's startup rule).
+healthcheckPath = "/health"
+
+# Migrations run before the new code starts and stop the deploy if they fail, so code never runs on a database
+# that lacks its tables (the failure C2's merge risked). Unverified until the first staging deploy: that `uv` is on
+# this step's PATH and that the pooled host accepts DDL; the answers go in docs/dev/notes.md.
+preDeployCommand = ["uv run alembic upgrade head"]

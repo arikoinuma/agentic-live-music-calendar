@@ -14,7 +14,7 @@ reordered item can never put one show's acts on another.
 
 Known limit: this splitter makes the remaining act errors that keep A2.1 short of the accuracy
 standard (56 of 60 on the gated venues: ambiguous names cut, dropped or misread). The fix is a larger
-model for this one call, which only fits on hosted inference. It is milestone H1 of
+model for this one call, which only fits on hosted inference. It is milestone C6 (formerly H1) of
 docs/dev/alpha-deployment-plan.md (A2.1-E1–A2.1-E3).
 """
 

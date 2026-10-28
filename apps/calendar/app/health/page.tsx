@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { getAppEnv } from "@/lib/app-env";
 import { getApiHealth } from "@/lib/health";
+import { HealthStatus, type FrontendEnv } from "./health-status";
 
 export const metadata: Metadata = { title: "Status" };
 
@@ -33,22 +35,22 @@ export default async function HealthPage() {
   if (!health.ok) console.error(`[health] API check failed: ${health.reason}`);
   const showDetail = process.env.NODE_ENV !== "production";
 
+  // `getAppEnv()` throws on a missing or inconsistent APP_ENV (C3-D7). This is a status page that must not
+  // throw, so the error becomes a line on the page; the rendering is in HealthStatus (testable).
+  let frontendEnv: FrontendEnv;
+  try {
+    frontendEnv = { ok: true, value: getAppEnv() };
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    console.error(`[health] APP_ENV check failed: ${reason}`);
+    frontendEnv = { ok: false, reason };
+  }
+
   return (
-    <section>
-      <h1 className="text-2xl font-semibold tracking-tight">Status</h1>
-      <dl className="mt-4 grid max-w-md grid-cols-[auto_1fr] gap-x-6 gap-y-2">
-        <dt className="text-muted-foreground">API</dt>
-        <dd>
-          {health.ok ? (
-            <span>up ({health.message})</span>
-          ) : (
-            <span className="text-destructive">
-              down
-              {showDetail && <> — {health.reason}</>}
-            </span>
-          )}
-        </dd>
-      </dl>
-    </section>
+    <HealthStatus
+      health={health}
+      frontendEnv={frontendEnv}
+      showDetail={showDetail}
+    />
   );
 }

@@ -4,8 +4,9 @@
   // Read by apps/calendar/playwright.config.ts (CI picks its reporter; E2E_DATABASE_URL overrides the
   // end-to-end database's address, C2-D7). Declared here so eslint-plugin-turbo
   // (which runs with --max-warnings 0) accepts the reads; passed through, not hashed,
-  // because no cached task output depends on them.
-  "globalPassThroughEnv": ["E2E_CHROMIUM_PATH", "E2E_FROZEN_NOW", "E2E_DATABASE_URL", "CI"],
+  // because no cached task output depends on them. APP_ENV (C3-D7, lib/app-env.ts) is the same kind: read per
+  // request on the server, never baked into a build, so it must not change a build's cache key.
+  "globalPassThroughEnv": ["E2E_CHROMIUM_PATH", "E2E_FROZEN_NOW", "E2E_DATABASE_URL", "APP_ENV", "CI"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

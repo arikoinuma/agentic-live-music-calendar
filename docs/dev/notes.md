@@ -723,3 +723,16 @@ Postgres"; the new job ran and passed, but the PR showed "8 successful, 1 expect
 on the branch. GitHub does not time this out. The job name is restored; rename a required job only together with the ruleset
 (Settings > Rules), and expect every open PR to wait until both match.
 
+
+---
+
+## Vercel previews failed because the Preview environment had no `API_BASE_URL` (C3)
+
+The five preview builds attempted around October 15, 2026 (branches such as `a4-auditability`) all ended in `ERROR`: `next build`
+prerenders `/artists`, which calls the API, and `lib/api.ts` throws `API_BASE_URL is not set` when the variable is missing
+(Vercel's deployment log, `calendar#build`). Only the Production environment had the variable. Every deployment since is a
+production build from `main`; no preview build has been attempted for any branch since because the project's
+`previewDeploymentsDisabled` is `true` (read with `vercel api /v9/projects/<id>`; the Git link, production branch `main` and
+Ignored Build Step were normal). Fix: turn Preview deployments back on and set
+`API_BASE_URL` for Preview (C3 Step 5). Also: the project's deployment protection is on (`ssoProtection`,
+`all_except_custom_domains`), so a preview URL asks for a Vercel login; open it signed in to check `/health`.

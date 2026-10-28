@@ -56,9 +56,9 @@ class RetryPolicy:
     confidence_threshold: float = 0.8
     # Total extract attempts, the first included ("Retries are capped (3 attempts)", arch §7).
     max_attempts: int = 3
-    # The larger model tier 3 uses (arch §7: "larger model second"). Unset until H1 provides a hosted
+    # The larger model tier 3 uses (arch §7: "larger model second"). Unset until C6 (formerly H1) provides a hosted
     # model: the development laptop can't run one (A3-D5). Unset = tier 3 runs the same model with
-    # the full hint and the record says so. Must be an Ollama model name until H1 makes endpoints
+    # the full hint and the record says so. Must be an Ollama model name until C6 makes endpoints
     # per call, because `instructor_client` is bound to Ollama.
     escalation_model: str | None = None
 
