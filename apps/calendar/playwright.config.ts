@@ -98,6 +98,9 @@ export default defineConfig({
       command: `pnpm exec next start --hostname 127.0.0.1 --port ${WEB_PORT}`,
       env: {
         API_BASE_URL: PROXY_URL,
+        // The status page shows the frontend's environment and reports an invalid one as an error line
+        // (C3-D7); the stack is a local one, so say so instead of scanning an error state.
+        APP_ENV: "local",
         // Freeze this process's clock (e2e/support/clock.ts says why). `NODE_OPTIONS` is
         // set here, on the Next server only, so the Playwright runner keeps the real clock.
         // A file URL, not a path, because `--import` wants one on Windows.

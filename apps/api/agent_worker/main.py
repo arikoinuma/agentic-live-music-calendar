@@ -185,7 +185,7 @@ async def main(argv: list[str] | None = None) -> int:
             log.error("MongoDB did not answer; start it with `make db-up` or check MONGODB_URI", error=str(err))
             return 2
         ctx = WorkerContext(
-            audit=PostgresAuditWriter(SessionFactory),
+            audit=PostgresAuditWriter(SessionFactory, app_env=settings.app_env),
             stager=MongoStager(mongo[settings.mongodb_database][COLLECTION]),
             reader=PostgresCalendarReader(SessionFactory),
             writer=PostgresCalendarWriter(SessionFactory),

@@ -254,11 +254,18 @@ Cloud environments (preview and production) exist for integration testing and de
 
 | Layer | Non-prod | Production |
 |---|---|---|
-| Vercel | Automatic preview deployment per branch/PR | Deploys from `main` |
-| Railway | Not configured yet — see Sequencing below | `production` environment |
-| Neon | Native Vercel integration auto-creates a database branch per preview deployment, copy-on-write, deleted when the branch closes | The project's default branch |
+| Vercel | Preview deployments; branch-scoped Preview variables make `main` and PR branches "staging" and branch `dev` "dev" | Deploys from the `production` branch |
+| Railway | `staging` (source `main`) and `dev` environments | `production` environment (source `production`) |
+| Neon | Branches `staging` and `dev` off the default branch, each with its own login role | The project's default branch |
 
-**Cost note:** a PR-triggered Railway environment that tears itself down costs almost nothing. A permanent, always-on staging environment roughly doubles the Railway bill. Favor ephemeral PR environments over a persistent staging environment.
+**Updated October 28, 2026 (C3, `Dep-D1`, `docs/dev/implementations/c3-environments-and-deploy.md`):** the plan below
+(Phase 1, ephemeral PR environments, the native Neon–Vercel integration) was the original intent; the hosted alpha
+runs three persistent environments instead, `dev`, `staging` and `prod`, with `main` deploying to staging and a
+`production` branch deploying to production. The Neon–Vercel integration is skipped on purpose: the Next.js app never
+connects to Postgres, so a per-preview database branch would have no reader (`docs/dev/environments.md`; revisit for
+ephemeral per-PR environments).
+
+**Cost note (original):** a PR-triggered Railway environment that tears itself down costs almost nothing. A permanent, always-on staging environment roughly doubles the Railway bill. **Measured October 28, 2026** (`docs/dev/implementations/c1-env-revalidation.md`, "Cost finding"): an idle always-on API costs about $1 a month, so three fit inside the $5 the Hobby plan includes; that rests on one week of one idle API and is re-read a week after staging exists.
 
 **Sequencing:**
 - **Phase 1:** local dev plus a single production deploy. Ship something real end-to-end first.
@@ -279,7 +286,7 @@ Cloud environments (preview and production) exist for integration testing and de
 | DeepInfra (hosted inference, deferred — see Section 11) | usage-based, not a flat fee; ~$0.02/1M input + $0.10/1M output tokens for `gemma-4-e4b-it` as of writing — negligible at current (non-production) call volume, but genuinely not $0 like everything else in this table |
 | **Total** | **~$5/month + trivial usage-based inference cost once DeepInfra is wired in** |
 
-**Explicitly out of scope for now (cost-driven):** AWS EKS as ongoing infrastructure, a dedicated log aggregation service (Vercel/Railway's built-in dashboards cover v1), a persistent Railway staging environment.
+**Explicitly out of scope for now (cost-driven):** AWS EKS as ongoing infrastructure, a dedicated log aggregation service (Vercel/Railway's built-in dashboards cover v1), ~~a persistent Railway staging environment~~ (no longer out of scope: three environments are built, with their measured cost noted in section 9).
 
 **On DeepInfra vs. Vercel AI Gateway:** considered using AI Gateway instead, specifically to avoid provisioning a new account — but confirmed directly against its live model list (`https://ai-gateway.vercel.sh/v1/models`) that it doesn't offer `gemma-4-e4b-it`, the exact model Phase 5's evaluation (`docs/dev/env-setup.md`) was built around; only larger, pricier Gemma 4 variants are available there. Re-validating a different model wasn't worth the one-fewer-account benefit, so DeepInfra stays the choice.
 

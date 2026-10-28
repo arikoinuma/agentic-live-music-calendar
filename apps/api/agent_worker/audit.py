@@ -42,6 +42,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agent_worker.commit import CommitResult, ShowFailure, ShowOp, summary_counts
 from agent_worker.state import VenueGraphState
+from app.config import AppEnv
 from app.db.models import AgentRun, AuditLog
 from app.enums import AuditOutcome, AuditSource, EntityType, RunTrigger, StepType
 
@@ -345,12 +346,16 @@ class AuditWriter(Protocol):
 class PostgresAuditWriter:
     """Writes the audit trail to Postgres with a short, committed session per call (see the module docstring)."""
 
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession], app_env: AppEnv | None = None) -> None:
         self._session_factory = session_factory
+        # The environment written on every run this writer opens (C3-D5). Handed in by the entry point
+        # (`settings.app_env`), not read from global settings here, so a test can prove the value is the one
+        # injected. `None` writes NULL: "unknown", the same as a run recorded before C3.
+        self._app_env = app_env
 
     async def start_run(self, venue_id: int, trigger: RunTrigger) -> int:
         async with self._session_factory() as session:
-            run = AgentRun(venue_id=venue_id, trigger=trigger)
+            run = AgentRun(venue_id=venue_id, trigger=trigger, app_env=self._app_env)
             session.add(run)
             # flush assigns the id; read it BEFORE commit. After a commit a session built with SQLAlchemy's
             # default `expire_on_commit=True` has expired the attribute, and reading it under asyncio raises

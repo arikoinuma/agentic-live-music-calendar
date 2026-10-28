@@ -1,6 +1,7 @@
 from fastapi import FastAPI, status
 from sqlalchemy import text
 
+from app.config import settings
 from app.db.session import engine
 from app.routers import artists, calendar, metro, shows, venues
 
@@ -25,7 +26,10 @@ app.include_router(metro.router)
 
 @app.get("/health", status_code=status.HTTP_200_OK)
 async def health():
-    return {"message": "up"}
+    # `app_env` is the environment this process believes it is in (C3-D6), so a wrong connection string or a
+    # copied variable set is visible from outside. Read per request, from the settings the startup rule
+    # (C3-D4) already checked. No database access: this is the route Railway's deploy check calls (C3-D8).
+    return {"message": "up", "app_env": settings.app_env}
 
 
 @app.get("/health/db")

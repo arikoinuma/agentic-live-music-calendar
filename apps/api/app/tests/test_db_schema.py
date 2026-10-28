@@ -295,6 +295,18 @@ async def test_server_defaults_apply_to_inserts_that_omit_them(db_conn: AsyncCon
     assert run.started_at is not None
 
 
+async def test_agent_run_app_env_is_optional_so_old_writers_still_work(db_conn: AsyncConnection) -> None:
+    # Proves (C3-D5, expand-only): `agent_run.app_env` is nullable with no default, so an INSERT that omits it
+    # (a worker deployed before this migration, a raw SQL tool, every run recorded before C3) still succeeds and
+    # reads back NULL. A NOT NULL column would break the deployed worker the moment the API's pre-deploy
+    # migration ran, because the API and the worker do not redeploy together (arch-initial.md section 5).
+    venue_id = await _venue(db_conn)
+    run_id = await _insert(db_conn, "agent_run", venue_id=venue_id, trigger="manual")
+    run = (await db_conn.execute(sa.select(T["agent_run"]).where(T["agent_run"].c.id == run_id))).one()
+    assert run.app_env is None
+    assert T["agent_run"].c.app_env.nullable is True
+
+
 async def test_updated_at_is_readable_after_an_orm_update(db_session: AsyncSession) -> None:
     # Proves: after updating a row through the ORM, `updated_at` can be read
     # without error. (This test uses the ORM on purpose — it's about ORM

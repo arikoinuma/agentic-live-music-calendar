@@ -53,7 +53,7 @@ async def main(fixture: str = FIXTURE, fetched_on: datetime.date = FETCHED_ON) -
     mongo: AsyncMongoClient = AsyncMongoClient(settings.mongodb_uri)
     try:
         ctx = WorkerContext(
-            audit=PostgresAuditWriter(SessionFactory),
+            audit=PostgresAuditWriter(SessionFactory, app_env=settings.app_env),
             stager=MongoStager(mongo[settings.mongodb_database][COLLECTION]),
             reader=PostgresCalendarReader(SessionFactory),
             writer=PostgresCalendarWriter(SessionFactory),

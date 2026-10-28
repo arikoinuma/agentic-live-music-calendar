@@ -122,7 +122,8 @@ if [ ! -f "$REPO/apps/api/.env" ]; then
   cp "$REPO/apps/api/.env.example" "$REPO/apps/api/.env"
 fi
 if [ ! -f "$REPO/apps/calendar/.env.local" ]; then
-  echo "API_BASE_URL=http://localhost:8000" > "$REPO/apps/calendar/.env.local"
+  # APP_ENV=local: the /health page shows the frontend's environment and reports a missing one as an error line (C3-D7).
+  printf 'API_BASE_URL=http://localhost:8000\nAPP_ENV=local\n' > "$REPO/apps/calendar/.env.local"
 fi
 
 # ---------------------------------------------------------------------
