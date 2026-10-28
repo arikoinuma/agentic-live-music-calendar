@@ -20,7 +20,7 @@ Three rules shape every query (C2-D5, `docs/dev/implementations/c2-api-reads-dat
 
 Nothing here lazy-loads. The relationships on the models are `lazy="raise"` (C2-D4), so each query names
 what it loads, and a missed load is an error in the first test instead of a `MissingGreenlet` in
-production. The two `TODO(Ari)` helpers below are where that lesson and the filter rule live.
+production. `_show_loads` and `_apply_filters` below are where that lesson and the filter rule live (C2-K2, C2-K1).
 """
 
 import datetime
@@ -47,7 +47,7 @@ from app.schemas import (
 )
 
 # ---------------------------------------------------------------------
-# The two helpers that carry a lesson (TODO(Ari))
+# The two helpers that carry a lesson (C2-K1, C2-K2)
 # ---------------------------------------------------------------------
 
 
@@ -58,11 +58,11 @@ def _show_loads() -> Sequence[ExecutableOption]:
     that wasn't loaded raises, which under asyncio is the difference between a clear error in a test and a
     `MissingGreenlet` in production. This is the one place a show query says what it needs (C2-K2).
     """
-    #   Under asyncio a relationship cannot load itself on access (C2-D4,
-    #   lazy="raise"), so each query names what it loads. A to-one side (venue, event, an entry's artist) is a
-    #   joinedload: one query with a join. A to-many side (the lineup) is a selectinload: a second query for
-    #   the whole batch, because a join on the many side multiplies the show rows. The statement count then
-    #   does not grow with the number of shows.
+    # Under asyncio a relationship cannot load itself on access (C2-D4, lazy="raise"), so each query names
+    # what it loads. A to-one side (venue, event, an entry's artist) is a joinedload: one query with a join.
+    # A to-many side (the lineup) is a selectinload: a second query for the whole batch, because a join on the
+    # many side would repeat each show once per act (and SQLAlchemy then demands `.unique()` on the result).
+    # The statement count therefore does not grow with the number of shows.
     return (
         joinedload(Show.venue),
         joinedload(Show.event),
@@ -79,10 +79,9 @@ def _apply_filters(
     "any of these" (OR), different kinds must both hold (AND), and an artist matches if *any* act on the
     bill is that artist, not only the headliner (C2-K1). Called only when at least one is given.
     """
-    #   OR within one filter type, AND across types. Each `.where()` adds an AND;
-    #   `in_()` is the OR within a type. The artist test is an EXISTS over the lineup, not a join: joining
-    #   `show_artist` repeats a show once per matching act, so a bill with two requested artists would be
-    #   returned twice.
+    # OR within one filter type, AND across types: each `.where()` adds an AND, and `in_()` is the OR within a
+    # type. The artist test is an EXISTS over the lineup, not a join: joining `show_artist` would repeat a show
+    # once per matching act, so a bill with two requested artists would be returned twice.
     if venue_ids:
         stmt = stmt.where(Show.venue_id.in_(venue_ids))
     if artist_ids:

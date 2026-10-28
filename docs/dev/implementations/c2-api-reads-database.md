@@ -418,6 +418,22 @@ Review the code as it stands; open gaps are not findings. Both placeholders rais
 4. `test_e2e_guards.py::test_the_e2e_app_will_not_start_*`: they import `app.testing.e2e_app`, whose module-level checks must raise before touching the shared `app`; if that order ever changed, the import would leave a `get_now` override behind for later tests.
 5. Whether `_settle` / `expunge_all` in the tests is used everywhere a test edits a row then calls a route.
 
+### Round 2 — Claude Sonnet 5.5, October 28, 2026 (closing the gaps and recording the hosted and laptop checks)
+
+**Scope:** `ec0c818..HEAD`: Ari's commit `5faa62b` (the two gaps filled) and the cleanup pass that follows it; `79831e8` (the C1 doc line) and this round's doc edits. Files: `apps/api/app/queries.py`, `docs/dev/implementations/c1-env-revalidation.md`, `docs/dev/alpha-deployment-plan.md`, this plan.
+
+**`TODO(Ari)` gaps:** both **filled by Ari** (`5faa62b`, "reviewed the key points in code"): `C2-K1` (`_apply_filters`) and `C2-K2` (`_show_loads`) have the plan's code. The cleanup pass (`AGENTS.md`, "[fill-in] tasks", step 4) is done: the last `TODO(Ari)` markers (the module docstring and a section header) now cite `C2-K1` / `C2-K2`, the lesson comments inside the two functions are plain why-comments, and the "likeliest mistake" detail survives as a sentence of rationale (the lineup join and `.unique()`). Verified as a comment-only pass: `ast.dump` of `queries.py` before and after, docstrings stripped, is identical.
+
+**Verification:** `make check BASE=ec0c818` exits **0**: ruff and mypy; 941 pytest passed, 15 skipped; 358 Vitest; `contract-check` current; `designation-check` clean; Playwright 104 passed on the database-backed API. This is the first run of the whole suite on the tree as it will merge.
+
+**Hosted and laptop checks, reported by Ari (not run by the author):**
+- *Neon (plan step 10):* `alembic upgrade head` ran the three migrations in order (`db2aedec0bb9`, `5e652b75cd03`, `67609c405218`); the venue query returned **four** venues; this branch's API run locally against Neon answered as expected; the password was reset and Railway's `DATABASE_URL` updated. Recorded in `c1-env-revalidation.md`.
+- *Laptop replay (D10):* `local_test` ran for the August and the October capture. Then two hand edits against `calendar_dev`: (1) a changed start time: on the next run the row with the edited time became `removed`, and the show with the original time from the source file was inserted as a new row; (2) a status set to `removed` by hand: the next run set that show back to `active`. Ari judged both as expected.
+- *What that does and does not show.* It is the soft delete (the edited-time row was absent from the page, so it was removed) and the reactivation of a removed show listed again (`A5-D7`). A time change is a removal plus an insert, not an update, because the show's identity includes its start time (`A5-K1`: match on venue, date and time, never fuzzy); so an **update of a show's other fields in place** (a price, an act) was not exercised live. That case rests on A5's and A6's database tests, as the plan allows (D10).
+- *The cancelled / postponed question* Ari raised again after seeing this: `removed` conflates "cancelled", "postponed" and "vanished from the page". It is already recorded as deferred (`C2-D11`, `arch-initial.md` section 11); nothing here changes it.
+
+**Departures / things not done:** none new. The root `AGENTS.md` edit from round 1 (departure 10) still **awaits Ari's sign-off**, as does the status itself.
+
 ## Code review
 
 ### Round 1 — Claude Opus 5.5, October 27, 2026

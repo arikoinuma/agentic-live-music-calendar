@@ -52,9 +52,9 @@ Checked October 22, 2026.
   then `scripts.seed`), and the seed data is present. This branch's API, run locally against Neon, answered
   the route checks as expected: the metro and the seeded venues, and empty shows, artists and months (the
   empty calendar Dep-D12 accepts until a worker run). The password reset from the Credentials note above is
-  reported done; whether Railway's `DATABASE_URL` was updated to match is not recorded here. Not recorded:
-  the `alembic current` revision and the venue count, which the C2 plan expects to be `67609c405218` and
-  four (The White Squirrel Bar, 7th St Entry, Mortimer's, The Terminal Bar).
+  reported done, and Railway's `DATABASE_URL` was updated to match (Ari, October 28). `alembic upgrade
+  head` ran the three migrations in order (`db2aedec0bb9`, `5e652b75cd03`, `67609c405218`), and the venue
+  table holds four venues (the seed list: The White Squirrel Bar, 7th St Entry, Mortimer's, The Terminal Bar).
 
 ## Atlas (MongoDB)
 
