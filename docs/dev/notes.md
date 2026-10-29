@@ -739,9 +739,9 @@ Ignored Build Step were normal). Fix: turn Preview deployments back on and set
 
 ---
 
-## A proxy's redirect URL is not the visitor's host (C4)
+## A route handler's `request.url` is not the visitor's host (C4)
 
-Against `next start`, `request.url` inside a route handler reflected the server's own bind address (`http://localhost:3210/...`),
+Against `next start`, `request.url` inside a route handler (not the proxy: there, `NextResponse.redirect(request.nextUrl...)` came out relative and correct) reflected the server's own bind address (`http://localhost:3210/...`),
 not the `Host` the client sent, so an absolute redirect built from it (`NextResponse.redirect(new URL(path, request.url))`) pointed at
 the wrong host. The gate's login therefore sends a relative `Location` (`/venue/3`), which always stays on the host the visitor used
 (`lib/gate-enter.ts`). Redirects to a metro's host are built from the configured zone, not from the request. Also learned while

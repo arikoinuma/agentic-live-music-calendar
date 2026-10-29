@@ -118,6 +118,12 @@ describe("safeNextPath (C4-PR1-8)", () => {
     "javascript:alert(1)",
     "/\t/evil.com",
     "/\n/evil.com",
+    // Dot segments: the parser resolves them INSIDE our origin and leaves a pathname that starts with `//`, which a
+    // browser then reads as another site (C4-CR1-1). Origin checks alone pass all four.
+    "/.//evil.com",
+    "/x/..//evil.com",
+    "/%2e//evil.com",
+    "/./\\evil.com",
     "",
     null,
     undefined,

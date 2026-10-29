@@ -13,16 +13,19 @@
 import { expect, test } from "./support/test";
 
 test("the home page loads without a gate, as the default metro, and asks not to be indexed", async ({ page }) => {
+  // Proves (C4-D1, C4-D2, C4-D7): the local stack serves the page with no gate redirect, as the default metro (the
+  // sample world's venues are on the calendar), and marks the response noindex.
   const response = await page.goto("/");
 
   expect(response?.status()).toBe(200);
   expect(page.url()).not.toContain("/gate");
   expect(response?.headers()["x-robots-tag"]).toBe("noindex, nofollow");
-  // The page the default metro serves: the sample world's venues are on the calendar.
   await expect(page.getByRole("link", { name: "Zhora Darling" }).first()).toBeVisible();
 });
 
 test("a missing page is still a real 404 and still carries noindex", async ({ page }) => {
+  // Proves (C4-D7): noindex is attached to every non-production response, a genuine 404 included, and the proxy
+  // does not turn the 404 into a 200.
   const response = await page.goto("/nope");
 
   expect(response?.status()).toBe(404);
@@ -30,8 +33,8 @@ test("a missing page is still a real 404 and still carries noindex", async ({ pa
 });
 
 test("the gate's own page exists everywhere but its login does not outside staging", async ({ request }) => {
-  // /gate renders in every environment (the proxy only gates staging and dev); /gate/enter answers 404 where there is
-  // nothing to log in to, so a local stack cannot be talked into issuing a gate cookie.
+  // Proves (C4-D1, C4-D6): /gate renders in every environment (the proxy only gates staging and dev), but /gate/enter
+  // answers 404 where there is nothing to log in to, so a local stack cannot be talked into issuing a gate cookie.
   expect((await request.get("/gate")).status()).toBe(200);
   expect((await request.post("/gate/enter", { form: { password: "x" } })).status()).toBe(404);
 });

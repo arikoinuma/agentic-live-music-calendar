@@ -99,8 +99,8 @@ its apex is the bare zone name.
 | staging | `staging.pebblebeats.com` | `staging.pebblebeats.com` | `msp.staging.pebblebeats.com` |
 | dev | not set up (C4-D10) | | |
 
-What `proxy.ts` does with a request, in this order (the order is `C4-K2`): refuse (503) if `APP_ENV` is unreadable or a
-gated environment has no password; redirect the apex and any malformed or reserved host to the default metro's host
+What `proxy.ts` does with a request, in this order (the order is `C4-K2`): refuse (503) if `APP_ENV` is unreadable, a
+gated environment has no password, or `DEFAULT_METRO_SLUG` is set but malformed; redirect the apex and any malformed or reserved host to the default metro's host
 (no login needed: nothing from the database is revealed); show the password form to anyone without the cookie (staging
 and dev only); only then, for a slug that is not the default, ask the API whether it is a real metro. Every response from
 a non-production environment carries `X-Robots-Tag: noindex, nofollow`.

@@ -42,7 +42,7 @@ describe("a correct password", () => {
 
   it("sends an unsafe next to the front page", async () => {
     // Proves (C4-PR1-8): the redirect cannot leave the site, whatever the form carried.
-    for (const next of ["//evil.com", "https://evil.com", "/\t/evil.com"]) {
+    for (const next of ["//evil.com", "https://evil.com", "/\t/evil.com", "/.//evil.com", "/x/..//evil.com"]) {
       const response = await handleGateEnter(post({ password: "correct horse", next }), STAGING);
       expect(response.headers.get("location")).toBe("/");
     }
@@ -64,7 +64,7 @@ describe("a wrong password", () => {
   });
 
   it("treats a request that is not a form post as an empty password", async () => {
-    // Proves: a malformed body is a refusal, not an exception.
+    // Proves (C4-D6): a malformed body is a refusal, not an exception.
     const response = await handleGateEnter(
       new Request("https://msp.staging.example.com/gate/enter", { method: "POST", body: "not a form" }),
       STAGING,
@@ -82,6 +82,7 @@ describe("where there is nothing to log in to", () => {
   });
 
   it("answers 503 when APP_ENV is unreadable", async () => {
+    // Proves (C4-D1): an environment the gate cannot identify is unavailable, not open.
     const response = await handleGateEnter(post({ password: "x" }), { ...STAGING, APP_ENV: "nope" });
     expect(response.status).toBe(503);
   });

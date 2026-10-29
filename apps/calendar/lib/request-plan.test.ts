@@ -62,9 +62,10 @@ describe("the gate", () => {
   });
 
   it("lets a request with a valid cookie through as the default metro", async () => {
+    // Proves (C4-D4, C4-D6): a visitor holding the cookie reaches the page, and the default slug is accepted from
+    // configuration without asking the API (the hot path adds no API call).
     const { result, isLiveSlug } = plan({ cookieValid: true });
     expect(await result).toEqual({ action: "next", slug: "msp", noindex: true });
-    // Proves (C4-D4): the default slug is accepted from configuration without asking the API.
     expect(isLiveSlug).not.toHaveBeenCalled();
   });
 
@@ -103,13 +104,15 @@ describe("an unknown slug (C4-D4)", () => {
   });
 
   it("is redirected to the default metro's host once logged in, when the API says it is not a metro", async () => {
+    // Proves (C4-D4): after the gate, a slug the API does not know goes to the default metro's host, and the API was
+    // asked about exactly the claimed slug.
     const { result, isLiveSlug } = plan({ host: metro("foo"), cookieValid: true, live: false });
     expect(await result).toEqual({ action: "redirect-metro", slug: "msp", noindex: true });
     expect(isLiveSlug).toHaveBeenCalledWith("foo");
   });
 
   it("is served as that metro when the API says it is live", async () => {
-    // Proves: a second live metro would be reachable on its own host.
+    // Proves (C4-D4): a second live metro would be reachable on its own host.
     const { result } = plan({ host: metro("chi"), cookieValid: true, live: true });
     expect(await result).toEqual({ action: "next", slug: "chi", noindex: true });
   });

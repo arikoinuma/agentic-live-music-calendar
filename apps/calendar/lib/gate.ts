@@ -77,7 +77,8 @@ export function isGateCookieValid(
  * "Same-site" is decided by parsing against a placeholder origin: if the parsed URL's origin is not the
  * placeholder, the input reached for another site (`//evil.com`, `https://evil.com`, and the tab, newline and
  * backslash variants the parser normalises into one of those). The redirect then uses only `pathname + search`,
- * so nothing the visitor controls can name a host. Never trusts `next` as sent (C4-PR1-8).
+ * so nothing the visitor controls can name a host. A pathname that starts with `//` is refused as well, because dot
+ * segments (`/.//evil.com`) resolve to one inside our own origin (C4-CR1-1). Never trusts `next` as sent (C4-PR1-8).
  */
 export function safeNextPath(next: string | null | undefined): string {
   if (!next) return "/";
@@ -89,6 +90,10 @@ export function safeNextPath(next: string | null | undefined): string {
     return "/";
   }
   if (parsed.origin !== base) return "/";
+  // The parser resolves dot segments INSIDE our origin, so `/.//evil.com` and `/x/..//evil.com` keep the placeholder's
+  // origin but leave a pathname that starts with `//`, which a browser reads as another site once it is a Location
+  // header. Refuse any path that begins with two slashes (backslashes are already slashes by now) (C4-CR1-1).
+  if (parsed.pathname.startsWith("//") || parsed.pathname.startsWith("/\\")) return "/";
   // A path that is the gate itself would loop: after logging in, go to the front page instead.
   if (isGatePath(parsed.pathname)) return "/";
   return `${parsed.pathname}${parsed.search}`;

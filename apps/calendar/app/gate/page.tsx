@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { safeNextPath } from "@/lib/gate";
 
-export const metadata: Metadata = { title: "Password required" };
+// `robots: noindex` on the page itself: in production there is no gate (and /gate/enter answers 404), but this page
+// still renders, and once the production host is public a crawler that follows a link to it must not list a password
+// form. Elsewhere the proxy's X-Robots-Tag already says the same (C4-CR1-2).
+export const metadata: Metadata = { title: "Password required", robots: { index: false, follow: false } };
 
 // The password form for the non-production gate (C4-D6). A plain HTML form that posts to /gate/enter: no client
 // JavaScript, no Server Action (an action POSTs to the route that renders it, which a proxy matcher change could
