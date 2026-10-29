@@ -4,6 +4,8 @@ import { Suspense } from "react";
 import "./globals.css";
 import { Geist } from "next/font/google";
 import { getMetroOrNull, siteDescription } from "@/lib/metro";
+import { getSiteContext } from "@/lib/site-context";
+import { siteMetadata } from "@/lib/site-url";
 import { cn } from "@/lib/utils";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
@@ -32,11 +34,16 @@ const SITE_NAME = "Agentic Live Music Calendar";
 // The metro call is shared with <MetroName> below through React's
 // `cache()` (see getMetro in lib/api.ts): one API request per render
 // (two on a page that calls `notFound()`, which renders the layout again).
+//
+// C4 adds the part that depends on WHERE the site is (`siteMetadata`, lib/site-url.ts): `metadataBase` and a
+// per-route canonical when a zone is configured, and `robots: noindex` in every environment but production. They
+// come from configuration and the proxy's validated slug, never from the raw `Host` header (C4-D8).
 export async function generateMetadata(): Promise<Metadata> {
-  const metro = await getMetroOrNull();
+  const [metro, site] = await Promise.all([getMetroOrNull(), getSiteContext()]);
   return {
     title: { default: SITE_NAME, template: `%s · ${SITE_NAME}` },
     description: siteDescription(metro),
+    ...siteMetadata(site),
   };
 }
 

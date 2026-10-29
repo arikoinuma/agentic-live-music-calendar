@@ -17,6 +17,7 @@ import {
 import { showJsonLd } from "@/lib/json-ld";
 import { getMetroOrNull } from "@/lib/metro";
 import { parseIdParam } from "@/lib/params";
+import { getSiteContext } from "@/lib/site-context";
 import { formatAdmission, orderedLineup } from "@/lib/show-format";
 
 // "Nooky Jones, Beasthead at Zhora Darling, Wed, Sep 30, 2026". The cached
@@ -46,7 +47,7 @@ export default async function ShowPage(props: PageProps<"/show/[id]">) {
   const id = parseIdParam(rawId);
   if (id === null) notFound();
 
-  const [show, metro] = await Promise.all([getShow(id), getMetroOrNull()]);
+  const [show, metro, site] = await Promise.all([getShow(id), getMetroOrNull(), getSiteContext()]);
   if (show === null) notFound();
   // A venue deleted between the two calls renders the page without an
   // address; it is not a reason to 404 a show we do have.
@@ -144,7 +145,7 @@ export default async function ShowPage(props: PageProps<"/show/[id]">) {
         )}
       </dl>
 
-      <JsonLd data={showJsonLd(show, { venue, timeZone: metro?.timezone ?? null })} />
+      <JsonLd data={showJsonLd(show, { venue, timeZone: metro?.timezone ?? null, origin: site.origin })} />
     </article>
   );
 }

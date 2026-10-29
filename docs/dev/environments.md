@@ -74,6 +74,9 @@ Variables the API's `Settings` does not read (the frontend's, and rows reserved 
 |---|---|---|---|
 | `APP_ENV` | Vercel | `staging` on every Preview branch, `dev` on branch `dev`, `prod` on Production, `local` in `.env.local` | Validated by `getAppEnv()` against `VERCEL_ENV` and the branch (C3-D7). |
 | `API_BASE_URL` | Vercel | the matching Railway API (Preview defaults to staging's, once it exists) | Server-only, never `NEXT_PUBLIC_`. |
+| `SITE_ZONE` | Vercel | unset until a domain is attached; then `staging.pebblebeats.com` on branch `main`; Production stays unset until C11 (`pebblebeats.com`) | Server-only. The environment's own zone (C4-D2): hosts inside it are `<slug>.<zone>`; hosts outside it (`*.vercel.app`, `localhost`) use the default metro. Also the base of every canonical URL and JSON-LD `url` (C4-D8); unset means none are emitted. |
+| `SITE_GATE_PASSWORD` | Vercel | a long random value on every Preview branch (staging, and every PR preview, which is also `staging`); unset on Production and local | Server-only secret, never committed or pasted in chat. A gated environment (staging, dev) with this unset answers 503 by design (C4-D6). Changing it logs everyone out (the cookie is an HMAC keyed by it). |
+| `DEFAULT_METRO_SLUG` | Vercel | unset everywhere; the code default is `msp` | Optional (C4-D2). A set value that is not a valid, non-reserved slug makes the proxy answer 503 (C4-PR1-4). |
 | `FLAG_*` | Railway, Vercel | reserved | Added by C3.1. |
 | `R2_*` | Railway | reserved | One bucket and token per environment (C9). |
 | DeepInfra key | Railway | reserved | One key per environment (C6, C8). |
@@ -84,6 +87,33 @@ Variables the API's `Settings` does not read (the frontend's, and rows reserved 
 Hobby has no custom environments, so "dev" and "staging" are branch-scoped Preview configurations: Preview
 variables default to the staging values for every branch, and the `dev` branch overrides them. A PR preview
 therefore reads the staging API, which is read-only to the browser.
+
+## Hosts, the gate and `noindex` (C4)
+
+Each metro is its own subdomain of an environment's zone. The zone is the part of the domain the environment owns;
+its apex is the bare zone name.
+
+| Environment | Zone | Apex | A metro's host |
+|---|---|---|---|
+| production (C11, not attached yet) | `pebblebeats.com` | `pebblebeats.com` | `msp.pebblebeats.com` |
+| staging | `staging.pebblebeats.com` | `staging.pebblebeats.com` | `msp.staging.pebblebeats.com` |
+| dev | not set up (C4-D10) | | |
+
+What `proxy.ts` does with a request, in this order (the order is `C4-K2`): refuse (503) if `APP_ENV` is unreadable or a
+gated environment has no password; redirect the apex and any malformed or reserved host to the default metro's host
+(no login needed: nothing from the database is revealed); show the password form to anyone without the cookie (staging
+and dev only); only then, for a slug that is not the default, ask the API whether it is a real metro. Every response from
+a non-production environment carries `X-Robots-Tag: noindex, nofollow`.
+
+* **The gate is a courtesy, not security.** One shared password (`SITE_GATE_PASSWORD`), remembered by a host-only
+  `__Host-gate` cookie for 30 days. There is no rate limit and no per-user login, and the Railway API stays public
+  until C10, so the gate protects the pages only.
+* **Attaching a domain removes Vercel's own login from that host.** Vercel's protection covers `*.vercel.app` only
+  (`alpha-deployment-plan.md` §1.1), so the gate is staging's only protection once `msp.staging.pebblebeats.com` is
+  attached. Prove it on the `*.vercel.app` URL first (C4 Step 5).
+* **Never attach `msp.pebblebeats.com` or the apex to Production before C11** (Dep-D11): that makes production public.
+* **Adding a metro** is a database row (the seed) plus its DNS; the slug must be 3 to 32 characters, start with a
+  letter, use lowercase letters, digits and hyphens, and not be in `apps/calendar/lib/reserved-slugs.json`.
 
 ## The `dev` lane (Dep-D8)
 

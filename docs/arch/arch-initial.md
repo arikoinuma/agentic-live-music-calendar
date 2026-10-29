@@ -265,6 +265,15 @@ runs three persistent environments instead, `dev`, `staging` and `prod`, with `m
 connects to Postgres, so a per-preview database branch would have no reader (`docs/dev/environments.md`; revisit for
 ephemeral per-PR environments).
 
+**Metro hosts and the gate (C4, `docs/dev/implementations/c4-metro-hosts.md`):** each metro is its own subdomain of an
+environment's zone (`msp.<domain>` in production, `msp.staging.<domain>` in staging; `alpha-deployment-plan.md` Dep-D2).
+`apps/calendar/proxy.ts` resolves the metro from the request host (a short code, `metro.slug`), redirects the zone apex
+and malformed hosts to the default metro, puts a shared-password gate in front of staging and dev (production and
+local are open), and marks every non-production response `noindex`. Hosts outside every zone (`*.vercel.app` previews,
+`localhost`) use the default metro, so nothing changes until a domain is attached. Canonical URLs and JSON-LD `url`
+come from configuration (`SITE_ZONE` and the resolved slug), never from the `Host` header. The gate is a courtesy, not
+security: the Railway API stays public until C10. Queries are still not scoped by the host's metro (Section 11).
+
 **Cost note (original):** a PR-triggered Railway environment that tears itself down costs almost nothing. A permanent, always-on staging environment roughly doubles the Railway bill. **Measured October 28, 2026** (`docs/dev/implementations/c1-env-revalidation.md`, "Cost finding"): an idle always-on API costs about $1 a month, so three fit inside the $5 the Hobby plan includes; that rests on one week of one idle API and is re-read a week after staging exists.
 
 **Sequencing:**
