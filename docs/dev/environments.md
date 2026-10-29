@@ -148,6 +148,21 @@ begin; alter table agent_run add column _probe int; rollback;
 
 `/health/db` runs `SELECT 1` and cannot see a privilege failure; use a table-backed route (`/metro`).
 
+## Railway service settings (set in the dashboard, per service)
+
+There is no `railway.toml`: Railway deprecated Config as Code, a service that has never used it cannot opt in, and the file
+was ignored when tried (C3 Step 6.5; `notes.md`). Each API service (production, and staging when it is created) needs these
+three set by hand under its Settings:
+
+| Setting | Value | Why |
+|---|---|---|
+| Start command | `uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT` | `$PORT` is assigned by Railway; `0.0.0.0` so its proxy can reach it. |
+| Healthcheck path | `/health` | Answers without a database query, so a deploy check does not wake Neon, and a failing check makes Railway keep the old deployment when the new one refuses to start (the `APP_ENV` startup rule). Never `/health/db`. |
+| Pre-deploy command | `uv run alembic upgrade head` | Migrates before the new code starts, and stops the deploy if it fails. Verified on production: `uv` is on its PATH and the direct Neon host accepts DDL. |
+
+Railway's replacement, Infrastructure as Code (`.railway/railway.ts`), documents no pre-deploy setting, so it is not used.
+Old config files stop being read on 2026-12-01; none exists here.
+
 ## Cutover order (production, C3 Step 6)
 
 This is where C3 can break production. The order is the plan; the full text is in the plan file.
@@ -157,8 +172,8 @@ This is where C3 can break production. The order is the plan; the full text is i
    health-check path to `/health` (it is empty today). Check `/health` and `/metro`.
 3. Point Railway production's source at the `production` branch.
 4. Vercel Production: `APP_ENV=prod`; then merge the C3 PR to `main`.
-5. Fast-forward `production` to `main`; set Railway's config file path to `/apps/api/railway.toml` (from the
-   repository root); the API deploys, migrates, and `/health` must say `prod`.
+5. Fast-forward `production` to `main` (`git push origin main:production`); the API deploys, and `/health` must say `prod`.
+   Set the pre-deploy command in the service's dashboard (below) so it migrates; there is no config file.
 6. Move Vercel's Production Branch to `production`.
 7. Create Railway `staging` with each variable set by hand (not copied), source `main`.
 8. Point Vercel Preview's `API_BASE_URL` at staging's API.
