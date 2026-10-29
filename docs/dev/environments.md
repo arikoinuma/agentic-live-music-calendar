@@ -6,19 +6,28 @@ produced it is `docs/dev/implementations/c3-environments-and-deploy.md`; decisio
 
 ## Current state (read this first)
 
-*As of October 28, 2026, before the dashboard steps of C3 are done:* only **production** exists in every layer. The
-`staging` and `dev` rows below are the target, and each line becomes a fact when Ari records it (with the date) as
-the runbook steps in the plan are completed. Anything marked *target* has not been built.
+*As of October 28, 2026, after the C3 runbook (Steps 3–7):* **production and staging are live** in every layer. `dev`
+exists as a Neon branch, a login role and an Atlas user, but has **no Railway service** (C3-D1 keeps it on demand until
+something needs it; Step 6.9 and Step 8 were skipped by decision). Anything marked *not built* does not exist yet.
 
 | Layer | `local` | `dev` | `staging` | `prod` |
 |---|---|---|---|---|
-| Git branch | any | `dev` (the lane, below) | `main` | `production` |
-| Vercel | `make dev` | Preview, branch `dev` | Preview (`main` and every PR branch) | Production (Production Branch `production` once cut over) |
-| Railway | none | environment `dev` (*target*) | environment `staging` (*target*) | environment `production` (exists) |
-| Neon | Docker Postgres | branch `dev` (*target*) | branch `staging` (*target*) | default branch (exists, migrated, seeded) |
-| Atlas | Docker Mongo | database `calendar_dev` (*target*) | database `calendar_staging` (*target*) | database `calendar` (*target*; nothing writes to it yet) |
+| Git branch | any | `dev` (the lane, below; the branch is not created yet) | `main` | `production` |
+| Vercel | `make dev` | Preview, branch `dev` (no branch override set yet) | Preview (`main` and every PR branch), `API_BASE_URL` = staging's API | Production (Production Branch `production`) |
+| Railway | none | *not built* | environment `staging`, source `main`, public domain `kind-spontaneity-staging.up.railway.app` | environment `production`, source `production` |
+| Neon | Docker Postgres | branch `dev`, schema only, stamped at `67609c405218` | branch `staging`, seeded, at `829af2c3f26f` | default branch, at `829af2c3f26f`, seeded |
+| Atlas | Docker Mongo | user `calendar_dev` on database `calendar_dev` (created on first write) | user `calendar_staging` on `calendar_staging` | user `calendar_prod` on `calendar` (nothing writes to it yet) |
 | Database login role | `postgres` | `calendar_dev` | `calendar_staging` | `calendar_prod` |
-| Data | seed or a copied dump | seeded (C3-D10) | seeded, then reset from production once it holds real data (C3-D10) | real |
+| Data | seed or a copied dump | not loaded (schema only) | seeded, then reset from production once it holds real data (C3-D10) | real |
+
+**Checks recorded (October 28, 2026).** Production: `/health` shows `app_env: prod`, `/metro` answers, pre-deploy
+migration ran. Staging: `/health` shows `staging`, `/health/db` up, `/metro` answers; setting `APP_ENV=prod` on the
+staging service failed the deploy (the startup check) and was reverted. The Vercel health page shows Frontend and API
+environment agreeing on Preview (`staging`) and on Production (`prod`). The `production` branch is protected by a
+ruleset (no deletion, no force push, no bypass); a delete from a clone was rejected. Atlas isolation was probed for
+all three users. **Not measured:** Neon's behaviour on archiving and the first request after a wake; Atlas pause
+behaviour (left to C8). **Known gaps:** the Vercel "Development" `APP_ENV` row should read `local` (not confirmed), and
+the `dev`-branch Preview override waits for the `dev` branch.
 
 ## How a process knows where it is (C3-D3, C3-D4)
 
@@ -148,6 +157,21 @@ begin; alter table agent_run add column _probe int; rollback;
 
 `/health/db` runs `SELECT 1` and cannot see a privilege failure; use a table-backed route (`/metro`).
 
+## Railway service settings (set in the dashboard, per service)
+
+There is no `railway.toml`: Railway deprecated Config as Code, a service that has never used it cannot opt in, and the file
+was ignored when tried (C3 Step 6.5; `notes.md`). Each API service (production, and staging when it is created) needs these
+three set by hand under its Settings:
+
+| Setting | Value | Why |
+|---|---|---|
+| Start command | `uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT` | `$PORT` is assigned by Railway; `0.0.0.0` so its proxy can reach it. |
+| Healthcheck path | `/health` | Answers without a database query, so a deploy check does not wake Neon, and a failing check makes Railway keep the old deployment when the new one refuses to start (the `APP_ENV` startup rule). Never `/health/db`. |
+| Pre-deploy command | `uv run alembic upgrade head` | Migrates before the new code starts, and stops the deploy if it fails. Verified on production: `uv` is on its PATH and the direct Neon host accepts DDL. |
+
+Railway's replacement, Infrastructure as Code (`.railway/railway.ts`), documents no pre-deploy setting, so it is not used.
+Old config files stop being read on 2026-12-01; none exists here.
+
 ## Cutover order (production, C3 Step 6)
 
 This is where C3 can break production. The order is the plan; the full text is in the plan file.
@@ -157,8 +181,8 @@ This is where C3 can break production. The order is the plan; the full text is i
    health-check path to `/health` (it is empty today). Check `/health` and `/metro`.
 3. Point Railway production's source at the `production` branch.
 4. Vercel Production: `APP_ENV=prod`; then merge the C3 PR to `main`.
-5. Fast-forward `production` to `main`; set Railway's config file path to `/apps/api/railway.toml` (from the
-   repository root); the API deploys, migrates, and `/health` must say `prod`.
+5. Fast-forward `production` to `main` (`git push origin main:production`); the API deploys, and `/health` must say `prod`.
+   Set the pre-deploy command in the service's dashboard (below) so it migrates; there is no config file.
 6. Move Vercel's Production Branch to `production`.
 7. Create Railway `staging` with each variable set by hand (not copied), source `main`.
 8. Point Vercel Preview's `API_BASE_URL` at staging's API.

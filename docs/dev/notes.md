@@ -736,3 +736,16 @@ production build from `main`; no preview build has been attempted for any branch
 Ignored Build Step were normal). Fix: turn Preview deployments back on and set
 `API_BASE_URL` for Preview (C3 Step 5). Also: the project's deployment protection is on (`ssoProtection`,
 `all_except_custom_domains`), so a preview URL asks for a Vercel login; open it signed in to check `/health`.
+
+---
+
+## Railway config-as-code is closed to services that never used it (C3)
+
+C3 added `apps/api/railway.toml` and pointed the service's "Config file path" at it. Railway ignored it: the pre-deploy
+migration did not run and production stayed at the old Alembic revision (`alembic current` against production showed
+`67609c405218`). The service settings page carries the cause: Config as Code is deprecated, existing files keep working until
+2026-12-01, and since 2026-08-28 services that have never used it cannot opt in. Its replacement, Infrastructure as Code
+(`.railway/railway.ts`, `railway config plan/apply`), documents start, build, healthcheck and env keys and no pre-deploy key.
+We set the three values in the dashboard instead (`environments.md`, "Railway service settings") and deleted the file and its
+test. Read a deployment's details page for a "Pre-deploy command" row, and check `alembic current`, before trusting a config
+file; a green `/health` proves nothing about it.
