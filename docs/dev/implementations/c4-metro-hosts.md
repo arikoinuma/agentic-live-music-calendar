@@ -1,6 +1,6 @@
 # C4 — metro hosts and the domain
 
-**Status:** Approved (Ari, October 29, 2026: the plan and every recommended decision, D4, D10, D11 and the two gaps included; dev is dropped from C4's scope, D10 below; the domain is `pebblebeats.com`)
+**Status:** Code review (built October 29, 2026; approved by Ari October 29, 2026: the plan and every recommended decision, D4, D10, D11 and the two gaps included; dev is dropped from C4's scope, D10 below; the domain is `pebblebeats.com`)
 **Date:** October 29, 2026
 **Author model:** Claude Sonnet 5.5
 **Reviewer model:** Claude Opus 5.5 (plan review round 1)
@@ -281,5 +281,60 @@ D4's unverified point is now settled (CONFIRMED, experiment 1).
 **Resolved by:** Claude Sonnet 5.5, October 29, 2026. No round 2 run: PR1-10 and PR1-2 are the changes of substance (the decision order, and how hosts are attached); Ari may want round 2 if either worries him.
 
 ## Implementation log
+
+### Round 1 — Claude Sonnet 5.5, October 29, 2026
+
+**Scope.** Diff base `c2d1bd2` (the commit before the build began). Two commits on `claude/quirky-newton-gn0d26`: `af28618` (Step 1, the slug) and `ad07c9a` (Step 2, everything else); 51 files. Use `git diff c2d1bd2 HEAD`.
+
+* **API (Step 1):** `app/db/models/calendar.py`, `migrations/versions/2026-10-29_c4a1e5b7d903_metro_slug.py`, `app/db/seed.py`, `app/schemas.py`, `app/queries.py`, `app/routers/metro.py`, `app/dependencies.py` (docstring), `app/testing/sample_data.py`; tests `test_db_schema.py`, `test_db_metadata.py`, `test_routers.py`, `test_seed.py`, `test_sample_data_loader.py`, `test_metro_slug.py` (new).
+* **Generated (Step 1):** `apps/calendar/lib/api-types.ts`, `lib/fixtures/metro.json`, `lib/fixtures/venue-detail.json` (slug only).
+* **Frontend (Step 2), new:** `proxy.ts`, `lib/proxy-handler.ts`, `lib/request-plan.ts`, `lib/metro-host.ts`, `lib/reserved-slugs.json`, `lib/gate.ts`, `lib/gate-enter.ts`, `lib/site-config.ts`, `lib/site-url.ts`, `lib/site-context.ts`, `app/gate/page.tsx`, `app/gate/enter/route.ts`, `e2e/non-production.spec.ts`, and a test beside each of the lib files plus `proxy.test.ts`. **Edited:** `app/layout.tsx`, `app/show/[id]/page.tsx`, `app/venue/[id]/page.tsx`, `lib/json-ld.ts` (+ test), `lib/api-log.test.ts` (the `/metro` summary string gained the slug).
+* **Docs:** `api-contract.md`, `data-model-initial.md`, `arch-initial.md` §9, `environments.md`, `conventions.md` (the `C4` row), `notes.md`, `apps/calendar/AGENTS.md` (project instructions for the Next app: Ari to read the new paragraph). The root `AGENTS.md` is unchanged.
+
+**Departures from the plan, each with its reason.**
+
+1. **One branch, two commits** instead of `c4-metro-slug` plus the milestone branch (C4-D11). The session's instructions name one branch, and C4-D11 allows landing both there. Ari can still split at `af28618` (it is self-contained and `make check` was fully green at that commit). Say so in the PR's Review notes.
+2. **`C4-K1`'s code block is shorter than the plan's.** The lowercasing, port and trailing-dot stripping (`normalizeHost`) and the zone normalisation (`normalizeZone`) are written helpers outside the gap, and the no-zone check (`if (z === null) return outside`) is outside it too, so the gap is exactly the label-boundary decision (five lines). The plan's snippet had those lines inside. The reasoning in the key point is unchanged.
+3. **`C4-K2`'s placeholder does not `throw`** (the plan said it would; the same departure as C3-PR1-3). The proxy calls `decideRequest` on every request, so a raising placeholder turned the e2e job and the whole app into 500s. The placeholder serves every page as the default metro with the environment's `noindex`. Consequence: the prod and local rows of `request-plan.test.ts` pass from the scaffold, and the e2e `noindex` check (`C4-T9`) passes; the gate, redirect and fail-closed rows stay red.
+4. **`proxy-handler.test.ts` is mostly red until both gaps are filled** (10 of its 11 tests): they exercise the gate and host classification through the real glue. The plan expected only `C4-T1` and `C4-T3` rows to be red. `K1` is `throw`ing, but only when a zone is configured (the e2e stack has none), so setting `SITE_ZONE` on any deployment before `C4-K1` is filled would 500 every request. **Do not set `SITE_ZONE` in Vercel until both gaps are filled.**
+5. **Logic lives in `lib/`, not in the files the plan named.** A route file may export only its HTTP handlers, and Next 16 restricts a proxy file's exports, so the bodies are `lib/gate-enter.ts` and `lib/proxy-handler.ts`, and the tests are `lib/gate-enter.test.ts` (plan: `app/gate/enter/route.test.ts`), `lib/proxy-handler.test.ts` and `proxy.test.ts` (the matcher). Three small modules the plan's file table did not name were added: `site-config.ts` (reads `SITE_ZONE`, `SITE_GATE_PASSWORD`, `DEFAULT_METRO_SLUG`), `site-context.ts` (the layout's read of the proxy's slug), `site-url.ts` (origin and layout metadata).
+6. **`safeNextPath` and `/%09/evil.com` (`C4-T4`).** The plan said to refuse it. With the parse-based check it is an ordinary path on this site (the tab is percent-encoded, so the parser does not delete it); the test asserts the result cannot leave the origin instead. The real attack forms (`/\t/evil.com`, `//evil.com`, `https://…`, `javascript:`) are refused.
+7. **The login redirects have a relative `Location`** (`/venue/3`). Found by the `next start` matrix: `request.url` inside the route handler was the server's own address (`http://localhost:3210`), not the visitor's host, so an absolute redirect named the wrong host. Not in the plan; `notes.md` records it.
+8. **The liveness check uses the API client's 5-second timeout**, not a "short" one (`C4-D4` said short). It runs only for a non-default slug after the gate, so the hot path never pays it, but a visitor to an unknown slug during an API outage waits up to 5 seconds before the page is served as the default metro.
+9. **The `C4-T4` constant-time test uses `vi.mock("node:crypto")`** (the plan allowed it) to assert `timingSafeEqual` is called on equal-length buffers; without it the mutation "compare with `===`" is invisible to every behavioural test (see the mutation results).
+10. **No unit test of `app/gate/page.tsx`** (an async Server Component; `apps/calendar/AGENTS.md`). It is exercised by the e2e spec (`/gate` answers 200) and the `curl` matrix. It is not in the axe screen list (`e2e/support/screens.ts`), so its accessibility is by construction (a labelled input, an `alert` for the error), not scanned.
+11. **Steps 4–6 are Ari's and are not done**, and the current-state section of `environments.md` (Step 7) waits for them. `environments.md` documents the hosts, the gate and the variables as the plan *intends*; the table marks dev as not set up and production as not attached.
+12. `reserved-slugs.json` was created in the Step 1 commit (the Python test reads it), not Step 2.
+
+**`TODO(Ari)` gaps (open; do not review them as findings).**
+
+| Gap | Where | Key point | Tests |
+|---|---|---|---|
+| `C4-K1` | `apps/calendar/lib/metro-host.ts:91` (placeholder `throw` at `:106`) | Strip the environment's zone on a **label boundary**; what is left must be one valid, non-reserved label | `pnpm --filter calendar test lib/metro-host.test.ts` |
+| `C4-K2` | `apps/calendar/lib/request-plan.ts:55` | The **order** of the checks: fail closed, then host redirects that reveal nothing, then the gate, then the liveness check | `pnpm --filter calendar test lib/request-plan.test.ts` (and `lib/proxy-handler.test.ts` once both are filled) |
+
+Both blocks were filled **in a scratch copy** to prove the tests and the plan's `Code:` lines agree, then put back: with both filled, all 456 unit tests, `pnpm check-types`, `pnpm lint`, `next build` and `make e2e` (107) pass. The filled lines are the ones in the blocks' `Code:` comments, except that `K1` uses the already-normalised `h` and `z`.
+
+**Verification.**
+
+| Command | Result |
+|---|---|
+| `make check` at `af28618` (Step 1 only) | Fully green: Python 1002 passed (15 skipped, as in the sandbox), lint, types, `contract-check`, JS, e2e 104 |
+| `make check` at `ad07c9a` | Python 1002 passed, lint and types clean; **JS stops at 43 red tests, all gap-dependent**: `metro-host.test.ts` 22, `proxy-handler.test.ts` 10, `request-plan.test.ts` 11. `make` stops there, so e2e was run on its own: |
+| `make e2e` at `ad07c9a` (scaffold in place) | 107 passed, including the three new `non-production.spec.ts` journeys |
+| `make designation-check BASE=c2d1bd2` | Exit 0 |
+| `next build` (`APP_ENV=local`, unreachable `API_BASE_URL`) | Passes; `ƒ Proxy (Middleware)` listed, `/gate` and `/gate/enter` dynamic |
+| `next start` matrix, `APP_ENV=staging SITE_ZONE=staging.example.com`, with the gaps filled (scratch) | Page without cookie → 307 `/gate?next=…` + `X-Robots-Tag`; `/gate` 200; apex → 307 `https://msp.staging.example.com/venue/3`; `www.` (reserved) → 307 to the default host; unknown slug without cookie → the gate (no API call); a `*.vercel.app` host → the gate; wrong password → 303 `/gate?error=1&next=…`, no cookie; right → 303 + `__Host-gate=…; Path=/; Max-Age=2592000; Secure; HttpOnly; SameSite=lax`, no `Domain`; with the cookie → 200; unknown slug + cookie + API down → 200 (fails open, served as the default). Rendered HTML: `<meta name="robots" content="noindex, nofollow">` and `<link rel="canonical" href="https://msp.staging.example.com/health">`. Production mode: no `X-Robots-Tag`; apex → `https://msp.example.com/`; a forged `Host: evil.com` still canonicalises to `https://msp.example.com/health` |
+| Mutation checks (gaps filled), each turned a named test red | `endsWith` without the dot (`metro-host.test.ts`, 2 rows); liveness before the gate (`request-plan.test.ts`, "gets the gate before anything is asked of the API"); `safeNextPath` accepting `//x` (`gate.test.ts`); cookie without `Secure` (`gate-enter.test.ts`); password compared with `===` (`gate.test.ts`, "constant-time comparison"); non-GET without a cookie passing (`request-plan.test.ts`, "denies a POST…"); the proxy keeping a client `x-metro-slug` (`proxy-handler.test.ts`); production getting `noindex` (`site-url.test.ts`). **Two first runs survived** (the `endsWith` and the non-GET mutants) because my harness replaced the first match, which was the same text inside the `Code:` comment; applied to the live line, both are killed. The plan's "compare with `===`" mutation was invisible until the `vi.mock` test was added (departure 9) |
+
+**Where to look hardest.**
+
+1. **`proxy-handler.ts` inside a real deployment.** I verified `next build`/`next start`, but not Vercel: that the `host` header there is the public host (the parser reads `request.headers.get("host")`), and that `request.nextUrl` and cookies behave the same. This is unverified until Step 5.
+2. **The decision order and its edges** (`request-plan.ts`): the `/gate` paths on an unknown slug (served as the default, no liveness call), a gated apex (redirects before the gate), and the "unavailable" row carrying `noindex`.
+3. **The migration** (`2026-10-29_c4a1e5b7d903_metro_slug.py`): backfill by name then `NOT NULL`; the fail-loudly case is tested. `dev`'s Neon branch is stamped at `67609c405218`, so its next upgrade runs the C3 `app_env` migration first (unrehearsed; the plan says not to touch dev until the PR merges).
+4. **`x-metro-slug`**: the proxy deletes the client's and sets its own; `site-context.ts` validates it again. Check that no code path reads the header without that validation.
+5. **`gate-enter.ts`**: the cookie's attributes, the 303s, the relative `Location`, 404 outside the gated environments.
+6. **Test quality of `proxy-handler.test.ts` and `proxy.test.ts`**: they use real `NextRequest`s and Next's own matcher helper; confirm they would catch a wrong glue rather than mirror it.
+
 
 ## Code review
