@@ -359,3 +359,150 @@ def test_a_failed_page_counts_in_every_route_scope() -> None:
     runs = {0: run_of(good, crashed)}
     assert not scoring.gate(runs, route="jsonld").passed
     assert not scoring.gate(runs, route="model").passed
+
+
+# ---------------------------------------------------------------------------
+# C5: structured errors, the dump index, and the committed-column label
+# ---------------------------------------------------------------------------
+#
+# C5-D1 / C5-D7 (docs/dev/implementations/c5-pipeline-eval-harness.md, Test approach §1). The graph-level harness joins
+# each counted error to validation's findings by position (C5-K4), so the scorer must say which returned show an error
+# is about, in the positions validation uses: the index in `state.extraction.shows`, the raw list.
+
+
+def with_index_gap() -> tuple[PageLabel, list[dict[str, Any]]]:
+    """A page whose dump holds [show with acts, show with NO acts, show with acts]: the empty one is dropped by the scorer
+    before matching, so a position taken after that filter would be 1 for the last show where validation says 2."""
+    lbl = page_label(label(9, "Lent"), label(11, "Nici Peper"))
+    return lbl, [returned(9, "Lent"), returned(10), returned(11, "Somebody Else")]
+
+
+def test_returned_shows_carry_their_position_in_the_dump_not_in_the_filtered_list() -> None:
+    # Proves: C5-M1. `ReturnedShow.index` is the position in the dump BEFORE empty-act shows are dropped, because
+    # `validation.Finding.show_index` is a position in `state.extraction.shows` (apps/api/AGENTS.md). Taken after the
+    # filter, the third show would be index 1 and every later join in validation recall would point at the wrong show.
+    # The expectation is the dump's own order, written out by hand.
+    _, dump = with_index_gap()
+    shows = [scoring.ReturnedShow.from_dump(s, i) for i, s in enumerate(dump)]
+    assert [s.index for s in shows] == [0, 1, 2]
+    lbl, _ = with_index_gap()
+    result = score(lbl, *dump)
+    acts_wrong = [i for i in result.items if i.kind == "acts_wrong"]
+    assert [(i.date, i.index) for i in acts_wrong] == [("2026-10-11", 2)]
+
+
+def test_every_counted_error_has_a_structured_item() -> None:
+    # Proves: C5-D7. Each error `score_page` counts also comes out as an `ErrorItem` with its kind, so validation recall
+    # (C5-K4) can classify errors without parsing the human-readable strings. Constructed page: one missed show, one
+    # wrong-acts show, one fabricated show, one leak, one wrong time and one missing time. Expected kinds are the tiers of
+    # A2.1-D1, counted by hand from the case.
+    lbl = page_label(
+        label(1, "Missed Band"), label(2, "Right Band"), label(3, "Timed Band", time=T(20, 0)),
+        label(4, "Stated Time Band", time=T(21, 0)),
+        non_shows=(NonShow(title="Karaoke Night", date=D(2026, 10, 8), weekday=None, reason="karaoke"),),
+    )
+    result = score(
+        lbl, returned(2, "Wrong Band"), returned(3, "Timed Band", time=T(19, 0)), returned(4, "Stated Time Band"),
+        returned(6, "Invented Band"), returned(8, "Karaoke Night"),
+    )
+    assert sorted(i.kind for i in result.items) == sorted(
+        ["missed", "acts_wrong", "field_wrong", "field_missing", "fabricated", "leak"]
+    )
+    wrong = next(i for i in result.items if i.kind == "field_wrong")
+    assert (wrong.field, wrong.date) == ("time", "2026-10-03")
+
+
+def test_the_error_strings_are_unchanged_by_the_structured_items() -> None:
+    # Proves: C5-D7 leaves `PageScore.errors` alone. `run_eval.py` and every stored results file read the strings.
+    # Expected text is what the A2.1 scorer already wrote.
+    result = score(page_label(label(1, "Missed Band")))
+    assert result.errors == ["missed 2026-10-01 'Missed Band'"]
+
+
+def test_a_missed_show_takes_the_index_of_the_dropped_show_on_its_date() -> None:
+    # Proves: C5-PR1-2. When the act splitter drops a show, it stays in the dump with `acts: []`; `score_page` drops it
+    # before matching, so the label is `missed`. Validation puts `splitter_dropped` on that show's real index, so the
+    # missed item must carry it, or the commonest real error would join to nothing and be called "silent".
+    lbl = page_label(label(9, "Lent"), label(11, "Nici Peper"))
+    result = score(lbl, returned(9, "Lent"), returned(10), returned(11))
+    missed = [i for i in result.items if i.kind == "missed"]
+    assert [(i.date, i.index) for i in missed] == [("2026-10-11", 2)]
+
+
+def test_a_missed_show_with_nothing_returned_has_no_index() -> None:
+    # Proves: C5-PR1-2, the other half. A show the extraction never mentioned has no dump position, so its item has none
+    # and only a page-level finding can cover it.
+    result = score(page_label(label(9, "Lent")))
+    assert [(i.kind, i.index) for i in result.items] == [("missed", None)]
+
+
+def test_page_scores_with_items_round_trip_through_json_and_old_files_still_load() -> None:
+    # Proves: C5-PR1-12 (a). `from_dict` must rebuild `ErrorItem`s (a plain `cls(**data)` leaves dicts), the dict must be
+    # JSON-serialisable (so the date is a string, not a `datetime.date`), and a results file written before C5, with no
+    # `items` key, still loads so `--rescore` of an A2.1 file keeps working.
+    import dataclasses
+    import json
+
+    result = score(page_label(label(1, "Missed Band")))
+    stored = json.loads(json.dumps(dataclasses.asdict(result)))
+    again = scoring.PageScore.from_dict(stored)
+    assert again.items == result.items
+    assert isinstance(again.items[0], scoring.ErrorItem)
+    del stored["items"]
+    assert scoring.PageScore.from_dict(stored).items == []
+
+
+def test_scheduled_only_drops_cancelled_and_postponed_shows_from_a_label() -> None:
+    # Proves: C5-PR1-5. A cancelled or postponed listing is labelled with its status (A2.1-D12) but reconcile skips it and
+    # `ShowStatus` has no such value, so the rows left cannot hold it. Scored against the full label, every run of a page
+    # like 7th St Entry's would report those shows missed for correct behaviour.
+    lbl = page_label(label(1, "Live Band"), label(2, "Gone Band", status="cancelled"), label(3, "Later Band", status="postponed"))
+    assert [s.acts for s in scoring.scheduled_only(lbl).shows] == [("Live Band",)]
+    assert len(lbl.shows) == 3  # the original is untouched
+
+
+# ---------------------------------------------------------------------------
+# C5-K2: precision and recall (red until Ari fills the TODO in `headline_rates`)
+# ---------------------------------------------------------------------------
+
+
+def k2_page_score() -> scoring.PageScore:
+    """A constructed page, not hand-set fields, so an impossible combination can't arise: 10 labelled shows; the extraction
+    misses one, gives one the wrong acts, adds one invented show and one listed non-show (a leak)."""
+    shows = tuple(label(day, f"Band {day}") for day in range(1, 11))
+    lbl = page_label(
+        *shows, non_shows=(NonShow(title="Karaoke Night", date=D(2026, 10, 20), weekday=None, reason="karaoke"),),
+    )
+    returned_shows = [returned(day, f"Band {day}") for day in range(3, 11)]  # shows 1 and 2 not returned yet
+    returned_shows[0] = returned(3, "Wrong Band")  # show 3: wrong acts
+    returned_shows.append(returned(2, "Band 2"))  # show 2 found; show 1 stays missed
+    returned_shows.append(returned(15, "Invented Band"))
+    returned_shows.append(returned(20, "Karaoke Night"))
+    return score(lbl, *returned_shows)
+
+
+def test_headline_rates_count_found_as_labelled_minus_missed_minus_wrong_acts() -> None:
+    # Proves: C5-K2. Ari's standard makes a show's identity its date and acts (A2.1-D1), so a show is FOUND only when it
+    # was matched AND its acts are right. Expected numbers worked by hand from the page above: 10 labelled; show 1 missed;
+    # show 3 has wrong acts; shows 2 and 4 to 10 are right, so 8 found. Returned with acts: 8 right + 1 wrong + 1 invented
+    # + 1 leak = 11. Recall 8/10. Strict precision 8/11 counts the leak against; lenient 8/10 does not. The likeliest mistake
+    # is `found = labelled - missed` (counting the wrong-acts show as found).
+    base = k2_page_score()
+    assert (base.labelled, base.returned, base.missed, base.acts_wrong, base.fabricated, base.leaks) == (10, 11, 1, 1, 1, 1)
+    rates = scoring.headline_rates(base)
+    assert rates.found == 8
+    assert rates.recall == 8 / 10
+    assert rates.precision == 8 / 11
+    assert rates.precision_lenient == 8 / 10
+
+
+def test_headline_rates_on_an_empty_page_are_perfect_not_a_division_error() -> None:
+    # Proves: C5-M8. An empty labelled page returned empty is a perfect score, not a ZeroDivisionError. A page of only
+    # leaks has no returned show that is a real one, so the lenient figure must not divide by zero either.
+    empty = scoring.headline_rates(score(page_label()))
+    assert (empty.recall, empty.precision, empty.precision_lenient) == (1.0, 1.0, 1.0)
+    only_leak = score(
+        page_label(non_shows=(NonShow(title="Karaoke Night", date=D(2026, 10, 8), weekday=None, reason="karaoke"),)),
+        returned(8, "Karaoke Night"),
+    )
+    assert scoring.headline_rates(only_leak).precision_lenient == 1.0

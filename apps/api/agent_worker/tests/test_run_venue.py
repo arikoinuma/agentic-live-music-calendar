@@ -189,6 +189,42 @@ async def test_run_venue_opens_a_run_carries_its_id_and_closes_it(
     assert (state.venue_name, state.metro_timezone) == ("The White Squirrel Bar", "America/Chicago")
 
 
+async def test_run_venue_without_a_policy_keeps_the_default_policy(
+    ctx: WorkerContext, venue: VenueFacts, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Proves (C5-D5): the optional `policy` argument changes nothing for the scheduled worker, which never passes one. The
+    # state the graph returns carries `DEFAULT_POLICY` itself, so the production path is the one it was before C5.
+    from agent_worker.policy import DEFAULT_POLICY
+
+    page = tmp_path / "page.html"
+    page.write_text(PAGE_WITH_ONE_SHOW)
+    monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [NONA]}))
+    state = await run_venue(venue, ctx, calendar_url=str(page), fetched_on=fakes.FETCHED)
+    assert state.policy == DEFAULT_POLICY
+
+
+async def test_run_venue_runs_the_graph_under_the_policy_it_is_given(
+    ctx: WorkerContext, venue: VenueFacts, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Proves (C5-D5, C5-M3): a policy passed to `run_venue` is the one the routers read. With a cap of 1 and a splitter that
+    # drops a show every time, the run makes ONE attempt and escalates; under the default cap of 3 the same page would be
+    # tried three times. If `run_venue` ignored the argument, this would count three attempts. The expectation is the cap
+    # we passed (`decide_route` reads `policy.max_attempts`, A3-D11).
+    from dataclasses import replace
+
+    from agent_worker.policy import DEFAULT_POLICY
+
+    page = tmp_path / "page.html"
+    page.write_text(jsonld_page(event("Nona", "2026-10-20T21:00:00-05:00"), event("Lent", "2026-10-21T21:00:00-05:00")))
+    dropping = fakes.split_answer(("Nona", ["Nona"]))  # no answer for the second title: splitter_dropped, an error
+    monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [dropping]}))
+    state = await run_venue(
+        venue, ctx, calendar_url=str(page), fetched_on=fakes.FETCHED, policy=replace(DEFAULT_POLICY, max_attempts=1),
+    )
+    assert state.attempt_count == 1
+    assert state.escalation_reason is not None
+
+
 async def test_a_run_that_crashes_is_still_closed_and_the_error_still_propagates(
     factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts, monkeypatch: pytest.MonkeyPatch,
 ) -> None:

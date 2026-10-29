@@ -67,6 +67,9 @@ class PageLabel:
     shows: tuple[LabelledShow, ...]
     non_shows: tuple[NonShow, ...] = ()
     note: str = ""
+    # C5-D3: set aside for C6's held-out test. A held-out page is labelled now (label once) but is in no default set, so the
+    # baseline and every tuning run never score it; `--set held_out` is how C6 scores it, and the results file says it did.
+    held_out: bool = False
 
 
 @dataclass(frozen=True)
@@ -366,14 +369,39 @@ PAGE_LABELS: dict[str, PageLabel] = {
               convention="'OXYGEN' on the tanks in the drawing is not an act"),
         ),
     ),
+    # -------------------------------------------------------------------------------------
+    # TODO(Ari) — Key point of interest (C5-K1): label each new capture, and decide which are held out (C5-D3).
+    #   A label is what a PERFECT run would produce, read from the page text (never JSON-LD, never a model's output). The
+    #   judgement is in three places: which entries are shows (karaoke, comedy and recurring headers go in `non_shows`), what
+    #   the acts are (A2.1-D5's conventions: a tour name is not an act, a night's name is not an act, a named DJ is), and where
+    #   a title is genuinely ambiguous (`alternatives`). Mark `held_out=True` on about a third of the new pages and do not read
+    #   their results before C6. (docs/dev/implementations/a2.1-extraction-reliability.md, A2.1-D5 and A2.1-D11;
+    #   docs/dev/alpha-deployment-plan.md C5, section 5.2.)
+    # To align: capture with `uv run python -m agent_worker.eval.capture <venue>`, list the page's lines with
+    #   `uv run python -m agent_worker.eval.label_draft agent_worker/eval/fixtures/<capture>.html`, paste the lines you mean as
+    #   `source_line`s, and add the PageLabel above this block. A venue that is not in VENUE_FACTS needs its entry there first
+    #   (Dep-D16: the venue list is yours). A new GATED venue also goes in GATED_VENUES in tests/test_labels.py.
+    # Code (a complete worked row; it is the example in A2.1's plan, A2.1-D11, and test_scoring.py, not a row in PAGE_LABELS):
+    #   S(D(2026, 10, 9), ("Slashfire", "Dread Spell", "Couch Potato Massacre"), "Slashfire w. Dread Spell & Couch Potato Massacre",
+    #     T(21, 0), convention="w./& split", alternatives=(("Slashfire", "Dread Spell & Couch Potato Massacre"),))
+    # Check: `uv run pytest agent_worker/tests/test_labels.py` (green when every page has shows, each with a source line, and
+    #   every capture has a label); then a baseline run over the page. The likeliest mistake is labelling from what the model
+    #   returned instead of from the page, which makes the score measure agreement with the model rather than correctness.
+    # (No placeholder to raise: labels are data, and an empty PageLabel already fails `test_every_page_label_has_shows`.)
+    # -------------------------------------------------------------------------------------
 }
 
 
 def gated_fixtures() -> list[str]:
-    """Fixture file names in the gated set (A2.1-D2)."""
-    return [name for name, page in PAGE_LABELS.items() if page.gated]
+    """Fixture file names in the gated set (A2.1-D2). Held-out pages (C5-D3) are never in it."""
+    return [name for name, page in PAGE_LABELS.items() if page.gated and not page.held_out]
 
 
 def informational_fixtures() -> list[str]:
-    """Fixture file names reported but not gated (A2.1-D2)."""
-    return [name for name, page in PAGE_LABELS.items() if not page.gated]
+    """Fixture file names reported but not gated (A2.1-D2). Held-out pages (C5-D3) are never in it."""
+    return [name for name, page in PAGE_LABELS.items() if not page.gated and not page.held_out]
+
+
+def held_out_fixtures() -> list[str]:
+    """Fixture file names set aside for C6's held-out test (C5-D3): labelled, and in no other set."""
+    return [name for name, page in PAGE_LABELS.items() if page.held_out]

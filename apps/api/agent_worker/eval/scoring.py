@@ -17,10 +17,15 @@ string-acts form); `match_shows` pairs labelled and returned shows (A2.1-K2);
 `score_page` counts one page; `gate` applies the standard to every run of a label. A returned
 show with `acts: []` is dropped before anything is counted — both routes keep rejected
 non-music entries that way for A3's completeness check to drop (A2.1-PR1-4).
+
+C5 (docs/dev/implementations/c5-pipeline-eval-harness.md) added what the graph-level harness needs and changed none of the
+counting: every returned show carries its position in the dump (`ReturnedShow.index`), every counted error also comes out
+as a structured `ErrorItem` (so validation recall can join it to a finding, C5-K4), `scheduled_only` gives the label the
+database can be held to, and `headline_rates` turns a page's counts into precision and recall (C5-K2).
 """
 
 import datetime
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from agent_worker.eval.labels import LabelledShow, NonShow, PageLabel
@@ -67,11 +72,15 @@ class ReturnedShow:
     free_admission: bool | None = None
     image_url: str | None = None
     status: str = "scheduled"
+    # Position in the dump BEFORE empty-act shows are dropped: the same position validation's findings use
+    # (`Finding.show_index` indexes `state.extraction.shows`), so an error here can be joined to a finding (C5-M1).
+    index: int | None = None
 
     @classmethod
-    def from_dump(cls, show: dict[str, Any]) -> "ReturnedShow":
+    def from_dump(cls, show: dict[str, Any], index: int | None = None) -> "ReturnedShow":
         """From an extraction dump (`model_dump(mode="json")`). A2's `baseline-32k` stored acts
-        as plain strings and has no `status`; both are accepted (A2.1-PR1-13)."""
+        as plain strings and has no `status`; both are accepted (A2.1-PR1-13). `index` is the show's
+        position in the dump's `shows` list."""
         acts = tuple(
             (a if isinstance(a, str) else str(a.get("name", ""))).strip()
             for a in show.get("acts") or []
@@ -87,6 +96,7 @@ class ReturnedShow:
             free_admission=show.get("free_admission") or None,
             image_url=show.get("image_url"),
             status=show.get("status") or "scheduled",
+            index=index,
         )
 
 
@@ -150,6 +160,21 @@ class FieldTally:
     wrong: int = 0  # returned a different value, or a value the page never states — never ok
 
 
+@dataclass(frozen=True)
+class ErrorItem:
+    """One counted error, in a form a program can join to validation's findings (C5-D7).
+
+    `kind` is one of missed, acts_wrong, fabricated, leak, field_wrong, field_missing, image_wrong. `index` is the returned
+    show's position in the dump (None for a missed show nothing was returned for). `date` is an ISO string, not a
+    `datetime.date`, so `dataclasses.asdict` of a page score stays JSON-serialisable in a results file.
+    """
+
+    kind: str
+    date: str | None
+    index: int | None = None
+    field: str | None = None
+
+
 @dataclass
 class PageScore:
     """One page's counts against the standard. `route` is set by the harness from the
@@ -168,12 +193,15 @@ class PageScore:
     order_differs: int = 0  # diagnostic: correct acts in a different order (not gated)
     fields: dict[str, FieldTally] = field(default_factory=lambda: {f: FieldTally() for f in (*FIELDS, "image_url")})
     errors: list[str] = field(default_factory=list)  # human-readable, for reading a run
+    items: list[ErrorItem] = field(default_factory=list)  # the same errors, structured (C5-D7)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "PageScore":
-        """Rebuild from `dataclasses.asdict` output, as stored in a results file."""
+        """Rebuild from `dataclasses.asdict` output, as stored in a results file. A file written before C5 has no `items`
+        (they stay empty); a newer one has them as plain dicts, which are rebuilt into `ErrorItem`s (C5-PR1-12)."""
         fields = {name: FieldTally(**tally) for name, tally in data.get("fields", {}).items()}
-        return cls(**{**data, "fields": fields})
+        items = [ErrorItem(**item) for item in data.get("items", [])]
+        return cls(**{**data, "fields": fields, "items": items})
 
 
 @dataclass
@@ -239,30 +267,55 @@ def _unsplit(label: LabelledShow, acts: tuple[str, ...]) -> bool:
     return any(sum(w in fold_text(a) for w in wanted) >= 2 for a in acts)
 
 
+def _dropped_index(dropped: list[ReturnedShow], day: datetime.date) -> int | None:
+    """The position of a returned show with no acts on `day`, taken out of `dropped`; None when there is none.
+
+    When the act splitter drops a show it stays in the dump with `acts: []` and validation puts `splitter_dropped` on its
+    index. The scorer drops it before matching, so the label it belonged to is `missed`; this lets the missed item carry
+    the dropped show's index, so the error and the finding can meet (C5-PR1-2).
+
+    Known limit (C5-CR1-5): the match is on the date alone and the first show wins. A page that lists a non-music entry (also
+    `acts: []`, with only an `excluded_no_acts` warning) on the same date as a show the splitter dropped can hand the missed label
+    the non-music entry's index, so validation recall reads "flagged" where it should read "caught". A dump carries no title to
+    match on; the count of such pages is small and is visible in the per-kind table."""
+    for show in dropped:
+        if show.date == day:
+            dropped.remove(show)
+            return show.index
+    return None
+
+
 def score_page(label: PageLabel, extraction: dict[str, Any], page_html: str = "", fixture: str = "") -> PageScore:
     """Count one extraction of one page against its label."""
-    shows = [ReturnedShow.from_dump(s) for s in extraction.get("shows") or []]
+    shows = [ReturnedShow.from_dump(s, i) for i, s in enumerate(extraction.get("shows") or [])]
     with_acts = [s for s in shows if s.acts]
+    dropped = [s for s in shows if not s.acts]
     score = PageScore(
         fixture=fixture, labelled=len(label.shows), returned=len(with_acts),
-        dropped_empty=len(shows) - len(with_acts),
+        dropped_empty=len(dropped),
     )
     matching = match_shows(list(label.shows), with_acts)
 
     for missed in matching.missed:
         score.missed += 1
         score.errors.append(f"missed {missed.date} {missed.source_line!r}")
+        score.items.append(ErrorItem("missed", missed.date.isoformat(), _dropped_index(dropped, missed.date)))
     for lbl, ret in matching.matched:
         if not acts_correct(lbl, ret.acts):
             score.acts_wrong += 1
             score.unsplit += _unsplit(lbl, ret.acts)
             score.errors.append(f"acts wrong {lbl.date}: {list(ret.acts)} vs {list(lbl.acts)}")
+            score.items.append(ErrorItem("acts_wrong", lbl.date.isoformat(), ret.index))
         elif [fold_text(a) for a in ret.acts] != [fold_text(a) for a in lbl.acts]:
             score.order_differs += 1
         for name in FIELDS:
-            problem = _tally(score.fields[name], getattr(lbl, name), getattr(ret, name))
+            tally = score.fields[name]
+            missing_before = tally.missing
+            problem = _tally(tally, getattr(lbl, name), getattr(ret, name))
             if problem:
                 score.errors.append(f"{name} {lbl.date} {lbl.source_line!r}: {problem}")
+                kind = "field_missing" if tally.missing > missing_before else "field_wrong"
+                score.items.append(ErrorItem(kind, lbl.date.isoformat(), ret.index, name))
         image = score.fields["image_url"]
         if ret.image_url is not None:
             if ret.image_url in page_html:
@@ -270,14 +323,69 @@ def score_page(label: PageLabel, extraction: dict[str, Any], page_html: str = ""
             else:
                 image.wrong += 1
                 score.errors.append(f"image_url {lbl.date}: {ret.image_url!r} is not on the page")
+                score.items.append(ErrorItem("image_wrong", lbl.date.isoformat(), ret.index, "image_url"))
     for extra in matching.extras:
+        day = extra.date.isoformat() if extra.date else None
         if _is_leak(extra, label.non_shows):
             score.leaks += 1
             score.errors.append(f"leak {extra.date} {list(extra.acts)}")
+            score.items.append(ErrorItem("leak", day, extra.index))
         else:
             score.fabricated += 1
             score.errors.append(f"fabricated {extra.date} {list(extra.acts)}")
+            score.items.append(ErrorItem("fabricated", day, extra.index))
     return score
+
+
+def scheduled_only(label: PageLabel) -> PageLabel:
+    """The label with its cancelled and postponed shows removed: what the DATABASE can be held to.
+
+    A cancelled or postponed listing is labelled with its status (A2.1-D12), but `ShowStatus` has only active and removed,
+    and reconcile skips such a listing with nothing stored (`reconcile.Action.SKIP`), so the rows left cannot hold it.
+    Scored against the full label, every run of a page like 7th St Entry's would report those shows missed for correct
+    behaviour (C5-PR1-5). Used for the committed column and by `C5-K3`."""
+    return replace(label, shows=tuple(s for s in label.shows if s.status == "scheduled"))
+
+
+# ---------------------------------------------------------------------------
+# Precision and recall (C5-K2)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Rates:
+    """A page's headline numbers. `found` is the shows that were matched with the right acts; `precision` counts every
+    returned show that has acts against it, `precision_lenient` leaves out the tolerated leaks (A2.1-D1)."""
+
+    found: int
+    labelled: int
+    returned: int
+    recall: float
+    precision: float
+    precision_lenient: float
+
+
+def headline_rates(score: PageScore) -> Rates:
+    """Precision and recall for one page's counts."""
+    # TODO(Ari) — Key point of interest (C5-K2): what counts as FOUND, and whether a tolerated leak is a false positive.
+    #   Ari's standard (A2.1-D1) makes identity "date and acts", so a show is FOUND when it was matched AND its acts are
+    #   correct: found = labelled - missed - acts_wrong. Recall is found / labelled. For precision the denominator is every
+    #   show returned with acts: the standard tolerates about one leak per page, but a leak is still a row in the calendar
+    #   that is not a show, so the STRICT precision counts it against; the LENIENT figure (precision_lenient) does not, and
+    #   both are reported so the tolerated case stays visible. (docs/dev/alpha-deployment-plan.md C5; A2.1-D1.)
+    # To align: copy the Code lines by hand, then run the Check.
+    # Code:
+    #   found = score.labelled - score.missed - score.acts_wrong
+    #   return Rates(
+    #       found=found, labelled=score.labelled, returned=score.returned,
+    #       recall=found / score.labelled if score.labelled else 1.0,
+    #       precision=found / score.returned if score.returned else 1.0,
+    #       precision_lenient=found / (score.returned - score.leaks) if score.returned - score.leaks else 1.0,
+    #   )
+    # Check: uv run pytest agent_worker/tests/test_scoring.py -k headline_rates — the likeliest mistake is
+    #   `found = labelled - missed` (counting a wrong-acts show as found, which the standard says is an error), or a
+    #   ZeroDivisionError on an empty page.
+    raise NotImplementedError("TODO(Ari)")
 
 
 # ---------------------------------------------------------------------------

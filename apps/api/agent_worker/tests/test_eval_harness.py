@@ -214,3 +214,21 @@ def test_runs_identical_needs_two_runs_of_every_page() -> None:
 
     one_each = run_eval.aggregate([ok_run("aug.html", 0), ok_run("oct.html", 0)])
     assert one_each["per_fixture"]["x"]["runs_identical"] is None
+
+
+def test_the_extraction_harness_never_selects_a_held_out_page_unless_asked(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    # Proves: C5-D3 in `run_eval` too. `--set all` is gated plus informational and excludes held-out pages; `--set held_out`
+    # selects only them. The expectation is the plan's rule, over two constructed labels and fixture files.
+    from dataclasses import replace
+
+    from agent_worker.eval import labels, run_eval
+
+    base = labels.PAGE_LABELS["mortimers-2026-10-10.html"]
+    monkeypatch.setattr(labels, "PAGE_LABELS", {"seen.html": base, "held.html": replace(base, held_out=True)})
+    monkeypatch.setattr(run_eval, "FIXTURES_DIR", tmp_path)
+    for name in ("seen.html", "held.html"):
+        (tmp_path / name).write_text("<html></html>")
+    assert [p.name for p in run_eval.select_fixtures("all", None)] == ["seen.html"]
+    assert [p.name for p in run_eval.select_fixtures("held_out", None)] == ["held.html"]

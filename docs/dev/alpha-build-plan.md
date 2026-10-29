@@ -274,6 +274,8 @@ Plan and review: `docs/dev/implementations/a7-testing.md` (plan approved by Ari 
 
 The four items kept their `[fill-in]` marking.
 
+**Status (October 29, 2026):** C5's harness is built (`docs/dev/implementations/c5-pipeline-eval-harness.md`); its four `TODO(Ari)` gaps and the local baseline are open. C7 is unchanged.
+
 ---
 
 ## 6. Track B — Next.js and React

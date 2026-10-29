@@ -13,7 +13,7 @@ API_DIR := apps/api
 WEB := calendar
 
 .DEFAULT_GOAL := help
-.PHONY: help setup dev api web db db-up db-down db-reset db-shell db-wait worker \
+.PHONY: help setup dev api web db db-up db-down db-reset db-shell db-wait worker eval-graph \
         migrate migration seed fixtures types contract-check designation-check test coverage lint typecheck \
         e2e check clean
 
@@ -93,6 +93,14 @@ db-shell: ## Open psql against the local database
 
 worker: ## Run the agent worker once: all venues, or VENUE=<id> (needs make db-up and Ollama)
 	cd $(API_DIR) && uv run python -m agent_worker.main $(if $(VENUE),--venue $(VENUE))
+
+# C5 (docs/dev/implementations/c5-pipeline-eval-harness.md): scores a full graph run against the hand-written labels. Calls the
+# model, so it is local only and NOT part of `make check` or CI. Optional: SET (gated|informational|held_out|all), ONLY, RUNS,
+# SCENARIO (repeat|sequence|overlap|perturbed), THRESHOLD, MAX_ATTEMPTS, KEEP_DB=1. The scratch database `calendar_eval` is made on
+# the server DATABASE_URL names (or EVAL_DATABASE_URL, if set); it must be local.
+eval-graph: ## Score the whole pipeline on labelled pages (local only: needs make db-up, Ollama, the fixtures)
+	@test -n "$(LABEL)" || { echo "usage: make eval-graph LABEL=<name> [SET=...] [ONLY=...] [RUNS=n] [SCENARIO=...] [THRESHOLD=x] [MAX_ATTEMPTS=n] [KEEP_DB=1]"; exit 2; }
+	cd $(API_DIR) && uv run python -m agent_worker.eval.graph_eval --label $(LABEL) $(if $(SET),--set $(SET)) $(if $(ONLY),--only "$(ONLY)") $(if $(RUNS),--runs $(RUNS)) $(if $(SCENARIO),--scenario $(SCENARIO)) $(if $(THRESHOLD),--threshold $(THRESHOLD)) $(if $(MAX_ATTEMPTS),--max-attempts $(MAX_ATTEMPTS)) $(if $(KEEP_DB),--keep-db)
 
 db-wait: ## Block until Postgres and MongoDB accept connections
 	@echo -n "Waiting for Postgres and MongoDB"
