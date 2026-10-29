@@ -6,19 +6,28 @@ produced it is `docs/dev/implementations/c3-environments-and-deploy.md`; decisio
 
 ## Current state (read this first)
 
-*As of October 28, 2026, before the dashboard steps of C3 are done:* only **production** exists in every layer. The
-`staging` and `dev` rows below are the target, and each line becomes a fact when Ari records it (with the date) as
-the runbook steps in the plan are completed. Anything marked *target* has not been built.
+*As of October 28, 2026, after the C3 runbook (Steps 3–7):* **production and staging are live** in every layer. `dev`
+exists as a Neon branch, a login role and an Atlas user, but has **no Railway service** (C3-D1 keeps it on demand until
+something needs it; Step 6.9 and Step 8 were skipped by decision). Anything marked *not built* does not exist yet.
 
 | Layer | `local` | `dev` | `staging` | `prod` |
 |---|---|---|---|---|
-| Git branch | any | `dev` (the lane, below) | `main` | `production` |
-| Vercel | `make dev` | Preview, branch `dev` | Preview (`main` and every PR branch) | Production (Production Branch `production` once cut over) |
-| Railway | none | environment `dev` (*target*) | environment `staging` (*target*) | environment `production` (exists) |
-| Neon | Docker Postgres | branch `dev` (*target*) | branch `staging` (*target*) | default branch (exists, migrated, seeded) |
-| Atlas | Docker Mongo | database `calendar_dev` (*target*) | database `calendar_staging` (*target*) | database `calendar` (*target*; nothing writes to it yet) |
+| Git branch | any | `dev` (the lane, below; the branch is not created yet) | `main` | `production` |
+| Vercel | `make dev` | Preview, branch `dev` (no branch override set yet) | Preview (`main` and every PR branch), `API_BASE_URL` = staging's API | Production (Production Branch `production`) |
+| Railway | none | *not built* | environment `staging`, source `main`, public domain `kind-spontaneity-staging.up.railway.app` | environment `production`, source `production` |
+| Neon | Docker Postgres | branch `dev`, schema only, stamped at `67609c405218` | branch `staging`, seeded, at `829af2c3f26f` | default branch, at `829af2c3f26f`, seeded |
+| Atlas | Docker Mongo | user `calendar_dev` on database `calendar_dev` (created on first write) | user `calendar_staging` on `calendar_staging` | user `calendar_prod` on `calendar` (nothing writes to it yet) |
 | Database login role | `postgres` | `calendar_dev` | `calendar_staging` | `calendar_prod` |
-| Data | seed or a copied dump | seeded (C3-D10) | seeded, then reset from production once it holds real data (C3-D10) | real |
+| Data | seed or a copied dump | not loaded (schema only) | seeded, then reset from production once it holds real data (C3-D10) | real |
+
+**Checks recorded (October 28, 2026).** Production: `/health` shows `app_env: prod`, `/metro` answers, pre-deploy
+migration ran. Staging: `/health` shows `staging`, `/health/db` up, `/metro` answers; setting `APP_ENV=prod` on the
+staging service failed the deploy (the startup check) and was reverted. The Vercel health page shows Frontend and API
+environment agreeing on Preview (`staging`) and on Production (`prod`). The `production` branch is protected by a
+ruleset (no deletion, no force push, no bypass); a delete from a clone was rejected. Atlas isolation was probed for
+all three users. **Not measured:** Neon's behaviour on archiving and the first request after a wake; Atlas pause
+behaviour (left to C8). **Known gaps:** the Vercel "Development" `APP_ENV` row should read `local` (not confirmed), and
+the `dev`-branch Preview override waits for the `dev` branch.
 
 ## How a process knows where it is (C3-D3, C3-D4)
 

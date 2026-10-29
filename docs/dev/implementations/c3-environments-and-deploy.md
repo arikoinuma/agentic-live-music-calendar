@@ -151,16 +151,18 @@ This is where C3 can break production. The order is the plan.
 5. **Fast-forward `production` to `main`** (`git push origin main:production`) so the file exists there, then set Railway production's config file path to `/apps/api/railway.toml` (from the repo root: Railway documents the path as not following the Root Directory; check the first deploy picked it up).  The API then runs the new code. Railway runs `alembic upgrade head` pre-deploy, starts the app, and `/health` must answer `app_env: prod`. If the new deployment fails its health check, Railway keeps the old one: read the log, fix, redo. **As built (October 28, 2026):** there is no config file. The pre-deploy command `uv run alembic upgrade head` is set in the service's dashboard (Settings, Deploy), and the first run migrated production to `829af2c3f26f` (`uv` is on the pre-deploy PATH; the direct Neon host accepts DDL).
 6. **Move Vercel's Production Branch to `production`.** From now a merge to `main` is staging only.
 7. **Create the Railway `staging` environment** (not "copy variables from Production": set each variable by hand from the inventory, or copy and then correct every one, because a copied `APP_ENV` and `DATABASE_URL` are exactly the hazard D4 catches), service source `main`, same config path. Check: `/health` shows `staging`, the database is the `staging` branch, and trying `APP_ENV=prod` on this service makes it refuse (try it once, then revert).
-8. **Repoint Vercel Preview's `API_BASE_URL` at staging's API** (set in Step 5 to production's as a stopgap).
-9. **`dev`** per D1: create it now or later. **Before creating it, re-read Railway's memory graph** (`c1-env-revalidation.md` notes the RAM line stepping up toward 1 GB, the reversal trigger in D1); if it is already near 1 GB per API, three always-on APIs are about $30 a month, and `dev` stays on demand (C3-CR1-8).
+8. **Repoint Vercel Preview's `API_BASE_URL` at staging's API** (set in Step 5 to production's as a stopgap). **Done October 28, 2026.** Value `https://kind-spontaneity-staging.up.railway.app` with no port: a first attempt copied `:8080` (the container's internal port) and failed to connect, because Railway's public domain answers on 443. The health page then showed Frontend `staging` and API `staging`.
+9. **`dev`** per D1: create it now or later. **Before creating it, re-read Railway's memory graph** (`c1-env-revalidation.md` notes the RAM line stepping up toward 1 GB, the reversal trigger in D1); if it is already near 1 GB per API, three always-on APIs are about $30 a month, and `dev` stays on demand (C3-CR1-8). **Skipped by Ari, October 28, 2026:** `dev` stays on demand; the Neon branch, role and Atlas user exist.
+
+Results of 6.7 (October 28, 2026): the staging service was built blank with each variable set by hand and the three dashboard settings from `environments.md`; `/health` answered `staging`, `/health/db` up, `/metro` answered; `APP_ENV=prod` on the service failed the deploy and was reverted.
 
 ### Step 7 — The `production` branch rule (Ari) [written]
 
-- [ ] Add a ruleset for `production`: block deletions, block force pushes (so only fast-forwards), restrict updates to Ari (owner on the bypass list). Check: a force push from a throwaway clone is refused. **Unverified:** whether a personal public repo's rulesets can restrict pushes to one actor; if not, the rule is "no deletion, no force push" plus Ari's discipline, and the plan says so.
+- [x] Add a ruleset for `production`: block deletions, block force pushes (so only fast-forwards), restrict updates to Ari (owner on the bypass list). Check: a force push from a throwaway clone is refused. **Unverified:** whether a personal public repo's rulesets can restrict pushes to one actor; if not, the rule is "no deletion, no force push" plus Ari's discipline, and the plan says so. **Done October 28, 2026:** ruleset `protect-producdtion` (name misspelled, harmless) is active on `refs/heads/production` with `deletion` and `non_fast_forward` and an empty bypass list (confirmed with `gh api`); a delete from Ari's clone was rejected. "Restrict updates" was deliberately not used: Ari is the only pusher and fast-forwards `production` by hand. Whether a personal repo can restrict updates to one actor stays untested.
 
 ### Step 8 — First real hosted data (optional, Ari, needs C2) [written]
 
-- [ ] Run the worker from the laptop into **dev's** Neon branch and Atlas database (`APP_ENV=dev DATABASE_URL=… MONGODB_URI=… MONGODB_DATABASE=calendar_dev uv run python -m agent_worker.main --trigger manual`), so the hosted dev calendar shows real shows before DeepInfra or the Railway worker exist. Into **dev, not production**: dev is disposable (D10), whereas production should receive only data that passed C6's gate. The model on the laptop is the one that scores 56 of 60, so the shows are a trial, not a baseline.
+- [ ] *(Skipped by Ari, October 28, 2026; `dev` stays on demand until DeepInfra inference is in place.)* Run the worker from the laptop into **dev's** Neon branch and Atlas database (`APP_ENV=dev DATABASE_URL=… MONGODB_URI=… MONGODB_DATABASE=calendar_dev uv run python -m agent_worker.main --trigger manual`), so the hosted dev calendar shows real shows before DeepInfra or the Railway worker exist. Into **dev, not production**: dev is disposable (D10), whereas production should receive only data that passed C6's gate. The model on the laptop is the one that scores 56 of 60, so the shows are a trial, not a baseline.
 
 ### Step 9 — Verify and close the docs (Claude)
 
@@ -375,3 +377,21 @@ The table rows are built so each mutation turns a small, named set red rather th
 - **What changed:** `apps/api/railway.toml` and `app/tests/test_railway_config.py` are deleted. Railway ignored the file because Config as Code is deprecated and closed to services that never used it (found in Step 6.5: after setting the path the pre-deploy step did not run, and Railway's settings page carries the notice). The replacement, Infrastructure as Code (`.railway/railway.ts`), documents no pre-deploy key, so it was not adopted.
 - **How it is covered instead:** `environments.md`, "Railway service settings", lists the three dashboard values each service needs. Verified on production: the pre-deploy command ran and `alembic current` read `829af2c3f26f (head)`.
 - **Open:** adopt Infrastructure as Code before Railway stops reading old files on 2026-12-01, if its pre-deploy support is confirmed. The consequence of not doing so is none for current services, since they never used the files.
+### Round 4 — runbook complete, handoff for sign-off (Claude Sonnet 5.5, October 28, 2026)
+
+**Scope:** documentation only, on `c3-railway-config-cleanup` (PR 51, draft) after `4131ddc`: this plan and `docs/dev/environments.md`. No code changed in this round.
+
+**What was done (Ari did the dashboard work; Claude verified from the tool side):** Steps 3–7 are complete (dated findings in each step). Step 6.9 and Step 8 were skipped by Ari's decision: `dev` stays on demand and no real data goes into it before DeepInfra inference exists. Step 10 was done in round 1. `environments.md`'s "Current state" now states the built topology with a "Checks recorded" paragraph.
+
+**Departures since round 1:** D8 dropped (Round 3): the config file is replaced by dashboard settings. The `restore_role` / `set_role_password` split and `scripts/restore_neon_role.py` (C3-D9) were added after Ari objected to a restore that reset an existing password; both are tested (`test_neon_roles.py`, 15 tests).
+
+**Open items, none blocking sign-off:**
+- Neon archiving and first-request-after-wake cost: not measured.
+- Atlas pause behaviour: not measured, left to C8.
+- The created-role path of `neon_restore_role` has not run for real after an actual reset (the existing-role path ran on staging).
+- Vercel Development `APP_ENV` row should be `local`; unconfirmed. The `dev`-branch Preview override waits for the branch.
+- Whether a personal repo's ruleset can restrict updates to one actor: untested.
+- Adopt Railway Infrastructure as Code before 2026-12-01 only if its pre-deploy support is confirmed.
+- After PR 51 merges, `production` must be fast-forwarded (`git push origin main:production`) so its tip carries the deleted `railway.toml`.
+
+**Verification:** `make check` exit 0 (ruff, eslint, mypy, pytest, vitest, contract-check, e2e: 104 passed); `make designation-check BASE=4131ddc` exit 0. Not run again here: the mutation checks, which are round 1's and cover code that has not changed.
