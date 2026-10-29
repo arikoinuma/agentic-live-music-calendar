@@ -14,7 +14,9 @@
 --
 -- WHAT `detail` HOLDS (agent_worker/audit.py is the source of truth):
 --   fetch     url, fetched_on, error, text_chars
---   extract   tier, route, error, staging_id (the MongoDB document), shows, larger_model_used
+--   extract   tier, route, error, staging_id (the MongoDB document), shows, larger_model_used,
+--             models ({page, splitter, status}: the model each kind of call used on this route, null where the route
+--             makes no such call; `model_used` on the row is the page model)
 --   validate  route, verdict, reasons, errors, warnings, repairs, excluded
 --   reconcile summary   counts (per action), coverage ({start, end} the removals were judged inside, or null),
 --                       needs_review and withheld (lists of {action, date, time, stored_id, acts, reason}),

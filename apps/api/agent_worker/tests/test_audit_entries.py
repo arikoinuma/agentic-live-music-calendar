@@ -11,7 +11,6 @@ escalated), then each test names one rule and asserts the entry. Expected values
 column (`app/db/models/audit.py`) is the oracle for the confidence conversion.
 """
 
-import dataclasses
 import datetime
 import json
 from decimal import Decimal
@@ -45,7 +44,7 @@ from agent_worker.validation import (
 )
 from app.enums import AuditOutcome, AuditSource, EntityType, StepType
 
-PLAN = AttemptPlan(tier="initial", config=extraction.PIPELINE_CONFIG, options=extraction.PIPELINE_OPTIONS)
+PLAN = AttemptPlan(tier="initial", config=extraction.PIPELINE_CONFIG, roles=extraction.PIPELINE_ROLES)
 
 
 # A plan with a dated, timed decision and a coverage window, so the JSON check below has dates and enums to convert.
@@ -138,7 +137,7 @@ def test_agentic_steps_record_the_model_the_attempt_used(step: StepType) -> None
     # (`last_plan.options.model`), which on a tier-3 attempt is the larger model when one ran.
     larger = AttemptPlan(
         tier="larger_model", config=extraction.PIPELINE_CONFIG,
-        options=dataclasses.replace(PLAN.options, model="the-larger-model"), larger_model_used=True,
+        roles=PLAN.roles.escalated("the-larger-model"), larger_model_used=True,
     )
     assert entry_for(step, base_state(attempt_count=1, last_plan=PLAN)).model_used == PLAN.options.model
     assert entry_for(step, base_state(attempt_count=3, last_plan=larger)).model_used == "the-larger-model"
@@ -401,3 +400,12 @@ def test_every_entrys_detail_is_json_serializable(step: StepType) -> None:
     entry = entry_for(step, state, staging_id="doc-1")
     assert isinstance(entry, AuditEntry)
     json.dumps(entry.detail)
+
+
+def test_the_extract_row_names_the_model_of_each_call_the_route_made() -> None:
+    # Proves (C6-PR1-3): the extract row's detail carries `models` per role (null for a call the route did not
+    # make), so a failure can be traced to the model that produced it; `model_used` stays the page model.
+    model = extraction.PIPELINE_OPTIONS.model
+    entry = entry_for(StepType.EXTRACT, base_state(attempt_count=1, last_plan=PLAN, route_attempted="jsonld"))
+    assert entry.detail["models"] == {"page": None, "splitter": model, "status": None}
+    assert entry.model_used == model

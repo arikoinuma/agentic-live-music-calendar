@@ -25,7 +25,13 @@ from bs4 import BeautifulSoup
 from pydantic import BaseModel
 
 from agent_worker import act_split, status_check
-from agent_worker.llm import RequestOptions, instructor_client, request_kwargs
+from agent_worker.llm import (
+    ModelRoles,
+    RequestOptions,
+    instructor_client,
+    request_kwargs,
+    roles_from_settings,
+)
 from agent_worker.normalize import infer_year
 from agent_worker.prompts import extraction_instruction
 from agent_worker.schemas import (
@@ -40,7 +46,7 @@ from agent_worker.sources import jsonld
 from app.config import settings
 
 __all__ = [
-    "PIPELINE_CONFIG", "PIPELINE_OPTIONS", "ExtractionConfig", "PageExtractionResult",
+    "PIPELINE_CONFIG", "PIPELINE_OPTIONS", "PIPELINE_ROLES", "ExtractionConfig", "PageExtractionResult",
     "RequestOptions", "clean_text", "extract_image", "extract_page", "instructor_client", "usable_events",
 ]
 
@@ -90,7 +96,11 @@ class ExtractionConfig:
 # flag (run_eval.configure), so a later label measures whatever the pipeline has adopted.
 # Temperature 0: adopted by Ari on October 10, 2026 (A2.1-D8), after `a21-temp0-quick` scored about the
 # same as the model's default of 1 and made 5 of 6 gated pages byte-identical run to run.
-PIPELINE_OPTIONS = RequestOptions(model=settings.model_name, temperature=0.0)
+# C6-D2: one `RequestOptions` per kind of call. With no `*_MODEL_NAME` variable set every role equals the old single
+# options, so the request A2.1 measured is unchanged. `PIPELINE_OPTIONS` stays as the page role's, for the callers (and
+# tests) that pass one `options` for every call.
+PIPELINE_ROLES: ModelRoles = roles_from_settings(settings, temperature=0.0)
+PIPELINE_OPTIONS = PIPELINE_ROLES.page
 # Adopted by Ari on October 11, 2026: the year rule (`a21-year`) and the JSON-LD route
 # (`a21-structured`) after the overnight ladder, and the separate status question
 # (`a21-status-pass`) that morning. The other switches stay off until a rung for them is kept.
@@ -202,9 +212,11 @@ def _apply_year_rule(extraction: VenuePageExtraction, fetch_date: datetime.date)
 
 def _from_model(
     html: str, *, venue_name: str, fetch_date: datetime.date, client: Any, options: RequestOptions,
-    config: ExtractionConfig, seed: int | None,
+    splitter_options: RequestOptions, status_options: RequestOptions, config: ExtractionConfig, seed: int | None,
 ) -> PageExtractionResult:
-    """The full-page model extraction, as A2 built it: cleaned text after the instruction."""
+    """The full-page model extraction, as A2 built it: cleaned text after the instruction. The page call uses
+    `options`; the act splitter (here and in the status merge) uses `splitter_options`; the status question uses
+    `status_options` (C6-D2)."""
     text = clean_text(html, config.keep_line_breaks, config.keep_image_urls)
     answer = client.chat.completions.create(
         response_model=page_model_for(config),
@@ -214,7 +226,7 @@ def _from_model(
     notes: dict[str, Any] = {}
     if config.title_split:
         extraction = _shows_from_listings(
-            answer, client=client, options=options, seed=seed, notes=notes, hint=config.splitter_hint
+            answer, client=client, options=splitter_options, seed=seed, notes=notes, hint=config.splitter_hint
         )
     else:
         extraction = answer
@@ -224,12 +236,12 @@ def _from_model(
         # A2.1-D12: ask separately, and only if the page says "cancelled"/"postponed" at all.
         asked = status_check.mentions_status(text)
         answer = (
-            status_check.ask(text, client=client, options=options, seed=seed)
+            status_check.ask(text, client=client, options=status_options, seed=seed)
             if asked else status_check.StatusAnswer(items=[])
         )
         splitter = (
             (lambda titles: act_split.split_titles(
-                titles, client=client, options=options, seed=seed, hint=config.splitter_hint,
+                titles, client=client, options=splitter_options, seed=seed, hint=config.splitter_hint,
             ).acts)
             if config.title_split else None
         )
@@ -324,14 +336,20 @@ def _from_jsonld(
 def extract_page(
     html: str, *, venue_name: str, metro_timezone: str, fetch_date: datetime.date, client: Any,
     options: RequestOptions, config: ExtractionConfig, seed: int | None = None,
+    splitter_options: RequestOptions | None = None, status_options: RequestOptions | None = None,
 ) -> PageExtractionResult:
     """Extract every show on one fetched page (raw HTML).
+
+    `options` is the page call's; `splitter_options` and `status_options` are the other two kinds of call's
+    (C6-D2), each defaulting to `options` so a caller that passes one set of options is unchanged.
 
     `venue_name` and `metro_timezone` are facts from the venue's database row; the worker
     doesn't read the database yet (A4/A5), so the caller passes them — there is deliberately
     no default zone in this code (`metro.timezone` is the source of truth). `fetch_date` is
     when the page was fetched (A2.1-D13's year rule).
     """
+    splitter_options = splitter_options or options
+    status_options = status_options or options
     if config.route == "auto":
         # Deterministic first, the model only where judgement is needed. The decision is recorded
         # (`source` on the result) so an audit can see which path ran (A2.1-D4 and Design §3).
@@ -341,11 +359,11 @@ def extract_page(
         events = usable_events(html)
         if events:
             return _from_jsonld(events, html=html, venue_name=venue_name, metro_timezone=metro_timezone,
-                                client=client, options=options, seed=seed, hint=config.splitter_hint)
+                                client=client, options=splitter_options, seed=seed, hint=config.splitter_hint)
 
     return _from_model(
         html, venue_name=venue_name, fetch_date=fetch_date, client=client, options=options,
-        config=config, seed=seed,
+        splitter_options=splitter_options, status_options=status_options, config=config, seed=seed,
     )
 
 

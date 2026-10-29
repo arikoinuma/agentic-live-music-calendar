@@ -150,6 +150,8 @@ def _detail(step: StepType, state: VenueGraphState, staging_id: str | None) -> d
                 "staging_id": staging_id,
                 "shows": len(state.extraction.shows) if state.extraction else None,
                 "larger_model_used": plan.larger_model_used if plan else False,
+                # The model of each kind of call this route made (C6-PR1-3); `model_used` on the row stays the page model.
+                "models": plan.models_used(state.route_attempted) if plan and state.route_attempted else None,
             }
         case StepType.VALIDATE:
             result = state.validation

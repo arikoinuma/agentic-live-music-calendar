@@ -20,13 +20,14 @@ nodes and the graph. Nothing here imports from `state.py`.
 
 from dataclasses import (
     dataclass,
+    field,
     replace,
 )
 from typing import Literal
 
 from agent_worker.constants import NodeOutcomes
 from agent_worker.extraction import ExtractionConfig
-from agent_worker.llm import RequestOptions
+from agent_worker.llm import ModelRoles, RequestOptions
 from agent_worker.validation import (
     CheckCode,
     FailureReason,
@@ -56,10 +57,9 @@ class RetryPolicy:
     confidence_threshold: float = 0.8
     # Total extract attempts, the first included ("Retries are capped (3 attempts)", arch §7).
     max_attempts: int = 3
-    # The larger model tier 3 uses (arch §7: "larger model second"). Unset until C6 (formerly H1) provides a hosted
-    # model: the development laptop can't run one (A3-D5). Unset = tier 3 runs the same model with
-    # the full hint and the record says so. Must be an Ollama model name until C6 makes endpoints
-    # per call, because `instructor_client` is bound to Ollama.
+    # The larger model tier 3 uses (arch §7: "larger model second"). Unset on a laptop that can't run one (A3-D5).
+    # Unset = tier 3 runs the same model with the full hint and the record says so. It must be a model the
+    # configured endpoint serves (C6-D2): hosted, one of the provider's.
     escalation_model: str | None = None
 
     def __post_init__(self) -> None:
@@ -85,10 +85,31 @@ class AttemptPlan:
 
     tier: Literal["initial", "narrowed", "larger_model"]
     config: ExtractionConfig
-    options: RequestOptions
+    roles: ModelRoles
     # False when tier 3 was planned but no escalation model is configured — the audit record
     # must not claim a larger model ran when it didn't (A3-D5).
     larger_model_used: bool = False
+
+    @property
+    def options(self) -> RequestOptions:
+        """The page call's options: what a caller with one `options` for the whole attempt (the poster route,
+        the audit's `model_used`) reads. The other roles are on `roles`."""
+        return self.roles.page
+
+    def models_used(self, route: Route) -> dict[str, str | None]:
+        """The model each kind of call uses on THIS route, and None for a call the route never makes (C6-PR1-3).
+
+        The JSON-LD route has no page call and no status question (status comes from the structured data); the
+        poster route makes only the page call; the model route makes the page call, the splitter when the title
+        split is on, and the status question when the status pass is on. Recorded so the audit trail credits the
+        acts to the model that split them, not to the page model. The status question is asked only when the page
+        mentions "cancelled" or "postponed" (`status_check.mentions_status`), so on a page without those words the
+        status model is the one that WOULD have been used, not one that ran.
+        """
+        page = self.roles.page.model if route in ("model", "image") else None
+        splitter = self.roles.splitter.model if route == "jsonld" or (route == "model" and self.config.title_split) else None
+        status = self.roles.status.model if route == "model" and self.config.status_pass else None
+        return {"page": page, "splitter": splitter, "status": status}
 
 
 @dataclass(frozen=True)
@@ -110,6 +131,8 @@ class AttemptRecord:
     error_count: int
     warning_count: int
     larger_model_used: bool = False
+    # Which model made each kind of call on this attempt (`AttemptPlan.models_used`); empty when unknown.
+    models: dict[str, str | None] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -249,13 +272,13 @@ def route_falls_back(record: AttemptRecord) -> bool:
 
 def plan_for_attempt(
     attempt: int, policy: RetryPolicy, history: list[AttemptRecord],
-    base_config: ExtractionConfig, base_options: RequestOptions,
+    base_config: ExtractionConfig, base_roles: ModelRoles,
 ) -> AttemptPlan:
     """How attempt number `attempt` (1-based) should run, given the attempts before it."""
     if attempt <= 1:
         # Nothing changes on the first attempt: the pipeline's own configuration, no hint. A test
         # pins that the request is byte-identical to today's, so A2.1's 56/60 stays valid.
-        return AttemptPlan("initial", base_config, base_options)
+        return AttemptPlan("initial", base_config, base_roles)
     # A retry must change the request, or it is a loop: at temperature 0 an identical call returns an
     # identical answer. arch-initial.md §7 gives the order: narrow the task or name the ambiguity in
     # the prompt first (tier 2), a larger model second (tier 3). The hints come from what failed
@@ -273,9 +296,11 @@ def plan_for_attempt(
     )
     if attempt >= 3:
         model = policy.escalation_model
-        options = replace(base_options, model=model) if model else base_options
-        return AttemptPlan("larger_model", config, options, larger_model_used=bool(model))
-    return AttemptPlan("narrowed", config, base_options)
+        # C6-D4: the larger model replaces the page, splitter and status models together (what swapping the one
+        # shared `options` did before roles existed); the matcher is not part of an extraction attempt.
+        roles = base_roles.escalated(model) if model else base_roles
+        return AttemptPlan("larger_model", config, roles, larger_model_used=bool(model))
+    return AttemptPlan("narrowed", config, base_roles)
 
 
 __all__ = [

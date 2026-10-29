@@ -94,15 +94,18 @@ def _on_page(acts: list[str], page_text: str) -> bool:
     """True when every identifying word of the answer's acts appears in the page text — the
     check that keeps a status answer from adding a show the page doesn't list.
 
-    Weaker for names too short to have an identifying word ("MO", "U2"): those fall back to a SUBSTRING test on the
-    folded text, so "mo" is "on the page" of any page with "more", "month" or "Armory" in it. The fallback is
-    pinned as it is in test_status_check.py (A7); tightening it to whole words is a follow-up for A8 or C6 (formerly H1)."""
+    Names too short to have an identifying word ("MO", "U2") fall back to a whole-word test on the folded
+    text, so "mo" is not "on the page" of a page that only has "more", "month" or "Armory" (tightened in C6 from
+    the substring test A7 pinned)."""
     page = identifying_words(page_text)
     words = identifying_words(" ".join(acts))
     if words:
         return words <= page
     folded = fold_text(page_text)
-    return all(fold_text(a) in folded for a in acts)
+    # Whole words only (C6, carried from A7): a name too short to have an identifying word ("MO", "U2") must
+    # not be "on the page" because of "more", "month" or "Armory". `(?<!\w)` / `(?!\w)` bound the name by
+    # non-word characters rather than by spaces, so punctuation after it ("Mo.") still counts.
+    return all(re.search(rf"(?<!\w){re.escape(fold_text(a))}(?!\w)", folded) for a in acts)
 
 
 def apply(

@@ -68,9 +68,8 @@ def test_an_answer_with_only_short_names_is_added_only_if_the_page_contains_them
     # Proves (A7): a status answer whose acts have no identifying word ("MO" is under three letters) is checked against
     # the page by the fallback in `_on_page`: its folded name must appear in the folded page text. Present -> added,
     # absent -> recorded in `not_on_page` and not added ("no invented shows").
-    # This fallback is a SUBSTRING test, not a word test: "mo" is inside "armory", so a page that never lists the act
-    # still passes. That looseness is pinned here as it is today (the third case), not endorsed; it is cheap, and
-    # the main guard against an invented show is the identifying-word check every longer name goes through.
+    # The fallback is a WHOLE-WORD test (tightened in C6; A7 pinned the substring looseness it replaced): "mo" inside
+    # "armory" no longer counts as the act being on the page (the third case).
     # The page texts are written to contain, or not contain, the letters "mo" by hand.
     cancelled_mo = answer((18, ["MO"], "cancelled"))
 
@@ -84,7 +83,7 @@ def test_an_answer_with_only_short_names_is_added_only_if_the_page_contains_them
     assert notes["not_on_page"] == [["MO"]]
 
     inside_a_word = merge(extraction(), cancelled_mo, page_text="Oct 18: Lizzo at the Armory")
-    assert inside_a_word == [(18, ["MO"], "cancelled")]
+    assert inside_a_word == []
 
 
 def test_a_one_day_date_slip_still_matches() -> None:
@@ -116,3 +115,14 @@ def test_an_added_listing_is_split_when_a_splitter_is_given() -> None:
         split_titles=lambda titles: [["Sophie Truax", "Sasha Cee"] for _ in titles],
     )
     assert shows == [(17, ["Sophie Truax", "Sasha Cee"], "cancelled")]
+
+
+def test_a_short_name_is_on_the_page_only_as_a_whole_word() -> None:
+    # Proves (C6, carried from A7): the short-name fallback in `_on_page` no longer matches inside other words.
+    # "MO" is not on a page that only has "more", "month" or "Armory", so a status answer naming MO cannot add
+    # a show the page doesn't list; "U2" and "MO" as whole tokens are found. Before C6 the fallback was a
+    # substring test and the first three assertions were false.
+    assert not status_check._on_page(["MO"], "more music this month at the Armory")
+    assert status_check._on_page(["MO"], "MO plays at 8 pm")
+    assert status_check._on_page(["U2"], "tonight: U2 tribute")
+    assert status_check._on_page(["mo"], "Mo.")

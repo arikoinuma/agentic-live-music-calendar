@@ -25,7 +25,7 @@ from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponen
 from agent_worker.commit import build_ops
 from agent_worker.extraction import (
     PIPELINE_CONFIG,
-    PIPELINE_OPTIONS,
+    PIPELINE_ROLES,
     PageExtractionResult,
     clean_text,
     extract_image,
@@ -166,7 +166,8 @@ def _run_extraction(state: VenueGraphState, plan: AttemptPlan) -> PageExtraction
     return extract_page(
         state.page_html or "", venue_name=state.venue_name,
         metro_timezone=state.metro_timezone, fetch_date=fetched_on,
-        client=instructor_client, options=plan.options, config=plan.config,
+        client=instructor_client, options=plan.roles.page, config=plan.config,
+        splitter_options=plan.roles.splitter, status_options=plan.roles.status,
     )
 
 
@@ -193,7 +194,7 @@ def extract_node(state: VenueGraphState) -> VenueGraphState:
     returns (A4-D1), from what it leaves in the state; nothing here touches a store.
     """
     plan = plan_for_attempt(
-        state.attempt_count + 1, state.policy, state.attempt_history, PIPELINE_CONFIG, PIPELINE_OPTIONS,
+        state.attempt_count + 1, state.policy, state.attempt_history, PIPELINE_CONFIG, PIPELINE_ROLES,
     )
     state.last_plan = plan
     state.route_attempted = _route_for(state, plan)
@@ -268,6 +269,7 @@ def validate_node(state: VenueGraphState) -> VenueGraphState:
         error_count=len(result.errors),
         warning_count=len(result.warnings),
         larger_model_used=plan.larger_model_used if plan else False,
+        models=plan.models_used(state.route_attempted) if plan and state.route_attempted else {},
     )]
     return state
 
@@ -288,7 +290,7 @@ def reconcile_node(state: VenueGraphState) -> VenueGraphState:
     )
     state.reconcile_plan = build_plan(
         inputs, state.stored_shows, state.known_artists,
-        original_url=state.calendar_url, client=instructor_client, options=PIPELINE_OPTIONS,
+        original_url=state.calendar_url, client=instructor_client, options=PIPELINE_ROLES.matcher,
     )
     log.info(
         "reconcile decided", venue_id=state.venue_id, counts=state.reconcile_plan.counts(),
