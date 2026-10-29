@@ -1,6 +1,6 @@
 # C3 — environments and deploy-as-code
 
-**Status:** Awaiting sign-off (approved by Ari October 28, 2026 with two changes made after the plan review and not re-reviewed: D10 split into seeded `dev` and reset-from-production `staging`, and D12 reworded; D1 had been revised the same day after Ari supplied Railway's usage)
+**Status:** Done (signed off by Ari October 28, 2026; was: Awaiting sign-off, approved by Ari October 28, 2026 with two changes made after the plan review and not re-reviewed: D10 split into seeded `dev` and reset-from-production `staging`, and D12 reworded; D1 had been revised the same day after Ari supplied Railway's usage)
 **Date:** October 28, 2026
 **Author model:** Claude Sonnet 5.5
 **Reviewer model:** Claude Opus 5.5 (plan review round 1, October 28, 2026); Claude Opus 5.5 (code review round 1, October 28, 2026)
@@ -395,3 +395,5 @@ The table rows are built so each mutation turns a small, named set red rather th
 - After PR 51 merges, `production` must be fast-forwarded (`git push origin main:production`) so its tip carries the deleted `railway.toml`.
 
 **Verification:** `make check` exit 0 (ruff, eslint, mypy, pytest, vitest, contract-check, e2e: 104 passed); `make designation-check BASE=4131ddc` exit 0. Not run again here: the mutation checks, which are round 1's and cover code that has not changed.
+
+**Sign-off (October 28, 2026):** after PR 51 merged, `production` was fast-forwarded to `4a38b26`. Ari confirmed the Railway deployments succeeded and the health pages read as expected.
