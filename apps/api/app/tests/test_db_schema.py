@@ -12,7 +12,7 @@ HOW TO READ THIS FILE
     2. Schema shape: tables, enum types, indexes, constraints exist.
     3. Constraint behaviour: do the CHECK / FK / PK rules actually fire?
     4. Server-side defaults, JSONB/array round-trips, and an ORM-update check.
-    5. One destructive migration test (kept last on purpose).
+    5. The destructive migration tests (kept last on purpose).
 
 SETUP YOU DON'T SEE
   Written before the migration (docs/dev/implementations/a1-data-layer.md,
@@ -204,7 +204,7 @@ async def _violates(conn: AsyncConnection, stmt: sa.Executable, sqlstate: str, c
 async def _venue(conn: AsyncConnection) -> int:
     """Insert a throwaway metro + venue (the minimum a show needs) and
     return the venue's id."""
-    metro_id = await _insert(conn, "metro", name="Test Metro", timezone="America/Chicago")
+    metro_id = await _insert(conn, "metro", name="Test Metro", timezone="America/Chicago", slug="tst")
     venue_id = await _insert(
         conn, "venue", metro_id=metro_id, name="Test Venue", calendar_url="https://example.com"
     )
@@ -269,6 +269,42 @@ async def test_the_same_artist_cannot_be_on_a_show_twice(db_conn: AsyncConnectio
     await _violates(db_conn, dup, "23505", "show_artist_pkey")
 
 
+async def test_a_malformed_metro_slug_is_rejected_by_the_database(db_conn: AsyncConnection) -> None:
+    # Proves (C4-D3): the database itself refuses a slug that could not be a host label, whatever the application
+    # code does: a hand-inserted `Bad_Slug` (uppercase, underscore), a two-letter code, a leading or trailing hyphen,
+    # a leading digit, a space, a 33-character name. The slug becomes part of a web address (msp.<domain>), so the
+    # shape rule is 3 to 32 characters, a letter first, lowercase letters, digits and hyphens, not ending in a hyphen
+    # (C4-D2). The expected values are written out here from that rule, not read from the migration; the constraint
+    # name is asserted too, so a row that fails for another reason does not pass this test.
+    for bad in ["Bad_Slug", "ab", "-abc", "abc-", "1abc", "ms p", "a" * 33]:
+        await _violates(
+            db_conn,
+            sa.insert(T["metro"]).values(name="X", timezone="UTC", slug=bad),
+            "23514",
+            "metro_slug_format_check",
+        )
+
+
+async def test_well_formed_metro_slugs_are_accepted(db_conn: AsyncConnection) -> None:
+    # Proves (C4-D3): the format rule does not refuse the codes the project means to use (C4-D2: three-letter city
+    # codes where one exists, and a longer alias is allowed), including the 3- and 32-character edges, and a hyphen
+    # inside the name. Catches a regex that is too strict (for example one that forbids digits or hyphens).
+    for good in ["msp", "chi", "tyo", "chicago", "new-york", "a" + "b" * 30 + "c"]:
+        await _insert(db_conn, "metro", name=f"M {good}", timezone="UTC", slug=good)
+
+
+async def test_two_metros_cannot_share_a_slug(db_conn: AsyncConnection) -> None:
+    # Proves (C4-D3): the slug is unique, because a host names exactly one metro. Without the constraint a second
+    # metro with `msp` would make `msp.<domain>` ambiguous.
+    await _insert(db_conn, "metro", name="One", timezone="UTC", slug="dup")
+    await _violates(
+        db_conn,
+        sa.insert(T["metro"]).values(name="Two", timezone="UTC", slug="dup"),
+        "23505",
+        "metro_slug_key",
+    )
+
+
 # --- Server-side defaults actually work for plain INSERTs. -----------------
 
 
@@ -316,7 +352,7 @@ async def test_updated_at_is_readable_after_an_orm_update(db_session: AsyncSessi
     # ORM UPDATE the attribute is expired and reading it under an AsyncSession
     # means a hidden lazy load -> MissingGreenlet. A6 snapshots the row right
     # after updating it for audit_log.new_value, so it would hit exactly this.
-    metro = Metro(name="Before", timezone="America/Chicago")
+    metro = Metro(name="Before", timezone="America/Chicago", slug="bef")
     db_session.add(metro)
     await db_session.flush()
     metro.name = "After"
@@ -328,7 +364,7 @@ async def test_jsonb_and_array_columns_round_trip(db_conn: AsyncConnection) -> N
     # Proves: the Postgres-specific column types (text[] and JSONB) store
     # and return Python lists/dicts intact, so venue phone numbers, emails
     # and the free-form extra_metadata blob behave as the spec describes.
-    metro_id = await _insert(db_conn, "metro", name="M", timezone="America/Chicago")
+    metro_id = await _insert(db_conn, "metro", name="M", timezone="America/Chicago", slug="mmm")
     venue_id = await _insert(
         db_conn,
         "venue",
@@ -345,9 +381,9 @@ async def test_jsonb_and_array_columns_round_trip(db_conn: AsyncConnection) -> N
     assert row.extra_metadata == {"has_green_room": True, "capacity": 250}
 
 
-# --- The one destructive test ---------------------------------------------
+# --- The destructive tests ------------------------------------------------
 #
-# Keep this test LAST in the file: it takes the shared schema apart and puts
+# Keep these tests LAST in the file: each takes the shared schema apart and puts
 # it back, and every test above assumes it is at head.
 async def test_upgrade_fails_loudly_if_an_enum_type_already_exists(
     migrated_engine: AsyncEngine,
@@ -378,3 +414,46 @@ async def test_upgrade_fails_loudly_if_an_enum_type_already_exists(
         async with migrated_engine.begin() as conn:
             await conn.execute(sa.text("DROP TYPE IF EXISTS fetch_strategy"))
         await run_alembic(migrated_engine, "upgrade", "head")
+
+
+# The revision before the slug migration: the shape production and staging have in Neon today (C4-D3).
+BEFORE_SLUG = "829af2c3f26f"
+
+
+async def _restore_head(engine: AsyncEngine) -> None:
+    """Put the shared schema back at head, empty, whatever a destructive test did to it."""
+    await run_alembic(engine, "downgrade", "base")
+    await run_alembic(engine, "upgrade", "head")
+
+
+async def test_the_slug_migration_backfills_msp_on_the_existing_metro(migrated_engine: AsyncEngine) -> None:
+    # Proves (C4-D3, C4-T8): upgrading a database that already holds the one metro (as Neon production and staging
+    # do) gives that row the slug `msp`, instead of failing on the new NOT NULL column. The row is inserted BEFORE
+    # the upgrade, at the previous revision, because a test that only upgrades an empty database would pass even if
+    # the backfill were missing. Expected value: "msp", the host label Dep-D3 names for Minneapolis/St. Paul.
+    await run_alembic(migrated_engine, "downgrade", BEFORE_SLUG)
+    try:
+        async with migrated_engine.begin() as conn:
+            await conn.execute(
+                sa.text("INSERT INTO metro (name, timezone) VALUES ('Minneapolis/St. Paul', 'America/Chicago')")
+            )
+        await run_alembic(migrated_engine, "upgrade", "head")
+        async with migrated_engine.begin() as conn:
+            slugs = (await conn.execute(sa.text("SELECT slug FROM metro"))).scalars().all()
+        assert slugs == ["msp"]
+    finally:
+        await _restore_head(migrated_engine)
+
+
+async def test_the_slug_migration_fails_loudly_for_a_metro_it_cannot_name(migrated_engine: AsyncEngine) -> None:
+    # Proves (C4-D3): a database holding a metro the migration has no slug for stops the upgrade with an error,
+    # instead of inventing a slug or leaving a metro without a host. Catches a backfill that fills every row with
+    # `msp` (two metros would then collide, or one would silently take the wrong address).
+    await run_alembic(migrated_engine, "downgrade", BEFORE_SLUG)
+    try:
+        async with migrated_engine.begin() as conn:
+            await conn.execute(sa.text("INSERT INTO metro (name, timezone) VALUES ('Somewhere Else', 'UTC')"))
+        with pytest.raises(Exception, match="slug"):
+            await run_alembic(migrated_engine, "upgrade", "head")
+    finally:
+        await _restore_head(migrated_engine)

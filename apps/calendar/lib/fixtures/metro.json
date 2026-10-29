@@ -1,5 +1,6 @@
 {
   "id": 1,
   "name": "Minneapolis/St. Paul",
-  "timezone": "America/Chicago"
+  "timezone": "America/Chicago",
+  "slug": "msp"
 }

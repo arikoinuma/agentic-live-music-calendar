@@ -23,7 +23,10 @@ async def current_metro(session: Db) -> Metro:
     """The one live metro: the lowest-id `metro` row (C2-D5; v1 has exactly one, api-contract.md section 2).
 
     Every venue, show and month query is scoped to it, so a second metro's rows never leak into this
-    one's responses and C4's slug lookup later replaces this function instead of every query.
+    one's responses and a slug lookup can later replace this function instead of every query. C4 did not
+    replace it (C4-D9): the metro now has a slug, but the host's slug is checked in the Next.js proxy and does not
+    reach the API, because scoping queries by metro is deferred until a second metro exists (arch-initial.md
+    section 11).
 
     A migrated but unseeded database has no metro. That is an operational failure, not something the
     frontend can answer differently, so it is a 503 whose `detail` names the fix, and it is deliberately

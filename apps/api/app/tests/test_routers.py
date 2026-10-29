@@ -234,10 +234,12 @@ def test_openapi_exposes_the_response_schemas() -> None:
 
 
 async def test_metro_returns_the_live_metro(sample_client: AsyncClient) -> None:
-    """Proves: /metro answers 200 with the single live metro's id, name and timezone.
+    """Proves: /metro answers 200 with the single live metro's id, name, timezone and slug.
 
     Expected values come from `sample_data.METRO`, which the loader wrote to the database, so this pins
-    the route to the stored row and the response shape.
+    the route to the stored row and the response shape. The slug is what C4-D3 adds: the frontend's host
+    check and canonical URLs read it from here. The literal "msp" is written out as well, so a sample
+    world whose slug drifted would fail here and not only in the fixtures.
     """
     response = await sample_client.get("/metro")
     assert response.status_code == 200
@@ -245,7 +247,9 @@ async def test_metro_returns_the_live_metro(sample_client: AsyncClient) -> None:
         "id": data.METRO.id,
         "name": data.METRO.name,
         "timezone": data.METRO.timezone,
+        "slug": data.METRO.slug,
     }
+    assert response.json()["slug"] == "msp"
 
 
 def test_openapi_exposes_the_metro_route() -> None:
@@ -483,7 +487,7 @@ async def test_other_metros_never_leak_in(sample_client: AsyncClient, db_session
     the lists and the month counts, and a 404 by id. Catches mutation C2-M5 (dropping the metro scope).
     """
     before_months = (await sample_client.get("/calendar/months")).json()
-    elsewhere = Metro(name="Elsewhere", timezone="America/New_York")
+    elsewhere = Metro(name="Elsewhere", timezone="America/New_York", slug="els")
     db_session.add(elsewhere)
     await db_session.flush()
     venue = Venue(metro_id=elsewhere.id, name="Elsewhere Hall", calendar_url="https://example.com/elsewhere")

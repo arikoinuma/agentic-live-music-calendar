@@ -48,6 +48,7 @@ Already established by the first migration. Listed here for completeness.
 |---|---|---|---|
 | `id` | Integer | PK | |
 | `name` | String | No | |
+| `slug` | String | No | Added by C4 (`C4-D3`). The metro's short code in its web address: `msp` in `msp.<domain>` (`alpha-deployment-plan.md` Dep-D2, Dep-D3). Unique (`metro_slug_key`), and a CHECK (`metro_slug_format_check`) limits it to 3 to 32 characters, a letter first, lowercase letters, digits and hyphens, not ending in a hyphen. The reserved words that can never be a slug (`www`, `api`, `staging`, ...) are a rule about addressing, kept in `apps/calendar/lib/reserved-slugs.json` and checked against the seed by a test. |
 | `timezone` | String | No | IANA name, e.g. `America/Chicago`. Drives the per-metro 4 a.m. agent trigger (`arch-initial.md` Section 11). It is also the zone every `show.date` / `start_time` / `end_time` (and `show_artist.start_time`) in the metro is read in: those columns are naive, local wall-clock values, and an extraction source that gives an offset or UTC (schema.org JSON-LD does) is converted into this zone before it is stored (`requirements-initial.md`, Metro). |
 
 ### `venue`
