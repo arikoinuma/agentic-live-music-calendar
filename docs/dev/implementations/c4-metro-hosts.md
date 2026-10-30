@@ -337,6 +337,10 @@ Both blocks were filled **in a scratch copy** to prove the tests and the plan's 
 6. **Test quality of `proxy-handler.test.ts` and `proxy.test.ts`**: they use real `NextRequest`s and Next's own matcher helper; confirm they would catch a wrong glue rather than mirror it.
 
 
+### Round 2 — Claude Sonnet 5.5, October 30, 2026 (the closed `C4-K1` gap)
+
+Ari filled `C4-K1` (commit `28d692b`, `apps/calendar/lib/metro-host.ts`) and asked for concrete examples in the comments. **Scope:** `git diff 28d692b` on `lib/metro-host.ts` and `lib/metro-host.test.ts`. The code is Ari's, unchanged (the filled lines match the `Code:` block). **Comment-only pass** (`AGENTS.md`, step 4 of the fill-in rule): the scaffold's "Key point of interest" block became a plain why-comment above `parseHost`; `normalizeHost`, `normalizeZone` and `parseHost` now carry worked examples for three situations (a laptop `localhost:3000`, a Vercel URL `foo-abc.vercel.app`, a real host `MSP.Staging.PebbleBeats.com:443`) and a comment on each line; the test header lost its scaffold wording. **Verified as comment-only:** the TypeScript printed with comments removed is identical before and after; `pnpm lint`, `pnpm check-types` clean; `lib/metro-host.test.ts` 46 passed. **Still open:** `C4-K2` (`lib/request-plan.ts`), so `request-plan.test.ts` and most of `proxy-handler.test.ts` stay red.
+
 ## Code review
 
 ### Round 1 — Claude Opus 5.5, October 29, 2026

@@ -5,8 +5,8 @@
  * shape, reserved words), written out below as literals. They are not computed by the code under test, so a parser
  * that is wrong cannot agree with its own tests.
  *
- * The rows that need the zone-stripping (`apex`, `metro`, `bad`, and an "outside" host that is *near* a zone) are
- * the ones C4-K1 turns green; the no-zone rows pass from the scaffold.
+ * The rows that exercise the zone-stripping (`apex`, `metro`, `bad`, and an "outside" host that is *near* a zone,
+ * such as `xdev.example.com`) are the C4-K1 key point; the no-zone rows cover the pre-domain state.
  */
 
 import { describe, expect, it } from "vitest";
