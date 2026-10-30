@@ -88,20 +88,14 @@ export function parseHost(host: string, zone: string | null | undefined): HostCl
   // No zone configured (the pre-domain state): nothing to strip, every host is left alone.
   if (z === null) return { kind: "outside" };
 
-  // TODO(Ari) — Key point of interest (C4-K1): the environment is the *parent zone*, and what is left after
+  //  Key point of interest (C4-K1): the environment is the *parent zone*, and what is left after
   //   removing it is the slug (Dep-D2, alpha-deployment-plan.md §4.2). The match must be on a LABEL BOUNDARY:
   //   `h.endsWith("." + z)` or equal to the zone, never a bare `endsWith(z)`, or `xdev.example.com` parses as the
   //   dev zone. What is left must be exactly one valid, non-reserved label; anything else inside the zone is
   //   "bad", and anything outside the zone is "outside", left alone. (`h` and `z` are already normalised above.)
-  // To align: copy the Code lines below by hand in place of the throw, then run the Check.
-  // Code:
-  //   if (h === z) return { kind: "apex" };
-  //   if (!h.endsWith("." + z)) return { kind: "outside" };
-  //   const label = h.slice(0, -(z.length + 1));
-  //   if (!isValidSlug(label) || isReservedSlug(label)) return { kind: "bad" };
-  //   return { kind: "metro", slug: label };
-  // Check: `pnpm --filter calendar test lib/metro-host.test.ts` (C4-T1). The likeliest mistake: matching
-  //   `endsWith(z)` without the dot (the `xdev.example.com` row goes red), or slicing off the wrong number of
-  //   characters (the dot belongs to the zone side), or treating `a.b.<zone>` as a metro (it fails `isValidSlug`).
-  throw new Error(`TODO(Ari): C4-K1 (host ${h}, zone ${z})`);
+  if (h === z) return { kind: "apex" }; // give an example: what scenario does this catch?
+  if (!h.endsWith("." + z)) return { kind: "outside" }; // show me an example of which scenario this catches
+  const label = h.slice(0, -(z.length + 1));
+  if (!isValidSlug(label) || isReservedSlug(label)) return { kind: "bad" };
+  return { kind: "metro", slug: label };
 }
