@@ -5,9 +5,8 @@
  * C4-K2 key point), never computed by the code under test. `isLiveSlug` is a fake that records its calls, because
  * "was the database consulted" is part of what some rows prove.
  *
- * C4-K2 turns the order-dependent rows green (the gate before the liveness check, redirects before the gate, the
- * fail-closed rows). The scaffold's placeholder serves everything as the default metro, so the prod and local rows
- * pass from it.
+ * The order-dependent rows are the C4-K2 key point: the gate before the liveness check, host redirects before the
+ * gate, and the fail-closed rows.
  */
 
 import { describe, expect, it, vi } from "vitest";

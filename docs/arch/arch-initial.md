@@ -305,6 +305,7 @@ security: the Railway API stays public until C10. Queries are still not scoped b
 
 Tracked here so they don't get silently forgotten:
 
+- **A URL with no metro slug** (added October 30, 2026, C4; `docs/dev/implementations/c4-metro-hosts.md` C4-D5) — what a visitor sees at the bare zone (`pebblebeats.com`, `staging.pebblebeats.com`) is undecided beyond "while one metro is live, redirect to the default metro's host" (`msp.`). The mental model is Craigslist: the bare address shows a **list of metros** to choose from. That page, the list endpoint (`GET /metros`) it needs, and the rule for a visitor with no saved metro are built when a second metro goes live; C4 deliberately builds neither, because with one metro the only possible answer is a redirect.
 - **Multi-region deployment** — designed for, not built. Revisit when there's a second metro area to serve.
 - **Multi-metro scoping enforcement** — the metro-scoped vs. global entity split exists in the design ([Section 1](#1-scope-and-constraints)) but isn't enforced in code yet.
 - **Metro-aware fetch scheduling** — the daily fetch runs at a fixed local time (4 a.m.) per Metro's timezone; a single Railway cron trigger covers this correctly with one metro live, but needs to become metro-aware (multiple triggers, or one that checks which metro's local 4 a.m. it currently is) once a second metro in a different timezone exists.
