@@ -381,6 +381,10 @@ At Ari's request, Step 4.2 (rehearse the slug migration on a throwaway Neon bran
 
 Ari's second run got past `.env` (no secret printed) and failed at the first thing a rehearsal exists to test: `calendar_staging` could not log in to the copy ("password authentication failed"). Postgres words a wrong password and a missing role the same way, so the output could not say which. **Change:** on that failure the script now connects to the copy as the branch owner, asks `pg_roles` about the role, and prints a diagnosis (missing on the copy / exists but NOLOGIN / exists and can log in, so the password is wrong, with the `%40` hint); if the diagnosis query itself fails it says so and keeps the original failure. The password prompt now says "RAW password". **Verified:** 5 new tests (38 in the file), a mutant that skips the diagnosis is caught, and both outcomes were reproduced in the sandbox with a local `neondb_owner` and `calendar_staging` (wrong password: "exists and can log in"; role dropped: "does NOT exist on the copy"). **Open:** which of the two it is on real Neon is unknown until Ari re-runs.
 
+### Round 7 — Claude Sonnet 5.5, October 30, 2026 (the rehearsal passed on real Neon; plan Step 4.2 done)
+
+Ari's third run of `make rehearse-migration ENV=staging ARGS='--sql "select slug from metro"'` passed against real Neon (project `broad-boat-23479411`): a copy of `staging` was created with an expiry, `calendar_staging` logged in on the copy, Alembic went from `829af2c3f26f` to `c4a1e5b7d903 (head)`, `select slug from metro` returned `msp`, and the copy was deleted. This **confirms** what was unverified: a child Neon branch carries a SQL-created role and its password, `--expires-at` is accepted on Ari's plan, and the slug migration backfills correctly on real staging data. It does **not** replace the real staging migration (Step 4's merge runs that); it is the rehearsal of it. The previous failure's cause (probably a percent-encoded password typed at the prompt) was not read off the output, so it is recorded as likely, not confirmed. `environments.md` updated.
+
 ## Code review
 
 ### Round 1 — Claude Opus 5.5, October 29, 2026

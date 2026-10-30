@@ -202,11 +202,14 @@ session, so the commands and flags are from `neonctl --help` (8.14.0): `connecti
 --project-id`, `branches create --name --parent --project-id --expires-at --no-secrets`, `branches delete <name>
 --project-id`. The sequence was run end to end with a stand-in `neonctl` and a local Postgres (five migrations applied
 under `APP_ENV=staging` as a `calendar_staging` role, then the copy deleted; a wrong password failed cleanly and still
-deleted the copy), and the logic is covered by `app/tests/test_migration_rehearsal.py`. **First real run (Ari,
-October 30, 2026): the Neon half worked.** `--expires-at` was accepted, the new branch had its own host, and the copy
-was deleted; the Alembic step then failed on his local `.env` (fixed above). **Not yet confirmed:** that the copy
-inherits the `calendar_<env>` role and its password from the parent (the login happens in the Alembic step, which has
-not yet got that far on real Neon; the script's hint names this if it fails).
+deleted the copy), and the logic is covered by `app/tests/test_migration_rehearsal.py`. **Real Neon (Ari,
+October 30, 2026): it works.** The third run passed end to end on a copy of staging: `--expires-at` was accepted, the
+copy had its own host, `calendar_staging` logged in on the copy (so **Neon does carry a SQL-created role and its
+password into a child branch**), `alembic upgrade head` ran `829af2c3f26f -> c4a1e5b7d903 (metro slug)`, the check
+`select slug from metro` returned `msp`, and the copy was deleted. The two earlier failures were both on our side:
+a local `.env` key that `Settings` forbids (fixed above), and a login failure on the copy whose cause was never read
+off the output (the third run, with the raw password, passed; a typed percent-encoded password is the likely
+cause, not confirmed).
 
 The smoke test also found a bug in `migrations/env.py`: a `%` in `DATABASE_URL` (any role password containing `@`, `:`,
 `/` or `#`, once percent-encoded) crashed Alembic with "invalid interpolation syntax". Fixed, with a regression test
