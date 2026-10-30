@@ -245,6 +245,30 @@ Choosing escalation by failing call (C7); the thresholds, retry cap and confiden
 - `app/config.py`: `model_api_key` as `SecretStr` with the `"ollama"` default; confirm nothing reads `settings.model_api_key` as a plain string (I found no other reader).
 - The `.env.example` stanza and the `environments.md` rows: wording, and that `MODEL_BASE_URL` etc. are "unset" on API services.
 
+### Round 2 — Step 1 probe results, Claude Sonnet 5.5 (run for Ari), October 28, 2026
+
+Run from the laptop with `MODEL_API_KEY` from `apps/api/.env` (never printed); script `probe.py` in the session scratchpad, not in the repo. Endpoint `https://api.deepinfra.com/v1/openai`. Models probed: `google/gemma-4-26B-A4B-it` (the likely first splitter candidate) and `google/gemma-3-4b-it` (the nearest small model). Spend: a few cents of the $5 added.
+
+| Unknown (plan table) | Result |
+|---|---|
+| **The gate model's id** | **`gemma-4-e4b-it` is not on DeepInfra.** The account lists 173 models; the Gemma ones are `gemma-3-4b-it`, `gemma-3-12b-it`, `gemma-3-27b-it`, `gemma-4-26B-A4B-it`, `gemma-4-31B-it`, `gemma-4-31B-it-turbo` and `-Ultra`, plus an embedding model. `arch-initial.md` §10/§11 and `env-setup.md` Phase 7 say it is the only provider with the exact model; that no longer holds. **Step 6's "same model as local" parity run cannot be done as written.** |
+| Prices (per million tokens, in/out) | 26B-A4B 0.07/0.34; 31B-it 0.20/0.40; 31B-turbo 0.09/0.34; 31B-Ultra 0.27/0.76; gemma-3-4b 0.05/0.10; 12b 0.05/0.15; 27b 0.08/0.16. Context 262144 for Gemma 4 (131072 for Ultra and Gemma 3). |
+| `Mode.JSON` (`response_format: json_object`) | **Accepted** by both models. Through instructor, `gemma-4-26B-A4B-it` split three titles correctly-shaped in 3.5 s and extracted a whole page; `gemma-3-4b-it` failed schema validation on the splitter and on the page (dates and times returned as free text), after the one re-ask. |
+| `seed` honoured | **No, on `gemma-4-26B-A4B-it`**: the same seed gave different text, and repeating a temperature-0 request gave different text. **Yes, on `gemma-3-4b-it`** (identical on repeat). So determinism is a property of the model's serving, not of the endpoint. |
+| `extra_body.options.num_ctx` | **Accepted and ignored** by both. D5 (send nothing extra to a hosted provider) stands and is now measured, not assumed. |
+| `usage` in responses | **Present**, and it includes an `estimated_cost` field. Step 11 can read cost from the response and cross-check the dashboard. |
+| Thinking / reasoning | `gemma-4-26B-A4B-it` is tagged `reasoning`; the message carried no separate reasoning field, but one whole page (`seventh_st_entry-2026-10-10.html`, 5,707 characters of text, JSON-LD absent so the model route) took **156.7 s** and returned **30 shows**, the count `a21-confirm` recorded. Far slower than a hosted call should be; the thinking-off experiment (Step 11) is now more important. |
+| Fingerprint, quantization | The response carries no `system_fingerprint`. Quantization is not stated by the API; unknown. |
+| Rate limits | Not read (no dashboard access from here). |
+
+**What this changes for the plan (for Ari):**
+1. **Step 6 (hosted parity) cannot be done as written, and what replaces it is open.** No same-model comparison exists on DeepInfra. `gemma-4-26B-A4B-it` is simply the **first model to try** there (cheap, a Gemma 4, and the likely first splitter candidate); the probe makes no claim that it is the model to ship. Which models ship is decided by the rungs (Step 9) and the confirmation (Step 12), on the gated and held-out sets. What Step 6 becomes is a decision for Ari: (a) a first hosted run of the gated eval with `gemma-4-26B-A4B-it` on every role, compared with `a3-confirm`, understanding that provider and model both changed; (b) skip a separate baseline and let Step 9's first rung serve; or (c) use `gemma-3-4b-it`, the only small model, which failed schema validation on a real page in the probe and so is not a useful comparison.
+2. **Seed non-determinism** means the "5 runs identical" property from A2.1 may not hold for the 26B model. The gate still needs every run to pass; the confirmation just becomes noisier.
+3. **Latency**: 157 s for one page on the 26B model is comparable to the laptop's worst case. Step 11 should try thinking off first.
+4. `arch-initial.md` §10/§11's claim about `gemma-4-e4b-it` and its price line need correcting when the chosen models are recorded (Step 13).
+
+No code changed in this round. **Sequencing (Ari, October 30, 2026):** the full hosted eval is deferred until C5 (which changes `run_eval.py` and `labels.py`, and owns the held-out set) has merged and this branch has been rebased onto it, so it runs once, on the final harness. Results files are gitignored, so nothing is lost by waiting.
+
 ## Code review
 
 ### Round 1 — Claude Opus 5.5, October 28, 2026
