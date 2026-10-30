@@ -8,7 +8,7 @@ branch to a new branch that expires by itself, runs `alembic upgrade head` again
 login role, shows the result, and deletes the copy. Nothing it does touches the real branch.
 
 What you need on the machine running it:
-  * the Neon CLI:           npm install -g neonctl
+  * the Neon CLI:           npm install -g neon   (an older `neonctl` install works too: same tool, either name)
   * a way for it to sign in: `neonctl login` once, or NEON_API_KEY in the shell (read by neonctl itself)
   * the project id:         --project-id, or NEON_PROJECT_ID in the shell
   * the environment role's password: the one in that environment's DATABASE_URL on Railway. Set
@@ -23,11 +23,12 @@ import argparse
 import datetime
 import getpass
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-from app.db.migration_rehearsal import RunResult, rehearse
+from app.db.migration_rehearsal import RunResult, find_neon_cli, rehearse
 from app.db.neon_roles import ROLE_FOR_ENV
 
 # apps/api, whatever directory the script was started from: Alembic must run there.
@@ -70,6 +71,7 @@ def main(argv: list[str]) -> int:
         ttl_minutes=None if args.no_expiry else args.ttl_minutes,
         keep=args.keep,
         sql=args.sql,
+        neonctl=os.environ.get("NEON_CLI") or find_neon_cli(shutil.which),
     )
 
 

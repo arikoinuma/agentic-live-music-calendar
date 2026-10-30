@@ -24,7 +24,8 @@ HOW TO READ THIS
   host and discarded. The environment role's password reaches Alembic only through the `DATABASE_URL` in the child
   process's environment (the project's one-command override), and anything a command prints is scrubbed of it.
 
-  The Neon commands and their flags are from `neonctl --help` (8.14.0): `connection-string [branch] --role-name
+  The Neon commands and their flags are from `neonctl --help` (8.14.0; the same tool is also published as `neon`, and
+  `find_neon_cli` uses whichever is installed): `connection-string [branch] --role-name
   --project-id`, `branches create --name --parent --project-id --expires-at --no-secrets`, `branches delete <name>
   --project-id`.
 
@@ -88,6 +89,14 @@ class Runner(Protocol):
 # ---------------------------------------------------------------------------
 
 
+def find_neon_cli(which: Callable[[str], str | None]) -> str:
+    """The Neon CLI's program name on this machine. It is published as `neon` (the current name, `npm i -g neon`) and as
+    `neonctl` (the older name, which the `neonctl` package still installs next to `neon`); they are the same tool, so
+    use whichever is on PATH. `which` is `shutil.which`, passed in so a test can say what is installed. With neither
+    present it returns `neon`, so the "not found" message tells the person which package to install."""
+    return next((name for name in ("neon", "neonctl") if which(name)), "neon")
+
+
 def branch_name(env: str, now: datetime.datetime) -> str:
     """`rehearse-staging-20261030T120000Z`: the environment and the UTC time, so two rehearsals never collide and a
     stray branch can be dated at a glance."""
@@ -149,7 +158,7 @@ def _run(
         result = run(argv, env=env, cwd=cwd)
     except FileNotFoundError as err:
         if argv[0] == neonctl:
-            raise RehearsalError(f"{neonctl!r} was not found. Install it with: npm install -g neonctl") from err
+            raise RehearsalError(f"{neonctl!r} was not found. Install the Neon CLI with: npm install -g neon") from err
         raise RehearsalError(f"{argv[0]!r} was not found on PATH") from err
     if result.returncode != 0:
         detail = _scrub((result.stderr or result.stdout).strip(), secrets or [])

@@ -31,6 +31,7 @@ from app.db.migration_rehearsal import (
     database_url,
     delete_branch,
     expires_at,
+    find_neon_cli,
     rehearse,
 )
 
@@ -261,7 +262,7 @@ def test_a_missing_neonctl_says_how_to_install_it() -> None:
     # Proves: a machine without the CLI gets a one-line fix instead of a Python traceback.
     code, said = go(FakeRunner(missing_cli=True))
     assert code == 1
-    assert any("npm install -g neonctl" in line for line in said)
+    assert any("npm install -g neon" in line for line in said)
 
 
 # ---------------------------------------------------------------------------
@@ -340,6 +341,22 @@ def test_branch_names_and_expiry_are_derived_from_the_clock() -> None:
     # dated), and the expiry is the creation time plus the TTL in the ISO form the CLI documents.
     assert branch_name("staging", NOW) == "rehearse-staging-20261030T120000Z"
     assert expires_at(NOW, 120) == "2026-10-30T14:00:00Z"
+
+
+@pytest.mark.parametrize(
+    ("installed", "expected"),
+    [
+        ({"neon", "neonctl"}, "neon"),  # both: the plugin's name wins
+        ({"neonctl"}, "neonctl"),  # an older install (npm i -g neonctl)
+        ({"neon"}, "neon"),  # the current install (npm i -g neon)
+        (set(), "neon"),  # neither: the name the install hint tells people to get
+    ],
+)
+def test_find_neon_cli_accepts_either_name_for_the_same_tool(installed: set[str], expected: str) -> None:
+    # Proves: the Neon CLI is published as `neon` (current) and `neonctl` (older, still shipped by the `neonctl`
+    # package; both are the same tool, 8.14.0), so the script uses whichever is on PATH instead of failing on a
+    # machine that installed the other one. With neither, it returns `neon`, so the error names the package to get.
+    assert find_neon_cli(lambda name: f"/bin/{name}" if name in installed else None) == expected
 
 
 @pytest.mark.parametrize("sql", ["select slug from metro", "  SELECT count(*) FROM venue"])

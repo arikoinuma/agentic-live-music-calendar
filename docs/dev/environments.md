@@ -153,7 +153,7 @@ touches the real branch, and it refuses to run the migration if the new branch r
 
 ```bash
 # once per machine
-npm install -g neonctl                 # the Neon CLI
+npm install -g neon                    # the Neon CLI (an older `neonctl` install also works: same tool, either name)
 neonctl login                          # or export NEON_API_KEY in the shell
 export NEON_PROJECT_ID=...             # the Neon project id (or pass --project-id)
 
@@ -176,6 +176,12 @@ reveal it. It is never put on a command line and is scrubbed from anything print
 Exit status: **0** the migration worked; **1** it failed or a guard rail refused (the cause is the first line after
 `FAILED:`); **3** the result stands but the copy could not be deleted, so one is left and will expire on its own (the
 output names it and the time).
+
+**The CLI's two names.** The Neon CLI is published as `neon` (the name the Neon Claude plugin tells you to install) and
+as `neonctl` (the older name; the `neonctl` package still installs both). They are the same tool (both 8.14.0 on
+npm, identical commands), and the script uses whichever is on `PATH`; set `NEON_CLI` to force one. The plugin's own
+branching guidance (`neon-postgres-branches`) recommends the same pattern as this script: a normal branch for testing
+a migration against real data, created with `--expires-at`, and deleted afterwards.
 
 **What was and was not verified (October 30, 2026).** neon.com's documentation could not be reached from the cloud
 session, so the commands and flags are from `neonctl --help` (8.14.0): `connection-string [branch] --role-name
