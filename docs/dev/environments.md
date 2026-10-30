@@ -143,6 +143,54 @@ to a branch with a different migration set, reset `dev` first (below).
   prints nothing. Stamp it once with the override form: `APP_ENV=dev DATABASE_URL=… uv run alembic stamp 67609c405218`.
   Do not run `upgrade head` on it; the tables already exist.
 
+## Rehearsing a migration (C4-PR1-9)
+
+A migration that passes on the local test database can still fail on a hosted branch: the hosted branch has real rows,
+its own login role and table ownership (C3-PR1-2 was exactly that). The rehearsal runs the pending migrations against a
+**copy** first. It creates a short-lived Neon branch from the environment's branch (set to expire by itself), runs
+`alembic upgrade head` against it **as that environment's own role**, shows the result, and deletes the copy. It never
+touches the real branch, and it refuses to run the migration if the new branch reports the parent's host.
+
+```bash
+# once per machine
+npm install -g neonctl                 # the Neon CLI
+neonctl login                          # or export NEON_API_KEY in the shell
+export NEON_PROJECT_ID=...             # the Neon project id (or pass --project-id)
+
+# every rehearsal, from the repository root
+make rehearse-migration ENV=staging ARGS='--sql "select slug from metro"'
+```
+
+It asks for the environment role's password (typed hidden), or reads `NEON_ROLE_PASSWORD` from the shell. That is the
+password in the environment's `DATABASE_URL` on Railway: the role was created in SQL (C3-D9), so the Neon API cannot
+reveal it. It is never put on a command line and is scrubbed from anything printed.
+
+| Option | Meaning |
+|---|---|
+| `ENV=staging\|dev\|prod` | Which environment's migration to rehearse. `staging` and `dev` copy their own branch; `prod` copies the project's default branch (production's). |
+| `--parent NAME` | Copy a different branch instead. |
+| `--sql "select ..."` | One SELECT to run after the upgrade, to look at the result. Anything but a single SELECT is refused. |
+| `--keep` | Leave the copy for inspection (it still expires). The output prints the command that deletes it. |
+| `--ttl-minutes N` / `--no-expiry` | How long Neon keeps the copy before deleting it itself (default 120), or none if your plan rejects `--expires-at`. |
+
+Exit status: **0** the migration worked; **1** it failed or a guard rail refused (the cause is the first line after
+`FAILED:`); **3** the result stands but the copy could not be deleted, so one is left and will expire on its own (the
+output names it and the time).
+
+**What was and was not verified (October 30, 2026).** neon.com's documentation could not be reached from the cloud
+session, so the commands and flags are from `neonctl --help` (8.14.0): `connection-string [branch] --role-name
+--project-id`, `branches create --name --parent --project-id --expires-at --no-secrets`, `branches delete <name>
+--project-id`. The sequence was run end to end with a stand-in `neonctl` and a local Postgres (five migrations applied
+under `APP_ENV=staging` as a `calendar_staging` role, then the copy deleted; a wrong password failed cleanly and still
+deleted the copy), and the logic is covered by `app/tests/test_migration_rehearsal.py`. **It has not yet run against
+real Neon.** Two things to watch on the first real run: that the copy inherits the `calendar_<env>` role and its
+password from the parent (Neon documents that child branches inherit roles; the script's hint names this if the login
+fails), and that `--expires-at` is accepted on your plan (use `--no-expiry` if not).
+
+The smoke test also found a bug in `migrations/env.py`: a `%` in `DATABASE_URL` (any role password containing `@`, `:`,
+`/` or `#`, once percent-encoded) crashed Alembic with "invalid interpolation syntax". Fixed, with a regression test
+(`app/tests/test_alembic_env.py`).
+
 ## Neon roles (C3-D9)
 
 A role belongs to a branch, and a child branch inherits its parent's roles when created. So create each
