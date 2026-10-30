@@ -10,7 +10,8 @@
  *     so it cannot be forged without the password, needs no session store, and changing the password invalidates
  *     every cookie. The `__Host-` prefix makes the browser itself insist on Secure, Path=/ and NO Domain, so the
  *     cookie is host-only and the environments cannot read each other's (alpha-deployment-plan.md §4.2).
- *   - comparisons: both sides are hashed to the same length first, then compared with `timingSafeEqual`, which
+ *   - comparisons: both sides are reduced to the same length first (an HMAC under a random per-process key), then
+ *     compared with `timingSafeEqual`, which
  *     throws on different lengths; a wrong-length guess or cookie must be a refusal, not a 500 (C4-PR1-6).
  *   - `safeNextPath`: where to send the visitor after logging in, parsed with the WHATWG URL parser rather than
  *     checked by string prefix, because the parser deletes tabs and newlines, so `/\t/evil.com` becomes
@@ -21,7 +22,7 @@
  * docs/dev/implementations/c4-metro-hosts.md: C4-D1, C4-D6.
  */
 
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { AppEnv } from "./app-env";
 
 export const GATE_COOKIE = "__Host-gate";
@@ -46,9 +47,17 @@ export function gateCookieValue(password: string, env: AppEnv): string {
   return createHmac("sha256", password).update(`gate-v1:${env}`).digest("hex");
 }
 
-/** SHA-256 of a string: the fixed-length form both sides of a comparison are reduced to. */
+// A random key made once per server process, used only to reduce the two sides of a comparison to the same length.
+// It is never stored or sent, and a new process picks a new one, which is fine because both sides of every comparison
+// are reduced with the same key within a call. A KEYED hash (an HMAC) rather than a bare SHA-256 of the password is
+// the standard idiom for comparing secrets of unequal length in constant time, and it avoids having an unkeyed fast
+// hash of a password in the code, which CodeQL flags (js/insufficient-password-hash, C4 PR#63) even though nothing
+// here stores or transmits the digest.
+const COMPARE_KEY = randomBytes(32);
+
+/** HMAC-SHA-256 of a string under the per-process key: the fixed-length form both sides of a comparison are reduced to. */
 function digest(value: string): Buffer {
-  return createHash("sha256").update(value).digest();
+  return createHmac("sha256", COMPARE_KEY).update(value).digest();
 }
 
 /** Constant-time equality of two strings of any lengths (C4-PR1-6). */
