@@ -1,7 +1,7 @@
 """The migration rehearsal on a throwaway Neon branch (C4-PR1-9; docs/dev/environments.md, "Rehearsing a migration").
 
 WHAT THIS COVERS
-  `rehearse` (app/db/migration_rehearsal.py) cuts a short-lived branch from a hosted environment's Neon branch, runs
+  `rehearse` (scripts/rehearse_migration.py) cuts a short-lived branch from a hosted environment's Neon branch, runs
   `alembic upgrade head` against it as that environment's own login role, and deletes the branch. The point is to
   find out whether a migration works on production-shaped data and roles BEFORE it touches the real database.
 
@@ -22,7 +22,7 @@ from typing import Any
 
 import pytest
 
-from app.db.migration_rehearsal import (
+from scripts.rehearse_migration import (
     RehearsalError,
     RunResult,
     branch_name,

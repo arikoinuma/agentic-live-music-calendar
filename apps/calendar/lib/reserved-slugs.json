@@ -7,5 +7,7 @@
   "app",
   "mail",
   "ftp",
-  "status"
+  "status",
+  "prod",
+  "production"
 ]

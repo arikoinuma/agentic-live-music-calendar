@@ -89,7 +89,8 @@ describe("slug rules (C4-T2)", () => {
     // Proves: the list the parser consults is the shared file, and `dev` and `staging` are in it: the zone apex
     // `staging.<domain>` must never parse as a metro of the production zone (Dep-D3).
     for (const word of reserved) expect(isReservedSlug(word)).toBe(true);
-    for (const word of ["www", "api", "admin", "dev", "staging"]) expect(reserved).toContain(word);
+    // `prod` and `production` were added in PR review (Ari): they name environments, so a metro must never claim them.
+    for (const word of ["www", "api", "admin", "dev", "staging", "prod", "production"]) expect(reserved).toContain(word);
     expect(isReservedSlug("msp")).toBe(false);
   });
 });

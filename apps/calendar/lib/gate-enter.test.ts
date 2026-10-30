@@ -5,9 +5,20 @@
  * Secure, Path=/, no Domain). The environment is a plain object.
  */
 
-import { describe, expect, it } from "vitest";
-import { gateCookieValue } from "./gate";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { gateCookieValue, passwordMatches } from "./gate";
 import { handleGateEnter } from "./gate-enter";
+
+// A pass-through wrapper, so one test can make the password comparison fail (a real scrypt failure, for example out
+// of memory, cannot be provoked from outside) while every other test uses the real function.
+vi.mock("./gate", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./gate")>();
+  return { ...actual, passwordMatches: vi.fn(actual.passwordMatches) };
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 const STAGING = {
   APP_ENV: "staging",
@@ -63,14 +74,33 @@ describe("a wrong password", () => {
     expect(response.headers.get("set-cookie")).toBeNull();
   });
 
-  it("treats a request that is not a form post as an empty password", async () => {
-    // Proves (C4-D6): a malformed body is a refusal, not an exception.
+  it("treats a request that is not a form post as an empty password, and says so in the server log", async () => {
+    // Proves (C4-D6, PR review): a body that cannot be read as a form is a refusal (a 303 back to the form, no cookie),
+    // never an exception, AND it leaves a line in the server log so a broken client or a probe is visible instead of
+    // swallowed. The line carries the reason but never the body, which could hold a password.
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
     const response = await handleGateEnter(
       new Request("https://msp.staging.example.com/gate/enter", { method: "POST", body: "not a form" }),
       STAGING,
     );
     expect(response.status).toBe(303);
     expect(response.headers.get("set-cookie")).toBeNull();
+    expect(log).toHaveBeenCalledTimes(1);
+    const line = String(log.mock.calls[0]?.[0]);
+    expect(line).toContain("[gate] could not read the login form");
+    expect(line).not.toContain("not a form");
+  });
+
+  it("answers 500, logs it, and sets no cookie when the password check itself fails", async () => {
+    // Proves (PR review, "no error handling here?"): if deriving or comparing the password throws (the scrypt step
+    // failing is the realistic case), the handler answers a plain 500 with a log line instead of letting the exception
+    // escape, and it never issues a cookie. Catches a handler that treats a failed check as success or crashes.
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(passwordMatches).mockRejectedValueOnce(new Error("scrypt out of memory"));
+    const response = await handleGateEnter(post({ password: "correct horse", next: "/" }), STAGING);
+    expect(response.status).toBe(500);
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(String(log.mock.calls[0]?.[0])).toContain("[gate] password check failed: scrypt out of memory");
   });
 });
 

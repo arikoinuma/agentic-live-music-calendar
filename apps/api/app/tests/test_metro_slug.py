@@ -38,7 +38,8 @@ def test_the_reserved_list_exists_and_holds_the_words_the_environments_use() -> 
     # zone's apex and must never parse as a metro of the production zone.
     reserved = _reserved()
     assert all(word == word.lower() for word in reserved)
-    assert {"www", "api", "admin", "dev", "staging"} <= set(reserved)
+    # `prod` and `production` were added in PR review (Ari): they name environments, so a metro must never claim them.
+    assert {"www", "api", "admin", "dev", "staging", "prod", "production"} <= set(reserved)
 
 
 def test_the_seeded_metro_slug_is_well_formed_and_not_reserved() -> None:

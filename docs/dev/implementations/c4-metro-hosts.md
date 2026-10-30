@@ -88,7 +88,7 @@ Recommended; Ari approves them by approving the plan. The rows marked ★ need A
 2. ~~**D10: dev is checked without a calendar.**~~ **Answered (Ari, October 29, 2026): dev is dropped from C4** (D10).
 3. **D11: separate branch for the slug PR.** Recommended; one PR is acceptable.
 4. **`C4-K1` and `C4-K2`: are two fill-in gaps the right number?** Dep-D15 says most infrastructure milestones are `[written]` with no gap. These two are the places in C4 where the design lives, are pure and fully testable, and are small (about ten lines each). Re-mark them `[written]` if you would rather not.
-5. **The reserved-slug list** (D2): `www`, `api`, `admin`, `dev`, `staging`, `app`, `mail`, `ftp`, `status`. Add any word you want held back; it costs one line in a JSON file.
+5. **The reserved-slug list** (D2): `www`, `api`, `admin`, `dev`, `staging`, `app`, `mail`, `ftp`, `status` (and, added in PR review by Ari, `prod` and `production`). Add any word you want held back; it costs one line in a JSON file.
 6. ~~**The domain name** (Dep-D7) blocks only Step 6.~~ **Answered (Ari, October 29, 2026): `pebblebeats.com`, registered at Namecheap; DNS can be set at any time.** Step 6 is unblocked.
 
 **Ari's answers, October 29, 2026:** approved the plan and every recommendation (D4 the API check, D11 the separate slug PR, the two gaps `C4-K1` and `C4-K2`, the reserved list as written); chose to skip dev (D10) and to add the glossary above.
@@ -384,6 +384,13 @@ Ari's second run got past `.env` (no secret printed) and failed at the first thi
 ### Round 7 — Claude Sonnet 5.5, October 30, 2026 (the rehearsal passed on real Neon; plan Step 4.2 done)
 
 Ari's third run of `make rehearse-migration ENV=staging ARGS='--sql "select slug from metro"'` passed against real Neon (project `broad-boat-23479411`): a copy of `staging` was created with an expiry, `calendar_staging` logged in on the copy, Alembic went from `829af2c3f26f` to `c4a1e5b7d903 (head)`, `select slug from metro` returned `msp`, and the copy was deleted. This **confirms** what was unverified: a child Neon branch carries a SQL-created role and its password, `--expires-at` is accepted on Ari's plan, and the slug migration backfills correctly on real staging data. It does **not** replace the real staging migration (Step 4's merge runs that); it is the rehearsal of it. The previous failure's cause (probably a percent-encoded password typed at the prompt) was not read off the output, so it is recorded as likely, not confirmed. `environments.md` updated.
+
+### Round 8 — Claude Sonnet 5.5, October 30, 2026 (Ari's five PR #63 review comments)
+
+- **Rehearsal script moved.** `app/db/migration_rehearsal.py` (logic) and `scripts/rehearse_migration.py` (CLI) were two files for one tool; they are now one, `apps/api/scripts/rehearse_migration.py`, because it is a development chore, not app code. Tests moved to `scripts/tests/test_rehearse_migration.py`; `pyproject.toml` gained `scripts` in `testpaths` and the script and its tests in mypy `files`; both directories got an `__init__.py` (mypy otherwise found the tests twice). Mentions of the old paths in Rounds 4–6 are history.
+- **`gate-enter.ts`:** step-by-step comments added; the two unguarded awaits (`request.formData()` and `passwordMatches`) now have error handling, tests first: a non-form post is logged and refused, a failing password check is a 500 with a log line and no cookie. Neither logs the body or the password.
+- **Reserved slugs:** `prod` and `production` added to `reserved-slugs.json`; both tests that read it updated; D2 notes it.
+- **Not moved:** `app/db/neon_roles.py` still lives in `app/`; Ari to say if it should follow.
 
 ## Code review
 

@@ -202,7 +202,7 @@ session, so the commands and flags are from `neonctl --help` (8.14.0): `connecti
 --project-id`, `branches create --name --parent --project-id --expires-at --no-secrets`, `branches delete <name>
 --project-id`. The sequence was run end to end with a stand-in `neonctl` and a local Postgres (five migrations applied
 under `APP_ENV=staging` as a `calendar_staging` role, then the copy deleted; a wrong password failed cleanly and still
-deleted the copy), and the logic is covered by `app/tests/test_migration_rehearsal.py`. **Real Neon (Ari,
+deleted the copy), and the logic is covered by `scripts/tests/test_rehearse_migration.py`. **Real Neon (Ari,
 October 30, 2026): it works.** The third run passed end to end on a copy of staging: `--expires-at` was accepted, the
 copy had its own host, `calendar_staging` logged in on the copy (so **Neon does carry a SQL-created role and its
 password into a child branch**), `alembic upgrade head` ran `829af2c3f26f -> c4a1e5b7d903 (metro slug)`, the check
