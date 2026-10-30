@@ -39,6 +39,7 @@ approach — most "what should we do about X" questions have an answer with reas
 | What non-obvious thing bit us before? | `docs/dev/notes.md` |
 | How is a given milestone being implemented? | `docs/dev/implementations/` |
 | What does a designation like `A2.1-D5` or `v0.1-G6` mean, and how do I write one? | `docs/dev/conventions.md` |
+| How do I add a venue, or a new capture, to the hand-labelled evaluation pool (and mark pages held out)? | `docs/dev/adding-eval-venues.md` |
 
 When a real debugging session turns up something non-obvious, add it to `docs/dev/notes.md`.
 When a design decision gets made, record it where the surrounding reasoning lives.

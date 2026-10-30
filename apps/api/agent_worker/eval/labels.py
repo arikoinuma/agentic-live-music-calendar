@@ -377,6 +377,7 @@ PAGE_LABELS: dict[str, PageLabel] = {
     #   a title is genuinely ambiguous (`alternatives`). Mark `held_out=True` on about a third of the new pages and do not read
     #   their results before C6. (docs/dev/implementations/a2.1-extraction-reliability.md, A2.1-D5 and A2.1-D11;
     #   docs/dev/alpha-deployment-plan.md C5, section 5.2.)
+    # The full procedure, step by step, is docs/dev/adding-eval-venues.md.
     # To align: capture with `uv run python -m agent_worker.eval.capture <venue>`, list the page's lines with
     #   `uv run python -m agent_worker.eval.label_draft agent_worker/eval/fixtures/<capture>.html`, paste the lines you mean as
     #   `source_line`s, and add the PageLabel above this block. A venue that is not in VENUE_FACTS needs its entry there first
