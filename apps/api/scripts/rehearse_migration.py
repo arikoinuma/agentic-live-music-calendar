@@ -58,7 +58,9 @@ def main(argv: list[str]) -> int:
     if not args.project_id:
         sys.exit("Give the Neon project with --project-id or NEON_PROJECT_ID in the shell.")
     role = ROLE_FOR_ENV[args.env]
-    password = os.environ.get("NEON_ROLE_PASSWORD") or getpass.getpass(f"Password of {role} (as in {args.env}'s DATABASE_URL): ")
+    password = os.environ.get("NEON_ROLE_PASSWORD") or getpass.getpass(
+        f"Password of {role}, the RAW password (not the percent-encoded text inside {args.env}'s DATABASE_URL): "
+    )
 
     # Alembic runs in a fresh EMPTY directory so it never reads apps/api/.env (see `rehearse`).
     with tempfile.TemporaryDirectory(prefix="rehearse-migration-") as workdir:

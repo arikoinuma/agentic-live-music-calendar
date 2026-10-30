@@ -168,6 +168,13 @@ an extra input) and its value was echoed into the error. Output is also scrubbed
 error prints. (A normal `make migrate` or `make api` still fails on such a key until `Settings` learns it or you remove
 it from `.env`; that is a local mismatch, not a rehearsal problem.)
 
+If the environment role **cannot log in to the copy**, the script says why instead of leaving you with "password
+authentication failed" (Postgres gives that same message for a wrong password and for a role that does not exist):
+it connects to the copy as the branch owner and checks `pg_roles`, then prints one of three diagnoses: the role is
+**missing** on the copy (Neon did not carry it over), it **exists but cannot log in**, or it **exists and can log in**,
+so the password typed is wrong. The usual slip for the last one is typing the percent-encoded text from a connection
+string (`%40` for `@`) instead of the raw password.
+
 It asks for the environment role's password (typed hidden), or reads `NEON_ROLE_PASSWORD` from the shell. That is the
 password in the environment's `DATABASE_URL` on Railway: the role was created in SQL (C3-D9), so the Neon API cannot
 reveal it. It is never put on a command line and is scrubbed from anything printed.

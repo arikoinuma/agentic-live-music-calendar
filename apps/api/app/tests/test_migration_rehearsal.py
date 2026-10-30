@@ -217,6 +217,76 @@ def test_a_login_failure_leads_with_its_cause_and_a_hint() -> None:
     assert any(line.startswith("Hint:") and "DATABASE_URL" in line for line in said)
 
 
+OWNER_URL_ON_COPY = "postgresql+asyncpg://neondb_owner:ownerpw@ep-child-456.us-east-2.aws.neon.tech/neondb"
+ROLE_CHECK_SQL = "select rolcanlogin from pg_roles where rolname = 'calendar_staging'"
+LOGIN_FAILURE = 'asyncpg.InvalidPasswordError: password authentication failed for user "calendar_staging"'
+
+
+def test_a_login_failure_checks_whether_the_role_exists_on_the_copy() -> None:
+    # Proves: when the environment role cannot log in to the copy, the rehearsal connects to the COPY as the branch owner
+    # (whose credentials it already holds) and asks Postgres whether the role is there, then says which of the two causes
+    # it is. Here the role is absent, so the diagnosis says Neon did not carry it over. This is the question the first two
+    # real runs could not answer from "password authentication failed" alone. The owner's password is used for that
+    # one query and never printed. Expected SQL and URL are written out, not read from the module.
+    seen: list[tuple[str, str]] = []
+
+    def query(url: str, sql: str) -> list[tuple[Any, ...]]:
+        seen.append((url, sql))
+        return []
+
+    code, said = go(FakeRunner(fail_on="upgrade head", leak=LOGIN_FAILURE), query=query)
+    assert code == 1
+    assert seen == [(OWNER_URL_ON_COPY, ROLE_CHECK_SQL)]
+    text = "\n".join(said)
+    assert "calendar_staging does NOT exist on the copy" in text
+    assert "ownerpw" not in text
+
+
+def test_a_login_failure_with_the_role_present_points_at_the_password() -> None:
+    # Proves: if the role exists on the copy and can log in, the diagnosis says the password entered is not its password,
+    # and names the usual slip: typing the percent-encoded text from a connection string (`%40` for `@`) instead of the
+    # raw password.
+    code, said = go(FakeRunner(fail_on="upgrade head", leak=LOGIN_FAILURE), query=lambda url, sql: [(True,)])
+    assert code == 1
+    text = "\n".join(said)
+    assert "exists on the copy and can log in" in text
+    assert "%40" in text
+
+
+def test_a_role_that_exists_but_cannot_log_in_is_called_out() -> None:
+    # Proves: a role present with NOLOGIN is a third, distinct answer (rolcanlogin false), not "wrong password".
+    _, said = go(FakeRunner(fail_on="upgrade head", leak=LOGIN_FAILURE), query=lambda url, sql: [(False,)])
+    assert any("cannot log in" in line for line in said)
+
+
+def test_an_unavailable_diagnosis_does_not_hide_the_original_failure() -> None:
+    # Proves: if the owner connection for the diagnosis fails too, the output says the diagnosis was unavailable, still
+    # shows the original failure, and the exit code and the branch cleanup are unchanged.
+    def query(url: str, sql: str) -> list[tuple[Any, ...]]:
+        raise RehearsalError("the check query failed: connection refused")
+
+    runner = FakeRunner(fail_on="upgrade head", leak=LOGIN_FAILURE)
+    code, said = go(runner, query=query)
+    assert code == 1
+    text = "\n".join(said)
+    assert "Diagnosis unavailable" in text
+    assert "password authentication failed" in text
+    assert runner.argv_lines()[-1].startswith("neonctl branches delete rehearse-staging-")
+
+
+def test_other_failures_are_not_diagnosed_as_login_problems() -> None:
+    # Proves: the role check runs only for a password-authentication failure; a migration error (a bad statement, a lock)
+    # makes no extra connection to the copy.
+    seen: list[str] = []
+
+    def query(url: str, sql: str) -> list[tuple[Any, ...]]:
+        seen.append(sql)
+        return []
+
+    go(FakeRunner(fail_on="upgrade head"), query=query)
+    assert seen == []
+
+
 def test_the_branch_is_deleted_even_when_the_migration_fails() -> None:
     # Proves: a failing `alembic upgrade head` is reported (non-zero exit, with the tool's own message), and the
     # throwaway branch is still deleted. That is the whole value of the script: the failure is found on a branch

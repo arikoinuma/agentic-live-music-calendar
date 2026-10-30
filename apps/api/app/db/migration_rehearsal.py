@@ -40,7 +40,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, unquote, urlsplit
 
 import sqlalchemy as sa
 from sqlalchemy.exc import SQLAlchemyError
@@ -114,6 +114,11 @@ def connection_parts(uri: str) -> tuple[str, str]:
     if not parts.hostname or not parts.path.strip("/"):
         raise RehearsalError("neonctl returned a connection string with no host or database name")
     return parts.hostname, parts.path.lstrip("/")
+
+
+def connection_password(uri: str) -> str:
+    """The password in a Neon connection URI, decoded (empty if there is none)."""
+    return unquote(urlsplit(uri.strip()).password or "")
 
 
 def database_url(host: str, database: str, role: str, password: str) -> str:
@@ -238,20 +243,23 @@ def rehearse(
     expiry = expires_at(now, ttl_minutes) if ttl_minutes is not None else None
     secrets = [role_password]
     created = False
+    target: tuple[str, str, str] | None = None  # (host, database, owner password) of the copy, once known
     code = EXIT_FAILED
 
     def neon(*args: str) -> RunResult:
         return _run(run, neonctl, [neonctl, *args], secrets=secrets)
 
-    def owner_host(branch: str | None) -> tuple[str, str]:
-        """Host and database of a branch, read from the OWNER role's connection string (whose password is then dropped)."""
+    def owner_connection(branch: str | None) -> tuple[str, str, str]:
+        """(host, database, owner password) of a branch, from the OWNER role's connection string. The host and database
+        pick the target; the owner's password is kept only for the login-failure diagnosis and never printed."""
         branch_arg = [branch] if branch else []
         out = neon("connection-string", *branch_arg, "--role-name", OWNER_ROLE, "--project-id", project_id)
-        return connection_parts(out.stdout)
+        host, database = connection_parts(out.stdout)
+        return host, database, connection_password(out.stdout)
 
     try:
         say(f"Rehearsing the {env} migration on a copy of {parent_name or 'the default branch'} (project {project_id}).")
-        parent_host, _ = owner_host(parent_name)
+        parent_host, _, _ = owner_connection(parent_name)
 
         create = ["branches", "create", "--name", name]
         if parent_name:
@@ -264,7 +272,9 @@ def rehearse(
         created = True
         say(f"Created branch {name}" + (f", which Neon deletes by itself at {expiry}." if expiry else " (no expiry set)."))
 
-        host, database = owner_host(name)
+        host, database, owner_password = owner_connection(name)
+        target = (host, database, owner_password)
+        secrets.append(owner_password)
         if host == parent_host:
             raise RehearsalError(
                 f"the new branch reports the same host as its parent ({host}); not migrating, "
@@ -303,6 +313,8 @@ def rehearse(
     except RehearsalError as err:
         say(f"FAILED: {err}")
         if "password authentication failed" in str(err):
+            if target is not None:
+                _diagnose_login(role, target, query, say)
             say(
                 f"Hint: the copy has the {role} role only if the parent did, and the password must be the one in "
                 f"{env}'s DATABASE_URL on Railway (see docs/dev/environments.md, 'Neon roles')."
@@ -312,6 +324,35 @@ def rehearse(
         if created:
             code = _finish(run, neonctl, project_id, name, expiry, keep, say, code)
     return code
+
+
+def _diagnose_login(
+    role: str,
+    target: tuple[str, str, str],
+    query: Callable[[str, str], list[tuple[Any, ...]]],
+    say: Callable[[str], None],
+) -> None:
+    """The environment role could not log in to the copy. Ask the copy, as its OWNER, whether the role is there, and say
+    which of the possible causes it is. `role` comes from ROLE_FOR_ENV (an allowlist), so it is safe to put in the SQL."""
+    host, database, owner_password = target
+    sql = f"select rolcanlogin from pg_roles where rolname = '{role}'"
+    try:
+        rows = query(database_url(host, database, OWNER_ROLE, owner_password), sql)
+    except RehearsalError as err:
+        say(f"Diagnosis unavailable: could not check the roles on the copy ({err}).")
+        return
+    if not rows:
+        say(
+            f"Diagnosis: the role {role} does NOT exist on the copy, so Neon did not carry it over from the parent. "
+            "The rehearsal cannot log in as it; the real environment's login is unaffected."
+        )
+    elif rows[0][0] is False:
+        say(f"Diagnosis: the role {role} exists on the copy but cannot log in (NOLOGIN).")
+    else:
+        say(
+            f"Diagnosis: the role {role} exists on the copy and can log in, so the password entered is not its password. "
+            "Type the RAW password, not the percent-encoded text from a connection string (where '@' appears as '%40')."
+        )
 
 
 def _finish(
