@@ -62,6 +62,17 @@ HTTP against the API for anything else — the routes exist and serve the same d
   `notFound()`. `getMetro`, `getVenue`, `getArtist` and `getShow` are wrapped in React `cache()` (their arguments are
   primitives, so it keys by value): a detail page's `generateMetadata` and its body share one API request per
   render. `getShows` takes an object, so it isn't wrapped. Tests use `createApiClient({ baseUrl, fetchImpl })` with a fake `fetch`.
+- **`proxy.ts` and the metro host (C4).** `proxy.ts` is thin glue over `lib/proxy-handler.ts`; the policy is in
+  `lib/request-plan.ts` (a pure function: unavailable, redirect to the gate, deny, redirect to the default metro's
+  host, or serve). `lib/metro-host.ts` classifies a host against `SITE_ZONE` (outside, apex, bad, or a metro slug), and
+  `lib/gate.ts` holds the non-production password gate's cookie (`__Host-gate`, an HMAC), comparisons and the safe
+  redirect. The gate form is `app/gate/page.tsx`, its login `app/gate/enter/route.ts` (logic in `lib/gate-enter.ts`; a
+  route file may export only handlers). The proxy sets `x-metro-slug` on every request it serves, deleting any value the
+  client sent; `lib/site-context.ts` reads it back (validating it again) for the layout's canonical URL and the JSON-LD
+  `url`, which are built from `SITE_ZONE` and never from the `Host` header. Hosts outside every zone (previews,
+  `localhost`, the e2e stack on 3100) use the default metro. `APP_ENV` `local` and `prod` are not gated; `staging` and
+  `dev` are. Server-only variables: `SITE_ZONE`, `SITE_GATE_PASSWORD`, `DEFAULT_METRO_SLUG` (docs/dev/environments.md).
+  The reserved-slug list is `lib/reserved-slugs.json`, shared with the API's tests.
 - `lib/params.ts` is the other half: pure parsing of URL state. **Path params**
   (`parseIdParam`, `parseDateParam`) return `null` for anything non-canonical → the page
   calls `notFound()`. **Search params** (`parseCalendarFilters` → `toShowsQuery`, and

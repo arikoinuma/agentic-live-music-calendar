@@ -22,6 +22,7 @@ import {
 import { showJsonLd } from "@/lib/json-ld";
 import { getMetroOrNull } from "@/lib/metro";
 import { parseFromParam, parseIdParam } from "@/lib/params";
+import { getSiteContext } from "@/lib/site-context";
 
 // The tab title and description come from the venue itself, because these
 // pages exist for search and sharing (arch-initial.md §4). `getVenue` is
@@ -67,10 +68,11 @@ export default async function VenuePage(props: PageProps<"/venue/[id]">) {
   // a missing venue costs one harmless, empty shows request, and
   // `notFound()` throws, so it must not sit inside a try/catch or a
   // promise chain.
-  const [venue, { start, end, shows }, metro] = await Promise.all([
+  const [venue, { start, end, shows }, metro, site] = await Promise.all([
     getVenue(id),
     getShows({ venueIds: [id], start: from ?? undefined }),
     getMetroOrNull(),
+    getSiteContext(),
   ]);
   if (venue === null) notFound();
 
@@ -171,7 +173,7 @@ export default async function VenuePage(props: PageProps<"/venue/[id]">) {
               venue's address. Nothing at all when there are none. */}
           <JsonLd
             data={shows.map((show) =>
-              showJsonLd(show, { venue, timeZone: metro?.timezone ?? null }),
+              showJsonLd(show, { venue, timeZone: metro?.timezone ?? null, origin: site.origin }),
             )}
           />
         </>

@@ -119,7 +119,7 @@ describe("summarizeBody (generic)", () => {
   it("shows small scalar values", () => {
     // Proves: a small record is printed outright, so /metro's answer is visible.
     expect(summarizeBody("/metro", metro)).toBe(
-      'id=1, name="Minneapolis/St. Paul", timezone="America/Chicago"',
+      'id=1, name="Minneapolis/St. Paul", timezone="America/Chicago", slug="msp"',
     );
   });
 

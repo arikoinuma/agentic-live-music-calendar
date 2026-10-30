@@ -25,8 +25,9 @@
  * pages and printed inside a <script> tag, so `jsonLdScriptContent`
  * escapes `<` (Next's JSON-LD guide: JSON.stringify does not sanitise).
  *
- * `url` is omitted on purpose: there is no site URL until the hosted
- * phase. Server-side in practice (Temporal polyfill, like lib/dates.ts).
+ * `url` is the page's own address, built from the configured site origin (lib/site-url.ts, C4-D8) and passed in as
+ * `ctx.origin`; with no origin (no domain configured yet) it is omitted rather than guessed. Server-side in
+ * practice (Temporal polyfill, like lib/dates.ts).
  */
 
 import { Temporal } from "@js-temporal/polyfill";
@@ -51,7 +52,9 @@ export type JsonLdEvent = {
   endDate?: string;
   eventStatus: string;
   eventAttendanceMode: string;
-  location: { "@type": "MusicVenue"; name: string; address?: string };
+  /** The show page's address (`<origin>/show/<id>`), when the site has an origin (C4-D8). */
+  url?: string;
+  location: { "@type": "MusicVenue"; name: string; address?: string; url?: string };
   performer?: { "@type": "MusicGroup"; name: string }[];
   image?: string;
   offers?: JsonLdOffer[];
@@ -184,11 +187,13 @@ function offersFor(show: ShowSummary): JsonLdOffer[] {
  * One show as a schema.org MusicEvent. `venue` is the venue's detail
  * record when the page has it (for the address), `null` when it doesn't —
  * the location then falls back to the show's own venue name with no
- * address. `timeZone` is the metro's IANA zone, or `null`.
+ * address. `timeZone` is the metro's IANA zone, or `null`. `origin` is the site's own
+ * origin (`https://msp.<zone>`, lib/site-url.ts) or `null`/absent when none is configured;
+ * it adds the event's `url` and the venue's `location.url` (C4-D8).
  */
 export function showJsonLd(
   show: ShowSummary,
-  ctx: { venue: VenueDetail | null; timeZone: string | null },
+  ctx: { venue: VenueDetail | null; timeZone: string | null; origin?: string | null },
 ): JsonLdEvent {
   const lineup = orderedLineup(show.lineup);
   const event: JsonLdEvent = {
@@ -207,7 +212,9 @@ export function showJsonLd(
       "@type": "MusicVenue",
       name: show.venue.name,
       ...(ctx.venue?.address ? { address: ctx.venue.address } : {}),
+      ...(ctx.origin && ctx.venue ? { url: `${ctx.origin}/venue/${ctx.venue.id}` } : {}),
     },
+    ...(ctx.origin ? { url: `${ctx.origin}/show/${show.id}` } : {}),
   };
 
   const endDate = eventEndDateTime(show.date, show.start_time, show.end_time, ctx.timeZone);

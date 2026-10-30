@@ -43,7 +43,7 @@ async def test_sequences_move_past_the_loaded_ids(db_session: AsyncSession) -> N
     # do not advance a sequence, so without the reset the first row the worker inserted into a loaded database would
     # collide. Expected next ids: metro 2, venue 5, artist 11, show 27.
     await load_sample_data(db_session)
-    metro = Metro(name="Next", timezone="UTC")
+    metro = Metro(name="Next", timezone="UTC", slug="nxt")
     artist = Artist(name="Next Act")
     db_session.add_all([metro, artist])
     await db_session.flush()
@@ -90,7 +90,7 @@ async def test_the_loader_refuses_a_database_that_has_rows(db_session: AsyncSess
 
 async def test_the_loader_refuses_even_a_lone_metro(db_session: AsyncSession) -> None:
     # Proves: one pre-existing metro row is enough to refuse (the check covers each of metro, venue, artist and show).
-    db_session.add(Metro(name="Already Here", timezone="UTC"))
+    db_session.add(Metro(name="Already Here", timezone="UTC", slug="her"))
     await db_session.flush()
     with pytest.raises(NotAnEmptyDatabaseError, match="metro"):
         await load_sample_data(db_session)

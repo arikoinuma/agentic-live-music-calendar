@@ -739,6 +739,17 @@ Ignored Build Step were normal). Fix: turn Preview deployments back on and set
 
 ---
 
+## A route handler's `request.url` is not the visitor's host (C4)
+
+Against `next start`, `request.url` inside a route handler (not the proxy: there, `NextResponse.redirect(request.nextUrl...)` came out relative and correct) reflected the server's own bind address (`http://localhost:3210/...`),
+not the `Host` the client sent, so an absolute redirect built from it (`NextResponse.redirect(new URL(path, request.url))`) pointed at
+the wrong host. The gate's login therefore sends a relative `Location` (`/venue/3`), which always stays on the host the visitor used
+(`lib/gate-enter.ts`). Redirects to a metro's host are built from the configured zone, not from the request. Also learned while
+building C4: the matcher test helper in Next 16.4.1 is `unstable_doesMiddlewareMatch` (the bundled docs name
+`unstable_doesProxyMatch`, which is not exported); a `proxy.ts` may import `server-only` modules and builds fine; `alternates.canonical:
+"./"` resolves per route against `metadataBase`; and a route file may export only its HTTP handlers, which is why the gate's and the
+proxy's logic live under `lib/`.
+
 ## Railway config-as-code is closed to services that never used it (C3)
 
 C3 added `apps/api/railway.toml` and pointed the service's "Config file path" at it. Railway ignored it: the pre-deploy

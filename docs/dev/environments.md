@@ -74,6 +74,9 @@ Variables the API's `Settings` does not read (the frontend's, and rows reserved 
 |---|---|---|---|
 | `APP_ENV` | Vercel | `staging` on every Preview branch, `dev` on branch `dev`, `prod` on Production, `local` in `.env.local` | Validated by `getAppEnv()` against `VERCEL_ENV` and the branch (C3-D7). |
 | `API_BASE_URL` | Vercel | the matching Railway API (Preview defaults to staging's, once it exists) | Server-only, never `NEXT_PUBLIC_`. |
+| `SITE_ZONE` | Vercel | unset until a domain is attached; then `staging.pebblebeats.com` on branch `main`; Production stays unset until C11 (`pebblebeats.com`) | Server-only. The environment's own zone (C4-D2): hosts inside it are `<slug>.<zone>`; hosts outside it (`*.vercel.app`, `localhost`) use the default metro. Also the base of every canonical URL and JSON-LD `url` (C4-D8); unset means none are emitted. |
+| `SITE_GATE_PASSWORD` | Vercel | a long random value on every Preview branch (staging, and every PR preview, which is also `staging`); unset on Production and local | Server-only secret, never committed or pasted in chat. A gated environment (staging, dev) with this unset answers 503 by design (C4-D6). Changing it logs everyone out (the cookie is an HMAC keyed by it). |
+| `DEFAULT_METRO_SLUG` | Vercel | unset everywhere; the code default is `msp` | Optional (C4-D2). A set value that is not a valid, non-reserved slug makes the proxy answer 503 (C4-PR1-4). |
 | `FLAG_*` | Railway, Vercel | reserved | Added by C3.1. |
 | `R2_*` | Railway | reserved | One bucket and token per environment (C9). |
 | DeepInfra key | Railway | reserved | One key per environment (C6, C8). |
@@ -84,6 +87,33 @@ Variables the API's `Settings` does not read (the frontend's, and rows reserved 
 Hobby has no custom environments, so "dev" and "staging" are branch-scoped Preview configurations: Preview
 variables default to the staging values for every branch, and the `dev` branch overrides them. A PR preview
 therefore reads the staging API, which is read-only to the browser.
+
+## Hosts, the gate and `noindex` (C4)
+
+Each metro is its own subdomain of an environment's zone. The zone is the part of the domain the environment owns;
+its apex is the bare zone name.
+
+| Environment | Zone | Apex | A metro's host |
+|---|---|---|---|
+| production (C11, not attached yet) | `pebblebeats.com` | `pebblebeats.com` | `msp.pebblebeats.com` |
+| staging | `staging.pebblebeats.com` | `staging.pebblebeats.com` | `msp.staging.pebblebeats.com` |
+| dev | not set up (C4-D10) | | |
+
+What `proxy.ts` does with a request, in this order (the order is `C4-K2`): refuse (503) if `APP_ENV` is unreadable, a
+gated environment has no password, or `DEFAULT_METRO_SLUG` is set but malformed; redirect the apex and any malformed or reserved host to the default metro's host
+(no login needed: nothing from the database is revealed); show the password form to anyone without the cookie (staging
+and dev only); only then, for a slug that is not the default, ask the API whether it is a real metro. Every response from
+a non-production environment carries `X-Robots-Tag: noindex, nofollow`.
+
+* **The gate is a courtesy, not security.** One shared password (`SITE_GATE_PASSWORD`), remembered by a host-only
+  `__Host-gate` cookie for 30 days. There is no rate limit and no per-user login, and the Railway API stays public
+  until C10, so the gate protects the pages only.
+* **Attaching a domain removes Vercel's own login from that host.** Vercel's protection covers `*.vercel.app` only
+  (`alpha-deployment-plan.md` §1.1), so the gate is staging's only protection once `msp.staging.pebblebeats.com` is
+  attached. Prove it on the `*.vercel.app` URL first (C4 Step 5).
+* **Never attach `msp.pebblebeats.com` or the apex to Production before C11** (Dep-D11): that makes production public.
+* **Adding a metro** is a database row (the seed) plus its DNS; the slug must be 3 to 32 characters, start with a
+  letter, use lowercase letters, digits and hyphens, and not be in `apps/calendar/lib/reserved-slugs.json`.
 
 ## The `dev` lane (Dep-D8)
 
@@ -112,6 +142,78 @@ to a branch with a different migration set, reset `dev` first (below).
 * **A schema-only branch** (how `dev` was made) has the tables but an empty `alembic_version`, so `alembic current`
   prints nothing. Stamp it once with the override form: `APP_ENV=dev DATABASE_URL=… uv run alembic stamp 67609c405218`.
   Do not run `upgrade head` on it; the tables already exist.
+
+## Rehearsing a migration (C4-PR1-9)
+
+A migration that passes on the local test database can still fail on a hosted branch: the hosted branch has real rows,
+its own login role and table ownership (C3-PR1-2 was exactly that). The rehearsal runs the pending migrations against a
+**copy** first. It creates a short-lived Neon branch from the environment's branch (set to expire by itself), runs
+`alembic upgrade head` against it **as that environment's own role**, shows the result, and deletes the copy. It never
+touches the real branch, and it refuses to run the migration if the new branch reports the parent's host.
+
+```bash
+# once per machine
+npm install -g neon                    # the Neon CLI (an older `neonctl` install also works: same tool, either name)
+neonctl login                          # or export NEON_API_KEY in the shell
+export NEON_PROJECT_ID=...             # the Neon project id (or pass --project-id)
+
+# every rehearsal, from the repository root
+make rehearse-migration ENV=staging ARGS='--sql "select slug from metro"'
+```
+
+The migration runs from an **empty temporary directory** and is given only `APP_ENV`, `DATABASE_URL`, a placeholder
+`MODEL_NAME` and `PYTHONPATH`, so it **never reads your `apps/api/.env`**. That file is unrelated to a hosted branch,
+and on the first real run it broke the rehearsal (a local `MODEL_API_KEY` that `Settings` does not know is rejected as
+an extra input) and its value was echoed into the error. Output is also scrubbed of any `input_value=...` a validation
+error prints. (A normal `make migrate` or `make api` still fails on such a key until `Settings` learns it or you remove
+it from `.env`; that is a local mismatch, not a rehearsal problem.)
+
+If the environment role **cannot log in to the copy**, the script says why instead of leaving you with "password
+authentication failed" (Postgres gives that same message for a wrong password and for a role that does not exist):
+it connects to the copy as the branch owner and checks `pg_roles`, then prints one of three diagnoses: the role is
+**missing** on the copy (Neon did not carry it over), it **exists but cannot log in**, or it **exists and can log in**,
+so the password typed is wrong. The usual slip for the last one is typing the percent-encoded text from a connection
+string (`%40` for `@`) instead of the raw password.
+
+It asks for the environment role's password (typed hidden), or reads `NEON_ROLE_PASSWORD` from the shell. That is the
+password in the environment's `DATABASE_URL` on Railway: the role was created in SQL (C3-D9), so the Neon API cannot
+reveal it. It is never put on a command line and is scrubbed from anything printed.
+
+| Option | Meaning |
+|---|---|
+| `ENV=staging\|dev\|prod` | Which environment's migration to rehearse. `staging` and `dev` copy their own branch; `prod` copies the project's default branch (production's). |
+| `--parent NAME` | Copy a different branch instead. |
+| `--sql "select ..."` | One SELECT to run after the upgrade, to look at the result. Anything but a single SELECT is refused. |
+| `--keep` | Leave the copy for inspection (it still expires). The output prints the command that deletes it. |
+| `--ttl-minutes N` / `--no-expiry` | How long Neon keeps the copy before deleting it itself (default 120), or none if your plan rejects `--expires-at`. |
+
+Exit status: **0** the migration worked; **1** it failed or a guard rail refused (the cause is the first line after
+`FAILED:`); **3** the result stands but the copy could not be deleted, so one is left and will expire on its own (the
+output names it and the time).
+
+**The CLI's two names.** The Neon CLI is published as `neon` (the name the Neon Claude plugin tells you to install) and
+as `neonctl` (the older name; the `neonctl` package still installs both). They are the same tool (both 8.14.0 on
+npm, identical commands), and the script uses whichever is on `PATH`; set `NEON_CLI` to force one. The plugin's own
+branching guidance (`neon-postgres-branches`) recommends the same pattern as this script: a normal branch for testing
+a migration against real data, created with `--expires-at`, and deleted afterwards.
+
+**What was and was not verified (October 30, 2026).** neon.com's documentation could not be reached from the cloud
+session, so the commands and flags are from `neonctl --help` (8.14.0): `connection-string [branch] --role-name
+--project-id`, `branches create --name --parent --project-id --expires-at --no-secrets`, `branches delete <name>
+--project-id`. The sequence was run end to end with a stand-in `neonctl` and a local Postgres (five migrations applied
+under `APP_ENV=staging` as a `calendar_staging` role, then the copy deleted; a wrong password failed cleanly and still
+deleted the copy), and the logic is covered by `scripts/tests/test_rehearse_migration.py`. **Real Neon (Ari,
+October 30, 2026): it works.** The third run passed end to end on a copy of staging: `--expires-at` was accepted, the
+copy had its own host, `calendar_staging` logged in on the copy (so **Neon does carry a SQL-created role and its
+password into a child branch**), `alembic upgrade head` ran `829af2c3f26f -> c4a1e5b7d903 (metro slug)`, the check
+`select slug from metro` returned `msp`, and the copy was deleted. The two earlier failures were both on our side:
+a local `.env` key that `Settings` forbids (fixed above), and a login failure on the copy whose cause was never read
+off the output (the third run, with the raw password, passed; a typed percent-encoded password is the likely
+cause, not confirmed).
+
+The smoke test also found a bug in `migrations/env.py`: a `%` in `DATABASE_URL` (any role password containing `@`, `:`,
+`/` or `#`, once percent-encoded) crashed Alembic with "invalid interpolation syntax". Fixed, with a regression test
+(`app/tests/test_alembic_env.py`).
 
 ## Neon roles (C3-D9)
 
