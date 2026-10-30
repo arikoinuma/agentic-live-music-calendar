@@ -26,6 +26,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from app.db.migration_rehearsal import RunResult, find_neon_cli, rehearse
@@ -59,20 +60,23 @@ def main(argv: list[str]) -> int:
     role = ROLE_FOR_ENV[args.env]
     password = os.environ.get("NEON_ROLE_PASSWORD") or getpass.getpass(f"Password of {role} (as in {args.env}'s DATABASE_URL): ")
 
-    return rehearse(
-        args.env,
-        project_id=args.project_id,
-        role_password=password,
-        run=run_command,
-        say=print,
-        now=datetime.datetime.now(datetime.UTC),
-        api_dir=API_DIR,
-        parent=args.parent,
-        ttl_minutes=None if args.no_expiry else args.ttl_minutes,
-        keep=args.keep,
-        sql=args.sql,
-        neonctl=os.environ.get("NEON_CLI") or find_neon_cli(shutil.which),
-    )
+    # Alembic runs in a fresh EMPTY directory so it never reads apps/api/.env (see `rehearse`).
+    with tempfile.TemporaryDirectory(prefix="rehearse-migration-") as workdir:
+        return rehearse(
+            args.env,
+            project_id=args.project_id,
+            role_password=password,
+            run=run_command,
+            say=print,
+            now=datetime.datetime.now(datetime.UTC),
+            api_dir=API_DIR,
+            workdir=Path(workdir),
+            parent=args.parent,
+            ttl_minutes=None if args.no_expiry else args.ttl_minutes,
+            keep=args.keep,
+            sql=args.sql,
+            neonctl=os.environ.get("NEON_CLI") or find_neon_cli(shutil.which),
+        )
 
 
 if __name__ == "__main__":

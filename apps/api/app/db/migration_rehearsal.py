@@ -136,12 +136,18 @@ def delete_branch(run: Runner, neonctl: str, project_id: str, name: str) -> None
     _run(run, neonctl, [neonctl, "branches", "delete", name, "--project-id", project_id])
 
 
+# pydantic prints the value it rejected: `Extra inputs are not permitted [type=extra_forbidden, input_value='sk-...']`.
+# The first real rehearsal (October 30, 2026) printed a DeepInfra key from a developer's local .env that way.
+_INPUT_VALUE = re.compile(r"""input_value=(?:'[^']*'|"[^"]*"|[^\s,\]]+)""")
+
+
 def _scrub(text: str, secrets: list[str]) -> str:
-    """Replace each secret (and its URL-encoded form) with `****`, so a tool's error message cannot leak it."""
+    """Hide anything that must not be printed: each known secret (and its URL-encoded form), and any value a
+    validation error echoes back (`input_value=...`), since that can be any setting in the developer's environment."""
     for secret in secrets:
         if secret:
             text = text.replace(secret, "****").replace(quote(secret, safe=""), "****")
-    return text
+    return _INPUT_VALUE.sub("input_value='****'", text)
 
 
 def _run(
@@ -201,6 +207,7 @@ def rehearse(
     say: Callable[[str], None],
     now: datetime.datetime,
     api_dir: Path,
+    workdir: Path,
     parent: str | None = None,
     ttl_minutes: int | None = 120,
     keep: bool = False,
@@ -212,7 +219,8 @@ def rehearse(
 
     `parent` overrides the branch to copy (the default is DEFAULT_PARENT[env]); `ttl_minutes=None` omits the expiry
     (for a Neon plan that rejects expiring branches); `keep` leaves the branch for a person to inspect; `sql` is one
-    SELECT to run after the upgrade.
+    SELECT to run after the upgrade. `api_dir` is `apps/api` (where the project and `alembic.ini` are); `workdir` is an
+    EMPTY directory the migration runs in, so `Settings` finds no `.env` to load.
     """
     # Everything that can be refused is refused before the first command, so a typo costs nothing.
     try:
@@ -266,9 +274,21 @@ def rehearse(
         secrets.append(url)
         say(f"Target: host {host}, database {database}, role {role}, APP_ENV={env} (host differs from the parent's).")
 
-        alembic_env = {"APP_ENV": env, "DATABASE_URL": url}
+        # Alembic runs from an EMPTY directory, pointed at the project and its alembic.ini by path, with only the
+        # variables it needs. `Settings` reads `.env` from the working directory, and a developer's apps/api/.env holds
+        # things unrelated to a hosted branch (a key the code does not know made `Settings()` refuse to start on the first
+        # real run, and its value was printed). MODEL_NAME is required by `Settings` at import and unused by a migration;
+        # PYTHONPATH is what lets `app` import now that the working directory is not apps/api (alembic.ini's
+        # `prepend_sys_path = .` is relative to it).
+        alembic_env = {
+            "APP_ENV": env,
+            "DATABASE_URL": url,
+            "MODEL_NAME": "rehearsal-placeholder",
+            "PYTHONPATH": str(api_dir),
+        }
+        alembic = ["uv", "run", "--project", str(api_dir), "alembic", "-c", str(api_dir / "alembic.ini")]
         for step in (["current"], ["upgrade", "head"], ["current"]):
-            result = _run(run, neonctl, ["uv", "run", "alembic", *step], env=alembic_env, cwd=api_dir, secrets=secrets)
+            result = _run(run, neonctl, [*alembic, *step], env=alembic_env, cwd=workdir, secrets=secrets)
             say(f"alembic {' '.join(step)}:")
             for line in _scrub(f"{result.stdout}\n{result.stderr}", secrets).splitlines():
                 if line.strip():

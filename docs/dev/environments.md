@@ -161,6 +161,13 @@ export NEON_PROJECT_ID=...             # the Neon project id (or pass --project-
 make rehearse-migration ENV=staging ARGS='--sql "select slug from metro"'
 ```
 
+The migration runs from an **empty temporary directory** and is given only `APP_ENV`, `DATABASE_URL`, a placeholder
+`MODEL_NAME` and `PYTHONPATH`, so it **never reads your `apps/api/.env`**. That file is unrelated to a hosted branch,
+and on the first real run it broke the rehearsal (a local `MODEL_API_KEY` that `Settings` does not know is rejected as
+an extra input) and its value was echoed into the error. Output is also scrubbed of any `input_value=...` a validation
+error prints. (A normal `make migrate` or `make api` still fails on such a key until `Settings` learns it or you remove
+it from `.env`; that is a local mismatch, not a rehearsal problem.)
+
 It asks for the environment role's password (typed hidden), or reads `NEON_ROLE_PASSWORD` from the shell. That is the
 password in the environment's `DATABASE_URL` on Railway: the role was created in SQL (C3-D9), so the Neon API cannot
 reveal it. It is never put on a command line and is scrubbed from anything printed.
@@ -188,10 +195,11 @@ session, so the commands and flags are from `neonctl --help` (8.14.0): `connecti
 --project-id`, `branches create --name --parent --project-id --expires-at --no-secrets`, `branches delete <name>
 --project-id`. The sequence was run end to end with a stand-in `neonctl` and a local Postgres (five migrations applied
 under `APP_ENV=staging` as a `calendar_staging` role, then the copy deleted; a wrong password failed cleanly and still
-deleted the copy), and the logic is covered by `app/tests/test_migration_rehearsal.py`. **It has not yet run against
-real Neon.** Two things to watch on the first real run: that the copy inherits the `calendar_<env>` role and its
-password from the parent (Neon documents that child branches inherit roles; the script's hint names this if the login
-fails), and that `--expires-at` is accepted on your plan (use `--no-expiry` if not).
+deleted the copy), and the logic is covered by `app/tests/test_migration_rehearsal.py`. **First real run (Ari,
+October 30, 2026): the Neon half worked.** `--expires-at` was accepted, the new branch had its own host, and the copy
+was deleted; the Alembic step then failed on his local `.env` (fixed above). **Not yet confirmed:** that the copy
+inherits the `calendar_<env>` role and its password from the parent (the login happens in the Alembic step, which has
+not yet got that far on real Neon; the script's hint names this if it fails).
 
 The smoke test also found a bug in `migrations/env.py`: a `%` in `DATABASE_URL` (any role password containing `@`, `:`,
 `/` or `#`, once percent-encoded) crashed Alembic with "invalid interpolation syntax". Fixed, with a regression test

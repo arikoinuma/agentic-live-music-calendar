@@ -37,6 +37,7 @@ from app.db.migration_rehearsal import (
 
 NOW = datetime.datetime(2026, 10, 30, 12, 0, 0, tzinfo=datetime.UTC)
 API_DIR = Path("/repo/apps/api")
+WORKDIR = Path("/tmp/rehearsal-empty-dir")  # an empty directory: the rehearsal must not run inside apps/api
 # What `neonctl connection-string` prints: the owner's URL on a pooled-or-direct host, with the query parameters the
 # app's DATABASE_URL must NOT carry (docs/dev/notes.md: sslmode and channel_binding).
 PARENT_URI = "postgresql://neondb_owner:ownerpw@ep-parent-123.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require\n"
@@ -88,6 +89,7 @@ def go(runner: FakeRunner, **overrides: Any) -> tuple[int, list[str]]:
         "say": said.append,
         "now": NOW,
         "api_dir": API_DIR,
+        "workdir": WORKDIR,
         "query": lambda url, sql: [("msp",)],
     }
     options.update(overrides)
@@ -116,9 +118,9 @@ def test_the_happy_path_runs_the_commands_in_order_and_deletes_the_branch() -> N
             " --expires-at 2026-10-30T14:00:00Z --no-secrets"
         ),
         "neonctl connection-string rehearse-staging-20261030T120000Z --role-name neondb_owner --project-id proj-123",
-        "uv run alembic current",
-        "uv run alembic upgrade head",
-        "uv run alembic current",
+        f"uv run --project {API_DIR} alembic -c {API_DIR}/alembic.ini current",
+        f"uv run --project {API_DIR} alembic -c {API_DIR}/alembic.ini upgrade head",
+        f"uv run --project {API_DIR} alembic -c {API_DIR}/alembic.ini current",
         "neonctl branches delete rehearse-staging-20261030T120000Z --project-id proj-123",
     ]
 
@@ -130,15 +132,49 @@ def test_alembic_gets_the_new_branchs_url_in_the_shape_the_app_wants() -> None:
     # apps/api. Catches a rehearsal that pointed at the parent's host, which would migrate the real branch.
     runner = FakeRunner()
     go(runner)
-    alembic_calls = [c for c in runner.calls if c["argv"][:3] == ["uv", "run", "alembic"]]
+    alembic_calls = [c for c in runner.calls if "alembic" in c["argv"]]
     assert len(alembic_calls) == 3
     for call in alembic_calls:
-        assert call["cwd"] == API_DIR
+        assert call["cwd"] == WORKDIR
         assert call["env"]["APP_ENV"] == "staging"
         assert call["env"]["DATABASE_URL"] == (
             "postgresql+asyncpg://calendar_staging:p%40ss%2Fw%3Ard%231@ep-child-456.us-east-2.aws.neon.tech/neondb"
         )
         assert "ep-parent-123" not in call["env"]["DATABASE_URL"]
+
+
+def test_alembic_runs_in_an_empty_directory_and_never_reads_the_developers_env_file() -> None:
+    # Proves: the migration runs with an EMPTY working directory, not apps/api, and is told where the project and its
+    # alembic.ini are by path. `Settings` loads `.env` from the working directory, and a developer's apps/api/.env holds
+    # things unrelated to a hosted branch: a key the code does not know made `Settings()` refuse to start on the first
+    # real run (October 30, 2026), and its value was printed in the error. Running elsewhere makes the rehearsal depend on
+    # only what it passes: APP_ENV, DATABASE_URL, a placeholder MODEL_NAME (required by Settings at import), and
+    # PYTHONPATH so `app` imports. The expected values are written out from that list.
+    runner = FakeRunner()
+    go(runner)
+    alembic_calls = [c for c in runner.calls if "alembic" in c["argv"]]
+    assert alembic_calls
+    for call in alembic_calls:
+        assert call["cwd"] == WORKDIR
+        assert call["cwd"] != API_DIR
+        assert call["env"]["PYTHONPATH"] == str(API_DIR)
+        assert call["env"]["MODEL_NAME"] == "rehearsal-placeholder"
+        assert set(call["env"]) == {"APP_ENV", "DATABASE_URL", "MODEL_NAME", "PYTHONPATH"}
+
+
+def test_a_validation_error_does_not_print_the_value_it_rejected() -> None:
+    # Proves: pydantic's "Extra inputs are not permitted ... input_value='sk-...'" line, which echoes the offending
+    # setting's VALUE, is redacted from anything the rehearsal prints. This is the leak the first real run had: a
+    # DeepInfra key from a local .env appeared in the terminal. Catches output that passes a tool's stderr through
+    # untouched. The useful part (which field, and why) stays.
+    leak = "model_api_key\n  Extra inputs are not permitted [type=extra_forbidden, input_value='sk-di-SECRET123', input_type=str]"
+    runner = FakeRunner(fail_on="upgrade head", leak=leak)
+    code, said = go(runner)
+    assert code == 1
+    text = "\n".join(said)
+    assert "sk-di-SECRET123" not in text
+    assert "model_api_key" in text
+    assert "extra_forbidden" in text
 
 
 def test_no_secret_reaches_a_command_line_or_the_output() -> None:
@@ -161,11 +197,11 @@ def test_a_tools_error_message_is_scrubbed_of_the_password() -> None:
     # do), neither the raw password nor its URL-encoded form reaches the terminal. Catches a rehearsal that prints a
     # tool's stderr as it came. Expected: the visible text keeps the useful part ("boom") and loses the secret.
     leak = "could not connect to postgresql+asyncpg://calendar_staging:p%40ss%2Fw%3Ard%231@ep-child-456 with p@ss/w:rd#1"
-    runner = FakeRunner(fail_on="alembic upgrade head", leak=leak)
+    runner = FakeRunner(fail_on="upgrade head", leak=leak)
     code, said = go(runner)
     assert code == 1
     text = "\n".join(said)
-    assert "boom: alembic upgrade head" in text
+    assert "boom: upgrade head" in text
     for secret in (ROLE_PASSWORD, "p%40ss%2Fw%3Ard%231"):
         assert secret not in text
 
@@ -173,7 +209,7 @@ def test_a_tools_error_message_is_scrubbed_of_the_password() -> None:
 def test_a_login_failure_leads_with_its_cause_and_a_hint() -> None:
     # Proves: the cause (the last line of a traceback) is the first thing said after FAILED, not buried under forty
     # lines of stack, and a wrong or missing role password gets a hint that names where the right one lives.
-    runner = FakeRunner(fail_on="alembic upgrade head", leak='asyncpg.InvalidPasswordError: password authentication failed for user "calendar_staging"')
+    runner = FakeRunner(fail_on="upgrade head", leak='asyncpg.InvalidPasswordError: password authentication failed for user "calendar_staging"')
     code, said = go(runner)
     assert code == 1
     failed = next(line for line in said if line.startswith("FAILED:"))
@@ -185,10 +221,10 @@ def test_the_branch_is_deleted_even_when_the_migration_fails() -> None:
     # Proves: a failing `alembic upgrade head` is reported (non-zero exit, with the tool's own message), and the
     # throwaway branch is still deleted. That is the whole value of the script: the failure is found on a branch
     # nobody depends on, and nothing is left running.
-    runner = FakeRunner(fail_on="alembic upgrade head")
+    runner = FakeRunner(fail_on="upgrade head")
     code, said = go(runner)
     assert code == 1
-    assert any("boom: alembic upgrade head" in line for line in said)
+    assert any("boom: upgrade head" in line for line in said)
     assert runner.argv_lines()[-1].startswith("neonctl branches delete rehearse-staging-")
 
 
@@ -278,7 +314,7 @@ def test_production_is_cut_from_the_default_branch() -> None:
     create = next(line for line in runner.argv_lines() if "branches create" in line)
     assert "--parent" not in create
     assert runner.argv_lines()[0] == "neonctl connection-string --role-name neondb_owner --project-id proj-123"
-    alembic = next(c for c in runner.calls if c["argv"][:3] == ["uv", "run", "alembic"])
+    alembic = next(c for c in runner.calls if "alembic" in c["argv"])
     assert alembic["env"]["APP_ENV"] == "prod"
     assert alembic["env"]["DATABASE_URL"].startswith("postgresql+asyncpg://calendar_prod:")
 
