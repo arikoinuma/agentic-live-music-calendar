@@ -136,11 +136,33 @@ First, three short checks recorded in `notes.md` as found. Plan review round 1 a
 
 `make check`; the mutation checks; `make designation-check BASE=main`. Then the real server: `pnpm --filter calendar build`, then `APP_ENV=staging SITE_GATE_PASSWORD=x SITE_ZONE=staging.example.com next start` and `curl` with a `Host:` header: a page without the cookie answers a redirect to `/gate`; with the right password cookie answers 200 and `X-Robots-Tag`; `Host: staging.example.com` redirects to `msp.staging.example.com`; `Host: foo.staging.example.com` without the cookie answers the gate, and with it redirects to the apex; `APP_ENV=prod` answers pages with no `X-Robots-Tag`. Record the commands and results.
 
-### Step 4 — Set the variables, then merge and promote (Ari) [written]
+### Step 4 — Turn the gate on, merge, and promote (Ari) [written]
 
-**Staging deploys from `main`, and every PR preview is also `staging` (C3-D11), so merging puts the gate in front of staging and in front of every preview.** Variables first, shaped like C3-D11's `APP_ENV`: in Vercel, **Preview, for all branches**, set the server-only `SITE_GATE_PASSWORD` (a long random value; not committed, not pasted in chat) (C4-PR1-1). `SITE_ZONE` is the only branch-scoped one and stays **unset** until Step 6 (then `main` → `staging.pebblebeats.com`; PR branches stay unset, so they are "outside" and use the default metro). `DEFAULT_METRO_SLUG` is not set anywhere (the code default is `msp`, D2). An unset gate password with `APP_ENV=staging` answers 503 by design (D6), so a missing variable is visible, not open. Production gets neither a gate password (prod is not gated) nor a zone.
+*Rewritten October 30, 2026 as a checklist, because the first version buried one setting inside a paragraph about merging.* Both `TODO(Ari)` gaps are filled and `make check` is green (C4-CR1-4), so the code is ready to merge. Step 4 has **one Vercel setting and a short merge-and-promote sequence**. Nothing else in Vercel changes in this step.
 
-**Before anything below: both `TODO(Ari)` gaps (`C4-K1`, `C4-K2`) are filled and `make check` is green (C4-CR1-4).** The scaffold's `C4-K2` placeholder serves every page with no gate, and its `C4-K1` throws on any request once `SITE_ZONE` is set, so merging the scaffold would put an ungated staging behind the first custom domain. Then, in this order: (1) merge the slug PR and roll it out as Step 1 says; (2) merge the milestone PR (staging and previews now gate); (3) read the Step 5 checks on staging **and on a PR preview**; (4) only after Step 5 passes, fast-forward `production` to the milestone merge, so production's frontend gets the proxy after the API serves `slug`; check `/metro` on production has `slug`, production pages send **no** `X-Robots-Tag`, and `/health` still reads `prod` (C4-PR1-9).
+**Why the password comes first.** Staging deploys from `main`, and every PR preview is also `staging` (C3-D11), so the moment this merges, the gate is in front of staging and every preview. A gated environment with no `SITE_GATE_PASSWORD` answers 503 by design (C4-D6), so set it before you merge, or the first staging deploy shows an error page.
+
+**A. Before merging (two things)**
+
+1. **Set one variable in Vercel: `SITE_GATE_PASSWORD`, on the Preview environment, for all branches** (C4-PR1-1).
+   * Make the value long and random, for example the output of `openssl rand -base64 24`. Keep it in your password manager: you type it into the gate form to look at staging. Don't commit it or paste it in chat.
+   * Vercel dashboard: the project → Settings → Environment Variables → add `SITE_GATE_PASSWORD`; tick **Preview only** (not Production, not Development); leave the Git-branch field empty so it covers every branch; mark it Sensitive if offered. Or with the CLI, as C3 did: `vercel env add SITE_GATE_PASSWORD preview` (press Enter at the branch prompt for "all branches").
+   * Vercel applies a changed variable only to **new** deployments, so nothing changes until the merge triggers one.
+   * **Do not set** `SITE_ZONE` (that is Step 6, once the domain is attached), `DEFAULT_METRO_SLUG` (the code defaults to `msp`), or anything on Production (production is not gated and has no zone).
+2. **Rehearse the slug migration on a throwaway Neon branch** (recommended, C4-PR1-9). In the Neon console create a branch from `staging` (it inherits the `calendar_staging` role), take its connection string for that role, and run `APP_ENV=staging DATABASE_URL=<that string, no sslmode or channel_binding> uv run alembic upgrade head` from `apps/api`, as `environments.md` describes. Check `select slug from metro` returns `msp`. Delete the throwaway branch. This catches a migration problem before it touches the real staging database.
+
+**B. Merge (one pull request: the slug commit and the rest are on one branch, departure 1 in the Implementation log)**
+
+3. Merge the pull request into `main`. Two things deploy by themselves: **Railway staging** (its pre-deploy step runs the migration on the staging database) and **Vercel** (staging and previews, now with the gate).
+4. Check the API half: open staging's API `/metro` (`https://kind-spontaneity-staging.up.railway.app/metro`): the JSON now includes `"slug":"msp"`.
+
+**C. Prove the gate (Step 5), then promote**
+
+5. Do Step 5 now, on staging's `*.vercel.app` URL and on a PR preview. **Do not go on until it passes.**
+6. **Promote to production** by fast-forwarding the `production` branch to the merge: `git fetch origin && git push origin origin/main:production` (the branch ruleset rejects anything that is not a fast-forward). Railway production runs the same migration; Vercel production deploys the new frontend.
+7. Check production: your production API's `/metro` has `"slug":"msp"`; production pages send **no** `X-Robots-Tag`; `/health` still reads `prod`; the production site works as before (it is not gated and has no zone, so it behaves as it did, with the proxy passing requests through).
+
+If step 3 or 6 goes wrong: a failed Railway deploy keeps the previous deployment serving (the health check, C3-D8), and the migration's `downgrade` removes the column.
 
 ### Step 5 — Prove the gate on `*.vercel.app` before any domain exists (Ari) [written]
 
