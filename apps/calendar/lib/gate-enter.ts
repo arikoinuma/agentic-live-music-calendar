@@ -68,7 +68,7 @@ export async function handleGateEnter(request: Request, env: Env = process.env):
     // Not a form post: treated as an empty password, which never matches.
   }
 
-  if (!passwordMatches(submitted, gatePassword)) {
+  if (!(await passwordMatches(submitted, gatePassword))) {
     const back = new URLSearchParams({ error: "1" });
     if (next !== "/") back.set("next", next);
     return see(`${GATE_PATH}?${back.toString()}`);

@@ -10,9 +10,9 @@
  *     so it cannot be forged without the password, needs no session store, and changing the password invalidates
  *     every cookie. The `__Host-` prefix makes the browser itself insist on Secure, Path=/ and NO Domain, so the
  *     cookie is host-only and the environments cannot read each other's (alpha-deployment-plan.md §4.2).
- *   - comparisons: both sides are reduced to the same length first (an HMAC under a random per-process key), then
- *     compared with `timingSafeEqual`, which
- *     throws on different lengths; a wrong-length guess or cookie must be a refusal, not a 500 (C4-PR1-6).
+ *   - comparisons, both in constant time with `timingSafeEqual`, which throws on different lengths; a wrong-length
+ *     guess or cookie must be a refusal, not a 500 (C4-PR1-6). The password is compared after deriving an equal-length
+ *     key from each side with scrypt; the cookie, a fixed-length string, after a length check.
  *   - `safeNextPath`: where to send the visitor after logging in, parsed with the WHATWG URL parser rather than
  *     checked by string prefix, because the parser deletes tabs and newlines, so `/\t/evil.com` becomes
  *     `//evil.com` after a string check has already passed it (C4-PR1-8).
@@ -22,7 +22,8 @@
  * docs/dev/implementations/c4-metro-hosts.md: C4-D1, C4-D6.
  */
 
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
+import { promisify } from "node:util";
 import type { AppEnv } from "./app-env";
 
 export const GATE_COOKIE = "__Host-gate";
@@ -47,37 +48,43 @@ export function gateCookieValue(password: string, env: AppEnv): string {
   return createHmac("sha256", password).update(`gate-v1:${env}`).digest("hex");
 }
 
-// A random key made once per server process, used only to reduce the two sides of a comparison to the same length.
-// It is never stored or sent, and a new process picks a new one, which is fine because both sides of every comparison
-// are reduced with the same key within a call. A KEYED hash (an HMAC) rather than a bare SHA-256 of the password is
-// the standard idiom for comparing secrets of unequal length in constant time, and it avoids having an unkeyed fast
-// hash of a password in the code, which CodeQL flags (js/insufficient-password-hash, C4 PR#63) even though nothing
-// here stores or transmits the digest.
-const COMPARE_KEY = randomBytes(32);
-
-/** HMAC-SHA-256 of a string under the per-process key: the fixed-length form both sides of a comparison are reduced to. */
-function digest(value: string): Buffer {
-  return createHmac("sha256", COMPARE_KEY).update(value).digest();
-}
-
-/** Constant-time equality of two strings of any lengths (C4-PR1-6). */
-function safeEqual(a: string, b: string): boolean {
-  return timingSafeEqual(digest(a), digest(b));
-}
+// The login comparison derives a key from each side with scrypt, a deliberately slow password KDF, and compares the two
+// 32-byte results in constant time. That does three jobs at once: both sides become the same length (timingSafeEqual
+// throws on different lengths, and a wrong-length guess must be a refusal, not a 500, C4-PR1-6); the comparison never
+// touches the passwords directly; and each guess costs real CPU, which slows anyone hammering the form. The salt is
+// random per server process and never stored: both sides of a call are derived with the same salt, which is all a
+// comparison needs. (CodeQL js/insufficient-password-hash flagged a bare SHA-256 and then an HMAC-SHA-256 of the
+// password here, C4 PR #63; a real KDF is what it accepts.) Login is rare, so the cost is fine; the per-request cookie
+// check below does NOT go through this.
+const COMPARE_SALT = randomBytes(16);
+const scryptAsync = promisify(scrypt) as (secret: string, salt: Buffer, keylength: number) => Promise<Buffer>;
 
 /** Does the submitted password equal the configured one? A different length is simply "no". */
-export function passwordMatches(submitted: string, configured: string): boolean {
-  return safeEqual(submitted, configured);
+export async function passwordMatches(submitted: string, configured: string): Promise<boolean> {
+  const [a, b] = await Promise.all([
+    scryptAsync(submitted, COMPARE_SALT, 32),
+    scryptAsync(configured, COMPARE_SALT, 32),
+  ]);
+  return timingSafeEqual(a, b);
 }
 
-/** Is this cookie the one this password issues in this environment? Missing, tampered or other-environment: no. */
+/**
+ * Is this cookie the one this password issues in this environment? Missing, tampered or other-environment: no.
+ *
+ * Runs on every page request, so it does no hashing of the password: the expected cookie is a fixed-length hex string
+ * (an HMAC keyed by the password, see `gateCookieValue`), so its length is public. A cookie of any other length is
+ * refused up front (timingSafeEqual would throw on it), and one of the right length is compared in constant time.
+ */
 export function isGateCookieValid(
   cookie: string | undefined | null,
   password: string,
   env: AppEnv,
 ): boolean {
   if (!cookie) return false;
-  return safeEqual(cookie, gateCookieValue(password, env));
+  const given = Buffer.from(cookie);
+  const expected = Buffer.from(gateCookieValue(password, env));
+  if (given.length !== expected.length) return false;
+  return timingSafeEqual(given, expected);
 }
 
 /**

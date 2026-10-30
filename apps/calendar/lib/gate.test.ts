@@ -75,28 +75,48 @@ describe("the cookie", () => {
 });
 
 describe("the password comparison", () => {
-  it("accepts the exact password and refuses everything else, including a different length, without throwing", () => {
-    // Proves (C4-PR1-6): equality of the whole value, not a prefix; a longer, shorter or empty guess is a plain
-    // "no" (the digest step makes the compared buffers equal in length).
-    expect(passwordMatches("correct horse", "correct horse")).toBe(true);
-    expect(passwordMatches("correct hors", "correct horse")).toBe(false);
-    expect(passwordMatches("correct horse!", "correct horse")).toBe(false);
-    expect(passwordMatches("", "correct horse")).toBe(false);
-    expect(passwordMatches("correct horse", "")).toBe(false);
+  it("accepts the exact password and refuses everything else, including a different length, without throwing", async () => {
+    // Proves (C4-PR1-6): equality of the whole value, not a prefix; a longer, shorter or empty guess is a plain "no".
+    // `passwordMatches` is async because it derives a key with scrypt (below), which also slows down guessing.
+    expect(await passwordMatches("correct horse", "correct horse")).toBe(true);
+    expect(await passwordMatches("correct hors", "correct horse")).toBe(false);
+    expect(await passwordMatches("correct horse!", "correct horse")).toBe(false);
+    expect(await passwordMatches("", "correct horse")).toBe(false);
+    expect(await passwordMatches("correct horse", "")).toBe(false);
   });
 });
 
 describe("constant-time comparison", () => {
-  it("compares the password and the cookie through timingSafeEqual, on buffers of equal length", () => {
-    // Proves (C4-PR1-6): both comparisons call node's timingSafeEqual (a `===` would not), and always on equal-length
-    // buffers (the digests), which is why a guess of any length cannot make it throw. Catches the mutation "compare
-    // with ===", which no behavioural test can see because `===` returns the same booleans.
+  it("compares the password through timingSafeEqual on two equal-length derived keys", async () => {
+    // Proves (C4-PR1-6): the login comparison calls node's timingSafeEqual (a `===` would not), always on two buffers
+    // of the SAME length (32-byte scrypt outputs), which is why a password of any length cannot make it throw. Catches
+    // the mutation "compare with ===", which no behavioural test can see because `===` returns the same booleans.
+    // The derivation is scrypt, a deliberately slow password KDF, not a bare or keyed fast hash: CodeQL
+    // (js/insufficient-password-hash) flagged both SHA-256 and HMAC-SHA-256 of the password (C4, PR #63).
     const spy = vi.mocked(timingSafeEqual);
     spy.mockClear();
-    passwordMatches("a", "a much longer configured password");
-    isGateCookieValid("short", "pw", "staging");
+    await passwordMatches("a", "a much longer configured password");
+    expect(spy).toHaveBeenCalledTimes(1);
+    const [a, b] = spy.mock.calls[0] as [Buffer, Buffer];
+    expect(a.length).toBe(32);
+    expect(b.length).toBe(32);
+  });
+
+  it("compares a cookie of the right length through timingSafeEqual, and refuses any other length without calling it", () => {
+    // Proves: the per-request cookie check does no hashing of the password at all (it runs on every page request, where
+    // a slow KDF would be a cost). The expected cookie is a fixed-length hex string, so its length is public: a cookie of
+    // another length is refused up front (timingSafeEqual would throw on it), and one of the right length is compared
+    // in constant time.
+    const spy = vi.mocked(timingSafeEqual);
+    const good = gateCookieValue("pw", "staging");
+    spy.mockClear();
+    expect(isGateCookieValid("short", "pw", "staging")).toBe(false);
+    expect(isGateCookieValid(`${good}0`, "pw", "staging")).toBe(false);
+    expect(spy).not.toHaveBeenCalled();
+    expect(isGateCookieValid("0".repeat(good.length), "pw", "staging")).toBe(false);
+    expect(isGateCookieValid(good, "pw", "staging")).toBe(true);
     expect(spy).toHaveBeenCalledTimes(2);
-    for (const [a, b] of spy.mock.calls) expect((a as Buffer).length).toBe((b as Buffer).length);
+    for (const [x, y] of spy.mock.calls) expect((x as Buffer).length).toBe((y as Buffer).length);
   });
 });
 
