@@ -52,8 +52,9 @@ plugins = ["pydantic.mypy"]
 # What a bare `uv run mypy` checks, so the Makefile, CI and a person at a prompt all check the same
 # thing. Both packages are held to one bar: the worker, its tests and the eval harness included
 # (v0.1-G15; A7-D3). Bodies of unannotated functions are not checked (no check_untyped_defs), so
-# annotate a function to put its body under the gate. scripts/ and migrations/ are outside it.
-files = ["app", "agent_worker"]
+# annotate a function to put its body under the gate. migrations/ and most of scripts/ are outside it; the exception is
+# scripts/rehearse_migration.py and its tests, which are typed.
+files = ["app", "agent_worker", "scripts/rehearse_migration.py", "scripts/tests"]
 
 [tool.pytest.ini_options]
 # Both packages are walked in full, so a test placed anywhere under app/ or agent_worker/ is
@@ -64,7 +65,9 @@ files = ["app", "agent_worker"]
 # every run. Only test_*.py is a test module; name a manual script anything else. The tests for
 # agent_worker/ can't live in app/tests/ (app/ never imports from agent_worker/).
 # app/tests/test_pytest_config.py guards both settings (A7).
-testpaths = ["app", "agent_worker"]
+testpaths = ["app", "agent_worker", "scripts"]
+# apps/api on the path, so a test under scripts/ can `from scripts.rehearse_migration import ...` the way app/ tests import `app`.
+pythonpath = ["."]
 python_files = ["test_*.py"]
 # pytest-asyncio 1.x defaults to a fresh event loop per test, but asyncpg
 # connections are bound to the loop that created them — so the session-scoped

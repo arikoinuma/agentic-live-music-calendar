@@ -37,7 +37,7 @@ Listed here as the agreed surface; each lands with its milestone. All routes exi
 | GET | `/artists` | `ArtistListResponse` | `/artists`, and the calendar's artist filter | A-track; DB-backed in C2 |
 | GET | `/artists/{id}` | `ArtistDetail` | `/artist/[id]` | A-track; DB-backed in C2 |
 | GET | `/calendar/months` | `CalendarMonthsResponse` | The month dropdown | A-track; DB-backed in C2 |
-| GET | `/metro` | `MetroSummary` | The root layout: footer metro name and the `description` metadata | B2 (DB-backed since C2) |
+| GET | `/metro` | `MetroSummary` | The root layout: footer metro name and the `description` metadata; the proxy's host check and the canonical URLs read its `slug` (`C4-D3`, `C4-D4`) | B2 (DB-backed since C2; `slug` since C4) |
 
 **Filtering.** `venue_id` and `artist_id` repeat for multi-select (`?venue_id=1&venue_id=3`). Both filters are AND-ed with the date range and OR-ed within themselves — picking two venues means "either venue," which is what a multi-select visibly implies.
 
@@ -77,7 +77,7 @@ A bare top-level array has nowhere to put a total count, a pagination cursor, or
 
 `ShowListResponse` echoes back the date range it actually served rather than trusting the client to remember what it asked for.
 
-This matters most for the home page's four-week window. The browser's clock and timezone aren't the metro's, so "the next four weeks" is a question only the server can answer correctly. Concretely (C2): "today" is the instant the API's clock reads, converted to the metro's timezone and truncated to a date (`app/clock.py`, `metro_today`), not the UTC date: at 22:30 in Minneapolis on October 7 it is already October 8 in UTC. The default window, `upcoming` and `/calendar/months` all start from it. `MetroSummary.timezone` (an IANA name like `America/Chicago`) is carried for the same reason: a Friday show at a Minneapolis venue is Friday regardless of where the reader is sitting.
+This matters most for the home page's four-week window. The browser's clock and timezone aren't the metro's, so "the next four weeks" is a question only the server can answer correctly. Concretely (C2): "today" is the instant the API's clock reads, converted to the metro's timezone and truncated to a date (`app/clock.py`, `metro_today`), not the UTC date: at 22:30 in Minneapolis on October 7 it is already October 8 in UTC. The default window, `upcoming` and `/calendar/months` all start from it. `MetroSummary.timezone` (an IANA name like `America/Chicago`) is carried for the same reason: a Friday show at a Minneapolis venue is Friday regardless of where the reader is sitting. `MetroSummary.slug` (`msp`) is the metro's short code in its web address (`msp.<domain>`); `GET /metro` is how the frontend learns it. Scoping queries by the host's slug stays deferred (`C4-D9`): the API still serves the one live metro.
 
 Render with `Temporal.PlainDate` / `Temporal.PlainTime`. Not `new Date("2026-09-28")` — that parses as UTC midnight and renders as the 27th anywhere west of Greenwich, which is the one bug a calendar can least afford.
 

@@ -14,7 +14,7 @@ WEB := calendar
 
 .DEFAULT_GOAL := help
 .PHONY: help setup dev api web db db-up db-down db-reset db-shell db-wait worker \
-        migrate migration seed fixtures types contract-check designation-check test coverage lint typecheck \
+        migrate migration rehearse-migration seed fixtures types contract-check designation-check test coverage lint typecheck \
         e2e check clean
 
 help: ## Show this help
@@ -111,6 +111,10 @@ db-wait: ## Block until Postgres and MongoDB accept connections
 
 migrate: ## Apply all pending Alembic migrations
 	cd $(API_DIR) && uv run alembic upgrade head
+
+rehearse-migration: ## Rehearse pending migrations on a throwaway Neon branch: make rehearse-migration ENV=staging [ARGS='--sql "select 1"']
+	@test -n "$(ENV)" || { echo 'Usage: make rehearse-migration ENV=staging|dev|prod [ARGS="--sql \"select slug from metro\""]'; exit 1; }
+	cd $(API_DIR) && uv run python -m scripts.rehearse_migration $(ENV) $(ARGS)
 
 migration: ## Autogenerate a migration: make migration m="add show table"
 	@test -n "$(m)" || { echo 'Usage: make migration m="what changed"'; exit 1; }

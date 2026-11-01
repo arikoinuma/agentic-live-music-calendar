@@ -36,6 +36,9 @@ from app.enums import FetchStrategy
 # in the viewer's browser's zone (alpha-build-plan.md, B3).
 METRO_NAME = "Minneapolis/St. Paul"
 METRO_TIMEZONE = "America/Chicago"
+# The metro's short code in its web address: msp.<domain> (Dep-D3, C4-D3). Must match the shape rule and avoid the
+# reserved words (apps/calendar/lib/reserved-slugs.json); app/tests/test_metro_slug.py checks both.
+METRO_SLUG = "msp"
 
 # One venue list for every environment (Dep-D16, C2-D8): production's, and dev and
 # staging hold a copy of it. Insert order assigns the ids, so don't reorder;
@@ -86,7 +89,7 @@ async def seed(session: AsyncSession) -> None:
         await session.execute(select(Metro).where(Metro.name == METRO_NAME))
     ).scalar_one_or_none()
     if metro is None:
-        metro = Metro(name=METRO_NAME, timezone=METRO_TIMEZONE)
+        metro = Metro(name=METRO_NAME, timezone=METRO_TIMEZONE, slug=METRO_SLUG)
         session.add(metro)
         await session.flush()  # assigns metro.id, needed by the venues below
 

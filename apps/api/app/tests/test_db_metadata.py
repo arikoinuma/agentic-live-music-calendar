@@ -49,7 +49,7 @@ TABLES = Base.metadata.tables
 # app/db/base.py); `| _TS` below means "plus created_at and updated_at".
 _TS = {"created_at", "updated_at"}
 EXPECTED_COLUMNS: dict[str, set[str]] = {
-    "metro": {"id", "name", "timezone"} | _TS,
+    "metro": {"id", "name", "timezone", "slug"} | _TS,
     "venue": {
         "id", "metro_id", "name", "calendar_url", "photo_url", "address",
         "phone_numbers", "emails", "website", "age_restriction",
@@ -149,7 +149,7 @@ def test_required_columns_are_not_null_and_optional_ones_are_nullable() -> None:
     # Per table: the columns that must be NOT NULL (primary keys and the
     # timestamp pair are skipped below: they're NOT NULL by construction).
     not_null = {
-        "metro": {"name", "timezone"},
+        "metro": {"name", "timezone", "slug"},
         "venue": {"metro_id", "name", "calendar_url", "fetch_strategy"},
         "artist": {"name"},
         "event": {"name"},

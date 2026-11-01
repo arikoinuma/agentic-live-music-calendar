@@ -54,7 +54,11 @@ if injected_connection is None:
     # Skipped for an injected connection: this line is unconditional in the
     # stock env.py, and it would silently point a test's `downgrade base` at
     # the dev database.
-    config.set_main_option("sqlalchemy.url", settings.database_url)
+    # `%` is doubled because Alembic keeps its settings in a configparser object, which reads a single `%` as the start
+    # of an interpolation and raises "invalid interpolation syntax" on a URL holding a percent-encoded character (a
+    # role password containing `@`, `:`, `/` or `#`, once encoded). configparser turns `%%` back into `%` on read.
+    # Found by the C4 migration-rehearsal smoke test; app/tests/test_alembic_env.py guards it.
+    config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
 
     # Interpret the config file for Python logging. Also skipped when
     # injected: fileConfig() disables every existing logger by default, which

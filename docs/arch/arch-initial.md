@@ -265,6 +265,15 @@ runs three persistent environments instead, `dev`, `staging` and `prod`, with `m
 connects to Postgres, so a per-preview database branch would have no reader (`docs/dev/environments.md`; revisit for
 ephemeral per-PR environments).
 
+**Metro hosts and the gate (C4, `docs/dev/implementations/c4-metro-hosts.md`):** each metro is its own subdomain of an
+environment's zone (`msp.<domain>` in production, `msp.staging.<domain>` in staging; `alpha-deployment-plan.md` Dep-D2).
+`apps/calendar/proxy.ts` resolves the metro from the request host (a short code, `metro.slug`), redirects the zone apex
+and malformed hosts to the default metro, puts a shared-password gate in front of staging and dev (production and
+local are open), and marks every non-production response `noindex`. Hosts outside every zone (`*.vercel.app` previews,
+`localhost`) use the default metro, so nothing changes until a domain is attached. Canonical URLs and JSON-LD `url`
+come from configuration (`SITE_ZONE` and the resolved slug), never from the `Host` header. The gate is a courtesy, not
+security: the Railway API stays public until C10. Queries are still not scoped by the host's metro (Section 11).
+
 **Cost note (original):** a PR-triggered Railway environment that tears itself down costs almost nothing. A permanent, always-on staging environment roughly doubles the Railway bill. **Measured October 28, 2026** (`docs/dev/implementations/c1-env-revalidation.md`, "Cost finding"): an idle always-on API costs about $1 a month, so three fit inside the $5 the Hobby plan includes; that rests on one week of one idle API and is re-read a week after staging exists.
 
 **Sequencing:**
@@ -296,6 +305,7 @@ ephemeral per-PR environments).
 
 Tracked here so they don't get silently forgotten:
 
+- **A URL with no metro slug** (added October 30, 2026, C4; `docs/dev/implementations/c4-metro-hosts.md` C4-D5) — what a visitor sees at the bare zone (`pebblebeats.com`, `staging.pebblebeats.com`) is undecided beyond "while one metro is live, redirect to the default metro's host" (`msp.`). The mental model is Craigslist: the bare address shows a **list of metros** to choose from. That page, the list endpoint (`GET /metros`) it needs, and the rule for a visitor with no saved metro are built when a second metro goes live; C4 deliberately builds neither, because with one metro the only possible answer is a redirect.
 - **Multi-region deployment** — designed for, not built. Revisit when there's a second metro area to serve.
 - **Multi-metro scoping enforcement** — the metro-scoped vs. global entity split exists in the design ([Section 1](#1-scope-and-constraints)) but isn't enforced in code yet.
 - **Metro-aware fetch scheduling** — the daily fetch runs at a fixed local time (4 a.m.) per Metro's timezone; a single Railway cron trigger covers this correctly with one metro live, but needs to become metro-aware (multiple triggers, or one that checks which metro's local 4 a.m. it currently is) once a second metro in a different timezone exists.
