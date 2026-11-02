@@ -225,8 +225,8 @@ pre-deploy migration).
 **Create the role in SQL, not the console, and use the script.** A role made in the console is a member of
 `neon_superuser` and `neondb_owner` has no admin rights over it, so `GRANT <role> TO neondb_owner` is refused
 (`permission denied to grant role`) and ownership cannot be handed over. A role created by `neondb_owner` in SQL
-is a plain role. The sequence is `restore_role` in `apps/api/app/db/neon_roles.py` (tested in
-`app/tests/test_neon_roles.py`), run from the laptop for the branch you are on:
+is a plain role. The sequence is `restore_role` in `apps/api/scripts/restore_neon_role.py` (tested in
+`scripts/tests/test_restore_neon_role.py`), run from the laptop for the branch you are on:
 
 ```bash
 source .hosted-env.sh && neon_restore_role staging      # or dev, prod
