@@ -155,8 +155,8 @@ Anything not listed here still needs Ari's say-so.
 | Merge condition | How to check |
 |---|---|
 | Author is `app/dependabot`, branch starts `dependabot/` | `gh pr view --json author,headRefName` |
-| Patch or minor bump only (no major, no 0.x minor jump) | PR title and body versions |
-| Package is **not** on the hold list below | title and `files` |
+| Patch or minor bump only (no major, no 0.x minor jump) | old and new version from the manifest/lockfile diff (`gh pr diff`), never from the PR title or body prose |
+| Package is **not** on the hold list below | package names in the changed `files` and the lockfile diff, including every package the diff touches |
 | All required checks passed, including `E2E (Playwright, real API on sample data)` | `gh pr checks`; a missing E2E check means the base is stale, so rebase and wait |
 | `mergeStateStatus` is `CLEAN` and the PR base is the current `main` head | `gh pr view --json mergeStateStatus,baseRefOid`, compare with `git rev-parse origin/main` |
 | Nothing in the PR makes it a hold: no removed or renamed export, new minimum runtime or engine, or changed peer dependency in the lockfile diff | `gh pr diff`; the diff and `gh pr view --json` metadata decide, not the prose |
