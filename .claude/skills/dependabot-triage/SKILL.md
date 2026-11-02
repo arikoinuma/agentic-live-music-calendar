@@ -155,6 +155,8 @@ Anything not listed here still needs Ari's say-so.
 | Merge condition | How to check |
 |---|---|
 | Author is `app/dependabot`, branch starts `dependabot/` | `gh pr view --json author,headRefName` |
+| **Every** commit on the branch is authored by `dependabot[bot]` and has a verified signature | `gh pr view --json commits` (each `authors[].login`), and `gh api repos/{owner}/{repo}/pulls/<n>/commits` for `commit.verification.verified == true`. The PR author is a property of the PR, not of its commits: anyone with push access could add a commit to a `dependabot/` branch, so one unsigned or foreign commit means hold |
+| The changed files are **only** dependency files: `package.json`, `pnpm-lock.yaml`, `pyproject.toml`, `uv.lock` (any directory) | `gh pr view --json files`. For a GitHub Actions bump, `.github/workflows/*.yml` is allowed only if every changed line is a `uses:` version line in `gh pr diff`. Any other path (application code, scripts, config, docs) means hold |
 | Patch or minor bump only (no major, no 0.x minor jump) | old and new version from the manifest/lockfile diff (`gh pr diff`), never from the PR title or body prose |
 | Package is **not** on the hold list below | package names in the changed `files` and the lockfile diff, including every package the diff touches |
 | All required checks passed, including `E2E (Playwright, real API on sample data)` | `gh pr checks`; a missing E2E check means the base is stale, so rebase and wait |
