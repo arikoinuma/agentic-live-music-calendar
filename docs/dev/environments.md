@@ -136,6 +136,7 @@ only works with it); `SITE_GATE_PASSWORD` is set for all Preview branches.
 | `https://msp.staging.pebblebeats.com/venues` | the password form (`/gate`), `noindex, nofollow`, canonical `https://msp.staging.pebblebeats.com/gate` |
 | `https://foo.staging.pebblebeats.com/venues` (an unknown slug) | the same password form: nothing about which metros exist is shown before the gate |
 | Login on `msp.staging.pebblebeats.com` (Ari) | works; the calendar loads |
+| Login on `foo.staging.pebblebeats.com/gate` (Ari; the cookie is host-only, so each host asks once) | after the password, redirected to `msp.staging.pebblebeats.com`: the API said `foo` is not a live metro (the order is gate first, then the liveness check, C4-K2) |
 | `https://kind-spontaneity-staging.up.railway.app/metro` (Ari; this is the API on Railway, the website has no `/metro` route) | `{"id":1,"name":"Minneapolis/St. Paul","timezone":"America/Chicago","slug":"msp"}`: the slug migration ran on staging |
 | A `*.vercel.app` preview (Ari, and Claude without a cookie) | the password form; so Vercel's `host` header is the public host, which C4's code relied on |
 | `https://www.pebblebeats.com/health` (Production) | loads with no gate and no `X-Robots-Tag`; frontend and API environments both `prod` |
