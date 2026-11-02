@@ -1,6 +1,6 @@
 # C4 — metro hosts and the domain
 
-**Status:** Awaiting sign-off (built October 29, 2026; approved by Ari October 29, 2026: the plan and every recommended decision, D4, D10, D11 and the two gaps included; dev is dropped from C4's scope, D10 below; the domain is `pebblebeats.com`)
+**Status:** Done (signed off by Ari November 2, 2026, after the hosted steps; built October 29, 2026; approved by Ari October 29, 2026: the plan and every recommended decision, D4, D10, D11 and the two gaps included; dev is dropped from C4's scope, D10 below; the domain is `pebblebeats.com`)
 **Date:** October 29, 2026
 **Author model:** Claude Sonnet 5.5
 **Reviewer model:** Claude Opus 5.5 (plan review round 1; code review round 1)
@@ -395,6 +395,12 @@ Ari's third run of `make rehearse-migration ENV=staging ARGS='--sql "select slug
 ### Round 9 — Claude Sonnet 5.5, November 2, 2026 (follow-up after the merge: `neon_roles.py` moves to `scripts/`)
 
 Ari asked for the same treatment the rehearsal script got. `app/db/neon_roles.py` (the role-restore sequence, C3-D9) and `scripts/restore_neon_role.py` (its command) are now one file, `apps/api/scripts/restore_neon_role.py`, with the sequence first and the command below it; its tests moved from `app/tests/test_neon_roles.py` to `scripts/tests/test_restore_neon_role.py`. `rehearse_migration.py` imports `ROLE_FOR_ENV` from the new place. `pyproject.toml` lists the script in mypy `files`. No behaviour change: the only code edit besides moving is a renamed local (`create_password`) so mypy accepts the file. Earlier mentions of `app/db/neon_roles.py` in this plan and in the C3 plan are history.
+
+### Round 10 — Claude Sonnet 5.5, November 2, 2026 (the hosted steps, and sign-off)
+
+Ari ran Steps 4 to 6 and Claude checked what could be checked from the cloud session. **Step 4:** `SITE_GATE_PASSWORD` is set for all Preview branches; the migration was to run on staging through the merge (Claude could not reach the Railway API from the cloud session, so `/metro` carrying `slug` is for Ari to confirm; nothing in the checks below depends on it, because the default slug comes from configuration). **Step 5:** the gate shows on the newest `*.vercel.app` deployment and on a PR preview, and `host` is the public host. A scare along the way (the gate seemed not to work after Ari changed the password) was an older deployment still holding the old password; and Vercel's build warned that `SITE_GATE_PASSWORD` was missing from `turbo.json`, fixed by declaring the three request-time variables in `globalPassThroughEnv` (PR #76). **Step 6:** the three staging hosts are attached to `main`, `SITE_ZONE` is set for `main`, and the matrix in `environments.md` ("As built") passed: apex and reserved-word hosts redirect to `msp.staging.pebblebeats.com`, an unknown slug and `msp.` show the gate, and Ari logged in on `msp.staging.pebblebeats.com`. Hobby accepted the branch-bound wildcard, so no decoy host was needed; a two-label host (`a.b.staging…`) fails with `ERR_CONNECTION_CLOSED` because the wildcard certificate covers one label (accepted).
+
+**Departure from the plan, by Ari's decision:** `pebblebeats.com` (308 to `www`) and `www.pebblebeats.com` are attached to Production, where the plan said to attach nothing before C11. They serve the public, ungated production site, and Production keeps no `SITE_ZONE` (with one, `www` would redirect to an unattached `msp.pebblebeats.com`). **Still open, not part of the Done-when:** Step 4's production promotion (fast-forward `production` to `main`, API first) has not happened, so Production is the pre-C4 build. Ari set Status to Done; the Done-when is met for staging (dev was dropped from C4's scope, C4-D10).
 
 ## Code review
 
