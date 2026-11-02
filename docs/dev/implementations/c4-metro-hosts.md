@@ -392,6 +392,10 @@ Ari's third run of `make rehearse-migration ENV=staging ARGS='--sql "select slug
 - **Reserved slugs:** `prod` and `production` added to `reserved-slugs.json`; both tests that read it updated; D2 notes it.
 - **Not moved:** `app/db/neon_roles.py` still lives in `app/`; Ari to say if it should follow.
 
+### Round 9 — Claude Sonnet 5.5, November 2, 2026 (follow-up after the merge: `neon_roles.py` moves to `scripts/`)
+
+Ari asked for the same treatment the rehearsal script got. `app/db/neon_roles.py` (the role-restore sequence, C3-D9) and `scripts/restore_neon_role.py` (its command) are now one file, `apps/api/scripts/restore_neon_role.py`, with the sequence first and the command below it; its tests moved from `app/tests/test_neon_roles.py` to `scripts/tests/test_restore_neon_role.py`. `rehearse_migration.py` imports `ROLE_FOR_ENV` from the new place. `pyproject.toml` lists the script in mypy `files`. No behaviour change: the only code edit besides moving is a renamed local (`create_password`) so mypy accepts the file. Earlier mentions of `app/db/neon_roles.py` in this plan and in the C3 plan are history.
+
 ## Code review
 
 ### Round 1 — Claude Opus 5.5, October 29, 2026

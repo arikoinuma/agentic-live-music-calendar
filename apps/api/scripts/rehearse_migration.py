@@ -45,7 +45,7 @@ The Neon commands and their flags are from `neonctl --help` (8.14.0; the same to
 `find_neon_cli` uses whichever is installed): `connection-string [branch] --role-name --project-id`, `branches create
 --name --parent --project-id --expires-at --no-secrets`, `branches delete <name> --project-id`.
 
-Like `app/db/neon_roles.py`, which it uses for the role names, this reads no settings, so it never trips the `APP_ENV`
+Like `scripts/restore_neon_role.py`, which it uses for the role names, this reads no settings, so it never trips the `APP_ENV`
 check; it sets `APP_ENV` for the Alembic child process instead. `docs/dev/environments.md` ("Rehearsing a migration") is
 the runbook.
 """
@@ -70,7 +70,7 @@ import sqlalchemy as sa
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from app.db.neon_roles import ROLE_FOR_ENV
+from scripts.restore_neon_role import ROLE_FOR_ENV
 
 # Every rehearsal branch starts with this, and `delete_branch` refuses any other name: a bug or a typo must never be
 # able to delete `staging`, `dev` or the production branch.

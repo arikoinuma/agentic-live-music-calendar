@@ -52,9 +52,9 @@ plugins = ["pydantic.mypy"]
 # What a bare `uv run mypy` checks, so the Makefile, CI and a person at a prompt all check the same
 # thing. Both packages are held to one bar: the worker, its tests and the eval harness included
 # (v0.1-G15; A7-D3). Bodies of unannotated functions are not checked (no check_untyped_defs), so
-# annotate a function to put its body under the gate. migrations/ and most of scripts/ are outside it; the exception is
-# scripts/rehearse_migration.py and its tests, which are typed.
-files = ["app", "agent_worker", "scripts/rehearse_migration.py", "scripts/tests"]
+# annotate a function to put its body under the gate. migrations/ and most of scripts/ are outside it; the exceptions are
+# scripts/rehearse_migration.py, scripts/restore_neon_role.py and the tests in scripts/tests, which are typed.
+files = ["app", "agent_worker", "scripts/rehearse_migration.py", "scripts/restore_neon_role.py", "scripts/tests"]
 
 [tool.pytest.ini_options]
 # Both packages are walked in full, so a test placed anywhere under app/ or agent_worker/ is
