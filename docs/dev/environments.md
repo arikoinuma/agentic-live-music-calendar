@@ -75,7 +75,7 @@ Variables the API's `Settings` does not read (the frontend's, and rows reserved 
 | `APP_ENV` | Vercel | `staging` on every Preview branch, `dev` on branch `dev`, `prod` on Production, `local` in `.env.local` | Validated by `getAppEnv()` against `VERCEL_ENV` and the branch (C3-D7). |
 | `API_BASE_URL` | Vercel | the matching Railway API (Preview defaults to staging's, once it exists) | Server-only, never `NEXT_PUBLIC_`. |
 | `SITE_ZONE` | Vercel | unset until a domain is attached; then `staging.pebblebeats.com` on branch `main`; Production stays unset until C11 (`pebblebeats.com`) | Server-only. The environment's own zone (C4-D2): hosts inside it are `<slug>.<zone>`; hosts outside it (`*.vercel.app`, `localhost`) use the default metro. Also the base of every canonical URL and JSON-LD `url` (C4-D8); unset means none are emitted. |
-| `SITE_GATE_PASSWORD` | Vercel | a long random value on every Preview branch (staging, and every PR preview, which is also `staging`); unset on Production and local | Server-only secret, never committed or pasted in chat. A gated environment (staging, dev) with this unset answers 503 by design (C4-D6). Changing it logs everyone out (the cookie is an HMAC keyed by it). |
+| `SITE_GATE_PASSWORD` | Vercel | a long random value on every Preview branch (staging, and every PR preview, which is also `staging`); unset on Production and local | Server-only secret, never committed or pasted in chat. A gated environment (staging, dev) with this unset answers 503 by design (C4-D6). Changing it logs everyone out (the cookie is an HMAC keyed by it), but only on deployments built after the change: Vercel applies an edited variable to new deployments, so an older preview URL keeps the old password. Declared in `turbo.json`'s `globalPassThroughEnv` with the other two request-time variables, or Vercel's build warns that it "WILL NOT be available". |
 | `DEFAULT_METRO_SLUG` | Vercel | unset everywhere; the code default is `msp` | Optional (C4-D2). A set value that is not a valid, non-reserved slug makes the proxy answer 503 (C4-PR1-4). |
 | `FLAG_*` | Railway, Vercel | reserved | Added by C3.1. |
 | `R2_*` | Railway | reserved | One bucket and token per environment (C9). |
@@ -95,7 +95,7 @@ its apex is the bare zone name.
 
 | Environment | Zone | Apex | A metro's host |
 |---|---|---|---|
-| production (C11, not attached yet) | `pebblebeats.com` | `pebblebeats.com` | `msp.pebblebeats.com` |
+| production (C11; only `pebblebeats.com` and `www` are attached, see below) | `pebblebeats.com` | `pebblebeats.com` | `msp.pebblebeats.com` (not attached) |
 | staging | `staging.pebblebeats.com` | `staging.pebblebeats.com` | `msp.staging.pebblebeats.com` |
 | dev | not set up (C4-D10) | | |
 
@@ -111,9 +111,51 @@ a non-production environment carries `X-Robots-Tag: noindex, nofollow`.
 * **Attaching a domain removes Vercel's own login from that host.** Vercel's protection covers `*.vercel.app` only
   (`alpha-deployment-plan.md` §1.1), so the gate is staging's only protection once `msp.staging.pebblebeats.com` is
   attached. Prove it on the `*.vercel.app` URL first (C4 Step 5).
-* **Never attach `msp.pebblebeats.com` or the apex to Production before C11** (Dep-D11): that makes production public.
+* **`msp.pebblebeats.com` and a production zone wait for C11** (Dep-D11). **Departure from C4's plan (Ari, November 2,
+  2026):** `pebblebeats.com` (a 308 to `www`) and `www.pebblebeats.com` are attached to Production and stay that way. The
+  plan said to attach nothing to Production. They serve the production deployment, which is public, ungated and sends
+  no `X-Robots-Tag`. **Production keeps no `SITE_ZONE` until C11.** With a zone of `pebblebeats.com`, `www` is a reserved
+  slug, so `www.pebblebeats.com` would count as a bad host and redirect to `msp.pebblebeats.com`, which is not attached.
 * **Adding a metro** is a database row (the seed) plus its DNS; the slug must be 3 to 32 characters, start with a
   letter, use lowercase letters, digits and hyphens, and not be in `apps/calendar/lib/reserved-slugs.json`.
+
+### As built (verified November 2, 2026)
+
+**Vercel project domains.** `staging.pebblebeats.com`, `msp.staging.pebblebeats.com` and `*.staging.pebblebeats.com`,
+each bound to Git branch `main` (Preview); `pebblebeats.com` (308 to `www`) and `www.pebblebeats.com` on Production;
+the project's `*.vercel.app` name on Production. Namecheap's DNS points at Vercel, and Vercel reports every entry as
+Valid Configuration. `SITE_ZONE=staging.pebblebeats.com` is set for Preview on `main` only (the apex redirect below
+only works with it); `SITE_GATE_PASSWORD` is set for all Preview branches.
+
+**Checked with no cookie** (Claude, from the cloud session, through Vercel's share link; Ari did the login):
+
+| Request | Result |
+|---|---|
+| `https://staging.pebblebeats.com/venues` (the apex) | 307 to `https://msp.staging.pebblebeats.com/venues`, with `X-Robots-Tag: noindex, nofollow`; no login needed |
+| `https://www.staging.pebblebeats.com/venues` (reserved word) | 307 to `https://msp.staging.pebblebeats.com/venues` |
+| `https://msp.staging.pebblebeats.com/venues` | the password form (`/gate`), `noindex, nofollow`, canonical `https://msp.staging.pebblebeats.com/gate` |
+| `https://foo.staging.pebblebeats.com/venues` (an unknown slug) | the same password form: nothing about which metros exist is shown before the gate |
+| Login on `msp.staging.pebblebeats.com` (Ari) | works; the calendar loads |
+| Login on `foo.staging.pebblebeats.com/gate` (Ari; the cookie is host-only, so each host asks once) | after the password, redirected to `msp.staging.pebblebeats.com`: the API said `foo` is not a live metro (the order is gate first, then the liveness check, C4-K2) |
+| `https://kind-spontaneity-staging.up.railway.app/metro` (Ari; this is the API on Railway, the website has no `/metro` route) | `{"id":1,"name":"Minneapolis/St. Paul","timezone":"America/Chicago","slug":"msp"}`: the slug migration ran on staging |
+| A `*.vercel.app` preview (Ari, and Claude without a cookie) | the password form; so Vercel's `host` header is the public host, which C4's code relied on |
+| `https://www.pebblebeats.com/health` (Production) | loads with no gate and no `X-Robots-Tag`; frontend and API environments both `prod` |
+
+**Limits found.**
+
+* **Hobby accepts a wildcard bound to a branch** (`*.staging.pebblebeats.com` on `main`), so the decoy host C4 allowed
+  for is not needed (Dep-D7's open question, answered).
+* **A wildcard covers one label.** `a.b.staging.pebblebeats.com` (two labels) fails with `ERR_CONNECTION_CLOSED`: no
+  certificate covers it, so the request never reaches the proxy. The bad-host redirect in the code (and its unit test) is
+  therefore reachable only for one-label hosts such as `www.` and other reserved words. Accepted: a two-label host is never
+  a link we publish.
+* **A changed `SITE_GATE_PASSWORD` reaches only deployments built after the change.** An older preview URL keeps the old
+  password, and a browser holding that deployment's `__Host-gate` cookie is still let in. Test the gate on the newest
+  deployment, in a private window.
+* **Production is still the pre-C4 build.** The `production` branch had not been fast-forwarded (C4 Step 4.6): 48
+  commits behind `main` on November 2, 2026. Until it is, Production has no proxy, no gate code and no `metro.slug`,
+  and its Railway pre-deploy migration for the slug has not run. Promote API first, then the frontend, as Step 4 says.
+
 
 ## The `dev` lane (Dep-D8)
 

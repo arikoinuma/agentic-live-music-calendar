@@ -760,3 +760,13 @@ migration did not run and production stayed at the old Alembic revision (`alembi
 We set the three values in the dashboard instead (`environments.md`, "Railway service settings") and deleted the file and its
 test. Read a deployment's details page for a "Pre-deploy command" row, and check `alembic current`, before trusting a config
 file; a green `/health` proves nothing about it.
+
+## A wildcard domain covers one label, and a changed gate password reaches only new deployments (C4)
+
+On Hobby, Vercel accepted `*.staging.pebblebeats.com` bound to branch `main`, with the zone apex and `msp.staging.` beside
+it. The wildcard certificate covers one label, so `a.b.staging.pebblebeats.com` fails with `ERR_CONNECTION_CLOSED` before the
+proxy runs; the bad-host redirect is only reachable for one-label hosts (`www.`). Separately, editing `SITE_GATE_PASSWORD`
+changes nothing on an existing deployment: an older preview URL kept the old password and let in a browser that already held
+its `__Host-gate` cookie, which looked like "the gate stopped working". Test on the newest deployment in a private window
+(`environments.md`, "As built"). Turborepo's strict env mode also warned that the variable was missing from `turbo.json`
+though the proxy reads it per request; it belongs in `globalPassThroughEnv` beside `APP_ENV`.
