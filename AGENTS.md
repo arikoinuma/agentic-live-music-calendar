@@ -331,7 +331,9 @@ the session model is the author, and the reviewer subagent gets a different one,
      that the name came from the session. Ari chooses the name when he starts the session.
    - **First push:** `git push -u origin <branch>`. The `-u` is needed on a new branch, or a plain
      `git push` fails with "no upstream branch".
-2. Open the PR as a **draft**. Ari reviews and merges; don't merge it yourself. Subscribe to the PR right after opening it (`subscribe_pr_activity`). Don't ask first: Ari has asked for this to be automatic.
+2. Open the PR as a **draft**. Ari reviews and merges; don't merge it yourself. **One exception:** Ari has delegated low-risk Dependabot PRs
+   (patch/minor, off the hold list, all checks green on a current base) to `/dependabot-triage` step 7, which lists
+   the exact conditions; every other PR, including all of your own branches, is still Ari's to merge. Subscribe to the PR right after opening it (`subscribe_pr_activity`). Don't ask first: Ari has asked for this to be automatic.
 3. Run `make check` before pushing and put its result in the PR description. Don't hand-edit
    generated files (`lib/api-types.ts`, `lib/fixtures/`); regenerate with `make types` /
    `make fixtures` if you change `schemas.py` or `testing/sample_data.py`.
