@@ -3,7 +3,7 @@
 WHAT THIS COVERS
   A Neon "reset from parent" drops the per-environment login role and hands table ownership back to the parent's
   owner, so the role has to be re-created and given the tables again (verified on `staging`, October 28, 2026).
-  `restore_role` (app/db/neon_roles.py) is that sequence as code. These tests run it on the test database and
+  `restore_role` (scripts/restore_neon_role.py) is that sequence as code. These tests run it on the test database and
   check what a hosted pre-deploy migration depends on: the role can log in, owns every table and enum type, and
   nothing else about it is privileged. The expected values are written out here from the plan, not read from the
   module.
@@ -17,7 +17,12 @@ import pytest
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncConnection
 
-from app.db.neon_roles import ROLE_FOR_ENV, restore_role, role_exists, set_role_password
+from scripts.restore_neon_role import (
+    ROLE_FOR_ENV,
+    restore_role,
+    role_exists,
+    set_role_password,
+)
 
 # The three login roles C3-D9 names, one per hosted environment. Typed out here, not imported.
 EXPECTED_ROLES = {"dev": "calendar_dev", "staging": "calendar_staging", "prod": "calendar_prod"}

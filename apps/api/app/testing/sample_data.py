@@ -68,7 +68,7 @@ END = START + datetime.timedelta(days=27)
 # START..END, which is what lib/fixtures/shows.json claims.
 FIXED_NOW = datetime.datetime(2026, 9, 28, 17, 0, tzinfo=datetime.UTC)
 
-METRO = MetroSummary(id=1, name="Minneapolis/St. Paul", timezone="America/Chicago")
+METRO = MetroSummary(id=1, name="Minneapolis/St. Paul", timezone="America/Chicago", slug="msp")
 
 VENUES: list[VenueSummary] = [
     VenueSummary(id=1, name="The White Squirrel Bar"),
@@ -381,7 +381,7 @@ async def load_sample_data(session: AsyncSession) -> None:
             )
 
     # Metro first: venues point at it.
-    session.add(Metro(id=METRO.id, name=METRO.name, timezone=METRO.timezone))
+    session.add(Metro(id=METRO.id, name=METRO.name, timezone=METRO.timezone, slug=METRO.slug))
     await session.flush()
 
     # Venues and artists, each with the detail the sample writes out or invents on the fly.

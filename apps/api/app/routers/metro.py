@@ -21,4 +21,4 @@ async def get_metro(metro: LiveMetro) -> MetroSummary:
     """The single live metro. No id in the path: v1 has exactly one, and
     `arch-initial.md` §11 tracks multi-metro as deferred, so adding a
     `/metro/{id}` later is additive."""
-    return MetroSummary(id=metro.id, name=metro.name, timezone=metro.timezone)
+    return MetroSummary(id=metro.id, name=metro.name, timezone=metro.timezone, slug=metro.slug)

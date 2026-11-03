@@ -146,6 +146,19 @@ describe("showJsonLd", () => {
     });
   });
 
+  it("adds the event's and the venue's own addresses when the site has an origin, and omits them otherwise", () => {
+    // Proves (C4-D8, C4-T7): with an origin the event names `<origin>/show/<id>` and its location
+    // `<origin>/venue/<id>` (show 2 at venue 3, from the fixtures); without one, or with a null one (no domain
+    // configured yet), no `url` key appears at all, never a guessed address.
+    const withOrigin = showJsonLd(show, { ...ctx, origin: "https://msp.staging.example.com" });
+    expect(withOrigin.url).toBe("https://msp.staging.example.com/show/2");
+    expect(withOrigin.location.url).toBe("https://msp.staging.example.com/venue/3");
+    for (const bare of [showJsonLd(show, ctx), showJsonLd(show, { ...ctx, origin: null })]) {
+      expect("url" in bare).toBe(false);
+      expect("url" in bare.location).toBe(false);
+    }
+  });
+
   it("falls back to the show's own venue name, with no address, when the venue detail is missing", () => {
     // Proves: the show page renders without an address when the venue
     // lookup misses (B4-PR1-1c), and the JSON-LD says the same.

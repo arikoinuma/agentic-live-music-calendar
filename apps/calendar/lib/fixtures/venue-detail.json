@@ -3,7 +3,8 @@
   "metro": {
     "id": 1,
     "name": "Minneapolis/St. Paul",
-    "timezone": "America/Chicago"
+    "timezone": "America/Chicago",
+    "slug": "msp"
   },
   "name": "Zhora Darling",
   "calendar_url": "https://www.zhoradarling.com/events",
