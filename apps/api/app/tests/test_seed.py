@@ -54,6 +54,8 @@ async def test_seed_creates_the_metro_and_the_venue_list(db_session: AsyncSessio
     metro = (await db_session.execute(sa.select(Metro))).scalar_one()
     assert metro.name == "Minneapolis/St. Paul"
     assert metro.timezone == "America/Chicago"
+    # C4-D3: the slug is the metro's host label (msp.<domain>). Written out here, not imported from seed.py.
+    assert metro.slug == "msp"
 
     # Ordered by id = insertion order, so the list below is the insert order.
     venues = (await db_session.execute(sa.select(Venue).order_by(Venue.id))).scalars().all()

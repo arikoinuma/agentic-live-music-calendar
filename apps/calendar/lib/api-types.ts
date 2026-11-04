@@ -345,6 +345,8 @@ export interface components {
             name: string;
             /** Timezone */
             timezone: string;
+            /** Slug */
+            slug: string;
         };
         /**
          * Seating

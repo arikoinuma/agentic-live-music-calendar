@@ -22,6 +22,13 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    ignore:
+      # @types/node tracks the Node runtime we run, not the newest release: CI and local
+      # dev use Node 24 (.github/workflows/ci.yml). Types for a newer major accept APIs
+      # that don't exist at runtime, and the type-check can't catch that. Move this
+      # pin together with the CI node-version.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"

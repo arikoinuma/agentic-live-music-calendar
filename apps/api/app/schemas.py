@@ -56,6 +56,9 @@ class MetroSummary(BaseModel):
     # browser's — a venue's Friday show is Friday in Minneapolis
     # regardless of where the person reading the page happens to be.
     timezone: str
+    # The metro's short code in its web address (`msp` in msp.<domain>, Dep-D3). The frontend reads it from here
+    # to check the host it was reached on and to build canonical URLs (C4-D4, C4-D8).
+    slug: str
 
 
 class VenueSummary(BaseModel):

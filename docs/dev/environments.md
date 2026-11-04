@@ -6,19 +6,28 @@ produced it is `docs/dev/implementations/c3-environments-and-deploy.md`; decisio
 
 ## Current state (read this first)
 
-*As of October 28, 2026, before the dashboard steps of C3 are done:* only **production** exists in every layer. The
-`staging` and `dev` rows below are the target, and each line becomes a fact when Ari records it (with the date) as
-the runbook steps in the plan are completed. Anything marked *target* has not been built.
+*As of October 28, 2026, after the C3 runbook (Steps 3–7):* **production and staging are live** in every layer. `dev`
+exists as a Neon branch, a login role and an Atlas user, but has **no Railway service** (C3-D1 keeps it on demand until
+something needs it; Step 6.9 and Step 8 were skipped by decision). Anything marked *not built* does not exist yet.
 
 | Layer | `local` | `dev` | `staging` | `prod` |
 |---|---|---|---|---|
-| Git branch | any | `dev` (the lane, below) | `main` | `production` |
-| Vercel | `make dev` | Preview, branch `dev` | Preview (`main` and every PR branch) | Production (Production Branch `production` once cut over) |
-| Railway | none | environment `dev` (*target*) | environment `staging` (*target*) | environment `production` (exists) |
-| Neon | Docker Postgres | branch `dev` (*target*) | branch `staging` (*target*) | default branch (exists, migrated, seeded) |
-| Atlas | Docker Mongo | database `calendar_dev` (*target*) | database `calendar_staging` (*target*) | database `calendar` (*target*; nothing writes to it yet) |
+| Git branch | any | `dev` (the lane, below; the branch is not created yet) | `main` | `production` |
+| Vercel | `make dev` | Preview, branch `dev` (no branch override set yet) | Preview (`main` and every PR branch), `API_BASE_URL` = staging's API | Production (Production Branch `production`) |
+| Railway | none | *not built* | environment `staging`, source `main`, public domain `kind-spontaneity-staging.up.railway.app` | environment `production`, source `production` |
+| Neon | Docker Postgres | branch `dev`, schema only, stamped at `67609c405218` | branch `staging`, seeded, at `829af2c3f26f` | default branch, at `829af2c3f26f`, seeded |
+| Atlas | Docker Mongo | user `calendar_dev` on database `calendar_dev` (created on first write) | user `calendar_staging` on `calendar_staging` | user `calendar_prod` on `calendar` (nothing writes to it yet) |
 | Database login role | `postgres` | `calendar_dev` | `calendar_staging` | `calendar_prod` |
-| Data | seed or a copied dump | seeded (C3-D10) | seeded, then reset from production once it holds real data (C3-D10) | real |
+| Data | seed or a copied dump | not loaded (schema only) | seeded, then reset from production once it holds real data (C3-D10) | real |
+
+**Checks recorded (October 28, 2026).** Production: `/health` shows `app_env: prod`, `/metro` answers, pre-deploy
+migration ran. Staging: `/health` shows `staging`, `/health/db` up, `/metro` answers; setting `APP_ENV=prod` on the
+staging service failed the deploy (the startup check) and was reverted. The Vercel health page shows Frontend and API
+environment agreeing on Preview (`staging`) and on Production (`prod`). The `production` branch is protected by a
+ruleset (no deletion, no force push, no bypass); a delete from a clone was rejected. Atlas isolation was probed for
+all three users. **Not measured:** Neon's behaviour on archiving and the first request after a wake; Atlas pause
+behaviour (left to C8). **Known gaps:** the Vercel "Development" `APP_ENV` row should read `local` (not confirmed), and
+the `dev`-branch Preview override waits for the `dev` branch.
 
 ## How a process knows where it is (C3-D3, C3-D4)
 
@@ -65,6 +74,9 @@ Variables the API's `Settings` does not read (the frontend's, and rows reserved 
 |---|---|---|---|
 | `APP_ENV` | Vercel | `staging` on every Preview branch, `dev` on branch `dev`, `prod` on Production, `local` in `.env.local` | Validated by `getAppEnv()` against `VERCEL_ENV` and the branch (C3-D7). |
 | `API_BASE_URL` | Vercel | the matching Railway API (Preview defaults to staging's, once it exists) | Server-only, never `NEXT_PUBLIC_`. |
+| `SITE_ZONE` | Vercel | unset until a domain is attached; then `staging.pebblebeats.com` on branch `main`; Production stays unset until C11 (`pebblebeats.com`) | Server-only. The environment's own zone (C4-D2): hosts inside it are `<slug>.<zone>`; hosts outside it (`*.vercel.app`, `localhost`) use the default metro. Also the base of every canonical URL and JSON-LD `url` (C4-D8); unset means none are emitted. |
+| `SITE_GATE_PASSWORD` | Vercel | a long random value on every Preview branch (staging, and every PR preview, which is also `staging`); unset on Production and local | Server-only secret, never committed or pasted in chat. A gated environment (staging, dev) with this unset answers 503 by design (C4-D6). Changing it logs everyone out (the cookie is an HMAC keyed by it), but only on deployments built after the change: Vercel applies an edited variable to new deployments, so an older preview URL keeps the old password. Declared in `turbo.json`'s `globalPassThroughEnv` with the other two request-time variables, or Vercel's build warns that it "WILL NOT be available". |
+| `DEFAULT_METRO_SLUG` | Vercel | unset everywhere; the code default is `msp` | Optional (C4-D2). A set value that is not a valid, non-reserved slug makes the proxy answer 503 (C4-PR1-4). |
 | `FLAG_*` | Railway, Vercel | reserved | Added by C3.1. |
 | `R2_*` | Railway | reserved | One bucket and token per environment (C9). |
 | DeepInfra key | Railway | reserved | One key per environment (C6, C8). |
@@ -75,6 +87,75 @@ Variables the API's `Settings` does not read (the frontend's, and rows reserved 
 Hobby has no custom environments, so "dev" and "staging" are branch-scoped Preview configurations: Preview
 variables default to the staging values for every branch, and the `dev` branch overrides them. A PR preview
 therefore reads the staging API, which is read-only to the browser.
+
+## Hosts, the gate and `noindex` (C4)
+
+Each metro is its own subdomain of an environment's zone. The zone is the part of the domain the environment owns;
+its apex is the bare zone name.
+
+| Environment | Zone | Apex | A metro's host |
+|---|---|---|---|
+| production (C11; only `pebblebeats.com` and `www` are attached, see below) | `pebblebeats.com` | `pebblebeats.com` | `msp.pebblebeats.com` (not attached) |
+| staging | `staging.pebblebeats.com` | `staging.pebblebeats.com` | `msp.staging.pebblebeats.com` |
+| dev | not set up (C4-D10) | | |
+
+What `proxy.ts` does with a request, in this order (the order is `C4-K2`): refuse (503) if `APP_ENV` is unreadable, a
+gated environment has no password, or `DEFAULT_METRO_SLUG` is set but malformed; redirect the apex and any malformed or reserved host to the default metro's host
+(no login needed: nothing from the database is revealed); show the password form to anyone without the cookie (staging
+and dev only); only then, for a slug that is not the default, ask the API whether it is a real metro. Every response from
+a non-production environment carries `X-Robots-Tag: noindex, nofollow`.
+
+* **The gate is a courtesy, not security.** One shared password (`SITE_GATE_PASSWORD`), remembered by a host-only
+  `__Host-gate` cookie for 30 days. There is no rate limit and no per-user login, and the Railway API stays public
+  until C10, so the gate protects the pages only.
+* **Attaching a domain removes Vercel's own login from that host.** Vercel's protection covers `*.vercel.app` only
+  (`alpha-deployment-plan.md` §1.1), so the gate is staging's only protection once `msp.staging.pebblebeats.com` is
+  attached. Prove it on the `*.vercel.app` URL first (C4 Step 5).
+* **`msp.pebblebeats.com` and a production zone wait for C11** (Dep-D11). **Departure from C4's plan (Ari, November 2,
+  2026):** `pebblebeats.com` (a 308 to `www`) and `www.pebblebeats.com` are attached to Production and stay that way. The
+  plan said to attach nothing to Production. They serve the production deployment, which is public, ungated and sends
+  no `X-Robots-Tag`. **Production keeps no `SITE_ZONE` until C11.** With a zone of `pebblebeats.com`, `www` is a reserved
+  slug, so `www.pebblebeats.com` would count as a bad host and redirect to `msp.pebblebeats.com`, which is not attached.
+* **Adding a metro** is a database row (the seed) plus its DNS; the slug must be 3 to 32 characters, start with a
+  letter, use lowercase letters, digits and hyphens, and not be in `apps/calendar/lib/reserved-slugs.json`.
+
+### As built (verified November 2, 2026)
+
+**Vercel project domains.** `staging.pebblebeats.com`, `msp.staging.pebblebeats.com` and `*.staging.pebblebeats.com`,
+each bound to Git branch `main` (Preview); `pebblebeats.com` (308 to `www`) and `www.pebblebeats.com` on Production;
+the project's `*.vercel.app` name on Production. Namecheap's DNS points at Vercel, and Vercel reports every entry as
+Valid Configuration. `SITE_ZONE=staging.pebblebeats.com` is set for Preview on `main` only (the apex redirect below
+only works with it); `SITE_GATE_PASSWORD` is set for all Preview branches.
+
+**Checked with no cookie** (Claude, from the cloud session, through Vercel's share link; Ari did the login):
+
+| Request | Result |
+|---|---|
+| `https://staging.pebblebeats.com/venues` (the apex) | 307 to `https://msp.staging.pebblebeats.com/venues`, with `X-Robots-Tag: noindex, nofollow`; no login needed |
+| `https://www.staging.pebblebeats.com/venues` (reserved word) | 307 to `https://msp.staging.pebblebeats.com/venues` |
+| `https://msp.staging.pebblebeats.com/venues` | the password form (`/gate`), `noindex, nofollow`, canonical `https://msp.staging.pebblebeats.com/gate` |
+| `https://foo.staging.pebblebeats.com/venues` (an unknown slug) | the same password form: nothing about which metros exist is shown before the gate |
+| Login on `msp.staging.pebblebeats.com` (Ari) | works; the calendar loads |
+| Login on `foo.staging.pebblebeats.com/gate` (Ari; the cookie is host-only, so each host asks once) | after the password, redirected to `msp.staging.pebblebeats.com`: the API said `foo` is not a live metro (the order is gate first, then the liveness check, C4-K2) |
+| `https://kind-spontaneity-staging.up.railway.app/metro` (Ari; this is the API on Railway, the website has no `/metro` route) | `{"id":1,"name":"Minneapolis/St. Paul","timezone":"America/Chicago","slug":"msp"}`: the slug migration ran on staging |
+| A `*.vercel.app` preview (Ari, and Claude without a cookie) | the password form; so Vercel's `host` header is the public host, which C4's code relied on |
+| `https://www.pebblebeats.com/health` (Production) | loads with no gate and no `X-Robots-Tag`; frontend and API environments both `prod` |
+
+**Limits found.**
+
+* **Hobby accepts a wildcard bound to a branch** (`*.staging.pebblebeats.com` on `main`), so the decoy host C4 allowed
+  for is not needed (Dep-D7's open question, answered).
+* **A wildcard covers one label.** `a.b.staging.pebblebeats.com` (two labels) fails with `ERR_CONNECTION_CLOSED`: no
+  certificate covers it, so the request never reaches the proxy. The bad-host redirect in the code (and its unit test) is
+  therefore reachable only for one-label hosts such as `www.` and other reserved words. Accepted: a two-label host is never
+  a link we publish.
+* **A changed `SITE_GATE_PASSWORD` reaches only deployments built after the change.** An older preview URL keeps the old
+  password, and a browser holding that deployment's `__Host-gate` cookie is still let in. Test the gate on the newest
+  deployment, in a private window.
+* **Production is still the pre-C4 build.** The `production` branch had not been fast-forwarded (C4 Step 4.6): 48
+  commits behind `main` on November 2, 2026. Until it is, Production has no proxy, no gate code and no `metro.slug`,
+  and its Railway pre-deploy migration for the slug has not run. Promote API first, then the frontend, as Step 4 says.
+
 
 ## The `dev` lane (Dep-D8)
 
@@ -104,6 +185,78 @@ to a branch with a different migration set, reset `dev` first (below).
   prints nothing. Stamp it once with the override form: `APP_ENV=dev DATABASE_URL=… uv run alembic stamp 67609c405218`.
   Do not run `upgrade head` on it; the tables already exist.
 
+## Rehearsing a migration (C4-PR1-9)
+
+A migration that passes on the local test database can still fail on a hosted branch: the hosted branch has real rows,
+its own login role and table ownership (C3-PR1-2 was exactly that). The rehearsal runs the pending migrations against a
+**copy** first. It creates a short-lived Neon branch from the environment's branch (set to expire by itself), runs
+`alembic upgrade head` against it **as that environment's own role**, shows the result, and deletes the copy. It never
+touches the real branch, and it refuses to run the migration if the new branch reports the parent's host.
+
+```bash
+# once per machine
+npm install -g neon                    # the Neon CLI (an older `neonctl` install also works: same tool, either name)
+neonctl login                          # or export NEON_API_KEY in the shell
+export NEON_PROJECT_ID=...             # the Neon project id (or pass --project-id)
+
+# every rehearsal, from the repository root
+make rehearse-migration ENV=staging ARGS='--sql "select slug from metro"'
+```
+
+The migration runs from an **empty temporary directory** and is given only `APP_ENV`, `DATABASE_URL`, a placeholder
+`MODEL_NAME` and `PYTHONPATH`, so it **never reads your `apps/api/.env`**. That file is unrelated to a hosted branch,
+and on the first real run it broke the rehearsal (a local `MODEL_API_KEY` that `Settings` does not know is rejected as
+an extra input) and its value was echoed into the error. Output is also scrubbed of any `input_value=...` a validation
+error prints. (A normal `make migrate` or `make api` still fails on such a key until `Settings` learns it or you remove
+it from `.env`; that is a local mismatch, not a rehearsal problem.)
+
+If the environment role **cannot log in to the copy**, the script says why instead of leaving you with "password
+authentication failed" (Postgres gives that same message for a wrong password and for a role that does not exist):
+it connects to the copy as the branch owner and checks `pg_roles`, then prints one of three diagnoses: the role is
+**missing** on the copy (Neon did not carry it over), it **exists but cannot log in**, or it **exists and can log in**,
+so the password typed is wrong. The usual slip for the last one is typing the percent-encoded text from a connection
+string (`%40` for `@`) instead of the raw password.
+
+It asks for the environment role's password (typed hidden), or reads `NEON_ROLE_PASSWORD` from the shell. That is the
+password in the environment's `DATABASE_URL` on Railway: the role was created in SQL (C3-D9), so the Neon API cannot
+reveal it. It is never put on a command line and is scrubbed from anything printed.
+
+| Option | Meaning |
+|---|---|
+| `ENV=staging\|dev\|prod` | Which environment's migration to rehearse. `staging` and `dev` copy their own branch; `prod` copies the project's default branch (production's). |
+| `--parent NAME` | Copy a different branch instead. |
+| `--sql "select ..."` | One SELECT to run after the upgrade, to look at the result. Anything but a single SELECT is refused. |
+| `--keep` | Leave the copy for inspection (it still expires). The output prints the command that deletes it. |
+| `--ttl-minutes N` / `--no-expiry` | How long Neon keeps the copy before deleting it itself (default 120), or none if your plan rejects `--expires-at`. |
+
+Exit status: **0** the migration worked; **1** it failed or a guard rail refused (the cause is the first line after
+`FAILED:`); **3** the result stands but the copy could not be deleted, so one is left and will expire on its own (the
+output names it and the time).
+
+**The CLI's two names.** The Neon CLI is published as `neon` (the name the Neon Claude plugin tells you to install) and
+as `neonctl` (the older name; the `neonctl` package still installs both). They are the same tool (both 8.14.0 on
+npm, identical commands), and the script uses whichever is on `PATH`; set `NEON_CLI` to force one. The plugin's own
+branching guidance (`neon-postgres-branches`) recommends the same pattern as this script: a normal branch for testing
+a migration against real data, created with `--expires-at`, and deleted afterwards.
+
+**What was and was not verified (October 30, 2026).** neon.com's documentation could not be reached from the cloud
+session, so the commands and flags are from `neonctl --help` (8.14.0): `connection-string [branch] --role-name
+--project-id`, `branches create --name --parent --project-id --expires-at --no-secrets`, `branches delete <name>
+--project-id`. The sequence was run end to end with a stand-in `neonctl` and a local Postgres (five migrations applied
+under `APP_ENV=staging` as a `calendar_staging` role, then the copy deleted; a wrong password failed cleanly and still
+deleted the copy), and the logic is covered by `scripts/tests/test_rehearse_migration.py`. **Real Neon (Ari,
+October 30, 2026): it works.** The third run passed end to end on a copy of staging: `--expires-at` was accepted, the
+copy had its own host, `calendar_staging` logged in on the copy (so **Neon does carry a SQL-created role and its
+password into a child branch**), `alembic upgrade head` ran `829af2c3f26f -> c4a1e5b7d903 (metro slug)`, the check
+`select slug from metro` returned `msp`, and the copy was deleted. The two earlier failures were both on our side:
+a local `.env` key that `Settings` forbids (fixed above), and a login failure on the copy whose cause was never read
+off the output (the third run, with the raw password, passed; a typed percent-encoded password is the likely
+cause, not confirmed).
+
+The smoke test also found a bug in `migrations/env.py`: a `%` in `DATABASE_URL` (any role password containing `@`, `:`,
+`/` or `#`, once percent-encoded) crashed Alembic with "invalid interpolation syntax". Fixed, with a regression test
+(`app/tests/test_alembic_env.py`).
+
 ## Neon roles (C3-D9)
 
 A role belongs to a branch, and a child branch inherits its parent's roles when created. So create each
@@ -114,8 +267,8 @@ pre-deploy migration).
 **Create the role in SQL, not the console, and use the script.** A role made in the console is a member of
 `neon_superuser` and `neondb_owner` has no admin rights over it, so `GRANT <role> TO neondb_owner` is refused
 (`permission denied to grant role`) and ownership cannot be handed over. A role created by `neondb_owner` in SQL
-is a plain role. The sequence is `restore_role` in `apps/api/app/db/neon_roles.py` (tested in
-`app/tests/test_neon_roles.py`), run from the laptop for the branch you are on:
+is a plain role. The sequence is `restore_role` in `apps/api/scripts/restore_neon_role.py` (tested in
+`scripts/tests/test_restore_neon_role.py`), run from the laptop for the branch you are on:
 
 ```bash
 source .hosted-env.sh && neon_restore_role staging      # or dev, prod
@@ -148,6 +301,21 @@ begin; alter table agent_run add column _probe int; rollback;
 
 `/health/db` runs `SELECT 1` and cannot see a privilege failure; use a table-backed route (`/metro`).
 
+## Railway service settings (set in the dashboard, per service)
+
+There is no `railway.toml`: Railway deprecated Config as Code, a service that has never used it cannot opt in, and the file
+was ignored when tried (C3 Step 6.5; `notes.md`). Each API service (production, and staging when it is created) needs these
+three set by hand under its Settings:
+
+| Setting | Value | Why |
+|---|---|---|
+| Start command | `uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT` | `$PORT` is assigned by Railway; `0.0.0.0` so its proxy can reach it. |
+| Healthcheck path | `/health` | Answers without a database query, so a deploy check does not wake Neon, and a failing check makes Railway keep the old deployment when the new one refuses to start (the `APP_ENV` startup rule). Never `/health/db`. |
+| Pre-deploy command | `uv run alembic upgrade head` | Migrates before the new code starts, and stops the deploy if it fails. Verified on production: `uv` is on its PATH and the direct Neon host accepts DDL. |
+
+Railway's replacement, Infrastructure as Code (`.railway/railway.ts`), documents no pre-deploy setting, so it is not used.
+Old config files stop being read on 2026-12-01; none exists here.
+
 ## Cutover order (production, C3 Step 6)
 
 This is where C3 can break production. The order is the plan; the full text is in the plan file.
@@ -157,8 +325,8 @@ This is where C3 can break production. The order is the plan; the full text is i
    health-check path to `/health` (it is empty today). Check `/health` and `/metro`.
 3. Point Railway production's source at the `production` branch.
 4. Vercel Production: `APP_ENV=prod`; then merge the C3 PR to `main`.
-5. Fast-forward `production` to `main`; set Railway's config file path to `/apps/api/railway.toml` (from the
-   repository root); the API deploys, migrates, and `/health` must say `prod`.
+5. Fast-forward `production` to `main` (`git push origin main:production`); the API deploys, and `/health` must say `prod`.
+   Set the pre-deploy command in the service's dashboard (below) so it migrates; there is no config file.
 6. Move Vercel's Production Branch to `production`.
 7. Create Railway `staging` with each variable set by hand (not copied), source `main`.
 8. Point Vercel Preview's `API_BASE_URL` at staging's API.

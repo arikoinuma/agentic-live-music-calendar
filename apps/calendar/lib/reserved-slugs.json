@@ -1,0 +1,13 @@
+[
+  "www",
+  "api",
+  "admin",
+  "dev",
+  "staging",
+  "app",
+  "mail",
+  "ftp",
+  "status",
+  "prod",
+  "production"
+]

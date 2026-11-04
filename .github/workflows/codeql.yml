@@ -36,13 +36,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: github/codeql-action/init@v3
+      - uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           # No build step for either language: CodeQL extracts Python and
           # TypeScript from source. Add a build here only if a compiled
           # language is ever added.
 
-      - uses: github/codeql-action/analyze@v3
+      - uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.language }}"

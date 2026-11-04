@@ -736,3 +736,37 @@ production build from `main`; no preview build has been attempted for any branch
 Ignored Build Step were normal). Fix: turn Preview deployments back on and set
 `API_BASE_URL` for Preview (C3 Step 5). Also: the project's deployment protection is on (`ssoProtection`,
 `all_except_custom_domains`), so a preview URL asks for a Vercel login; open it signed in to check `/health`.
+
+---
+
+## A route handler's `request.url` is not the visitor's host (C4)
+
+Against `next start`, `request.url` inside a route handler (not the proxy: there, `NextResponse.redirect(request.nextUrl...)` came out relative and correct) reflected the server's own bind address (`http://localhost:3210/...`),
+not the `Host` the client sent, so an absolute redirect built from it (`NextResponse.redirect(new URL(path, request.url))`) pointed at
+the wrong host. The gate's login therefore sends a relative `Location` (`/venue/3`), which always stays on the host the visitor used
+(`lib/gate-enter.ts`). Redirects to a metro's host are built from the configured zone, not from the request. Also learned while
+building C4: the matcher test helper in Next 16.4.1 is `unstable_doesMiddlewareMatch` (the bundled docs name
+`unstable_doesProxyMatch`, which is not exported); a `proxy.ts` may import `server-only` modules and builds fine; `alternates.canonical:
+"./"` resolves per route against `metadataBase`; and a route file may export only its HTTP handlers, which is why the gate's and the
+proxy's logic live under `lib/`.
+
+## Railway config-as-code is closed to services that never used it (C3)
+
+C3 added `apps/api/railway.toml` and pointed the service's "Config file path" at it. Railway ignored it: the pre-deploy
+migration did not run and production stayed at the old Alembic revision (`alembic current` against production showed
+`67609c405218`). The service settings page carries the cause: Config as Code is deprecated, existing files keep working until
+2026-12-01, and since 2026-08-28 services that have never used it cannot opt in. Its replacement, Infrastructure as Code
+(`.railway/railway.ts`, `railway config plan/apply`), documents start, build, healthcheck and env keys and no pre-deploy key.
+We set the three values in the dashboard instead (`environments.md`, "Railway service settings") and deleted the file and its
+test. Read a deployment's details page for a "Pre-deploy command" row, and check `alembic current`, before trusting a config
+file; a green `/health` proves nothing about it.
+
+## A wildcard domain covers one label, and a changed gate password reaches only new deployments (C4)
+
+On Hobby, Vercel accepted `*.staging.pebblebeats.com` bound to branch `main`, with the zone apex and `msp.staging.` beside
+it. The wildcard certificate covers one label, so `a.b.staging.pebblebeats.com` fails with `ERR_CONNECTION_CLOSED` before the
+proxy runs; the bad-host redirect is only reachable for one-label hosts (`www.`). Separately, editing `SITE_GATE_PASSWORD`
+changes nothing on an existing deployment: an older preview URL kept the old password and let in a browser that already held
+its `__Host-gate` cookie, which looked like "the gate stopped working". Test on the newest deployment in a private window
+(`environments.md`, "As built"). Turborepo's strict env mode also warned that the variable was missing from `turbo.json`
+though the proxy reads it per request; it belongs in `globalPassThroughEnv` beside `APP_ENV`.
