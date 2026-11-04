@@ -17,7 +17,7 @@ from agent_worker.eval import labels
 
 # A2.1-D2 as revised by Ari on October 11, 2026: Terminal Bar moved to informational (an outlier layout —
 # a date line then one line per act — that no rung fixed without breaking other pages).
-GATED_VENUES = {"white_squirrel", "seventh_st_entry", "mortimers"}
+GATED_VENUES = {"white_squirrel", "seventh_st_entry", "mortimers", "ginkgo_coffee", "hook_ladder", "turf_club"}
 
 
 def test_every_page_label_has_shows() -> None:
