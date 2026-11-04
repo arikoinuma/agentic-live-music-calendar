@@ -156,19 +156,22 @@ class ScenarioResult:
     count_differences: list[str]
     perturbation: dict[str, Any] | None
     not_run: str | None = None  # why the second run did not happen (C5-CR1-2); `runs` then holds the first run only
+    model_changed: bool = False  # the model read the page differently on run 2, so its counts are not a reconcile check
 
 
 # A start time no listing uses, so the stale row can't be mistaken for a listed show.
 _STALE_TIME = datetime.time(3, 33)
 
 
-async def _perturb(factory: async_sessionmaker[AsyncSession], venue_id: int, last_date: datetime.date) -> dict[str, Any]:
+async def _perturb(factory: async_sessionmaker[AsyncSession], venue_id: int) -> dict[str, Any]:
     """Damage the venue's rows the way a stale or hand-edited database would be, in three independent ways.
 
     1. The first row with a start time gets that time set to NULL: the next run sees "a time that appears later", an UPDATE.
        (Changing a non-null time would be a remove plus an insert, A5-D3, and never measure an update.)
     2. The last other row is deleted, its lineup first (foreign key): the next run must INSERT it again.
-    3. A stale row is added inside the window with no lineup: the next run must REMOVE it (soft delete).
+    3. A stale row is added inside the window with no lineup: the next run must REMOVE it (soft delete). It goes on the latest date
+       the model actually listed (taken from the stored rows, not the label): reconcile never removes a row on a date where a
+       listing was left out, so a date the model skipped would make the stale row survive for a reason that is not a fault.
     """
     async with factory() as session:
         rows = (
@@ -185,7 +188,7 @@ async def _perturb(factory: async_sessionmaker[AsyncSession], venue_id: int, las
         await session.execute(update(Show).where(Show.id == timed.id).values(start_time=None))
         await session.execute(delete(ShowArtist).where(ShowArtist.show_id == victim.id))
         await session.execute(delete(Show).where(Show.id == victim.id))
-        stale = Show(venue_id=venue_id, date=last_date, start_time=_STALE_TIME, status=ShowStatus.ACTIVE, original_url="stale")
+        stale = Show(venue_id=venue_id, date=max(s.date for s in rows), start_time=_STALE_TIME, status=ShowStatus.ACTIVE, original_url="stale")
         session.add(stale)
         await session.flush()
         details["stale"] = stale.id
@@ -193,18 +196,52 @@ async def _perturb(factory: async_sessionmaker[AsyncSession], venue_id: int, las
     return details
 
 
-def _expected_counts(scenario: Scenario, label: PageLabel) -> dict[str, int] | None:
-    """What reconcile should decide on the SECOND run, where the scenario implies it (None otherwise).
+def _kept(counts: dict[str, int]) -> int:
+    """The listings a run kept: those it inserted, updated or left alone (not the removals, and not the skipped cancellations)."""
+    return counts["insert"] + counts["update"] + counts["no_op"]
 
-    A repeat: every live listing is a no-op. A perturbed run: one update, one insert, one remove, the rest no-ops. In both, each
-    cancelled or postponed listing with nothing stored is a skip."""
-    live = len(scoring.scheduled_only(label).shows)
-    skipped = len(label.shows) - live
+
+def _expected_counts(scenario: Scenario, first_run: dict[str, int]) -> dict[str, int] | None:
+    """What reconcile should decide on the SECOND run IF the model reads the page as it did the first time (None where the
+    scenario implies nothing).
+
+    Built from what run 1 actually extracted, not from the label: on an empty database every kept listing of run 1 is an insert,
+    so its insert count is how many shows the model found. The label says how many it SHOULD have found, which is the database
+    score's question; reconcile's question is only whether it is stable given what it was handed. A repeat: every listing is a
+    no-op. A perturbed run: one update, one insert (the deleted row), one remove (the stale row), the rest no-ops. In both, each
+    cancelled or postponed listing with nothing stored is a skip.
+    """
+    found, skipped = first_run["insert"], first_run["skip"]
     if scenario is Scenario.REPEAT:
-        return {"insert": 0, "update": 0, "no_op": live, "remove": 0, "skip": skipped}
+        return {"insert": 0, "update": 0, "no_op": found, "remove": 0, "skip": skipped}
     if scenario is Scenario.PERTURBED:
-        return {"insert": 1, "update": 1, "no_op": live - 2, "remove": 1, "skip": skipped}
+        return {"insert": 1, "update": 1, "no_op": found - 2, "remove": 1, "skip": skipped}
     return None
+
+
+def _compare_counts(
+    scenario: Scenario, first_run: dict[str, int] | None, second_run: dict[str, int] | None,
+) -> tuple[dict[str, int] | None, list[str], bool]:
+    """`(expected counts, differences, whether the model changed its answer)` for a scenario's second run.
+
+    The model is not repeatable even at temperature 0 (White Squirrel's October page gave 10, 11, 10, 10 and 11 shows in five
+    extractions), so run 2 may be handed a different set of listings than run 1. Reconcile's counts then differ for a reason that
+    is the model's, and listing them as mismatches would read like reconcile faults. When the number of listings kept or skipped
+    changed, the one difference reported says so; the counts are compared only when the model read the page the same way twice."""
+    if scenario not in (Scenario.REPEAT, Scenario.PERTURBED):
+        return None, [], False
+    if first_run is None or second_run is None:
+        return None, ["a run reached no reconcile decision"], False
+    expected = _expected_counts(scenario, first_run)
+    assert expected is not None
+    if _kept(second_run) != first_run["insert"] or second_run["skip"] != first_run["skip"]:
+        return expected, [
+            (
+                f"the model extracted {first_run['insert']} shows on run 1 and {_kept(second_run)} on run 2 "
+                f"(skipped {first_run['skip']} then {second_run['skip']}), so run 2's counts reflect a changed extraction, not reconcile"
+            )
+        ], True
+    return expected, [f"{action}: expected {want}, got {second_run.get(action)}" for action, want in expected.items() if second_run.get(action) != want], False
 
 
 async def run_scenario(
@@ -239,20 +276,14 @@ async def run_scenario(
             runs.append(await run(second))
         else:
             if scenario is Scenario.PERTURBED:
-                last = max(s.date for s in first.label.shows)
                 try:
-                    perturbation = await _perturb(factory, venue.id, last)
+                    perturbation = await _perturb(factory, venue.id)
                 except ScenarioNotRunnable as err:
                     return ScenarioResult(scenario.value, runs, None, [], None, not_run=str(err))
             runs.append(await run(first))
 
-    expected = _expected_counts(scenario, first.label)
-    actual = runs[1].reconcile_counts
-    differences = (
-        [f"{action}: expected {want}, got {actual.get(action)}" for action, want in expected.items() if actual.get(action) != want]
-        if expected is not None and actual is not None else (["the second run reached no reconcile decision"] if expected is not None else [])
-    )
-    return ScenarioResult(scenario.value, runs, expected, differences, perturbation)
+    expected, differences, model_changed = _compare_counts(scenario, runs[0].reconcile_counts, runs[1].reconcile_counts)
+    return ScenarioResult(scenario.value, runs, expected, differences, perturbation, model_changed=model_changed)
 
 
 # ---------------------------------------------------------------------------

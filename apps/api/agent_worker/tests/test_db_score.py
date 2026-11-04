@@ -388,3 +388,56 @@ async def test_the_runner_prints_each_scenarios_database_score(
     monkeypatch.setattr(nodes, "instructor_client", scripted_client(script_for(page_a)))
     await graph_eval.run_scenarios(Scenario.REPEAT, ["a.html"], factory=factory, policy=None)
     assert "database vs expected: labelled 2, returned 2, missed 0, wrong acts 0, invented 0" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
+# Found in Ari's perturbed baseline: expected counts come from run 1's output, and a changed extraction is reported as one
+# ---------------------------------------------------------------------------
+
+THREE_DAYS = [("2026-10-20", "Nona"), ("2026-10-21", "Lent"), ("2026-10-22", "Chicken Wire")]
+READ_ALL = split_answer(("Nona", ["Nona"]), ("Lent", ["Lent"]), ("Chicken Wire", ["Chicken Wire"]))
+MISS_LAST = split_answer(("Nona", ["Nona"]), ("Lent", ["Lent"]), ("Chicken Wire", []))  # the last title is judged no act: left out
+
+
+async def test_a_model_that_misses_a_show_both_times_is_not_a_reconcile_difference(
+    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Proves: the expected counts follow what run 1 ACTUALLY extracted, not the label. The label has three live shows; the scripted
+    # model leaves one out both times, so run 1 inserts 2. After the perturbation run 2 must update 1, insert 1 (the deleted row),
+    # remove 1 (the stale row) and no-op 0 (2 shows minus the two it touched). Computed from the label (3 shows), the harness
+    # expected a no-op of 1 and reported a difference for correct behaviour (Ari's first perturbed baseline).
+    first = page(tmp_path, "a", THREE_DAYS, D(2026, 10, 12))
+    monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [MISS_LAST]}))
+    result = await db_score.run_scenario(Scenario.PERTURBED, first=first, second=None, venue=venue, ctx=ctx, factory=factory)
+    counts = result.runs[1].reconcile_counts
+    assert counts is not None and (counts["update"], counts["insert"], counts["remove"], counts["no_op"]) == (1, 1, 1, 0)
+    assert result.count_differences == [] and result.model_changed is False
+
+
+async def test_a_model_that_changes_its_answer_between_runs_is_reported_as_that(
+    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Proves: the model is not repeatable even at temperature 0 (White Squirrel's October page gave 10, 11, 10, 10 and 11 shows in five
+    # extractions), so a scenario can see a different page reading on its second run. Run 1 leaves a show out and run 2 finds it:
+    # 2 shows then 3. Reconcile then inserts the newly found show as well as the deleted row (insert 2), which is correct. The
+    # harness must say the EXTRACTION changed, in one line, instead of listing count mismatches that look like reconcile faults.
+    first = page(tmp_path, "a", THREE_DAYS, D(2026, 10, 12))
+    monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [MISS_LAST, READ_ALL]}))
+    result = await db_score.run_scenario(Scenario.PERTURBED, first=first, second=None, venue=venue, ctx=ctx, factory=factory)
+    counts = result.runs[1].reconcile_counts
+    assert counts is not None and (counts["update"], counts["insert"], counts["remove"]) == (1, 2, 1)
+    assert result.model_changed is True
+    assert len(result.count_differences) == 1
+    assert "2 shows on run 1 and 3 on run 2" in result.count_differences[0]
+
+
+async def test_a_repeat_whose_second_reading_differs_is_reported_as_a_changed_extraction(
+    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Proves: the same rule for the repeat scenario, whose whole expectation is "run 2 changes nothing". If the model finds a show on
+    # the second reading, run 2 inserts it, which is the model changing its answer, not reconcile failing to be idempotent.
+    first = page(tmp_path, "a", THREE_DAYS, D(2026, 10, 12))
+    monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [MISS_LAST, READ_ALL]}))
+    result = await db_score.run_scenario(Scenario.REPEAT, first=first, second=None, venue=venue, ctx=ctx, factory=factory)
+    assert result.model_changed is True
+    assert "2 shows on run 1 and 3 on run 2" in result.count_differences[0]
