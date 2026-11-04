@@ -401,25 +401,7 @@ PAGE_LABELS: dict[str, PageLabel] = {
         ),
     ),
     # -------------------------------------------------------------------------------------
-    # TODO(Ari) — Key point of interest (C5-K1): label each new capture, and decide which are held out (C5-D3).
-    #   A label is what a PERFECT run would produce, read from the page text (never JSON-LD, never a model's output). The
-    #   judgement is in three places: which entries are shows (karaoke, comedy and recurring headers go in `non_shows`), what
-    #   the acts are (A2.1-D5's conventions: a tour name is not an act, a night's name is not an act, a named DJ is), and where
-    #   a title is genuinely ambiguous (`alternatives`). Mark `held_out=True` on about a third of the new pages and do not read
-    #   their results before C6. (docs/dev/implementations/a2.1-extraction-reliability.md, A2.1-D5 and A2.1-D11;
-    #   docs/dev/alpha-deployment-plan.md C5, section 5.2.)
-    # The full procedure, step by step, is docs/dev/adding-eval-venues.md.
-    # To align: capture with `uv run python -m agent_worker.eval.capture <venue>`, list the page's lines with
-    #   `uv run python -m agent_worker.eval.label_draft agent_worker/eval/fixtures/<capture>.html`, paste the lines you mean as
-    #   `source_line`s, and add the PageLabel above this block. A venue that is not in VENUE_FACTS needs its entry there first
-    #   (Dep-D16: the venue list is yours). A new GATED venue also goes in GATED_VENUES in tests/test_labels.py.
-    # Code (a complete worked row; it is the example in A2.1's plan, A2.1-D11, and test_scoring.py, not a row in PAGE_LABELS):
-    #   S(D(2026, 10, 9), ("Slashfire", "Dread Spell", "Couch Potato Massacre"), "Slashfire w. Dread Spell & Couch Potato Massacre",
-    #     T(21, 0), convention="w./& split", alternatives=(("Slashfire", "Dread Spell & Couch Potato Massacre"),))
-    # Check: `uv run pytest agent_worker/tests/test_labels.py` (green when every page has shows, each with a source line, and
-    #   every capture has a label); then a baseline run over the page. The likeliest mistake is labelling from what the model
-    #   returned instead of from the page, which makes the score measure agreement with the model rather than correctness.
-    # (No placeholder to raise: labels are data, and an empty PageLabel already fails `test_every_page_label_has_shows`.)
+    # Ginkgo's — gated. held out. The labelling fill-in (A2.1-D11): rows by Ari and Claude, November 4.
     # -------------------------------------------------------------------------------------
     "ginkgo_coffee-2026-11-04.html": PageLabel(
         venue="ginkgo_coffee",
@@ -430,8 +412,8 @@ PAGE_LABELS: dict[str, PageLabel] = {
           "The 'Featured Concerts' block at the top shows Chuck Suchy dated 'November 14, 2025' (a stale year); "
           "the real listing is November 14, 2026.",
         shows = (
-            S(D(2026, 11, 6), ("David Singley"), "David Singley / November 6 @ 6:00 pm", T(18, 0)),
-            S(D(2026, 11, 13), ("JOAN"), "JOAN / November 13 @ 6:00 pm", T(18, 0)),
+            S(D(2026, 11, 6), ("David Singley",), "David Singley / November 6 @ 6:00 pm", T(18, 0)),
+            S(D(2026, 11, 13), ("JOAN",), "JOAN / November 13 @ 6:00 pm", T(18, 0)),
             S(D(2026, 11, 14), ("Chuck Suchy",), "Chuck Suchy / November 14 @ 7:30 pm", T(19, 30), admission_advance=20.0, admission_day=20.0, free_admission=False,
               convention="Tickets: $20 with an ORDER TICKETS link, when the ticket price doesn't specify advance or door, assume it applies to both"),
             S(D(2026, 11, 20), ("Mac Hoffman",), "Mac Hoffman / November 20 @ 6:00 pm", T(18, 0)),
@@ -446,7 +428,10 @@ PAGE_LABELS: dict[str, PageLabel] = {
             NonShow("Trivia Mafia", D(2026, 11, 19), None, "trivia night"),
             NonShow("Trivia Mafia", D(2026, 12, 3), None, "trivia night"),
         )
-    ), 
+    ),
+    # -------------------------------------------------------------------------------------
+    # Hook & Ladder — gated, held out. The labelling fill-in (A2.1-D11): rows by Ari and Claude, November 4.
+    # -------------------------------------------------------------------------------------
     "hook_ladder-2026-11-04.html": PageLabel(
         venue="hook_ladder", gated=True, captured_on=NOVEMBER_CAPTURE,
         held_out=True,
@@ -523,6 +508,9 @@ PAGE_LABELS: dict[str, PageLabel] = {
             NonShow("Space Between JAM", D(2026, 12, 23), None, "open jam"),
         ),
     ),
+    # -------------------------------------------------------------------------------------
+    # Turf Club — gated. The labelling fill-in (A2.1-D11): rows by Ari and Claude, November 4.
+    # -------------------------------------------------------------------------------------
     "turf_club-2026-11-04.html": PageLabel(
       venue="turf_club", gated=True, captured_on=NOVEMBER_CAPTURE,
       held_out=False,

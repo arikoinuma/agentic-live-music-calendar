@@ -263,7 +263,7 @@ async def run_scenario(
 def expected_rows(scenario: Scenario, first: PageLabel, second: PageLabel | None) -> list[LabelledShow]:
     """The shows a perfect pipeline would leave in the database after the scenario's second run (from the LABELS, never from
     running the pipeline)."""
-    # TODO(Ari) — Key point of interest (C5-K3): what should the database hold after the second run?
+    #   Key point of interest (C5-K3): what should the database hold after the second run?
     #   Not "the second page's labels". Reconcile soft-deletes only inside the window the second fetch covered: from that
     #   fetch's date to the latest date the page evidences (A5-D1; reconcile.covered_window and removed_by_absence). So after
     #   a SEQUENCE the first page's shows OUTSIDE that window must SURVIVE, those INSIDE it that the second page no longer
@@ -272,19 +272,13 @@ def expected_rows(scenario: Scenario, first: PageLabel, second: PageLabel | None
     #   gone and the rest equals the labels. A labelled cancelled or postponed show is ABSENT (ShowStatus has no such value and
     #   reconcile skips it, A2.1-D12 + reconcile.Action.SKIP): `scoring.scheduled_only`. The expected rows are what a perfect
     #   pipeline would leave, and they come from the LABELS, never from running the pipeline.
-    # To align: copy the Code lines by hand, then run the Check.
-    # Code:
-    #   first_live = scoring.scheduled_only(first).shows
-    #   if scenario in (Scenario.SEQUENCE, Scenario.OVERLAP) and second is not None:
-    #       dates = [s.date for s in second.shows] + [n.date for n in second.non_shows if n.date]
-    #       start, end = second.captured_on, max(dates)
-    #       survivors = [s for s in first_live if not start <= s.date <= end]
-    #       return [*survivors, *scoring.scheduled_only(second).shows]
-    #   return list(first_live)        # REPEAT and PERTURBED: the one page's live shows
-    # Check: uv run pytest agent_worker/tests/test_db_score.py -k expected_rows — the likeliest mistakes are returning only the
-    #   second page's shows for a sequence (that scores the first page's surviving rows as invented shows), concatenating both
-    #   pages (a show on both is listed twice), or leaving cancelled shows in the list.
-    raise NotImplementedError("TODO(Ari)")
+    first_live = scoring.scheduled_only(first).shows
+    if scenario in (Scenario.SEQUENCE, Scenario.OVERLAP) and second is not None:
+        dates = [s.date for s in second.shows] + [n.date for n in second.non_shows if n.date]
+        start, end = second.captured_on, max(dates)
+        survivors = [s for s in first_live if not start <= s.date <= end]
+        return [*survivors, *scoring.scheduled_only(second).shows]
+    return list(first_live)        # REPEAT and PERTURBED: the one page's live shows
 
 
 def score_database(

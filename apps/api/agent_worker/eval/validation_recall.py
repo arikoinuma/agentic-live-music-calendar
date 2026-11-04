@@ -40,22 +40,16 @@ class Coverage(StrEnum):
 
 def coverage(error: ErrorItem, findings: Sequence[Finding]) -> Coverage:
     """Classify one error against the findings of the attempt that produced it."""
-    # TODO(Ari) — Key point of interest (C5-K4): when does a finding COVER an extraction error?
+    #   Key point of interest (C5-K4): when does a finding COVER an extraction error?
     #   Validation "catches" an error only if it would make the pipeline act: an ERROR-severity finding fails the record and
     #   triggers a retry (policy.combine, A3-K4); a WARNING is recorded and changes nothing. So the three classes are:
     #   caught = an error finding on that show's index (or a page-level error finding, for a show nothing was returned for);
     #   flagged = only a warning covers it; silent = nothing does. Report flagged beside caught, never folded into it:
     #   "validation noticed" and "validation stopped it" are different claims. (alpha-deployment-plan.md C5, "validation recall".)
-    # To align: copy the Code lines by hand, then run the Check.
-    # Code:
-    #   covering = [f for f in findings if f.show_index == error.index or (f.show_index is None and error.index is None)]
-    #   if any(f.severity is Severity.ERROR for f in covering):
-    #       return Coverage.CAUGHT
-    #   return Coverage.FLAGGED if covering else Coverage.SILENT
-    # Check: uv run pytest agent_worker/tests/test_validation_recall.py agent_worker/tests/test_graph_eval.py -k "coverage or tally" — the likeliest mistakes are treating a
-    #   page-level finding as covering every error on the page (it covers only a show nothing was returned for), and
-    #   counting a warning as a catch.
-    raise NotImplementedError("TODO(Ari)")
+    covering = [f for f in findings if f.show_index == error.index or (f.show_index is None and error.index is None)]
+    if any(f.severity is Severity.ERROR for f in covering):
+        return Coverage.CAUGHT
+    return Coverage.FLAGGED if covering else Coverage.SILENT
 
 
 @dataclass

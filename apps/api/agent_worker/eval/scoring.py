@@ -367,25 +367,19 @@ class Rates:
 
 def headline_rates(score: PageScore) -> Rates:
     """Precision and recall for one page's counts."""
-    # TODO(Ari) — Key point of interest (C5-K2): what counts as FOUND, and whether a tolerated leak is a false positive.
+    #   Key point of interest (C5-K2): what counts as FOUND, and whether a tolerated leak is a false positive.
     #   Ari's standard (A2.1-D1) makes identity "date and acts", so a show is FOUND when it was matched AND its acts are
     #   correct: found = labelled - missed - acts_wrong. Recall is found / labelled. For precision the denominator is every
     #   show returned with acts: the standard tolerates about one leak per page, but a leak is still a row in the calendar
     #   that is not a show, so the STRICT precision counts it against; the LENIENT figure (precision_lenient) does not, and
     #   both are reported so the tolerated case stays visible. (docs/dev/alpha-deployment-plan.md C5; A2.1-D1.)
-    # To align: copy the Code lines by hand, then run the Check.
-    # Code:
-    #   found = score.labelled - score.missed - score.acts_wrong
-    #   return Rates(
-    #       found=found, labelled=score.labelled, returned=score.returned,
-    #       recall=found / score.labelled if score.labelled else 1.0,
-    #       precision=found / score.returned if score.returned else 1.0,
-    #       precision_lenient=found / (score.returned - score.leaks) if score.returned - score.leaks else 1.0,
-    #   )
-    # Check: uv run pytest agent_worker/tests/test_scoring.py -k headline_rates — the likeliest mistake is
-    #   `found = labelled - missed` (counting a wrong-acts show as found, which the standard says is an error), or a
-    #   ZeroDivisionError on an empty page.
-    raise NotImplementedError("TODO(Ari)")
+    found = score.labelled - score.missed - score.acts_wrong
+    return Rates(
+        found=found, labelled=score.labelled, returned=score.returned,
+        recall=found / score.labelled if score.labelled else 1.0,
+        precision=found / score.returned if score.returned else 1.0,
+        precision_lenient=found / (score.returned - score.leaks) if score.returned - score.leaks else 1.0,
+    )
 
 
 # ---------------------------------------------------------------------------
