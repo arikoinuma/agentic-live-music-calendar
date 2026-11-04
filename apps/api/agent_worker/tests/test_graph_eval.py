@@ -5,10 +5,8 @@ turns many `PageRun` records into the numbers the milestone reports (shows found
 recall, the database) and writes them to a file that can be re-scored without a model.
 
 How to read it: records are built by hand (`record`) where a number is being pinned, so each expected value is worked out from
-the case; one test runs real pages end to end through a real database with a scripted model. Two judgements are Ari's gaps:
-`scoring.headline_rates` (C5-K2) and `validation_recall.coverage` (C5-K4). The `stub_judgements` fixture stands in for both so
-the aggregate's arithmetic is tested on its own; the tests that exercise the REAL gaps are named for them and stay red until
-they are filled.
+the case; one test runs real pages end to end through a real database with a scripted model. The aggregate calls two of Ari's
+judgements, `scoring.headline_rates` (C5-K2) and `validation_recall.coverage` (C5-K4), and these tests use the real ones.
 """
 
 import dataclasses
@@ -21,7 +19,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession, async_sessionmaker
 
 from agent_worker import nodes
-from agent_worker.eval import db_score, graph_eval, labels, scoring, validation_recall
+from agent_worker.eval import db_score, graph_eval, labels, scoring
 from agent_worker.eval.labels import LabelledShow, PageLabel
 from agent_worker.eval.labels import VenueFacts as LabelVenueFacts
 from agent_worker.tests.fakes import (
@@ -31,37 +29,9 @@ from agent_worker.tests.fakes import (
     scripted_client,
     split_answer,
 )
-from agent_worker.validation import Severity
 
 D = datetime.date
 T = datetime.time
-
-
-@pytest.fixture
-def stub_rates(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Stand in for Ari's `headline_rates` (C5-K2) with the recommended definition, for tests about something else."""
-    def rates(score: scoring.PageScore) -> scoring.Rates:
-        found = score.labelled - score.missed - score.acts_wrong
-        lenient_den = score.returned - score.leaks
-        return scoring.Rates(
-            found, score.labelled, score.returned, found / score.labelled if score.labelled else 1.0,
-            found / score.returned if score.returned else 1.0, found / lenient_den if lenient_den else 1.0,
-        )
-
-    monkeypatch.setattr(scoring, "headline_rates", rates)
-
-
-@pytest.fixture
-def stub_judgements(monkeypatch: pytest.MonkeyPatch, stub_rates: None) -> None:
-    """Stand in for both of Ari's judgement calls, so the arithmetic around them can be tested without them: the rates (above)
-    and `coverage` (C5-K4) as recommended. Tests that mean to exercise the real functions don't use this fixture."""
-    def coverage(error: scoring.ErrorItem, findings: Any) -> validation_recall.Coverage:
-        covering = [f for f in findings if f.show_index == error.index or (f.show_index is None and error.index is None)]
-        if any(f.severity is Severity.ERROR for f in covering):
-            return validation_recall.Coverage.CAUGHT
-        return validation_recall.Coverage.FLAGGED if covering else validation_recall.Coverage.SILENT
-
-    monkeypatch.setattr(validation_recall, "coverage", coverage)
 
 
 def score_dict(**counts: Any) -> dict[str, Any]:
@@ -110,7 +80,7 @@ GATED = PageLabel(venue="v", gated=True, captured_on=D(2026, 10, 12), shows=(Lab
 
 
 def test_rates_are_computed_from_summed_counts_not_averaged_per_page() -> None:
-    # Proves: C5-M2, and C5-K2 through the aggregate (red until Ari fills `headline_rates`). Page 1 has 5 labelled shows and
+    # Proves: C5-M2, and C5-K2 through the aggregate. Page 1 has 5 labelled shows and
     # finds 4; page 2 has 10 and finds 10. Summed: 14 found of 15 labelled, recall 14/15 = 0.9333. Averaging the two pages'
     # recalls (0.8 and 1.0) would give 0.9, which weights a 5-show page like a 10-show one. Worked by hand from the case.
     runs = [
@@ -122,7 +92,6 @@ def test_rates_are_computed_from_summed_counts_not_averaged_per_page() -> None:
     assert raw["rates"]["recall"] == 14 / 15
 
 
-@pytest.mark.usefixtures("stub_judgements")
 def test_the_aggregate_counts_each_column_separately() -> None:
     # Proves: the three columns (raw, validated, committed) are summed on their own, so the differences between them (the
     # point of the harness) survive: here validation fixes one miss the model made, and commit loses one show.
@@ -134,7 +103,6 @@ def test_the_aggregate_counts_each_column_separately() -> None:
     assert (columns["raw"]["missed"], columns["validated"]["missed"], columns["committed"]["missed"]) == (1, 0, 1)
 
 
-@pytest.mark.usefixtures("stub_judgements")
 def test_the_retry_statistics_count_runs_attempts_and_outcomes() -> None:
     # Proves: the retry block. Three runs: 1 attempt, 2 attempts (recovered), 3 attempts (escalated). Retry rate 2/3, mean
     # attempts (1+2+3)/3 = 2.0, one escalated, one recovered, and attempts by tier counted across all runs: initial x3,
@@ -153,7 +121,6 @@ def test_the_retry_statistics_count_runs_attempts_and_outcomes() -> None:
     assert retry["attempts_by_tier"] == {"initial": 3, "narrowed": 2, "larger_model": 1}
 
 
-@pytest.mark.usefixtures("stub_judgements")
 def test_the_retry_block_says_what_the_retry_changed() -> None:
     # Proves: C5-D7. For the runs that retried, the errors of attempt 1 and of the last attempt are summed, so "did the retry
     # fix anything" is a number: here a run with 2 missed shows on attempt 1 and none on attempt 2 changed 2 errors to 0.
@@ -162,7 +129,6 @@ def test_the_retry_block_says_what_the_retry_changed() -> None:
     assert (retry["errors_first_attempt"], retry["errors_final_attempt"]) == (2, 0)
 
 
-@pytest.mark.usefixtures("stub_judgements")
 def test_validation_recall_is_tallied_over_every_attempt() -> None:
     # Proves: C5-D7 and C5-K4 wiring. Each attempt's errors are joined to THAT attempt's findings. Attempt 1 missed show 1
     # and carries an error finding on index 1 (caught); attempt 2 has an acts-wrong error on index 0 and no finding (silent).
@@ -178,7 +144,6 @@ def test_validation_recall_is_tallied_over_every_attempt() -> None:
     assert recall["findings_fired"] == {"splitter_dropped": 1}
 
 
-@pytest.mark.usefixtures("stub_judgements")
 def test_a_disagreement_between_recorded_and_recomputed_findings_is_reported() -> None:
     # Proves: C5-PR1-6 at run time. The recomputed error findings should equal what the pipeline recorded; if they ever
     # differ the aggregate counts it, so a drifted recomputation is visible in the file and not silently trusted.
@@ -188,7 +153,6 @@ def test_a_disagreement_between_recorded_and_recomputed_findings_is_reported() -
     assert agg["validation"]["findings_disagree"] == 1
 
 
-@pytest.mark.usefixtures("stub_judgements")
 def test_identical_runs_of_a_page_are_flagged_identical() -> None:
     # Proves: at temperature 0 repeated runs are one sample (A2.1's confirmation run), so the file says whether they were
     # identical (the same flag `run_eval` records), and says nothing when a page has a single run.
@@ -202,7 +166,6 @@ def test_identical_runs_of_a_page_are_flagged_identical() -> None:
     assert single["per_fixture"]["page.html"]["runs_identical"] is None
 
 
-@pytest.mark.usefixtures("stub_judgements")
 def test_the_gate_is_applied_to_each_column_over_the_gated_pages_only() -> None:
     # Proves: the committed column answers "does the PIPELINE meet A2.1-D1", not just the model. A gated page with a missed
     # show in the committed column fails the committed gate while the raw column passes; an informational page's miss is not
@@ -216,7 +179,6 @@ def test_the_gate_is_applied_to_each_column_over_the_gated_pages_only() -> None:
     assert (gate["raw"]["passed"], gate["committed"]["passed"]) == (True, False)
 
 
-@pytest.mark.usefixtures("stub_judgements")
 def test_the_committed_column_leaves_out_a_run_whose_rows_include_an_earlier_page() -> None:
     # Proves: C5-CR1-1. After a correct SEQUENCE the database still holds the first page's shows, so the second run's committed
     # rows scored against the second page's label alone would report them as invented. Such a run is flagged
@@ -233,7 +195,6 @@ def test_the_committed_column_leaves_out_a_run_whose_rows_include_an_earlier_pag
     assert agg["columns"]["raw"]["labelled"] == 0  # the other columns still count both runs (both have empty scores here)
 
 
-@pytest.mark.usefixtures("stub_judgements")
 def test_the_aggregate_counts_a_route_mismatch_between_the_document_and_the_extraction_source() -> None:
     # Proves: C5-CR1-6. Recomputing findings assumes the staged document's `route` is the source validation received; `run_page`
     # checks that on the final attempt and records `route_mismatch`, and the aggregate counts the runs where it did not hold, so a
@@ -242,11 +203,9 @@ def test_the_aggregate_counts_a_route_mismatch_between_the_document_and_the_extr
     assert graph_eval.aggregate(runs, {"page.html": GATED})["validation"]["route_mismatches"] == 1
 
 
-@pytest.mark.usefixtures("stub_rates")
 def test_validation_recall_in_the_aggregate_follows_the_real_coverage_definition() -> None:
-    # Proves: C5-PR1-12 / C5-CR1-9. The other aggregate tests stand in for Ari's `coverage`; this one does not, so his version of
-    # C5-K4 reaches an aggregate-level test. One acts-wrong error on show 3 with an ERROR finding on show 3: caught (red until
-    # the gap is filled). Expected by the C5-K4 definition, worked by hand.
+    # Proves: C5-PR1-12 / C5-CR1-9. This pins the real `coverage` at the aggregate level, so a later edit to C5-K4's definition can turn a test red here. One acts-wrong error on show 3 with an ERROR finding on show 3: caught. Expected by the
+    # C5-K4 definition, worked by hand.
     finding = {"code": "act_not_in_title", "severity": "error", "message": "m", "show_index": 3}
     a = attempt(1, "initial", errors=[finding])
     a["score"]["items"] = [{"kind": "acts_wrong", "date": "2026-10-11", "index": 3, "field": None}]
@@ -324,7 +283,6 @@ def test_the_command_line(argv: list[str], expected: dict[str, Any]) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.usefixtures("stub_judgements")
 def test_rescore_rebuilds_scores_from_the_stored_extractions_and_leaves_the_original_alone(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -365,7 +323,6 @@ def factory(db_conn: AsyncConnection) -> async_sessionmaker[AsyncSession]:
     return async_sessionmaker(bind=db_conn, join_transaction_mode="create_savepoint", expire_on_commit=False)
 
 
-@pytest.mark.usefixtures("stub_judgements")
 async def test_run_pages_runs_each_page_alone_on_an_empty_calendar(
     factory: async_sessionmaker[AsyncSession], tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -395,7 +352,6 @@ def test_db_score_scenarios_are_the_ones_the_command_line_offers() -> None:
     assert set(graph_eval.SCENARIO_CHOICES) == parser_choices
 
 
-@pytest.mark.usefixtures("stub_judgements")
 def test_rescore_also_rescores_the_scenarios_database_score(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Proves: C5-CR1-3. A corrected label must reach the scenario block too, or the rescored file contradicts itself: the
     # database score is recomputed from the last run's stored rows and the scenario's page labels. Here a corrected label adds

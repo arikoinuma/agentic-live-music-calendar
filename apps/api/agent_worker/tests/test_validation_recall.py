@@ -5,9 +5,8 @@ ERROR-severity finding covers it (that is what fails the record and triggers a r
 (recorded, changes nothing), and `silent` when nothing does.
 
 How to read it: the first section tests `coverage` on constructed `(ErrorItem, [Finding])` pairs, because the definition is what
-is under test; the expected class is the definition in the plan's C5-K4 block, worked by hand from each case. Those tests stay
-red until Ari fills the `TODO(Ari)` in `validation_recall.coverage`. The second section tests the recomputation of an
-attempt's findings against a real graph run on a scripted model (green: no gap involved).
+is under test; the expected class is the definition in the plan's C5-K4 block, worked by hand from each case. The second section
+tests the recomputation of an attempt's findings against a real graph run on a scripted model.
 """
 
 import datetime
@@ -30,7 +29,7 @@ from agent_worker.tests.test_graph_run import run_scripted
 from agent_worker.validation import CheckCode, Finding, Severity
 
 # ---------------------------------------------------------------------------
-# C5-K4: when does a finding cover an error (red until Ari fills coverage)
+# C5-K4: when does a finding cover an error
 # ---------------------------------------------------------------------------
 
 

@@ -462,7 +462,7 @@ def test_scheduled_only_drops_cancelled_and_postponed_shows_from_a_label() -> No
 
 
 # ---------------------------------------------------------------------------
-# C5-K2: precision and recall (red until Ari fills the TODO in `headline_rates`)
+# C5-K2: precision and recall
 # ---------------------------------------------------------------------------
 
 

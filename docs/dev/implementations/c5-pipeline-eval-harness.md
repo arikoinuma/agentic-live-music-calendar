@@ -607,6 +607,20 @@ Until K2, K3 and K4 are filled, `graph_eval.evaluate` raises `NotImplementedErro
 
 **`TODO(Ari)` gaps.** Unchanged: all four open (K1 `eval/labels.py`, K2 `eval/scoring.py`, K3 `eval/db_score.py`, K4 `eval/validation_recall.py`; commands in Round 1's table; the K4 command now also runs `test_graph_eval.py`).
 
+### Round 3 — Claude Sonnet 5.5, November 2026 (closed-gap cleanup, after Ari filled C5-K1 to C5-K4)
+
+**Scope.** `eval/scoring.py` (`headline_rates`), `eval/db_score.py` (`expected_rows`), `eval/validation_recall.py` (`coverage`), `eval/labels.py`, and the tests that carried "stays red until Ari fills" notes (`test_scoring.py`, `test_db_score.py`, `test_validation_recall.py`, `test_graph_eval.py`), plus `docs/dev/adding-eval-venues.md`.
+
+**`TODO(Ari)` gaps.** All four are **filled by Ari**: C5-K1 (the labels for Ginkgo Coffee, Hook & Ladder and Turf Club, with Ginkgo and Hook & Ladder held out), C5-K2 (`scoring.headline_rates`), C5-K3 (`db_score.expected_rows`) and C5-K4 (`validation_recall.coverage`). Each filled version matches the scaffold's Code lines.
+
+**What the pass did (`AGENTS.md`, "[fill-in] tasks", step 4).**
+- Rewrote the three remaining `Key point of interest (C5-K<n>)` blocks as plain why-comments that keep the reasoning (the standard behind "found", the reconcile window behind the expected rows, error versus warning behind "caught"). Ari had already removed the `TODO(Ari)` markers and the To align / Code / Check parts, and the K1 block in `labels.py`.
+- Verified the four source files as a **comment-only pass**: the syntax trees (docstrings stripped) are identical before and after.
+- Removed the `stub_rates` and `stub_judgements` fixtures from `test_graph_eval.py` (they stood in for K2 and K4 while those were open), so the aggregate tests now run against the real functions, and dropped every "red until Ari fills" note in the tests. The tests changed only in the fixtures' removal; their assertions are untouched.
+- `docs/dev/adding-eval-venues.md` no longer points at a `TODO(Ari)` block.
+
+**Verification.** `ruff` clean; `mypy` clean; the four affected test files 85 passed; **full `make check` exit 0** (ruff, mypy, 1120 pytest passed, vitest 523 passed, contract-check, designation-check, e2e 107 passed). The placeholder helper (`lib/todo.ts`) is a frontend scaffold and does not apply here; the scaffold left no `noqa` in these files.
+
 ## Code review
 
 *(Written by `plan-reviewer`.)*

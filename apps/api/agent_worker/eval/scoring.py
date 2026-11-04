@@ -367,12 +367,12 @@ class Rates:
 
 def headline_rates(score: PageScore) -> Rates:
     """Precision and recall for one page's counts."""
-    #   Key point of interest (C5-K2): what counts as FOUND, and whether a tolerated leak is a false positive.
-    #   Ari's standard (A2.1-D1) makes identity "date and acts", so a show is FOUND when it was matched AND its acts are
-    #   correct: found = labelled - missed - acts_wrong. Recall is found / labelled. For precision the denominator is every
-    #   show returned with acts: the standard tolerates about one leak per page, but a leak is still a row in the calendar
-    #   that is not a show, so the STRICT precision counts it against; the LENIENT figure (precision_lenient) does not, and
-    #   both are reported so the tolerated case stays visible. (docs/dev/alpha-deployment-plan.md C5; A2.1-D1.)
+    # A show is FOUND when it was matched AND its acts are right (C5-K2). Ari's standard makes a show's identity its date and
+    # acts (A2.1-D1), so a matched show with the wrong acts is an error and not a find: found = labelled - missed - acts_wrong.
+    # Recall is found over labelled. Precision's denominator is every show returned with acts. The standard tolerates about one
+    # non-music leak per page, but a leak is still a row in the calendar that is not a show, so the strict precision counts it
+    # against the pipeline; `precision_lenient` leaves the leaks out. Both are reported so the tolerated case stays visible.
+    # (docs/dev/alpha-deployment-plan.md, C5.)
     found = score.labelled - score.missed - score.acts_wrong
     return Rates(
         found=found, labelled=score.labelled, returned=score.returned,

@@ -55,7 +55,7 @@ uv run python -m agent_worker.eval.capture                # every venue that is 
 
 ### 5. Write the label
 
-Add one entry to `PAGE_LABELS`, keyed by the **exact fixture file name**, above the `TODO(Ari)` block at the end of the dict. The whole page goes in, every real show it lists; a partial label makes the scorer count the shows you skipped as invented.
+Add one entry to `PAGE_LABELS`, keyed by the **exact fixture file name**, at the end of the dict. The whole page goes in, every real show it lists; a partial label makes the scorer count the shows you skipped as invented.
 
 ```python
 "new_venue-2026-10-30.html": PageLabel(

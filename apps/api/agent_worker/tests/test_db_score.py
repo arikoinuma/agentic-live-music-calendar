@@ -8,9 +8,9 @@ scripted model: JSON-LD pages, so the act splitter is the only call.
 How to read it, in four sections:
   1. `committed_extraction`: rows into the extraction shape the scorer reads.
   2. The scenarios' MECHANICS (repeat, sequence, overlap, perturbed): what the pipeline did, asserted on the rows directly and
-     on reconcile's decisions. These pass without Ari's gap.
+     on reconcile's decisions.
   3. `reset`, the one destructive statement the harness runs.
-  4. `expected_rows` (C5-K3): what the database SHOULD hold after the second run. Red until Ari fills the TODO.
+  4. `expected_rows` (C5-K3): what the database SHOULD hold after the second run.
 
 Expected values are the literal pages, the scripted answers, and the rules of reconcile (docs/dev/implementations/a5-reconcile.md:
 the window is the second fetch's date to the latest date the page evidences; a changed non-null time is a remove plus an insert;
@@ -253,7 +253,7 @@ async def test_reset_empties_the_calendar_and_audit_tables_but_keeps_venues_and_
 
 
 # ---------------------------------------------------------------------------
-# 4. C5-K3: what the database SHOULD hold (red until Ari fills expected_rows)
+# 4. C5-K3: what the database SHOULD hold
 # ---------------------------------------------------------------------------
 
 

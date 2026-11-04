@@ -263,15 +263,15 @@ async def run_scenario(
 def expected_rows(scenario: Scenario, first: PageLabel, second: PageLabel | None) -> list[LabelledShow]:
     """The shows a perfect pipeline would leave in the database after the scenario's second run (from the LABELS, never from
     running the pipeline)."""
-    #   Key point of interest (C5-K3): what should the database hold after the second run?
-    #   Not "the second page's labels". Reconcile soft-deletes only inside the window the second fetch covered: from that
-    #   fetch's date to the latest date the page evidences (A5-D1; reconcile.covered_window and removed_by_absence). So after
-    #   a SEQUENCE the first page's shows OUTSIDE that window must SURVIVE, those INSIDE it that the second page no longer
-    #   lists are gone, and a show both pages list is ONE row, not two. The window's end includes the dates of labelled
-    #   non-shows, because an excluded no-act listing extends what the page evidences. After a PERTURBED run the stale row is
-    #   gone and the rest equals the labels. A labelled cancelled or postponed show is ABSENT (ShowStatus has no such value and
-    #   reconcile skips it, A2.1-D12 + reconcile.Action.SKIP): `scoring.scheduled_only`. The expected rows are what a perfect
-    #   pipeline would leave, and they come from the LABELS, never from running the pipeline.
+    # What the database should hold after the second run is not "the second page's labels" (C5-K3). Reconcile soft-deletes only
+    # inside the window the second fetch covered: from that fetch's date to the latest date the page evidences (A5-D1;
+    # `reconcile.covered_window` and `removed_by_absence`). So after a SEQUENCE or OVERLAP the first page's shows outside that
+    # window survive, those inside it that the second page no longer lists are gone, and a show both pages list is one row, not
+    # two. The window's end counts the dates of labelled non-shows too, because an excluded no-act listing extends what the page
+    # evidences. After a PERTURBED run the stale row is gone and the rest equals the labels. A labelled cancelled or postponed
+    # show is absent, since `ShowStatus` has no such value and reconcile skips it (A2.1-D12, `reconcile.Action.SKIP`), which is
+    # what `scoring.scheduled_only` removes. Everything here comes from the LABELS, never from running the pipeline, so the
+    # expectation cannot inherit a bug from the code it checks.
     first_live = scoring.scheduled_only(first).shows
     if scenario in (Scenario.SEQUENCE, Scenario.OVERLAP) and second is not None:
         dates = [s.date for s in second.shows] + [n.date for n in second.non_shows if n.date]

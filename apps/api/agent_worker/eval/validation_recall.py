@@ -40,12 +40,11 @@ class Coverage(StrEnum):
 
 def coverage(error: ErrorItem, findings: Sequence[Finding]) -> Coverage:
     """Classify one error against the findings of the attempt that produced it."""
-    #   Key point of interest (C5-K4): when does a finding COVER an extraction error?
-    #   Validation "catches" an error only if it would make the pipeline act: an ERROR-severity finding fails the record and
-    #   triggers a retry (policy.combine, A3-K4); a WARNING is recorded and changes nothing. So the three classes are:
-    #   caught = an error finding on that show's index (or a page-level error finding, for a show nothing was returned for);
-    #   flagged = only a warning covers it; silent = nothing does. Report flagged beside caught, never folded into it:
-    #   "validation noticed" and "validation stopped it" are different claims. (alpha-deployment-plan.md C5, "validation recall".)
+    # Validation "catches" an error only if it would make the pipeline act (C5-K4). An ERROR-severity finding fails the record
+    # and triggers a retry (`policy.combine`, A3-K4); a WARNING is recorded and changes nothing. So an error is caught when an
+    # error finding sits on that show's index, or a page-level error finding covers a show nothing was returned for; flagged
+    # when only a warning covers it; silent when nothing does. Flagged is reported beside caught and never folded into it:
+    # "validation noticed" and "validation stopped it" are different claims. (docs/dev/alpha-deployment-plan.md, C5.)
     covering = [f for f in findings if f.show_index == error.index or (f.show_index is None and error.index is None)]
     if any(f.severity is Severity.ERROR for f in covering):
         return Coverage.CAUGHT
