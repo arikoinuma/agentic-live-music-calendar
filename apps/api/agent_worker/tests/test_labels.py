@@ -124,7 +124,8 @@ def test_every_captured_fixture_has_a_label() -> None:
 
 UNLABELLED_ON_PURPOSE: set[str] = {
     "Calendar - The Midway Saloon.html",  # Midway: HTTP 403 bot challenge, not worked around (A2.1-D3)
-    # Add any other Midway capture here with the same reason (list them with the one-liner in the failure message).
+    "uptown_arthouse-2026-10-10.html", # Uptown uses embedded Google calendar
+    "zhora-2026-10-10.html" # Zhora is JS driven site
 }
 
 

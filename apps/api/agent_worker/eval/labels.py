@@ -567,7 +567,7 @@ PAGE_LABELS: dict[str, PageLabel] = {
           convention="the title is the night's name; each vocalist is an act; their band names in parentheses are dropped; the last two perform in the Clown Lounge"),
       ),
       non_shows=(),
-),
+    ),
 }
 
 
