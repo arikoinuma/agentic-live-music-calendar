@@ -109,7 +109,7 @@ VENUE_FACTS: dict[str, VenueFacts] = {
     "finnish_bistro": VenueFacts(
       "The Finnish Bistro",
       "https://finnishbistro.com/events/",
-      blocked="HTTP 403; not to be worked around (D3)"
+      blocked="HTTP 403; not to be worked around (A2.1-D3)"
     ),
     "cloudland": VenueFacts(
       "Cloudland",

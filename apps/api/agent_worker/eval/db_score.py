@@ -34,7 +34,7 @@ from agent_worker.eval.labels import VenueFacts as LabelVenueFacts
 from agent_worker.main import VenueFacts, load_venues
 from agent_worker.policy import RetryPolicy
 from app.db.models import Artist, Metro, Show, ShowArtist, Venue
-from app.db.seed import METRO_NAME, METRO_TIMEZONE
+from app.db.seed import METRO_NAME, METRO_SLUG, METRO_TIMEZONE
 from app.enums import FetchStrategy, ShowStatus
 
 # ---------------------------------------------------------------------------
@@ -103,7 +103,7 @@ async def ensure_venue(factory: async_sessionmaker[AsyncSession], facts: LabelVe
     async with factory() as session:
         metro = (await session.execute(select(Metro).where(Metro.name == METRO_NAME))).scalar_one_or_none()
         if metro is None:
-            metro = Metro(name=METRO_NAME, timezone=METRO_TIMEZONE)
+            metro = Metro(name=METRO_NAME, timezone=METRO_TIMEZONE, slug=METRO_SLUG)
             session.add(metro)
             await session.flush()
         venue_id = (
