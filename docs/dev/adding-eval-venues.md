@@ -11,7 +11,7 @@ How to put a venue's calendar page into the hand-labelled pool that the evaluati
 | 1 | **Pick the venue and its calendar URL** | the venue's website | A page that lists *many dated shows*, not one event. Then check that a plain fetch can read it (below). |
 | 2 | **Register the venue** | `agent_worker/eval/labels.py`, `VENUE_FACTS` | One entry: a short key, the venue's name, the URL. |
 | 3 | **Capture the page** | `uv run python -m agent_worker.eval.capture <key>` | Saves `agent_worker/eval/fixtures/<key>-<YYYY-MM-DD>.html` (gitignored). |
-| 4 | **Read the page** | `uv run python -m agent_worker.eval.label_draft agent_worker/eval/fixtures/<file>` | Prints the page's visible lines, numbered. It does **not** write labels. |
+| 4 | **Read the page** | `uv run python -m agent_worker.eval.label_draft agent_worker/eval/fixtures/<file> --all` | Prints the page's visible lines, numbered. It does **not** write labels. |
 | 5 | **Write the label** | `agent_worker/eval/labels.py`, `PAGE_LABELS` | One `PageLabel` for the whole page, by hand. Decide `gated` and `held_out` here. |
 | 6 | **Run the label tests** | `uv run pytest agent_worker/tests/test_labels.py` | And, for a *gated* venue, add its key to `GATED_VENUES` in that test file first. |
 | 7 | **(Separate) add it to the production venue list** | `app/db/seed.py` | Only if the worker should fetch it for real. The eval does not need it. |
@@ -51,7 +51,7 @@ uv run python -m agent_worker.eval.capture                # every venue that is 
 
 ### 4. Read the page
 
-`label_draft` prints every distinct visible line, numbered, with the lines that look dated flagged `>`. It is a reading aid: copy the lines you mean as `source_line`s. It never prints act names from structured data, and it does not decide what is a show or who the acts are. Those are the judgements that make a label a label.
+`label_draft` prints every distinct visible line, numbered, with the lines that look dated flagged `>`. **On a calendar of events, add `--all`:** by default a line that repeats is listed once, which hides what a calendar repeats on purpose (the same title on several dates, the end time and address under every event). It is a reading aid: copy the lines you mean as `source_line`s. It never prints act names from structured data, and it does not decide what is a show or who the acts are. Those are the judgements that make a label a label.
 
 ### 5. Write the label
 

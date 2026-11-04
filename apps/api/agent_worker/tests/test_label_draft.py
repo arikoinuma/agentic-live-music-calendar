@@ -46,3 +46,14 @@ def test_it_never_prints_a_name_from_structured_data() -> None:
     # show it, or the label would be drafted from structured data (and agree with the JSON-LD route by construction).
     printed = "\n".join(text for _, text, _ in label_draft.candidate_lines(PAGE))
     assert "Hidden Act From JSON-LD" not in printed
+
+
+def test_all_lists_a_repeated_line_at_every_position() -> None:
+    # Proves: the `--all` flag. A calendar repeats lines on purpose: the same title on several dates (Ginkgo Coffee's weekly
+    # trivia night) and the same end time under each event. Deduplicating them hid the titles of four events and every end
+    # time but the first, so the default is kept for page chrome and `keep_repeats` shows everything. Expected: "Calendar"
+    # appears twice in the constructed page, so twice here.
+    texts = [text for _, text, _ in label_draft.candidate_lines(PAGE, keep_repeats=True)]
+    assert texts.count("Calendar") == 2
+    numbers = [n for n, _, _ in label_draft.candidate_lines(PAGE, keep_repeats=True)]
+    assert numbers == sorted(numbers)
