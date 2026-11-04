@@ -621,6 +621,71 @@ Until K2, K3 and K4 are filled, `graph_eval.evaluate` raises `NotImplementedErro
 
 **Verification.** `ruff` clean; `mypy` clean; the four affected test files 85 passed; **full `make check` exit 0** (ruff, mypy, 1120 pytest passed, vitest 523 passed, contract-check, designation-check, e2e 107 passed). The placeholder helper (`lib/todo.ts`) is a frontend scaffold and does not apply here; the scaffold left no `noqa` in these files.
 
+### Round 4 — Claude Sonnet 5.5, November 4, 2026 (the local baseline, run by Ari on his laptop; recorded by the author from the output Ari pasted)
+
+**Designations.** The findings below are `F1` to `F8` inside this plan; elsewhere they are `C5-F1` and so on.
+
+**Provenance (Ari to complete).** Model, Ollama version and model digest are in the `provenance` block of each results file, and `labels_sha` and `harness_commit` beside it; the author could not read them from the cloud. Paste them here: *model / digest: ______ ; labels_sha: ______ ; harness commit: ______*. The results files are gitignored, in `apps/api/agent_worker/eval/results/`: `graph-c5-smoke.json`, `graph-c5-baseline.json`, `graph-c5-baseline-seq.json`, `graph-c5-perturbed.json`, and `graph-c5-baseline-retry.json` (pending, see below). Policy: the pipeline's defaults (threshold 0.8, cap 3), one run per page, temperature 0.
+
+**The main baseline** (`make eval-graph LABEL=c5-baseline SET=all`, 10 pages, 1,780 s ≈ 30 minutes). Held-out pages (Ginkgo Coffee, Hook & Ladder) were excluded by design. **Raw, validated and committed counts are identical on every page**; the committed column's recall and precision differ slightly in the summary only because it is scored against the label without the 3 cancelled shows on 7th St Entry (a smaller denominator), not because anything was lost.
+
+| Page | Gated | Labelled | Missed / wrong acts / invented / leaks | Seconds |
+|---|---|---|---|---|
+| White Squirrel, Aug | yes | 12 | 0 / 0 / 0 / 0 | 71 |
+| Zhora Darling | no | 23 | 0 / 4 / 0 / 0 | 133 |
+| Terminal Bar, Aug | no | 8 | 1 / 3 / 0 / 0 | 115 |
+| Mortimer's, Oct 10 | yes | 7 | 0 / 1 / 0 / 0 | 340 |
+| 7th St Entry, Oct 10 | yes | 30 | 0 / 1 / 0 / 0 | 447 |
+| Terminal Bar, Oct 10 | no | 10 | 0 / 5 / 2 / 0 | 181 |
+| Terminal poster 1 | no | 1 | 0 / 1 / 0 / 0 | 39 |
+| Terminal poster 2 | no | 1 | 0 / 0 / 0 / 0 | 39 |
+| Turf Club, Nov 4 | yes | 17 | 0 / 6 / 0 / 0 | 338 |
+| White Squirrel, Oct 10 | yes | 11 | 0 / 0 / 0 / 0 | 77 |
+
+Overall (all 10 pages, so not comparable with A2.1's gated 56 of 60): recall 0.817, precision 0.810 raw; 0.812 and 0.805 committed. **The gate fails on the three gated pages with errors**: Mortimer's 1, 7th St Entry 1, Turf Club 6 (8 wrong-acts errors in 77 gated shows; both White Squirrel pages were clean in this run). 24 errors in total: 1 missed, 21 wrong acts, 2 invented. **Retry rate 0; escalated 0; every page passed validation on attempt 1.** Field accuracy is in the results file (`aggregate.columns.*.fields`) and was not reviewed in this round.
+
+**Validation recall** (over all 24 errors): **0 caught, 2 flagged, 22 silent.**
+
+| Error kind | Caught | Flagged | Silent |
+|---|---|---|---|
+| Wrong acts (21) | 0 | 1 | 20 |
+| Missed (1) | 0 | 1 | 0 |
+| Invented (2) | 0 | 0 | 2 |
+
+Findings fired: `excluded_no_acts` 14 (mostly correct exclusions of non-music entries), `act_not_in_title` 1. The recompute self-checks held: `findings_disagree 0`, `route_mismatches 0`.
+
+**The sequence scenarios** (`SCENARIO=sequence`; the second run's committed rows legitimately include the first page's shows, so its committed column is not scored against its own page):
+
+| Venue | Run 1 | Run 2 | Rows left vs expected |
+|---|---|---|---|
+| White Squirrel, Aug then Oct | 12 inserts | 10 inserts, **0 removes, 0 updates** | 23 expected, 22 returned; missed 1 (Whiskey Wednesdays); 0 wrong acts; 0 invented |
+| Terminal Bar, Aug then Oct | 7 inserts | 12 inserts, 0 removes | 18 expected, 19 returned; missed 1, wrong acts 8, invented 2 |
+
+(The stored database score of these runs predates a fix for image links being scored against an empty page; the counts above are unaffected.)
+
+**The perturbed scenario** (White Squirrel, Oct 10): run 1 inserted 10 shows; the harness nulled one start time, deleted one row and added a stale row; run 2 decided **update 1, remove 1, insert 2, no-op 8**. The update and the soft delete are the first on a real page. The insert count was 2 and not 1 because the model extracted 11 shows on run 2 after 10 on run 1 (it found Whiskey Wednesdays the second time), so reconcile inserted the deleted row and the newly found show; the harness then compared against label-based counts and reported the difference (fixed, see below).
+
+**Smoke test** (`ONLY=white_squirrel-2026-10-10`): 112.5 s, 1 attempt; missed Whiskey Wednesdays; validation recall 0 with 1 flagged: the pipeline left it out with an `excluded_no_acts` warning and passed the record.
+
+**Findings.**
+
+- **F1. Validation catches almost nothing the model gets wrong.** 0 of 24 errors caught, 2 flagged, 22 silent; 20 of 21 wrong-acts errors had no finding at all. This confirms the inference in the deployment plan (act-naming slips look plausible to every check), now measured. It also means the retry loop has never run on a real page.
+- **F2. All errors originate in the model; nothing downstream helps or hurts.** Raw = validated = committed on every page, reconcile and commit preserved every extraction, and the soft-delete window held on real pages in both sequence scenarios (nothing removed, nothing duplicated).
+- **F3. The Turf Club errors share one pattern: the first-billed act is dropped.** All six wrong-acts errors omit the act listed first (Fruition, The Suburbs twice, Tropical Depression, World's Forgotten Boys, The Melismatics) while the acts after "with" or "ft." are returned. Turf Club is a sibling of a site the prompt was tuned on, and 6 of its 17 shows were wrong. Mortimer's is a truncation (`Flange` for `Flange August Back to Back`); 7th St Entry added the event name `INTERNET KIDS` and a visual artist (`Wizard.Imma`, not a performer) and respelled `Evilsoundguy` as `Devilsoundguy`, which is not on the page.
+- **F4. A reverse title check is the obvious candidate for validation.** The existing `act_not_in_title` asks whether each returned act is in the title; nothing asks whether the title's text is explained by an act ("The Suburbs" is in the title and in no returned act). It would have false positives (tour and night names), so it may belong as a warning or a retry hint. That is a C7 question, and this harness can measure its precision and recall on the labelled pages before it ships. C6's larger splitter model (A2.1-E1) is the other candidate fix.
+- **F5. The model is not repeatable at temperature 0.** White Squirrel's October page produced 10, 11, 10, 10 and 11 shows across five extractions in this session (smoke, baseline, sequence, perturbed run 1, perturbed run 2); it found Whiskey Wednesdays in 2 of 5. A single run of a gated page can pass or fail by chance, which is why C6's gate uses five runs.
+- **F6. A warning cannot tell a right exclusion from a wrong one.** On the same White Squirrel page, `Open Jam` (correctly excluded) and `Whiskey Wednesdays` (wrongly excluded) carry identical `excluded_no_acts` warnings, and warnings never change the verdict. Whether a name-like title should trigger a retry is a C7 question.
+- **F7. Terminal Bar's layout remains the weak case** (a date line then one line per act): acts attached to the wrong date, one show split in two (the 2 invented), merged names, dropped acts. It is informational by Ari's decision (A2.1-D2) and the sequence scenario confirms it.
+- **F8. Timing:** about 30 minutes for the full baseline on the laptop (39 s per poster, 71 to 133 s for JSON-LD and small text pages, 340 to 447 s for Mortimer's, Turf Club and 7th St Entry). Cheaper than the 1.5 to 7 minutes per page assumed in the plan.
+
+**Label corrections found by the baseline.** Turf Club Nov 28 has `AlexFuller` (no space) where the page says `Alex Fuller`; it makes that show fail even once The Melismatics is found. 7th St Entry Oct 31: `Wizard.Imma` is correctly absent from the label (a visual artist), and `Devilsoundguy` is the model's invention. Neither changes a baseline number retroactively; the Turf Club typo should be fixed before the next run.
+
+**Harness defects found by using it** (each fixed, with a test, on this branch): `ensure_venue` created a metro without the `slug` C4 made required; the database score judged stored image links against an empty page (19 phantom errors); expected reconcile counts were computed from the label, so a model that read a page differently on run 2 produced "mismatches" that were the model's; the perturbation's stale row could land on a date where the model had left a listing out, where reconcile rightly removes nothing; `label_draft` hid repeated lines, which on a calendar are the titles and end times of later events (`--all`).
+
+**Not yet done.** The retry run (`make eval-graph LABEL=c5-baseline-retry THRESHOLD=0.99`, which provokes the retry loop on model-route and image pages only) is running as this round is written; its numbers go in a short Round 5. The `repeat` scenario and the field-accuracy block were not run or reviewed.
+
+**Done-when check (deployment plan, C5).** The harness reports precision and recall on shows found (yes), field-level accuracy (in the file, unreviewed), the retry rate (0; provoked run pending), validation recall (yes: 0 caught, 2 flagged, 22 silent) and the database rows left after two runs (yes: both sequence scenarios and the perturbed run), and the baseline is recorded (this round). Needs Ari's sign-off.
+
 ## Code review
 
 *(Written by `plan-reviewer`.)*

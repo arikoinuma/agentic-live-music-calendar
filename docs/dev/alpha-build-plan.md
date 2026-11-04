@@ -274,7 +274,7 @@ Plan and review: `docs/dev/implementations/a7-testing.md` (plan approved by Ari 
 
 The four items kept their `[fill-in]` marking.
 
-**Status (October 29, 2026):** C5's harness is built (`docs/dev/implementations/c5-pipeline-eval-harness.md`); its four `TODO(Ari)` gaps and the local baseline are open. C7 is unchanged.
+**Status (November 4, 2026):** C5 is built and its local baseline recorded (`docs/dev/implementations/c5-pipeline-eval-harness.md`, Implementation log Round 4); awaiting Ari's sign-off. C7 is unchanged.
 
 ---
 
