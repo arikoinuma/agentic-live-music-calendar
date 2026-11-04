@@ -98,14 +98,15 @@ def test_a_held_out_page_is_in_no_default_set(monkeypatch: pytest.MonkeyPatch) -
     with_held_out(monkeypatch)
     assert "held-out-page.html" not in labels.gated_fixtures()
     assert "held-out-page.html" not in labels.informational_fixtures()
-    assert labels.held_out_fixtures() == ["held-out-page.html"]
+    assert "held-out-page.html" in labels.held_out_fixtures()
 
 
-def test_no_page_is_held_out_until_ari_marks_one() -> None:
-    # Proves: C5-D3. The flag defaults to False, so every page labelled before C5 stays in its set; the default sets are
-    # unchanged by this milestone.
-    assert labels.held_out_fixtures() == []
-    assert not any(page.held_out for page in labels.PAGE_LABELS.values())
+def test_every_real_held_out_page_is_in_no_other_set() -> None:
+    # Proves: C5-D3 on the real labels. A page set aside for C6 must never appear in the gated or informational sets, which
+    # are what the baseline and every default run score; held-out pages are scored only with `--set held_out`. This replaced a
+    # test that checked nothing was held out yet, which stopped being true once pages were marked on purpose.
+    others = set(labels.gated_fixtures()) | set(labels.informational_fixtures())
+    assert not others & set(labels.held_out_fixtures())
 
 
 def test_every_captured_fixture_has_a_label() -> None:
@@ -121,7 +122,10 @@ def test_every_captured_fixture_has_a_label() -> None:
     assert sorted(set(fixtures) - set(labels.PAGE_LABELS)) == []
 
 
-UNLABELLED_ON_PURPOSE: set[str] = set()
+UNLABELLED_ON_PURPOSE: set[str] = {
+    "Calendar - The Midway Saloon.html",  # Midway: HTTP 403 bot challenge, not worked around (A2.1-D3)
+    # Add any other Midway capture here with the same reason (list them with the one-liner in the failure message).
+}
 
 
 def labels_fixtures_dir() -> Path:
