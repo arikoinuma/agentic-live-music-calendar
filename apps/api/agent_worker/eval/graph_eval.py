@@ -384,15 +384,21 @@ async def run_scenarios(
         )
         rows = await db_score.committed_extraction(factory, venue.id)
         # A scenario whose first run left nothing to build on is reported with its reason and has no database score (C5-CR1-2).
+        database: dict[str, Any] | None = (
+            None if result.not_run else db_score.score_database(scenario, first.label, second.label if second else None, rows)
+        )
         out.append({
             "pages": [first_name, *([second_name] if second_name else [])],
             "result": asdict(result),
-            "database_score": (
-                None if result.not_run else db_score.score_database(scenario, first.label, second.label if second else None, rows)
-            ),
+            "database_score": database,
         })
         note = f"NOT RUN: {result.not_run}" if result.not_run else f"differences {result.count_differences}"
         print(f"{scenario.value}: {first_name} {'-> ' + second_name if second_name else ''} | {note}")
+        if database is not None:
+            print(
+                f"  database vs expected: labelled {database['labelled']}, returned {database['returned']}, "
+                f"missed {database['missed']}, wrong acts {database['acts_wrong']}, invented {database['fabricated']}"
+            )
     return out
 
 

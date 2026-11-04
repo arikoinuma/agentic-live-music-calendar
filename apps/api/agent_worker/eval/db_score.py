@@ -292,4 +292,8 @@ def score_database(
         first, shows=tuple(expected_rows(scenario, first, second)),
         non_shows=first.non_shows + (second.non_shows if second is not None else ()),
     )
-    return asdict(scoring.score_page(expected, rows, "", f"database:{scenario.value}"))
+    # The database holds rows from several pages, so there is no single page to check an image link against, and scoring them
+    # against an empty page would call every stored link invented. Links are checked per run, on the page each came from
+    # (`PageRun.committed_score`); this score is about which shows and acts are left, so the links are set aside.
+    no_links = {**rows, "shows": [{**show, "image_url": None} for show in rows["shows"]]}
+    return asdict(scoring.score_page(expected, no_links, "", f"database:{scenario.value}"))

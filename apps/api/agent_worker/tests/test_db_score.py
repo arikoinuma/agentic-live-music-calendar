@@ -348,3 +348,43 @@ async def test_the_runner_skips_the_database_score_of_a_scenario_that_was_not_ru
     out = await graph_eval.run_scenarios(Scenario.PERTURBED, ["a.html"], factory=factory, policy=None)
     assert out[0]["database_score"] is None
     assert out[0]["result"]["not_run"] is not None
+
+
+# ---------------------------------------------------------------------------
+# Found in Ari's first baseline: the database score must not judge image links
+# ---------------------------------------------------------------------------
+
+
+def test_the_database_score_does_not_judge_image_links() -> None:
+    # Proves: a baseline bug. `score_database` handed the scorer an empty page, so every stored `image_url` looked invented
+    # ("is not on the page"): 19 phantom errors on White Squirrel's sequence, and a wrong-value tally that would fail any gate
+    # on the database score. The database holds rows from several pages, so there is no one page to check a link against; the
+    # check happens per run, on the page each link came from (`PageRun.committed_score`). Database scoring is about which shows
+    # and acts are left. Expected values: one labelled show, returned with an image link, scores no error.
+    label = labelled_page(D(2026, 10, 12), "2026-10-20")
+    rows = {"page_readable": True, "shows": [{
+        "date": "2026-10-20", "time": None, "end_time": None, "acts": [{"name": "Act 2026-10-20"}],
+        "admission_advance": None, "admission_day": None, "free_admission": None, "status": "scheduled",
+        "image_url": "https://example.test/poster.png",
+    }]}
+    result = db_score.score_database(Scenario.REPEAT, label, None, rows)
+    assert result["errors"] == []
+    assert result["fields"]["image_url"]["wrong"] == 0
+
+
+async def test_the_runner_prints_each_scenarios_database_score(
+    factory: async_sessionmaker[AsyncSession], tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Proves: the console shows what a scenario is for. After a scenario the runner prints the database score against what a
+    # perfect pipeline would leave (labelled, returned, missed, wrong acts, invented), because the aggregate lines at the end of
+    # a scenario run mix first and second runs and say nothing about the rows left. Expected: a repeat of a two-show page that
+    # the scripted model reads correctly prints 2 labelled, 2 returned and no errors.
+    from agent_worker.eval import graph_eval
+
+    page_a = page(tmp_path, "a", [("2026-10-20", "Nona"), ("2026-10-21", "Lent")], D(2026, 10, 12))
+    monkeypatch.setattr(graph_eval, "PAGE_LABELS", {"a.html": page_a.label})
+    monkeypatch.setattr(graph_eval.run_eval, "FIXTURES_DIR", tmp_path)
+    monkeypatch.setattr(graph_eval, "VENUE_FACTS", {"test_venue": LabelVenueFacts("The Test Venue", "https://example.test/calendar")})
+    monkeypatch.setattr(nodes, "instructor_client", scripted_client(script_for(page_a)))
+    await graph_eval.run_scenarios(Scenario.REPEAT, ["a.html"], factory=factory, policy=None)
+    assert "database vs expected: labelled 2, returned 2, missed 0, wrong acts 0, invented 0" in capsys.readouterr().out
