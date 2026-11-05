@@ -184,9 +184,9 @@ PAGE_LABELS: dict[str, PageLabel] = {
         venue="white_squirrel", gated=True, captured_on=OCTOBER_CAPTURE, shows=(
             S(D(2026, 10, 10), ("Catfish Troy & Friends", "Sammie Jean Cohen"), "Catfish Troy & Friends w. Sammie Jean Cohen / Saturday October 10 @ 1:00 pm - 4:00 pm", T(13, 0), T(16, 0),
               convention="'&' inside a name stays"),
-            S(D(2026, 10, 10), ("120 Minutes", "Big Trouble", "Catfish Blue"),
+            S(D(2026, 10, 10), ("Steve McPherson", "120 Minutes", "Big Trouble", "Catfish Blue"),
               "Steve McPherson’s 50th Birthday ft. 120 Minutes, Big Trouble, Catfish Blue / Saturday October 10 @ 5:00 pm - 8:00 pm", T(17, 0), T(20, 0),
-              convention="event name is not an act"),
+              convention="Ari decided (Nov 5): the honoree is an act. An artist's name can sit inside the event's name ('Birthday', 'Album Release', 'Holiday Bash'), so a name there is an act, unlike a series or night name. Before Nov 5 this was labelled without him (C6 log, round 5)"),
             S(D(2026, 10, 10), ("Joan of Profile", "Cassandra Johnson", "Eldest Daughter"), "Joan of Profile w. Cassandra Johnson, Eldest Daughter / Saturday October 10 @ 9:00 pm - 12:00 am", T(21, 0), T(0, 0)),
             S(D(2026, 10, 11), ("Nici Peper", "Sarah VanVolkenberg", "Doyle Turner", "AJ Schieber"),
               "Songwriter Showcase: Nici Peper, Sarah VanVolkenberg, Doyle Turner, AJ Schieber / Sunday October 11 @ 1:00 pm - 4:00 pm", T(13, 0), T(16, 0),
@@ -297,7 +297,8 @@ PAGE_LABELS: dict[str, PageLabel] = {
             S(D(2026, 10, 31), ("MARIS",), "MARIS"),
             S(D(2026, 10, 31), ("Daisy Hex", "bubucore69", "be3e", "Evilsoundguy"),
               "INTERNET KIDS Hyperpop Dance Party | Halloween: Night of the Living Core | featuring | Daisy Hex | • | bubucore69 | • | be3e | • | Evilsoundguy | • live visuals by | Visa_Card | • | Wizard.Imma | ★ Local Show ★",
-              convention="night's name is not an act; 'live visuals by' credits are not acts. Ari decided (Oct 10): Wizard.Imma is a visual artist too"),
+              convention="night's name is not an act; 'live visuals by' credits are not acts. Ari decided (Oct 10): Wizard.Imma is a visual artist too. Ari (Nov 5): counting every visual artist (Visa_Card and Wizard.Imma) as an act is acceptable, but all or none, never one",
+              alternatives=(("Daisy Hex", "bubucore69", "be3e", "Evilsoundguy", "Visa_Card", "Wizard.Imma"),)),
         ),
     ),
     # -------------------------------------------------------------------------------------

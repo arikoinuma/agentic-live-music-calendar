@@ -303,6 +303,24 @@ No code changed in this round. **Sequencing (Ari, October 30, 2026):** the full 
 
 **Reading it.** Hosting a larger model raises accuracy by about 12 points of recall and 15 of precision but does not pass the gate; what is left are stable, repeating act-split and missed-show errors, and validation catches none of them. That is the case for Part 2 (the splitter rungs), and for measuring `ACT_NOT_IN_TITLE` (C6-D6) on the extra acts (`Steve McPherson`, `Wizard.Imma`); whether the title text lacks them is not yet checked. Not done: thinking-off and `--concurrency` throughput (Step 11), the rungs (Step 9) and the held-out set (Step 8).
 
+### Round 5 — Step 1 of the diagnosis, two label decisions, and the first two splitter rungs, Claude Sonnet 5.5 (run for Ari), November 5, 2026
+
+**What was read.** The model's stored answers for every repeating gated error in `c6-hosted-first`, against `labels.py` and against the local run's errors (`c5-baseline`).
+
+**Ari's label decisions (November 5), applied in `labels.py`.** (1) *A name inside an event's name is an act when the event is about the artist* ("Birthday", "Album Release", "Holiday Bash"); the White Squirrel show "Steve McPherson's 50th Birthday ft. …" now has Steve McPherson as an act. Before this it was labelled without him, so my first reading ("no label errors") was wrong. (2) *"Live visuals by" credits: all or none.* The Seventh St show accepts the four performers or the four plus `Visa_Card` and `Wizard.Imma`, never one of the two. (3) *An empty act list is valid only when the page truly names no performer.* "The Dan's" and "Flange August Back to Back" name one, so an empty list there is an error. Other labels with the same pattern ("album-release name is not an act", "presenter and event name are not acts") were **not** reviewed and may carry the same mistake; for Ari. These edits change `labels_sha`, so runs scored before them (`c5-baseline`, `c6-hosted-*`) are not comparable with runs after, unless rescored; the saved hosted runs were rescored with `--rescore`. The local baseline has not been rescored.
+
+**What the errors are** (26B on every role, rescored): (a) empty act lists for a one-act title: `Flange August Back to Back` 5/5 runs, `Boss's Daughter (Reno)` 3/5, `The Dan's` 5/5; (b) the headliner dropped: `The Suburbs` on `turf_club` 4/5; (c) two events where the model's reading and the pre-decision label disagreed, fixed by the label decisions above. Validation excluded the empty-act shows (`excluded_no_acts`) but nothing re-asks the model; the wrong-act errors raised no finding at all.
+
+**Splitter rungs** (Step 9; `run_eval --set gated --runs 5 --splitter-model <id>`, page and status on `google/gemma-4-26B-A4B-it`, all rescored with the new labels; per-model runs are gitignored):
+
+| Splitter | Gate failures | Mean s/run | Repeating errors |
+|---|---|---|---|
+| `gemma-4-26B-A4B-it` (`c6-hosted-first`) | 14 | 24 | Flange 5/5, Boss's Daughter 3/5, The Dan's 5/5, Suburbs 4/5 (+ Tired Eyes 2/5) |
+| `gemma-4-31B-it` (`c6-split-gemma-4-31B-it`) | 15 | 50 | Flange 5/5, Wizard.Imma kept without Visa_Card 5/5, Steve McPherson dropped 5/5 |
+| `Qwen/Qwen3-235B-A22B-Instruct-2507` (`c6-split-qwen3-235b`) | 23 | 66 | Flange 5/5, Steve McPherson dropped 5/5, both visual credits plus the night's name kept 4/5, Cole Diamond's Whiskey Wednesdays missed 5/5, The Dan's 2/5, event names kept as acts on Turf Club |
+
+**Reading it.** (1) A larger splitter fixed `The Dan's`, `Boss's Daughter` and `turf_club` (31B) but is 2x slower and did not reduce the gate failures; Qwen was worse and 2.7x slower. (2) `Flange August Back to Back` is missed 5/5 under all three splitters, so it is not a splitter-capacity problem; where the empty list comes from (the page call or the splitter) was **not** checked. (3) The 31B and Qwen splitters drop Steve McPherson because the prompt's rule says an event name is not an act; the prompt now disagrees with Ari's decision. D3's exit rule (three splitter candidates fail with the same misses) is met by two of three and the same misses repeat, so a third rung is not justified yet. **Recommended next (for Ari):** pause the rungs; update the prompt's event-name rule and the "live visuals" rule to match the decisions; investigate `Flange August Back to Back` and the empty-act-list handling on the cheap 26B model (24 s/run), which is where a code or prompt change is cheapest to test; only then re-run a larger splitter. Not done: A2.1-E2 on the best candidate, Step 10 (`ACT_NOT_IN_TITLE`), Step 11, Steps 8/12.
+
 ## Code review
 
 ### Round 1 — Claude Opus 5.5, October 28, 2026
