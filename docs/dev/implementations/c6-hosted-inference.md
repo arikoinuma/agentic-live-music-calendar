@@ -321,6 +321,17 @@ No code changed in this round. **Sequencing (Ari, October 30, 2026):** the full 
 
 **Reading it.** (1) A larger splitter fixed `The Dan's`, `Boss's Daughter` and `turf_club` (31B) but is 2x slower and did not reduce the gate failures; Qwen was worse and 2.7x slower. (2) `Flange August Back to Back` is missed 5/5 under all three splitters, so it is not a splitter-capacity problem; where the empty list comes from (the page call or the splitter) was **not** checked. (3) The 31B and Qwen splitters drop Steve McPherson because the prompt's rule says an event name is not an act; the prompt now disagrees with Ari's decision. D3's exit rule (three splitter candidates fail with the same misses) is met by two of three and the same misses repeat, so a third rung is not justified yet. **Recommended next (for Ari):** pause the rungs; update the prompt's event-name rule and the "live visuals" rule to match the decisions; investigate `Flange August Back to Back` and the empty-act-list handling on the cheap 26B model (24 s/run), which is where a code or prompt change is cheapest to test; only then re-run a larger splitter. Not done: A2.1-E2 on the best candidate, Step 10 (`ACT_NOT_IN_TITLE`), Step 11, Steps 8/12.
 
+### Round 6 — prompt rules brought in line with Ari's label decisions, Claude Sonnet 5.5 (run for Ari), November 5, 2026
+
+Ari approved fixing the prompt and the Flange case on the 26B model before any further splitter rung.
+
+- **Where Flange's empty act list came from:** the splitter. Called directly on the 26B model, `Flange August Back to Back` returned no acts in 3 of 3 calls (it read the title as a night's name); `Steve McPherson's 50th Birthday ft …` returned all four names, so the earlier Steve McPherson drop belongs to the 31B and Qwen splitters, not the 26B.
+- **Change** (`prompts._act_conventions`, shared by both routes): two rules with invented examples. The person or band an event is named for is an act; a title with no other performers is one act's name, with no acts only when it is not a music show. Direct splitter check after the change: Flange gives the whole title in 3 of 3 calls; `Comedy Open Mic (Early)` and `Karaoke Night` still give no acts. Prompt and splitter tests pass (26).
+- **Gated set, 26B on every role, 5 runs (`c6-prompt-v2`):** gate FAIL with 8 failures, down from 14 on the same labels. JSON-LD gate passes; model-route gate fails. Mean seconds per run were not compared, since the Seventh St page ran 87 to 126 s per run during this session (it was 24 s mean before); that looks like load on the hosted endpoint, not the prompt, but it was not checked.
+- **What is left, two misses:**
+  - Seventh St Oct 31, 5 of 5: the model keeps `Wizard.Imma` and drops `Visa_Card` from the visual credits. Ari's rule is all or none; the prompt already says visual credits are not acts, and the model does not follow it for this listing.
+  - Mortimers Flange, 3 of 5 on the full-page route: the model returns `Flange`, which the label does not accept (`Flange August` and the full title are). Whether `Flange` should be accepted is Ari's call.
+
 ## Code review
 
 ### Round 1 — Claude Opus 5.5, October 28, 2026

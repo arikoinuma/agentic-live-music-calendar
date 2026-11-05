@@ -140,6 +140,15 @@ def _act_conventions() -> str:
         "- In 'X Album Release Show' (or 'X Album Release'), X is the artist releasing the "
         "album and is an act ('The Velvet Pines Album Release Show w/ Harbor Lights' is The "
         "Velvet Pines and Harbor Lights); a quoted album title is not an act.\n"
+        # C6-D2's follow-up (Ari, November 5, 2026): the person or band an event is named for IS an
+        # act, and a title with no other performer text is one act's name. The 26B splitter read
+        # "Flange August Back to Back" as a night's name and returned no acts, 5 runs of 5.
+        "- When an event is named for a person or band ('Mara Lind's 40th Birthday ft. The Moths', "
+        "'The Hollow Reeds Holiday Bash'), that person or band is an act, along with any "
+        "others listed.\n"
+        "- A title that lists no other performers is one act's name, even when a "
+        "word in it could be a night's name ('Paper Lanterns Winter Back to Back' is one act); "
+        "it has no acts only when it is not a music show.\n"
         "- 'X Presents:' names a promoter, not an act ('Northside Presents: The Gravel Kings' "
         "is The Gravel Kings).\n"
         "- A named DJ is an act; keep 'DJ' as part of the name ('DJ Nightjar').\n"
