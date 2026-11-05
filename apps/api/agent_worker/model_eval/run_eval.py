@@ -866,6 +866,8 @@ def main() -> None:
     jobs = [(item, run_index) for item in fixtures for run_index in range(args.runs)]
 
     def do_job(job: tuple[Any, int]) -> dict[str, Any]:
+        """One (page, run index) pair: run the extraction, print its progress line, and return the run's record.
+        `map_runs` calls it once per job, on a worker thread when `--concurrency` is above 1."""
         item, run_index = job
         record = run_once(item, run_index, options, config, args.legacy, roles=roles)
         record["model"] = options.model
