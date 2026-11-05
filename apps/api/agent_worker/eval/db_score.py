@@ -135,28 +135,41 @@ def _expected_counts(scenario: Scenario, first_run: dict[str, int]) -> dict[str,
     return None
 
 
+def _extracted_shows(run: PageRun) -> Any:
+    """What the model said the page lists, as the run recorded it (None when the model produced nothing)."""
+    return (run.raw or {}).get("shows")
+
+
 def _compare_counts(
-    scenario: Scenario, first_run: dict[str, int] | None, second_run: dict[str, int] | None,
+    scenario: Scenario, first: PageRun, second: PageRun,
 ) -> tuple[dict[str, int] | None, list[str], bool]:
     """`(expected counts, differences, whether the model changed its answer)` for a scenario's second run.
 
-    The model is not repeatable even at temperature 0 (White Squirrel's October page gave 10, 11, 10, 10 and 11 shows in five
-    extractions), so run 2 may be handed a different set of listings than run 1. Reconcile's counts then differ for a reason that
-    is the model's, and listing them as mismatches would read like reconcile faults. When the number of listings kept or skipped
-    changed, the one difference reported says so; the counts are compared only when the model read the page the same way twice."""
+    Reconcile is held to the counts below only when the model gave the same shows both times. If it did not, run 2's counts
+    differ for a reason that is the model's, and listing them as mismatches would read like reconcile faults, so the one
+    difference reported says the extraction changed.
+
+    "The model gave the same shows" is decided by comparing the two extractions' shows, NOT by counting them: a model that keeps
+    three shows but names one act differently has changed its answer, and reconcile rightly updates that show (Ari's review of
+    PR 78). Whether a model repeats itself is a measurement, not an assumption: the local model did not at temperature 0 (White
+    Squirrel's October page gave 10, 11, 10, 10 and 11 shows in five extractions); a hosted model is unmeasured, and a model that
+    does repeat is simply held to the counts every time."""
     if scenario not in (Scenario.REPEAT, Scenario.PERTURBED):
         return None, [], False
+    first_run, second_run = first.reconcile_counts, second.reconcile_counts
     if first_run is None or second_run is None:
         return None, ["a run reached no reconcile decision"], False
     expected = _expected_counts(scenario, first_run)
     assert expected is not None
-    if _kept(second_run) != first_run["insert"] or second_run["skip"] != first_run["skip"]:
-        return expected, [
-            (
+    if _extracted_shows(first) != _extracted_shows(second):
+        if _kept(second_run) != first_run["insert"] or second_run["skip"] != first_run["skip"]:
+            what = (
                 f"the model extracted {first_run['insert']} shows on run 1 and {_kept(second_run)} on run 2 "
-                f"(skipped {first_run['skip']} then {second_run['skip']}), so run 2's counts reflect a changed extraction, not reconcile"
+                f"(skipped {first_run['skip']} then {second_run['skip']})"
             )
-        ], True
+        else:
+            what = f"the model extracted {first_run['insert']} shows both times, but not the same ones (an act or a field differs)"
+        return expected, [f"{what}, so run 2's counts reflect a changed extraction, not reconcile"], True
     return expected, [f"{action}: expected {want}, got {second_run.get(action)}" for action, want in expected.items() if second_run.get(action) != want], False
 
 
@@ -198,7 +211,7 @@ async def run_scenario(
                     return ScenarioResult(scenario.value, runs, None, [], None, not_run=str(err))
             runs.append(await run(first))
 
-    expected, differences, model_changed = _compare_counts(scenario, runs[0].reconcile_counts, runs[1].reconcile_counts)
+    expected, differences, model_changed = _compare_counts(scenario, runs[0], runs[1])
     return ScenarioResult(scenario.value, runs, expected, differences, perturbation, model_changed=model_changed)
 
 

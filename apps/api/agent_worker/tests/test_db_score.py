@@ -419,7 +419,7 @@ async def test_a_model_that_misses_a_show_both_times_is_not_a_reconcile_differen
 async def test_a_model_that_changes_its_answer_between_runs_is_reported_as_that(
     factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Proves: the model is not repeatable even at temperature 0 (White Squirrel's October page gave 10, 11, 10, 10 and 11 shows in five
+    # Proves: the local model is not repeatable even at temperature 0 (White Squirrel's October page gave 10, 11, 10, 10 and 11 shows in five
     # extractions), so a scenario can see a different page reading on its second run. Run 1 leaves a show out and run 2 finds it:
     # 2 shows then 3. Reconcile then inserts the newly found show as well as the deleted row (insert 2), which is correct. The
     # harness must say the EXTRACTION changed, in one line, instead of listing count mismatches that look like reconcile faults.
@@ -443,3 +443,35 @@ async def test_a_repeat_whose_second_reading_differs_is_reported_as_a_changed_ex
     result = await db_score.run_scenario(Scenario.REPEAT, first=first, second=None, venue=venue, ctx=ctx, factory=factory)
     assert result.model_changed is True
     assert "2 shows on run 1 and 3 on run 2" in result.count_differences[0]
+
+
+# ---------------------------------------------------------------------------
+# Ari's review of PR 78: "the same number of listings does not mean the model repeated its extraction"
+# ---------------------------------------------------------------------------
+
+READ_ALL_RENAMED = split_answer(("Nona", ["Nona"]), ("Lent", ["Lent"]), ("Chicken Wire", ["Sunday Marching Band"]))  # same 3 shows, one act differs
+
+
+async def test_a_repeat_with_the_same_number_of_shows_but_a_different_act_is_still_a_changed_extraction(
+    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Proves: whether the model changed its answer is decided by comparing the two extractions' shows, not by counting them.
+    # Both readings find three shows, but the second names one act differently, so reconcile updates that show on run 2. Counting
+    # alone calls the model unchanged and reports "update: expected 0, got 1" as if reconcile were not idempotent; the harness must
+    # blame the extraction instead. Expected: model_changed, and one difference that says the shows differ.
+    first = page(tmp_path, "a", THREE_DAYS, D(2026, 10, 12))
+    monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [READ_ALL, READ_ALL_RENAMED]}))
+    result = await db_score.run_scenario(Scenario.REPEAT, first=first, second=None, venue=venue, ctx=ctx, factory=factory)
+    assert result.model_changed is True
+    assert len(result.count_differences) == 1 and "differ" in result.count_differences[0]
+
+
+async def test_an_identical_extraction_twice_is_held_to_reconcile_counts(
+    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Proves: the other side of the rule above. When the two extractions are identical (as a repeatable hosted model would give),
+    # nothing is excused: the run is held to reconcile's expected counts, and a clean repeat reports no differences.
+    first = page(tmp_path, "a", THREE_DAYS, D(2026, 10, 12))
+    monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [READ_ALL]}))
+    result = await db_score.run_scenario(Scenario.REPEAT, first=first, second=None, venue=venue, ctx=ctx, factory=factory)
+    assert result.model_changed is False and result.count_differences == []

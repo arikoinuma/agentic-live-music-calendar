@@ -796,6 +796,10 @@ A pure restructuring of the C5 files Ari found hard to read; no behaviour change
 
 **Departures from the plan:** none, apart from the new module names (the plan's Critical files list predates them). **`TODO(Ari)` gaps:** none open. **Verification:** as in the Resolution summary of code review round 2. **Where to look hardest:** (1) `graph_eval.rescore` now reads `graph_results.results_path(label)` directly, deliberately not `load_results`, so a rescore never falls back to a snapshot; (2) nothing runs `--rescore` against a real raw file in the cloud, so the byte comparison for that path is the one check left for the laptop (the rescore unit tests pass); (3) the patched module attributes (`graph_results.RESULTS_DIR`, `SNAPSHOT_DIR`) in tests.
 
+### Round 10 — Claude Sonnet 5.5, November 5, 2026 (Ari's review comment on `db_score.py`, PR 78)
+
+Ari's comment on `_compare_counts`: the "model changed its answer" rule makes assumptions. The local model did not repeat itself, which says nothing about a hosted one; and equal counts of kept and skipped listings do not mean the model repeated its extraction. Both points hold. Fixed in `db_score._compare_counts`: the model counts as unchanged only when the two runs' extracted `shows` are equal, so a changed act with the same number of shows is now reported as a changed extraction instead of as a reconcile fault (before: `update: expected 0, got 1`, `model_changed False`; test written first and seen failing). The message says which kind of change it was (different count, or same count but different content). Unrepeatability is now stated in the docstring as a measurement on the local model, and a model that does repeat is held to reconcile's counts every time (a second test). Stored baselines are not recomputed: their `model_changed` values were computed under the count rule, and `--rescore` does not recompute them. `make check` exit 0 after the change.
+
 ## Code review
 
 *(Written by `plan-reviewer`.)*
