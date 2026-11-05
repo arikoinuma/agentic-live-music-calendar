@@ -12,8 +12,8 @@ with a public calendar feed also gets its feed saved as `.ics` (informational: n
 A failed fetch or a page with almost no text is reported, never saved silently as if it were
 a listing.
 
-    uv run python -m agent_worker.eval.capture                 # every venue
-    uv run python -m agent_worker.eval.capture white_squirrel  # one venue
+    uv run python -m agent_worker.model_eval.capture                 # every venue
+    uv run python -m agent_worker.model_eval.capture white_squirrel  # one venue
 """
 
 import argparse
@@ -22,11 +22,11 @@ from pathlib import Path
 
 import httpx
 
-from agent_worker.eval.labels import VENUE_FACTS
 from agent_worker.extraction import clean_text
+from agent_worker.model_eval.labels import VENUE_FACTS
 from agent_worker.nodes import fetch_html, metro_today
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
+CAPTURED_PAGES_DIR = Path(__file__).parent / "captured_pages"
 # Fewer visible characters than this means the listings weren't in what was fetched (Zhora's
 # plain fetch had 314; a real calendar page has thousands). Reported, still saved, so the
 # evidence is kept.
@@ -41,13 +41,13 @@ def default_venues() -> list[str]:
 
 
 def capture(venue: str, today: datetime.date, force: bool = False) -> None:
-    """Fetch one venue's calendar (and feed, if any) and save it under FIXTURES_DIR. An existing
+    """Fetch one venue's calendar (and feed, if any) and save it under CAPTURED_PAGES_DIR. An existing
     fixture is never replaced unless `force`: a label describes that exact page, and
     re-capturing means re-labelling (A2.1-CR1-10)."""
     facts = VENUE_FACTS[venue]
     targets = [(facts.url, "html")] + ([(facts.feed_url, "ics")] if facts.feed_url else [])
     for url, suffix in targets:
-        path = FIXTURES_DIR / f"{venue}-{today.isoformat()}.{suffix}"
+        path = CAPTURED_PAGES_DIR / f"{venue}-{today.isoformat()}.{suffix}"
         if path.exists() and not force:
             print(f"{venue}: kept existing {path.name} (pass --force to replace it, then re-label)")
             continue

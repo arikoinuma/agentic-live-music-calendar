@@ -162,7 +162,9 @@ def _venue_detail(venue: Venue) -> VenueDetail:
     """A venue's page. Needs `metro` loaded. NULL arrays and metadata become the empty values the model defaults to."""
     return VenueDetail(
         id=venue.id,
-        metro=MetroSummary(id=venue.metro.id, name=venue.metro.name, timezone=venue.metro.timezone),
+        metro=MetroSummary(
+            id=venue.metro.id, name=venue.metro.name, timezone=venue.metro.timezone, slug=venue.metro.slug
+        ),
         name=venue.name,
         calendar_url=venue.calendar_url,
         photo_url=venue.photo_url,

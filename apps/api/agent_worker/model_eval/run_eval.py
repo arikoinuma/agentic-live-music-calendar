@@ -14,12 +14,12 @@ the pipeline that's actually in question at this phase.
 A2 extended it from "print what came back" into a measurement harness
 (docs/dev/implementations/a2-extraction-schema.md, Step 1): run every fixture
 `--runs N` times under a `--label`, record per-run outcomes, retries by field, latency,
-and what was filled in, and write `eval/results/<label>.json` (git-ignored). Scoring
+and what was filled in, and write `model_eval/results/<label>.json` (git-ignored). Scoring
 facts that need a human — which entries are non-music, which pages state an end time —
 live in `reference.py`, written before the baseline so every label is scored the same way.
 
-    uv run python -m agent_worker.eval.run_eval --label baseline --runs 3
-    uv run python -m agent_worker.eval.run_eval --compare baseline schema-only after
+    uv run python -m agent_worker.model_eval.run_eval --label baseline --runs 3
+    uv run python -m agent_worker.model_eval.run_eval --compare baseline schema-only after
 
 A2.1 (docs/dev/implementations/a2.1-extraction-reliability.md) made it measure Ari's accuracy
 standard: fixtures come from `labels.PAGE_LABELS` (`--set gated|informational|all`), every run
@@ -29,9 +29,9 @@ run meet every tier?) is recorded and compared. Extraction goes through the pipe
 experiment flag overrides exactly one setting (`configure`). `--rescore` writes a new
 `a21-rescore-<label>.json` and leaves the original untouched.
 
-    uv run python -m agent_worker.eval.run_eval --label a21-rebaseline --set all --runs 5
-    uv run python -m agent_worker.eval.run_eval --label a21-newlines --set all --line-breaks
-    uv run python -m agent_worker.eval.run_eval --rescore after
+    uv run python -m agent_worker.model_eval.run_eval --label a21-rebaseline --set all --runs 5
+    uv run python -m agent_worker.model_eval.run_eval --label a21-newlines --set all --line-breaks
+    uv run python -m agent_worker.model_eval.run_eval --rescore after
 """
 
 import argparse
@@ -51,20 +51,21 @@ import httpx
 from pydantic import ValidationError
 
 from agent_worker import act_split, extraction, status_check, validation
-from agent_worker.eval import labels, scoring
-from agent_worker.eval import legacy as legacy_config
-from agent_worker.eval.labels import (
+from agent_worker.llm import ModelRoles, RequestOptions, build_clients, request_kwargs
+from agent_worker.main import model_endpoint_problem
+from agent_worker.model_eval import labels, scoring
+from agent_worker.model_eval import legacy as legacy_config
+from agent_worker.model_eval.labels import (
     PAGE_LABELS,
     VENUE_FACTS,
     gated_fixtures,
+    held_out_fixtures,
     informational_fixtures,
 )
-from agent_worker.eval.reference import REFERENCE, FixtureReference, fixture_key
-from agent_worker.llm import ModelRoles, RequestOptions, build_clients, request_kwargs
-from agent_worker.main import model_endpoint_problem
+from agent_worker.model_eval.reference import REFERENCE, FixtureReference, fixture_key
 from app.config import settings
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
+CAPTURED_PAGES_DIR = Path(__file__).parent / "captured_pages"
 RESULTS_DIR = Path(__file__).parent / "results"
 OLLAMA_URL = "http://localhost:11434"
 
@@ -191,7 +192,7 @@ def extract(
     """Extract one fixture, exactly as the pipeline would (A2.1: through `extract_page` /
     `extract_image`, with this module's hooked client so parse failures are counted).
 
-    `legacy` swaps in the frozen pre-A2 schema and prompt (eval/legacy.py) so A2's `baseline`
+    `legacy` swaps in the frozen pre-A2 schema and prompt (model_eval/legacy.py) so A2's `baseline`
     label stays re-runnable; it bypasses the A2.1 entry point on purpose.
     """
     is_image = fixture_path.suffix in (".jpg", ".jpeg", ".png", ".webp")
@@ -210,7 +211,7 @@ def extract(
             messages=[{"role": "user", "content": content}],
             **request_kwargs(options, seed),
         )
-        # The frozen pre-A2 schema is deliberately a different class from the live one (eval/legacy.py), so it does
+        # The frozen pre-A2 schema is deliberately a different class from the live one (model_eval/legacy.py), so it does
         # not fit the result's type; this path bypasses the A2.1 entry point on purpose (see the docstring).
         return extraction.PageExtractionResult(extraction=result, source="model", sent_text="")  # type: ignore[arg-type]
 
@@ -647,7 +648,7 @@ def rescore(label: str) -> None:
     for run in data["runs"]:
         if run["outcome"] != "ok":
             continue
-        fixture = FIXTURES_DIR / run["fixture"]
+        fixture = CAPTURED_PAGES_DIR / run["fixture"]
         is_image = fixture.suffix in (".jpg", ".jpeg", ".png", ".webp")
         page_text = "" if is_image else load_text_fixture(fixture)
         ref = REFERENCE.get(run["key"], FixtureReference())
@@ -729,15 +730,16 @@ def compare(labels: list[str]) -> None:
 def select_fixtures(which: str, only: str | None) -> list[Path]:
     """The fixtures a label runs: drawn only from `labels.PAGE_LABELS` (so an unlabelled file,
     such as the Uptown Art House .ics feed with no reader yet, is never run as a page — A2.1-PR2-10), filtered by set and by `--only`, and present on disk (fixtures are git-ignored)."""
+    # `held_out` (C5-D3) is its own set: "all" does not include it, so a run that scores everything else never sees those pages.
     names = {"gated": gated_fixtures(), "informational": informational_fixtures(),
-             "all": gated_fixtures() + informational_fixtures()}[which]
+             "all": gated_fixtures() + informational_fixtures(), "held_out": held_out_fixtures()}[which]
     chosen = []
     for name in sorted(names):
-        path = FIXTURES_DIR / name
+        path = CAPTURED_PAGES_DIR / name
         if only and only not in name:
             continue
         if not path.is_file():
-            print(f"skipping {name}: not in {FIXTURES_DIR} (fixtures are git-ignored; see eval/capture.py)")
+            print(f"skipping {name}: not in {CAPTURED_PAGES_DIR} (fixtures are git-ignored; see model_eval/capture.py)")
             continue
         chosen.append(path)
     return chosen
@@ -747,12 +749,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--label", help="name for this run set; results go to results/<label>.json")
     parser.add_argument("--runs", type=int, default=5, help="runs per fixture (default 5, seeds 0..n-1; A2.1 D1)")
-    parser.add_argument("--set", choices=["gated", "informational", "all"], default="all",
+    parser.add_argument("--set", choices=["gated", "informational", "all", "held_out"], default="all",
                         help="which labelled fixtures to run (labels.py; D2)")
     parser.add_argument("--only", help="only fixtures whose file name contains this text")
     parser.add_argument(
         "--legacy", action="store_true",
-        help="use the frozen pre-A2 schema and prompt (eval/legacy.py): the baseline label",
+        help="use the frozen pre-A2 schema and prompt (model_eval/legacy.py): the baseline label",
     )
     add_override_flags(parser)
     parser.add_argument("--compare", nargs="+", metavar="LABEL", help="print saved labels side by side")

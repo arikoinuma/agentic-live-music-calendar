@@ -1,0 +1,5322 @@
+{
+  "label": "c5-baseline-retry",
+  "started_at": "2026-11-04T23:31:10+00:00",
+  "set": "all",
+  "scenario": null,
+  "labels_sha": "68539c301c123c7ab65cf83bdf8a27928d567bd79d0f4e42261d40c91b2ce164",
+  "held_out_scored": false,
+  "harness_commit": "f1bc118189c78edefeabde1f068a2a5f2e8295a6",
+  "config": {
+    "route": "auto",
+    "keep_line_breaks": true,
+    "include_new_rules": true,
+    "status_field": false,
+    "year_rule": true,
+    "act_conventions": true,
+    "acts_split_description": false,
+    "status_pass": true,
+    "title_split": true,
+    "keep_image_urls": false,
+    "retry_hint": "",
+    "splitter_hint": ""
+  },
+  "request_options": {
+    "model": "gemma4-e4b-32k",
+    "temperature": 0.0,
+    "max_tokens": 16000,
+    "max_retries": 1,
+    "num_ctx": 32768
+  },
+  "policy": {
+    "confidence_threshold": 0.99,
+    "max_attempts": 3,
+    "escalation_model": null
+  },
+  "provenance": {
+    "gemma4-e4b-32k": {
+      "ollama_version": "0.40.6",
+      "model_digest": "654af1bf75f4ac7c6b38f94cf7f2edbf29991a2d9227f6c10927fb236598fb2d",
+      "loaded_context_length": 32768,
+      "requested_num_ctx": 32768
+    }
+  },
+  "aggregate": {
+    "runs": 10,
+    "columns": {
+      "raw": {
+        "labelled": 120,
+        "returned": 122,
+        "dropped_empty": 15,
+        "missed": 2,
+        "acts_wrong": 19,
+        "fabricated": 4,
+        "leaks": 0,
+        "found": 99,
+        "rates": {
+          "found": 99,
+          "labelled": 120,
+          "returned": 122,
+          "recall": 0.825,
+          "precision": 0.8114754098360656,
+          "precision_lenient": 0.8114754098360656
+        },
+        "fields": {
+          "time": {
+            "stated": 47,
+            "correct": 47,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": 0.0
+          },
+          "end_time": {
+            "stated": 22,
+            "correct": 22,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": 0.0
+          },
+          "admission_advance": {
+            "stated": 23,
+            "correct": 23,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": 0.0
+          },
+          "admission_day": {
+            "stated": 2,
+            "correct": 2,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": 0.0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          },
+          "status": {
+            "stated": 118,
+            "correct": 118,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": 0.0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 42,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          }
+        }
+      },
+      "validated": {
+        "labelled": 120,
+        "returned": 100,
+        "dropped_empty": 0,
+        "missed": 20,
+        "acts_wrong": 11,
+        "fabricated": 0,
+        "leaks": 0,
+        "found": 89,
+        "rates": {
+          "found": 89,
+          "labelled": 120,
+          "returned": 100,
+          "recall": 0.7416666666666667,
+          "precision": 0.89,
+          "precision_lenient": 0.89
+        },
+        "fields": {
+          "time": {
+            "stated": 46,
+            "correct": 46,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": 0.0
+          },
+          "end_time": {
+            "stated": 22,
+            "correct": 22,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": 0.0
+          },
+          "admission_advance": {
+            "stated": 23,
+            "correct": 23,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": 0.0
+          },
+          "admission_day": {
+            "stated": 1,
+            "correct": 1,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": 0.0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          },
+          "status": {
+            "stated": 100,
+            "correct": 100,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": 0.0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 42,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          }
+        }
+      },
+      "committed": {
+        "labelled": 117,
+        "returned": 97,
+        "dropped_empty": 0,
+        "missed": 20,
+        "acts_wrong": 11,
+        "fabricated": 0,
+        "leaks": 0,
+        "found": 86,
+        "rates": {
+          "found": 86,
+          "labelled": 117,
+          "returned": 97,
+          "recall": 0.7350427350427351,
+          "precision": 0.8865979381443299,
+          "precision_lenient": 0.8865979381443299
+        },
+        "fields": {
+          "time": {
+            "stated": 46,
+            "correct": 46,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": 0.0
+          },
+          "end_time": {
+            "stated": 22,
+            "correct": 22,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": 0.0
+          },
+          "admission_advance": {
+            "stated": 23,
+            "correct": 23,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": 0.0
+          },
+          "admission_day": {
+            "stated": 1,
+            "correct": 1,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": 0.0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          },
+          "status": {
+            "stated": 97,
+            "correct": 97,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": 0.0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 42,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          }
+        }
+      }
+    },
+    "gate": {
+      "raw": {
+        "passed": false,
+        "failures": [
+          "run 0: mortimers-2026-10-10.html: 2 acts_wrong",
+          "run 0: seventh_st_entry-2026-10-10.html: 1 acts_wrong",
+          "run 0: turf_club-2026-11-04.html: 3 acts_wrong",
+          "run 0: white_squirrel-2026-10-10.html: 1 missed"
+        ],
+        "pages": 5
+      },
+      "validated": {
+        "passed": false,
+        "failures": [
+          "run 0: mortimers-2026-10-10.html: 2 acts_wrong",
+          "run 0: seventh_st_entry-2026-10-10.html: 1 acts_wrong",
+          "run 0: turf_club-2026-11-04.html: 3 acts_wrong",
+          "run 0: white_squirrel-2026-10-10.html: 1 missed"
+        ],
+        "pages": 5
+      },
+      "committed": {
+        "passed": false,
+        "failures": [
+          "run 0: mortimers-2026-10-10.html: 2 acts_wrong",
+          "run 0: seventh_st_entry-2026-10-10.html: 1 acts_wrong",
+          "run 0: turf_club-2026-11-04.html: 3 acts_wrong",
+          "run 0: white_squirrel-2026-10-10.html: 1 missed"
+        ],
+        "pages": 5
+      }
+    },
+    "retry": {
+      "runs": 10,
+      "retried": 5,
+      "retry_rate": 0.5,
+      "mean_attempts": 2.0,
+      "escalated": 3,
+      "recovered": 2,
+      "attempts_by_tier": {
+        "initial": 10,
+        "narrowed": 5,
+        "larger_model": 5
+      },
+      "reasons": {
+        "low_confidence": 13
+      },
+      "errors_first_attempt": 18,
+      "errors_final_attempt": 18
+    },
+    "validation": {
+      "total": 57,
+      "caught": 0,
+      "flagged": 6,
+      "silent": 51,
+      "recall": 0.0,
+      "by_kind": {
+        "acts_wrong": {
+          "caught": 0,
+          "flagged": 1,
+          "silent": 44
+        },
+        "missed": {
+          "caught": 0,
+          "flagged": 5,
+          "silent": 0
+        },
+        "fabricated": {
+          "caught": 0,
+          "flagged": 0,
+          "silent": 7
+        }
+      },
+      "findings_fired": {
+        "excluded_no_acts": 41,
+        "act_not_in_title": 1
+      },
+      "findings_disagree": 0,
+      "route_mismatches": 0
+    },
+    "per_fixture": {
+      "Archives_ Events - The White Squirrel Bar.html": {
+        "runs": 1,
+        "seconds": [
+          95.3
+        ],
+        "runs_identical": null
+      },
+      "Events — Zhora Darling.html": {
+        "runs": 1,
+        "seconds": [
+          148.2
+        ],
+        "runs_identical": null
+      },
+      "Terminal Bar – The Terminal Bar.html": {
+        "runs": 1,
+        "seconds": [
+          424.7
+        ],
+        "runs_identical": null
+      },
+      "mortimers-2026-10-10.html": {
+        "runs": 1,
+        "seconds": [
+          741.0
+        ],
+        "runs_identical": null
+      },
+      "seventh_st_entry-2026-10-10.html": {
+        "runs": 1,
+        "seconds": [
+          450.5
+        ],
+        "runs_identical": null
+      },
+      "terminal-2026-10-10.html": {
+        "runs": 1,
+        "seconds": [
+          537.6
+        ],
+        "runs_identical": null
+      },
+      "terminal_bar_show_1.png": {
+        "runs": 1,
+        "seconds": [
+          41.3
+        ],
+        "runs_identical": null
+      },
+      "terminal_bar_show_2.webp": {
+        "runs": 1,
+        "seconds": [
+          115.1
+        ],
+        "runs_identical": null
+      },
+      "turf_club-2026-11-04.html": {
+        "runs": 1,
+        "seconds": [
+          985.0
+        ],
+        "runs_identical": null
+      },
+      "white_squirrel-2026-10-10.html": {
+        "runs": 1,
+        "seconds": [
+          83.0
+        ],
+        "runs_identical": null
+      }
+    },
+    "cost": {
+      "mean_seconds": 362.2,
+      "mean_seconds_by_route": {
+        "jsonld": 108.8,
+        "model": 627.8,
+        "image": 78.2
+      }
+    }
+  },
+  "request": {
+    "instruction_sha": "1c13629a64",
+    "response_schema_chars": 3335,
+    "response_schema_sha": "186eb8c3e9"
+  },
+  "runs": [
+    {
+      "fixture": "Archives_ Events - The White Squirrel Bar.html",
+      "venue_id": 1,
+      "run_id": 1,
+      "seconds": 95.3,
+      "source": "jsonld",
+      "attempt_count": 1,
+      "retried": false,
+      "recovered": false,
+      "escalated": false,
+      "escalation_reason": null,
+      "final_verdict": "passed",
+      "policy": {
+        "confidence_threshold": 0.99,
+        "max_attempts": 3,
+        "escalation_model": null
+      },
+      "reconcile_counts": {
+        "insert": 12,
+        "update": 0,
+        "no_op": 0,
+        "remove": 0,
+        "skip": 0
+      },
+      "commit_written": {
+        "inserted": 12,
+        "updated": 0,
+        "removed": 0
+      },
+      "raw_score": {
+        "fixture": "Archives_ Events - The White Squirrel Bar.html",
+        "route": "model",
+        "labelled": 12,
+        "returned": 12,
+        "dropped_empty": 0,
+        "missed": 0,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 1,
+        "fields": {
+          "time": {
+            "stated": 12,
+            "correct": 12,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 12,
+            "correct": 12,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 12,
+            "correct": 12,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 10,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [],
+        "items": []
+      },
+      "validated_score": {
+        "fixture": "Archives_ Events - The White Squirrel Bar.html",
+        "route": "model",
+        "labelled": 12,
+        "returned": 12,
+        "dropped_empty": 0,
+        "missed": 0,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 1,
+        "fields": {
+          "time": {
+            "stated": 12,
+            "correct": 12,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 12,
+            "correct": 12,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 12,
+            "correct": 12,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 10,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [],
+        "items": []
+      },
+      "committed_score": {
+        "fixture": "Archives_ Events - The White Squirrel Bar.html",
+        "route": "model",
+        "labelled": 12,
+        "returned": 12,
+        "dropped_empty": 0,
+        "missed": 0,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 1,
+        "fields": {
+          "time": {
+            "stated": 12,
+            "correct": 12,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 12,
+            "correct": 12,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 12,
+            "correct": 12,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 10,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [],
+        "items": []
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "tier": "initial",
+          "route": "jsonld",
+          "model": "gemma4-e4b-32k",
+          "larger_model_used": false,
+          "error": null,
+          "verdict": "passed",
+          "reasons": [],
+          "score": {
+            "fixture": "Archives_ Events - The White Squirrel Bar.html",
+            "route": "model",
+            "labelled": 12,
+            "returned": 12,
+            "dropped_empty": 0,
+            "missed": 0,
+            "acts_wrong": 0,
+            "fabricated": 0,
+            "leaks": 0,
+            "unsplit": 0,
+            "order_differs": 1,
+            "fields": {
+              "time": {
+                "stated": 12,
+                "correct": 12,
+                "missing": 0,
+                "wrong": 0
+              },
+              "end_time": {
+                "stated": 12,
+                "correct": 12,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_advance": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_day": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "free_admission": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "status": {
+                "stated": 12,
+                "correct": 12,
+                "missing": 0,
+                "wrong": 0
+              },
+              "image_url": {
+                "stated": 0,
+                "correct": 10,
+                "missing": 0,
+                "wrong": 0
+              }
+            },
+            "errors": [],
+            "items": []
+          },
+          "errors": [],
+          "warnings": [],
+          "recorded_errors": []
+        }
+      ],
+      "route_mismatch": false,
+      "run": 0
+    },
+    {
+      "fixture": "Events — Zhora Darling.html",
+      "venue_id": 2,
+      "run_id": 1,
+      "seconds": 148.2,
+      "source": "jsonld",
+      "attempt_count": 1,
+      "retried": false,
+      "recovered": false,
+      "escalated": false,
+      "escalation_reason": null,
+      "final_verdict": "passed",
+      "policy": {
+        "confidence_threshold": 0.99,
+        "max_attempts": 3,
+        "escalation_model": null
+      },
+      "reconcile_counts": {
+        "insert": 23,
+        "update": 0,
+        "no_op": 0,
+        "remove": 0,
+        "skip": 0
+      },
+      "commit_written": {
+        "inserted": 23,
+        "updated": 0,
+        "removed": 0
+      },
+      "raw_score": {
+        "fixture": "Events — Zhora Darling.html",
+        "route": "model",
+        "labelled": 23,
+        "returned": 23,
+        "dropped_empty": 1,
+        "missed": 0,
+        "acts_wrong": 4,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 23,
+            "correct": 23,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 23,
+            "correct": 23,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 23,
+            "correct": 23,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 23,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "acts wrong 2026-09-10: ['Parlour Magic (NYC)', 'Observant', 'Drey DK'] vs ['Parlour Magic', 'Observant', 'Drey DK']",
+          "acts wrong 2026-09-11: ['The Motion Mosaic', 'Wanderer', 'The Central (WI)', 'Andthecanaryfell', 'RIME'] vs ['The Motion Mosaic', 'Wanderer', 'The Central', 'Andthecanaryfell', 'RIME']",
+          "acts wrong 2026-09-18: ['VOID (LA)', 'PHANTOM (MX)'] vs ['VOID', 'PHANTOM']",
+          "acts wrong 2026-09-19: ['Syncline', 'Scorched Waves (WI)', 'Toadstool'] vs ['Syncline', 'Scorched Waves', 'Toadstool']"
+        ],
+        "items": [
+          {
+            "kind": "acts_wrong",
+            "date": "2026-09-10",
+            "index": 13,
+            "field": null
+          },
+          {
+            "kind": "acts_wrong",
+            "date": "2026-09-11",
+            "index": 14,
+            "field": null
+          },
+          {
+            "kind": "acts_wrong",
+            "date": "2026-09-18",
+            "index": 17,
+            "field": null
+          },
+          {
+            "kind": "acts_wrong",
+            "date": "2026-09-19",
+            "index": 18,
+            "field": null
+          }
+        ]
+      },
+      "validated_score": {
+        "fixture": "Events — Zhora Darling.html",
+        "route": "model",
+        "labelled": 23,
+        "returned": 23,
+        "dropped_empty": 0,
+        "missed": 0,
+        "acts_wrong": 4,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 23,
+            "correct": 23,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 23,
+            "correct": 23,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 23,
+            "correct": 23,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 23,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "acts wrong 2026-09-10: ['Parlour Magic (NYC)', 'Observant', 'Drey DK'] vs ['Parlour Magic', 'Observant', 'Drey DK']",
+          "acts wrong 2026-09-11: ['The Motion Mosaic', 'Wanderer', 'The Central (WI)', 'Andthecanaryfell', 'RIME'] vs ['The Motion Mosaic', 'Wanderer', 'The Central', 'Andthecanaryfell', 'RIME']",
+          "acts wrong 2026-09-18: ['VOID (LA)', 'PHANTOM (MX)'] vs ['VOID', 'PHANTOM']",
+          "acts wrong 2026-09-19: ['Syncline', 'Scorched Waves (WI)', 'Toadstool'] vs ['Syncline', 'Scorched Waves', 'Toadstool']"
+        ],
+        "items": [
+          {
+            "kind": "acts_wrong",
+            "date": "2026-09-10",
+            "index": 12,
+            "field": null
+          },
+          {
+            "kind": "acts_wrong",
+            "date": "2026-09-11",
+            "index": 13,
+            "field": null
+          },
+          {
+            "kind": "acts_wrong",
+            "date": "2026-09-18",
+            "index": 16,
+            "field": null
+          },
+          {
+            "kind": "acts_wrong",
+            "date": "2026-09-19",
+            "index": 17,
+            "field": null
+          }
+        ]
+      },
+      "committed_score": {
+        "fixture": "Events — Zhora Darling.html",
+        "route": "model",
+        "labelled": 23,
+        "returned": 23,
+        "dropped_empty": 0,
+        "missed": 0,
+        "acts_wrong": 4,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 23,
+            "correct": 23,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 23,
+            "correct": 23,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 23,
+            "correct": 23,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 23,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "acts wrong 2026-09-10: ['Parlour Magic (NYC)', 'Observant', 'Drey DK'] vs ['Parlour Magic', 'Observant', 'Drey DK']",
+          "acts wrong 2026-09-11: ['The Motion Mosaic', 'Wanderer', 'The Central (WI)', 'Andthecanaryfell', 'RIME'] vs ['The Motion Mosaic', 'Wanderer', 'The Central', 'Andthecanaryfell', 'RIME']",
+          "acts wrong 2026-09-18: ['VOID (LA)', 'PHANTOM (MX)'] vs ['VOID', 'PHANTOM']",
+          "acts wrong 2026-09-19: ['Syncline', 'Scorched Waves (WI)', 'Toadstool'] vs ['Syncline', 'Scorched Waves', 'Toadstool']"
+        ],
+        "items": [
+          {
+            "kind": "acts_wrong",
+            "date": "2026-09-10",
+            "index": 12,
+            "field": null
+          },
+          {
+            "kind": "acts_wrong",
+            "date": "2026-09-11",
+            "index": 13,
+            "field": null
+          },
+          {
+            "kind": "acts_wrong",
+            "date": "2026-09-18",
+            "index": 16,
+            "field": null
+          },
+          {
+            "kind": "acts_wrong",
+            "date": "2026-09-19",
+            "index": 17,
+            "field": null
+          }
+        ]
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "tier": "initial",
+          "route": "jsonld",
+          "model": "gemma4-e4b-32k",
+          "larger_model_used": false,
+          "error": null,
+          "verdict": "passed",
+          "reasons": [],
+          "score": {
+            "fixture": "Events — Zhora Darling.html",
+            "route": "model",
+            "labelled": 23,
+            "returned": 23,
+            "dropped_empty": 1,
+            "missed": 0,
+            "acts_wrong": 4,
+            "fabricated": 0,
+            "leaks": 0,
+            "unsplit": 0,
+            "order_differs": 0,
+            "fields": {
+              "time": {
+                "stated": 23,
+                "correct": 23,
+                "missing": 0,
+                "wrong": 0
+              },
+              "end_time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_advance": {
+                "stated": 23,
+                "correct": 23,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_day": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "free_admission": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "status": {
+                "stated": 23,
+                "correct": 23,
+                "missing": 0,
+                "wrong": 0
+              },
+              "image_url": {
+                "stated": 0,
+                "correct": 23,
+                "missing": 0,
+                "wrong": 0
+              }
+            },
+            "errors": [
+              "acts wrong 2026-09-10: ['Parlour Magic (NYC)', 'Observant', 'Drey DK'] vs ['Parlour Magic', 'Observant', 'Drey DK']",
+              "acts wrong 2026-09-11: ['The Motion Mosaic', 'Wanderer', 'The Central (WI)', 'Andthecanaryfell', 'RIME'] vs ['The Motion Mosaic', 'Wanderer', 'The Central', 'Andthecanaryfell', 'RIME']",
+              "acts wrong 2026-09-18: ['VOID (LA)', 'PHANTOM (MX)'] vs ['VOID', 'PHANTOM']",
+              "acts wrong 2026-09-19: ['Syncline', 'Scorched Waves (WI)', 'Toadstool'] vs ['Syncline', 'Scorched Waves', 'Toadstool']"
+            ],
+            "items": [
+              {
+                "kind": "acts_wrong",
+                "date": "2026-09-10",
+                "index": 13,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-09-11",
+                "index": 14,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-09-18",
+                "index": 17,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-09-19",
+                "index": 18,
+                "field": null
+              }
+            ]
+          },
+          "errors": [],
+          "warnings": [
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 8 '4th Annual SummerSlam of Tribute Bands' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 8
+            }
+          ],
+          "recorded_errors": []
+        }
+      ],
+      "route_mismatch": false,
+      "run": 0
+    },
+    {
+      "fixture": "Terminal Bar – The Terminal Bar.html",
+      "venue_id": 3,
+      "run_id": 1,
+      "seconds": 424.7,
+      "source": "model",
+      "attempt_count": 3,
+      "retried": true,
+      "recovered": false,
+      "escalated": true,
+      "escalation_reason": "validation failed after 3 attempt(s); reasons: low_confidence",
+      "final_verdict": "failed",
+      "policy": {
+        "confidence_threshold": 0.99,
+        "max_attempts": 3,
+        "escalation_model": null
+      },
+      "reconcile_counts": null,
+      "commit_written": null,
+      "raw_score": {
+        "fixture": "Terminal Bar – The Terminal Bar.html",
+        "route": "model",
+        "labelled": 8,
+        "returned": 7,
+        "dropped_empty": 1,
+        "missed": 1,
+        "acts_wrong": 3,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 7,
+            "correct": 7,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "missed 2026-08-15 'Saturday August 15th / Xmas on Neptune'",
+          "acts wrong 2026-08-14: ['Sigtones', 'Muffleur'] vs ['Sigtones', 'Muffleur', 'Dirty 930']",
+          "acts wrong 2026-08-28: ['Man Down'] vs ['Man Down', 'Justin Payne', 'Larrkins']",
+          "acts wrong 2026-08-29: ['Justin Payne', 'Larrkins'] vs ['Fighting the Urge', 'Scarlett Tangerines']"
+        ],
+        "items": [
+          {
+            "kind": "missed",
+            "date": "2026-08-15",
+            "index": 3,
+            "field": null
+          },
+          {
+            "kind": "acts_wrong",
+            "date": "2026-08-14",
+            "index": 2,
+            "field": null
+          },
+          {
+            "kind": "acts_wrong",
+            "date": "2026-08-28",
+            "index": 6,
+            "field": null
+          },
+          {
+            "kind": "acts_wrong",
+            "date": "2026-08-29",
+            "index": 7,
+            "field": null
+          }
+        ]
+      },
+      "validated_score": {
+        "fixture": "Terminal Bar – The Terminal Bar.html",
+        "route": "model",
+        "labelled": 8,
+        "returned": 0,
+        "dropped_empty": 0,
+        "missed": 8,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "missed 2026-08-07 'Friday August 7th / Envies'",
+          "missed 2026-08-08 'Saturday August 8th / Cowboy Thoughts'",
+          "missed 2026-08-14 'Friday August 14th / Sigtones / Muffleur / Dirty 930'",
+          "missed 2026-08-15 'Saturday August 15th / Xmas on Neptune'",
+          "missed 2026-08-21 'Friday August 21st / Garrett Jones'",
+          "missed 2026-08-22 'Saturday Augusut 22nd / NONA'",
+          "missed 2026-08-28 'Friday Augusut 28th / Man Down / Justin Payne / Larrkins'",
+          "missed 2026-08-29 'Saturday August 29th / Fighting the Urge / Scarlett Tangerines'"
+        ],
+        "items": [
+          {
+            "kind": "missed",
+            "date": "2026-08-07",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-08-08",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-08-14",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-08-15",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-08-21",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-08-22",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-08-28",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-08-29",
+            "index": null,
+            "field": null
+          }
+        ]
+      },
+      "committed_score": {
+        "fixture": "Terminal Bar – The Terminal Bar.html",
+        "route": "model",
+        "labelled": 8,
+        "returned": 0,
+        "dropped_empty": 0,
+        "missed": 8,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "missed 2026-08-07 'Friday August 7th / Envies'",
+          "missed 2026-08-08 'Saturday August 8th / Cowboy Thoughts'",
+          "missed 2026-08-14 'Friday August 14th / Sigtones / Muffleur / Dirty 930'",
+          "missed 2026-08-15 'Saturday August 15th / Xmas on Neptune'",
+          "missed 2026-08-21 'Friday August 21st / Garrett Jones'",
+          "missed 2026-08-22 'Saturday Augusut 22nd / NONA'",
+          "missed 2026-08-28 'Friday Augusut 28th / Man Down / Justin Payne / Larrkins'",
+          "missed 2026-08-29 'Saturday August 29th / Fighting the Urge / Scarlett Tangerines'"
+        ],
+        "items": [
+          {
+            "kind": "missed",
+            "date": "2026-08-07",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-08-08",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-08-14",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-08-15",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-08-21",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-08-22",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-08-28",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-08-29",
+            "index": null,
+            "field": null
+          }
+        ]
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "tier": "initial",
+          "route": "model",
+          "model": "gemma4-e4b-32k",
+          "larger_model_used": false,
+          "error": null,
+          "verdict": "failed",
+          "reasons": [
+            "low_confidence"
+          ],
+          "score": {
+            "fixture": "Terminal Bar – The Terminal Bar.html",
+            "route": "model",
+            "labelled": 8,
+            "returned": 7,
+            "dropped_empty": 1,
+            "missed": 1,
+            "acts_wrong": 3,
+            "fabricated": 0,
+            "leaks": 0,
+            "unsplit": 0,
+            "order_differs": 0,
+            "fields": {
+              "time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "end_time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_advance": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_day": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "free_admission": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "status": {
+                "stated": 7,
+                "correct": 7,
+                "missing": 0,
+                "wrong": 0
+              },
+              "image_url": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              }
+            },
+            "errors": [
+              "missed 2026-08-15 'Saturday August 15th / Xmas on Neptune'",
+              "acts wrong 2026-08-14: ['Sigtones', 'Muffleur'] vs ['Sigtones', 'Muffleur', 'Dirty 930']",
+              "acts wrong 2026-08-28: ['Man Down'] vs ['Man Down', 'Justin Payne', 'Larrkins']",
+              "acts wrong 2026-08-29: ['Justin Payne', 'Larrkins'] vs ['Fighting the Urge', 'Scarlett Tangerines']"
+            ],
+            "items": [
+              {
+                "kind": "missed",
+                "date": "2026-08-15",
+                "index": 3,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-08-14",
+                "index": 2,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-08-28",
+                "index": 6,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-08-29",
+                "index": 7,
+                "field": null
+              }
+            ]
+          },
+          "errors": [],
+          "warnings": [
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 3 'Xmas on Neptune' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 3
+            }
+          ],
+          "recorded_errors": []
+        },
+        {
+          "attempt": 2,
+          "tier": "narrowed",
+          "route": "model",
+          "model": "gemma4-e4b-32k",
+          "larger_model_used": false,
+          "error": null,
+          "verdict": "failed",
+          "reasons": [
+            "low_confidence"
+          ],
+          "score": {
+            "fixture": "Terminal Bar – The Terminal Bar.html",
+            "route": "model",
+            "labelled": 8,
+            "returned": 6,
+            "dropped_empty": 3,
+            "missed": 2,
+            "acts_wrong": 3,
+            "fabricated": 0,
+            "leaks": 0,
+            "unsplit": 0,
+            "order_differs": 0,
+            "fields": {
+              "time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "end_time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_advance": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_day": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "free_admission": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "status": {
+                "stated": 6,
+                "correct": 6,
+                "missing": 0,
+                "wrong": 0
+              },
+              "image_url": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              }
+            },
+            "errors": [
+              "missed 2026-08-08 'Saturday August 8th / Cowboy Thoughts'",
+              "missed 2026-08-15 'Saturday August 15th / Xmas on Neptune'",
+              "acts wrong 2026-08-14: ['Sigtones', 'Muffleur'] vs ['Sigtones', 'Muffleur', 'Dirty 930']",
+              "acts wrong 2026-08-28: ['Justin Payne', 'Larrkins'] vs ['Man Down', 'Justin Payne', 'Larrkins']",
+              "acts wrong 2026-08-29: ['Scarlett Tangerines'] vs ['Fighting the Urge', 'Scarlett Tangerines']"
+            ],
+            "items": [
+              {
+                "kind": "missed",
+                "date": "2026-08-08",
+                "index": 1,
+                "field": null
+              },
+              {
+                "kind": "missed",
+                "date": "2026-08-15",
+                "index": 3,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-08-14",
+                "index": 2,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-08-28",
+                "index": 6,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-08-29",
+                "index": 8,
+                "field": null
+              }
+            ]
+          },
+          "errors": [],
+          "warnings": [
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 1 'Cowboy Thoughts' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 1
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 3 'Xmas on Neptune' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 3
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 7 'Fighting the Urge' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 7
+            }
+          ],
+          "recorded_errors": []
+        },
+        {
+          "attempt": 3,
+          "tier": "larger_model",
+          "route": "model",
+          "model": "gemma4-e4b-32k",
+          "larger_model_used": false,
+          "error": null,
+          "verdict": "failed",
+          "reasons": [
+            "low_confidence"
+          ],
+          "score": {
+            "fixture": "Terminal Bar – The Terminal Bar.html",
+            "route": "model",
+            "labelled": 8,
+            "returned": 7,
+            "dropped_empty": 1,
+            "missed": 1,
+            "acts_wrong": 3,
+            "fabricated": 0,
+            "leaks": 0,
+            "unsplit": 0,
+            "order_differs": 0,
+            "fields": {
+              "time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "end_time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_advance": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_day": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "free_admission": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "status": {
+                "stated": 7,
+                "correct": 7,
+                "missing": 0,
+                "wrong": 0
+              },
+              "image_url": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              }
+            },
+            "errors": [
+              "missed 2026-08-15 'Saturday August 15th / Xmas on Neptune'",
+              "acts wrong 2026-08-14: ['Sigtones', 'Muffleur'] vs ['Sigtones', 'Muffleur', 'Dirty 930']",
+              "acts wrong 2026-08-28: ['Man Down'] vs ['Man Down', 'Justin Payne', 'Larrkins']",
+              "acts wrong 2026-08-29: ['Justin Payne', 'Larrkins'] vs ['Fighting the Urge', 'Scarlett Tangerines']"
+            ],
+            "items": [
+              {
+                "kind": "missed",
+                "date": "2026-08-15",
+                "index": 3,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-08-14",
+                "index": 2,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-08-28",
+                "index": 6,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-08-29",
+                "index": 7,
+                "field": null
+              }
+            ]
+          },
+          "errors": [],
+          "warnings": [
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 3 'Xmas on Neptune' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 3
+            }
+          ],
+          "recorded_errors": []
+        }
+      ],
+      "route_mismatch": false,
+      "run": 0
+    },
+    {
+      "fixture": "mortimers-2026-10-10.html",
+      "venue_id": 4,
+      "run_id": 1,
+      "seconds": 741.0,
+      "source": "model",
+      "attempt_count": 3,
+      "retried": true,
+      "recovered": true,
+      "escalated": false,
+      "escalation_reason": null,
+      "final_verdict": "passed",
+      "policy": {
+        "confidence_threshold": 0.99,
+        "max_attempts": 3,
+        "escalation_model": null
+      },
+      "reconcile_counts": {
+        "insert": 7,
+        "update": 0,
+        "no_op": 0,
+        "remove": 0,
+        "skip": 0
+      },
+      "commit_written": {
+        "inserted": 7,
+        "updated": 0,
+        "removed": 0
+      },
+      "raw_score": {
+        "fixture": "mortimers-2026-10-10.html",
+        "route": "model",
+        "labelled": 7,
+        "returned": 7,
+        "dropped_empty": 11,
+        "missed": 0,
+        "acts_wrong": 2,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 7,
+            "correct": 7,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "acts wrong 2026-10-10: ['Flange'] vs ['Flange August Back to Back']",
+          "acts wrong 2026-10-16: ['Embahn', 'The Vanity Project'] vs ['Absolutely Yours', 'Embahn', 'The Vanity Project']"
+        ],
+        "items": [
+          {
+            "kind": "acts_wrong",
+            "date": "2026-10-10",
+            "index": 0,
+            "field": null
+          },
+          {
+            "kind": "acts_wrong",
+            "date": "2026-10-16",
+            "index": 7,
+            "field": null
+          }
+        ]
+      },
+      "validated_score": {
+        "fixture": "mortimers-2026-10-10.html",
+        "route": "model",
+        "labelled": 7,
+        "returned": 7,
+        "dropped_empty": 0,
+        "missed": 0,
+        "acts_wrong": 2,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 7,
+            "correct": 7,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "acts wrong 2026-10-10: ['Flange'] vs ['Flange August Back to Back']",
+          "acts wrong 2026-10-16: ['Embahn', 'The Vanity Project'] vs ['Absolutely Yours', 'Embahn', 'The Vanity Project']"
+        ],
+        "items": [
+          {
+            "kind": "acts_wrong",
+            "date": "2026-10-10",
+            "index": 0,
+            "field": null
+          },
+          {
+            "kind": "acts_wrong",
+            "date": "2026-10-16",
+            "index": 5,
+            "field": null
+          }
+        ]
+      },
+      "committed_score": {
+        "fixture": "mortimers-2026-10-10.html",
+        "route": "model",
+        "labelled": 7,
+        "returned": 7,
+        "dropped_empty": 0,
+        "missed": 0,
+        "acts_wrong": 2,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 7,
+            "correct": 7,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "acts wrong 2026-10-10: ['Flange'] vs ['Flange August Back to Back']",
+          "acts wrong 2026-10-16: ['Embahn', 'The Vanity Project'] vs ['Absolutely Yours', 'Embahn', 'The Vanity Project']"
+        ],
+        "items": [
+          {
+            "kind": "acts_wrong",
+            "date": "2026-10-10",
+            "index": 0,
+            "field": null
+          },
+          {
+            "kind": "acts_wrong",
+            "date": "2026-10-16",
+            "index": 5,
+            "field": null
+          }
+        ]
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "tier": "initial",
+          "route": "model",
+          "model": "gemma4-e4b-32k",
+          "larger_model_used": false,
+          "error": null,
+          "verdict": "failed",
+          "reasons": [
+            "low_confidence"
+          ],
+          "score": {
+            "fixture": "mortimers-2026-10-10.html",
+            "route": "model",
+            "labelled": 7,
+            "returned": 7,
+            "dropped_empty": 11,
+            "missed": 0,
+            "acts_wrong": 1,
+            "fabricated": 0,
+            "leaks": 0,
+            "unsplit": 0,
+            "order_differs": 1,
+            "fields": {
+              "time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "end_time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_advance": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_day": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "free_admission": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "status": {
+                "stated": 7,
+                "correct": 7,
+                "missing": 0,
+                "wrong": 0
+              },
+              "image_url": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              }
+            },
+            "errors": [
+              "acts wrong 2026-10-10: ['Flange'] vs ['Flange August Back to Back']"
+            ],
+            "items": [
+              {
+                "kind": "acts_wrong",
+                "date": "2026-10-10",
+                "index": 0,
+                "field": null
+              }
+            ]
+          },
+          "errors": [],
+          "warnings": [
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 1 'Comedy Open Mic (Early)' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 1
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 3 'Autotune Karaoke' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 3
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 9 'Comedy Open Mic (Early)' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 9
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 10 'Autotune Karaoke' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 10
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 11 'Comedy Open Mic (Early)' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 11
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 12 'Autotune Karaoke' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 12
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 13 'Comedy Open Mic (Early)' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 13
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 14 'Autotune Karaoke' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 14
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 15 'Comedy Open Mic (Early)' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 15
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 16 'Autotune Karaoke' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 16
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 17 'Comedy Open Mic (Early)' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 17
+            }
+          ],
+          "recorded_errors": []
+        },
+        {
+          "attempt": 2,
+          "tier": "narrowed",
+          "route": "model",
+          "model": "gemma4-e4b-32k",
+          "larger_model_used": false,
+          "error": null,
+          "verdict": "failed",
+          "reasons": [
+            "low_confidence"
+          ],
+          "score": {
+            "fixture": "mortimers-2026-10-10.html",
+            "route": "model",
+            "labelled": 7,
+            "returned": 7,
+            "dropped_empty": 11,
+            "missed": 0,
+            "acts_wrong": 1,
+            "fabricated": 0,
+            "leaks": 0,
+            "unsplit": 0,
+            "order_differs": 1,
+            "fields": {
+              "time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "end_time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_advance": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_day": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "free_admission": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "status": {
+                "stated": 7,
+                "correct": 7,
+                "missing": 0,
+                "wrong": 0
+              },
+              "image_url": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              }
+            },
+            "errors": [
+              "acts wrong 2026-10-10: ['Flange'] vs ['Flange August Back to Back']"
+            ],
+            "items": [
+              {
+                "kind": "acts_wrong",
+                "date": "2026-10-10",
+                "index": 0,
+                "field": null
+              }
+            ]
+          },
+          "errors": [],
+          "warnings": [
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 1 'Comedy Open Mic (Early)' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 1
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 3 'Autotune Karaoke' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 3
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 9 'Comedy Open Mic (Early)' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 9
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 10 'Autotune Karaoke' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 10
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 11 'Comedy Open Mic (Early)' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 11
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 12 'Autotune Karaoke' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 12
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 13 'Comedy Open Mic (Early)' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 13
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 14 'Autotune Karaoke' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 14
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 15 'Comedy Open Mic (Early)' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 15
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 16 'Autotune Karaoke' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 16
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 17 'Comedy Open Mic (Early)' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 17
+            }
+          ],
+          "recorded_errors": []
+        },
+        {
+          "attempt": 3,
+          "tier": "larger_model",
+          "route": "model",
+          "model": "gemma4-e4b-32k",
+          "larger_model_used": false,
+          "error": null,
+          "verdict": "passed",
+          "reasons": [],
+          "score": {
+            "fixture": "mortimers-2026-10-10.html",
+            "route": "model",
+            "labelled": 7,
+            "returned": 7,
+            "dropped_empty": 11,
+            "missed": 0,
+            "acts_wrong": 2,
+            "fabricated": 0,
+            "leaks": 0,
+            "unsplit": 0,
+            "order_differs": 0,
+            "fields": {
+              "time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "end_time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_advance": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_day": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "free_admission": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "status": {
+                "stated": 7,
+                "correct": 7,
+                "missing": 0,
+                "wrong": 0
+              },
+              "image_url": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              }
+            },
+            "errors": [
+              "acts wrong 2026-10-10: ['Flange'] vs ['Flange August Back to Back']",
+              "acts wrong 2026-10-16: ['Embahn', 'The Vanity Project'] vs ['Absolutely Yours', 'Embahn', 'The Vanity Project']"
+            ],
+            "items": [
+              {
+                "kind": "acts_wrong",
+                "date": "2026-10-10",
+                "index": 0,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-10-16",
+                "index": 7,
+                "field": null
+              }
+            ]
+          },
+          "errors": [],
+          "warnings": [
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 1 'Comedy Open Mic (Early)' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 1
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 3 'Autotune Karaoke' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 3
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 9 'Comedy Open Mic (Early)' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 9
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 10 'Autotune Karaoke' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 10
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 11 'Comedy Open Mic (Early)' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 11
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 12 'Autotune Karaoke' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 12
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 13 'Comedy Open Mic (Early)' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 13
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 14 'Autotune Karaoke' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 14
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 15 'Comedy Open Mic (Early)' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 15
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 16 'Autotune Karaoke' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 16
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 17 'Comedy Open Mic (Early)' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 17
+            }
+          ],
+          "recorded_errors": []
+        }
+      ],
+      "route_mismatch": false,
+      "run": 0
+    },
+    {
+      "fixture": "seventh_st_entry-2026-10-10.html",
+      "venue_id": 5,
+      "run_id": 1,
+      "seconds": 450.5,
+      "source": "model",
+      "attempt_count": 1,
+      "retried": false,
+      "recovered": false,
+      "escalated": false,
+      "escalation_reason": null,
+      "final_verdict": "passed",
+      "policy": {
+        "confidence_threshold": 0.99,
+        "max_attempts": 3,
+        "escalation_model": null
+      },
+      "reconcile_counts": {
+        "insert": 27,
+        "update": 0,
+        "no_op": 0,
+        "remove": 0,
+        "skip": 3
+      },
+      "commit_written": {
+        "inserted": 27,
+        "updated": 0,
+        "removed": 0
+      },
+      "raw_score": {
+        "fixture": "seventh_st_entry-2026-10-10.html",
+        "route": "model",
+        "labelled": 30,
+        "returned": 30,
+        "dropped_empty": 0,
+        "missed": 0,
+        "acts_wrong": 1,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 30,
+            "correct": 30,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "acts wrong 2026-10-31: ['INTERNET KIDS', 'Daisy Hex', 'bubucore69', 'be3e', 'Devilsoundguy', 'Wizard.Imma'] vs ['Daisy Hex', 'bubucore69', 'be3e', 'Evilsoundguy']"
+        ],
+        "items": [
+          {
+            "kind": "acts_wrong",
+            "date": "2026-10-31",
+            "index": 29,
+            "field": null
+          }
+        ]
+      },
+      "validated_score": {
+        "fixture": "seventh_st_entry-2026-10-10.html",
+        "route": "model",
+        "labelled": 30,
+        "returned": 30,
+        "dropped_empty": 0,
+        "missed": 0,
+        "acts_wrong": 1,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 30,
+            "correct": 30,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "acts wrong 2026-10-31: ['INTERNET KIDS', 'Daisy Hex', 'bubucore69', 'be3e', 'Devilsoundguy', 'Wizard.Imma'] vs ['Daisy Hex', 'bubucore69', 'be3e', 'Evilsoundguy']"
+        ],
+        "items": [
+          {
+            "kind": "acts_wrong",
+            "date": "2026-10-31",
+            "index": 29,
+            "field": null
+          }
+        ]
+      },
+      "committed_score": {
+        "fixture": "seventh_st_entry-2026-10-10.html",
+        "route": "model",
+        "labelled": 27,
+        "returned": 27,
+        "dropped_empty": 0,
+        "missed": 0,
+        "acts_wrong": 1,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 27,
+            "correct": 27,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "acts wrong 2026-10-31: ['INTERNET KIDS', 'Daisy Hex', 'bubucore69', 'be3e', 'Devilsoundguy', 'Wizard.Imma'] vs ['Daisy Hex', 'bubucore69', 'be3e', 'Evilsoundguy']"
+        ],
+        "items": [
+          {
+            "kind": "acts_wrong",
+            "date": "2026-10-31",
+            "index": 26,
+            "field": null
+          }
+        ]
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "tier": "initial",
+          "route": "model",
+          "model": "gemma4-e4b-32k",
+          "larger_model_used": false,
+          "error": null,
+          "verdict": "passed",
+          "reasons": [],
+          "score": {
+            "fixture": "seventh_st_entry-2026-10-10.html",
+            "route": "model",
+            "labelled": 30,
+            "returned": 30,
+            "dropped_empty": 0,
+            "missed": 0,
+            "acts_wrong": 1,
+            "fabricated": 0,
+            "leaks": 0,
+            "unsplit": 0,
+            "order_differs": 0,
+            "fields": {
+              "time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "end_time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_advance": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_day": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "free_admission": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "status": {
+                "stated": 30,
+                "correct": 30,
+                "missing": 0,
+                "wrong": 0
+              },
+              "image_url": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              }
+            },
+            "errors": [
+              "acts wrong 2026-10-31: ['INTERNET KIDS', 'Daisy Hex', 'bubucore69', 'be3e', 'Devilsoundguy', 'Wizard.Imma'] vs ['Daisy Hex', 'bubucore69', 'be3e', 'Evilsoundguy']"
+            ],
+            "items": [
+              {
+                "kind": "acts_wrong",
+                "date": "2026-10-31",
+                "index": 29,
+                "field": null
+              }
+            ]
+          },
+          "errors": [],
+          "warnings": [
+            {
+              "code": "act_not_in_title",
+              "severity": "warning",
+              "message": "show 29: 'Devilsoundguy' not found in its title 'INTERNET KIDS Hyperpop Dance Party\\nHalloween: Night of the Living Core\\nfeaturing\\nDaisy Hex\\n•\\nbubucore69\\n•\\nbe3e\\n•\\nEvilsoundguy\\n•\\nlive visuals by\\nVisa_Card\\n•\\nWizard.Imma\\n★ Local Show ★'",
+              "show_index": 29
+            }
+          ],
+          "recorded_errors": []
+        }
+      ],
+      "route_mismatch": false,
+      "run": 0
+    },
+    {
+      "fixture": "terminal-2026-10-10.html",
+      "venue_id": 3,
+      "run_id": 1,
+      "seconds": 537.6,
+      "source": "model",
+      "attempt_count": 3,
+      "retried": true,
+      "recovered": false,
+      "escalated": true,
+      "escalation_reason": "validation failed after 3 attempt(s); reasons: low_confidence",
+      "final_verdict": "failed",
+      "policy": {
+        "confidence_threshold": 0.99,
+        "max_attempts": 3,
+        "escalation_model": null
+      },
+      "reconcile_counts": null,
+      "commit_written": null,
+      "raw_score": {
+        "fixture": "terminal-2026-10-10.html",
+        "route": "model",
+        "labelled": 10,
+        "returned": 14,
+        "dropped_empty": 0,
+        "missed": 0,
+        "acts_wrong": 5,
+        "fabricated": 4,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 10,
+            "correct": 10,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "acts wrong 2026-10-03: ['Vaguely Yours', 'True Stories'] vs ['Vaguely Yours', 'True Stories', 'Mukwa']",
+          "acts wrong 2026-10-10: ['Jung Min-Noh'] vs ['Jung Min-Noh', 'Cowboy Thoughts', 'Loan Sum']",
+          "acts wrong 2026-10-16: ['Cowboy Thoughts', 'Loan Sum'] vs ['Torrentia', 'The F* All', 'Massive Shadow', 'Sweet Land']",
+          "acts wrong 2026-10-17: ['Torrentia', 'The F* All'] vs ['Customers Band', 'Lone Sum', 'Nancy Gross']",
+          "acts wrong 2026-10-31: ['Cole Diamond'] vs ['Cole Diamond', 'Clayton Ryan Trio', 'Cowboy Thoughts']",
+          "fabricated 2026-10-17 ['Massive Shadow', 'Sweet Land']",
+          "fabricated 2026-10-17 ['Customers Band']",
+          "fabricated 2026-10-17 ['Lone Sum', 'Nancy Gross']",
+          "fabricated 2026-10-31 ['Clayton Ryan Trio', 'Cowboy Thoughts']"
+        ],
+        "items": [
+          {
+            "kind": "acts_wrong",
+            "date": "2026-10-03",
+            "index": 1,
+            "field": null
+          },
+          {
+            "kind": "acts_wrong",
+            "date": "2026-10-10",
+            "index": 3,
+            "field": null
+          },
+          {
+            "kind": "acts_wrong",
+            "date": "2026-10-16",
+            "index": 4,
+            "field": null
+          },
+          {
+            "kind": "acts_wrong",
+            "date": "2026-10-17",
+            "index": 5,
+            "field": null
+          },
+          {
+            "kind": "acts_wrong",
+            "date": "2026-10-31",
+            "index": 12,
+            "field": null
+          },
+          {
+            "kind": "fabricated",
+            "date": "2026-10-17",
+            "index": 6,
+            "field": null
+          },
+          {
+            "kind": "fabricated",
+            "date": "2026-10-17",
+            "index": 7,
+            "field": null
+          },
+          {
+            "kind": "fabricated",
+            "date": "2026-10-17",
+            "index": 8,
+            "field": null
+          },
+          {
+            "kind": "fabricated",
+            "date": "2026-10-31",
+            "index": 13,
+            "field": null
+          }
+        ]
+      },
+      "validated_score": {
+        "fixture": "terminal-2026-10-10.html",
+        "route": "model",
+        "labelled": 10,
+        "returned": 0,
+        "dropped_empty": 0,
+        "missed": 10,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "missed 2026-10-02 'Friday October 2nd / Griffin / Alec C'",
+          "missed 2026-10-03 'Saturday October 3rd / Vaguely Yours / True Stories / Mukwa'",
+          "missed 2026-10-09 'Friday October 9th / MLLT'",
+          "missed 2026-10-10 'Saturday October 10th / Jung Min-Noh / Cowboy Thoughts / Loan Sum'",
+          "missed 2026-10-16 'Friday October 16th / Torrentia / The F* All / Massive Shadow / Sweet Land'",
+          "missed 2026-10-17 'Saturday October 17th / Customers Band / Lone Sum / Nancy Gross'",
+          "missed 2026-10-23 'Friday October 23rd / Terminal Fest 2 / hosted by Andrew Himmer'",
+          "missed 2026-10-24 'Saturday October 24th / Hot Fruit / houseluna'",
+          "missed 2026-10-30 'Friday October 30th / Pretty Pretty Please'",
+          "missed 2026-10-31 'Saturday October 31st / Cole Diamond / Clayton Ryan Trio / Cowboy Thoughts'"
+        ],
+        "items": [
+          {
+            "kind": "missed",
+            "date": "2026-10-02",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-10-03",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-10-09",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-10-10",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-10-16",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-10-17",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-10-23",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-10-24",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-10-30",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-10-31",
+            "index": null,
+            "field": null
+          }
+        ]
+      },
+      "committed_score": {
+        "fixture": "terminal-2026-10-10.html",
+        "route": "model",
+        "labelled": 10,
+        "returned": 0,
+        "dropped_empty": 0,
+        "missed": 10,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "missed 2026-10-02 'Friday October 2nd / Griffin / Alec C'",
+          "missed 2026-10-03 'Saturday October 3rd / Vaguely Yours / True Stories / Mukwa'",
+          "missed 2026-10-09 'Friday October 9th / MLLT'",
+          "missed 2026-10-10 'Saturday October 10th / Jung Min-Noh / Cowboy Thoughts / Loan Sum'",
+          "missed 2026-10-16 'Friday October 16th / Torrentia / The F* All / Massive Shadow / Sweet Land'",
+          "missed 2026-10-17 'Saturday October 17th / Customers Band / Lone Sum / Nancy Gross'",
+          "missed 2026-10-23 'Friday October 23rd / Terminal Fest 2 / hosted by Andrew Himmer'",
+          "missed 2026-10-24 'Saturday October 24th / Hot Fruit / houseluna'",
+          "missed 2026-10-30 'Friday October 30th / Pretty Pretty Please'",
+          "missed 2026-10-31 'Saturday October 31st / Cole Diamond / Clayton Ryan Trio / Cowboy Thoughts'"
+        ],
+        "items": [
+          {
+            "kind": "missed",
+            "date": "2026-10-02",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-10-03",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-10-09",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-10-10",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-10-16",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-10-17",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-10-23",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-10-24",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-10-30",
+            "index": null,
+            "field": null
+          },
+          {
+            "kind": "missed",
+            "date": "2026-10-31",
+            "index": null,
+            "field": null
+          }
+        ]
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "tier": "initial",
+          "route": "model",
+          "model": "gemma4-e4b-32k",
+          "larger_model_used": false,
+          "error": null,
+          "verdict": "failed",
+          "reasons": [
+            "low_confidence"
+          ],
+          "score": {
+            "fixture": "terminal-2026-10-10.html",
+            "route": "model",
+            "labelled": 10,
+            "returned": 12,
+            "dropped_empty": 0,
+            "missed": 0,
+            "acts_wrong": 5,
+            "fabricated": 2,
+            "leaks": 0,
+            "unsplit": 0,
+            "order_differs": 0,
+            "fields": {
+              "time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "end_time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_advance": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_day": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "free_admission": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "status": {
+                "stated": 10,
+                "correct": 10,
+                "missing": 0,
+                "wrong": 0
+              },
+              "image_url": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              }
+            },
+            "errors": [
+              "acts wrong 2026-10-03: ['Vaguely Yours', 'True Stories'] vs ['Vaguely Yours', 'True Stories', 'Mukwa']",
+              "acts wrong 2026-10-10: ['Jung Min-Noh'] vs ['Jung Min-Noh', 'Cowboy Thoughts', 'Loan Sum']",
+              "acts wrong 2026-10-16: ['Torrentia', 'The F* All'] vs ['Torrentia', 'The F* All', 'Massive Shadow', 'Sweet Land']",
+              "acts wrong 2026-10-17: ['Customers Band'] vs ['Customers Band', 'Lone Sum', 'Nancy Gross']",
+              "acts wrong 2026-10-31: ['Cole Diamond'] vs ['Cole Diamond', 'Clayton Ryan Trio', 'Cowboy Thoughts']",
+              "fabricated 2026-10-16 ['Massive Shadow', 'Sweet Land']",
+              "fabricated 2026-10-31 ['Clayton Ryan Trio', 'Cowboy Thoughts']"
+            ],
+            "items": [
+              {
+                "kind": "acts_wrong",
+                "date": "2026-10-03",
+                "index": 1,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-10-10",
+                "index": 3,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-10-16",
+                "index": 4,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-10-17",
+                "index": 6,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-10-31",
+                "index": 10,
+                "field": null
+              },
+              {
+                "kind": "fabricated",
+                "date": "2026-10-16",
+                "index": 5,
+                "field": null
+              },
+              {
+                "kind": "fabricated",
+                "date": "2026-10-31",
+                "index": 11,
+                "field": null
+              }
+            ]
+          },
+          "errors": [],
+          "warnings": [],
+          "recorded_errors": []
+        },
+        {
+          "attempt": 2,
+          "tier": "narrowed",
+          "route": "model",
+          "model": "gemma4-e4b-32k",
+          "larger_model_used": false,
+          "error": null,
+          "verdict": "failed",
+          "reasons": [
+            "low_confidence"
+          ],
+          "score": {
+            "fixture": "terminal-2026-10-10.html",
+            "route": "model",
+            "labelled": 10,
+            "returned": 11,
+            "dropped_empty": 0,
+            "missed": 0,
+            "acts_wrong": 4,
+            "fabricated": 1,
+            "leaks": 0,
+            "unsplit": 0,
+            "order_differs": 0,
+            "fields": {
+              "time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "end_time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_advance": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_day": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "free_admission": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "status": {
+                "stated": 10,
+                "correct": 10,
+                "missing": 0,
+                "wrong": 0
+              },
+              "image_url": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              }
+            },
+            "errors": [
+              "acts wrong 2026-10-03: ['Vaguely Yours', 'True Stories'] vs ['Vaguely Yours', 'True Stories', 'Mukwa']",
+              "acts wrong 2026-10-10: ['Jung Min-Noh'] vs ['Jung Min-Noh', 'Cowboy Thoughts', 'Loan Sum']",
+              "acts wrong 2026-10-16: ['Torrentia', 'The F* All'] vs ['Torrentia', 'The F* All', 'Massive Shadow', 'Sweet Land']",
+              "acts wrong 2026-10-31: ['Cole Diamond'] vs ['Cole Diamond', 'Clayton Ryan Trio', 'Cowboy Thoughts']",
+              "fabricated 2026-10-17 ['Massive Shadow', 'Sweet Land']"
+            ],
+            "items": [
+              {
+                "kind": "acts_wrong",
+                "date": "2026-10-03",
+                "index": 1,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-10-10",
+                "index": 3,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-10-16",
+                "index": 4,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-10-31",
+                "index": 10,
+                "field": null
+              },
+              {
+                "kind": "fabricated",
+                "date": "2026-10-17",
+                "index": 5,
+                "field": null
+              }
+            ]
+          },
+          "errors": [],
+          "warnings": [],
+          "recorded_errors": []
+        },
+        {
+          "attempt": 3,
+          "tier": "larger_model",
+          "route": "model",
+          "model": "gemma4-e4b-32k",
+          "larger_model_used": false,
+          "error": null,
+          "verdict": "failed",
+          "reasons": [
+            "low_confidence"
+          ],
+          "score": {
+            "fixture": "terminal-2026-10-10.html",
+            "route": "model",
+            "labelled": 10,
+            "returned": 14,
+            "dropped_empty": 0,
+            "missed": 0,
+            "acts_wrong": 5,
+            "fabricated": 4,
+            "leaks": 0,
+            "unsplit": 0,
+            "order_differs": 0,
+            "fields": {
+              "time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "end_time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_advance": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_day": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "free_admission": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "status": {
+                "stated": 10,
+                "correct": 10,
+                "missing": 0,
+                "wrong": 0
+              },
+              "image_url": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              }
+            },
+            "errors": [
+              "acts wrong 2026-10-03: ['Vaguely Yours', 'True Stories'] vs ['Vaguely Yours', 'True Stories', 'Mukwa']",
+              "acts wrong 2026-10-10: ['Jung Min-Noh'] vs ['Jung Min-Noh', 'Cowboy Thoughts', 'Loan Sum']",
+              "acts wrong 2026-10-16: ['Cowboy Thoughts', 'Loan Sum'] vs ['Torrentia', 'The F* All', 'Massive Shadow', 'Sweet Land']",
+              "acts wrong 2026-10-17: ['Torrentia', 'The F* All'] vs ['Customers Band', 'Lone Sum', 'Nancy Gross']",
+              "acts wrong 2026-10-31: ['Cole Diamond'] vs ['Cole Diamond', 'Clayton Ryan Trio', 'Cowboy Thoughts']",
+              "fabricated 2026-10-17 ['Massive Shadow', 'Sweet Land']",
+              "fabricated 2026-10-17 ['Customers Band']",
+              "fabricated 2026-10-17 ['Lone Sum', 'Nancy Gross']",
+              "fabricated 2026-10-31 ['Clayton Ryan Trio', 'Cowboy Thoughts']"
+            ],
+            "items": [
+              {
+                "kind": "acts_wrong",
+                "date": "2026-10-03",
+                "index": 1,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-10-10",
+                "index": 3,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-10-16",
+                "index": 4,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-10-17",
+                "index": 5,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-10-31",
+                "index": 12,
+                "field": null
+              },
+              {
+                "kind": "fabricated",
+                "date": "2026-10-17",
+                "index": 6,
+                "field": null
+              },
+              {
+                "kind": "fabricated",
+                "date": "2026-10-17",
+                "index": 7,
+                "field": null
+              },
+              {
+                "kind": "fabricated",
+                "date": "2026-10-17",
+                "index": 8,
+                "field": null
+              },
+              {
+                "kind": "fabricated",
+                "date": "2026-10-31",
+                "index": 13,
+                "field": null
+              }
+            ]
+          },
+          "errors": [],
+          "warnings": [],
+          "recorded_errors": []
+        }
+      ],
+      "route_mismatch": false,
+      "run": 0
+    },
+    {
+      "fixture": "terminal_bar_show_1.png",
+      "venue_id": 3,
+      "run_id": 1,
+      "seconds": 41.3,
+      "source": "image",
+      "attempt_count": 1,
+      "retried": false,
+      "recovered": false,
+      "escalated": false,
+      "escalation_reason": null,
+      "final_verdict": "passed",
+      "policy": {
+        "confidence_threshold": 0.99,
+        "max_attempts": 3,
+        "escalation_model": null
+      },
+      "reconcile_counts": {
+        "insert": 1,
+        "update": 0,
+        "no_op": 0,
+        "remove": 0,
+        "skip": 0
+      },
+      "commit_written": {
+        "inserted": 1,
+        "updated": 0,
+        "removed": 0
+      },
+      "raw_score": {
+        "fixture": "terminal_bar_show_1.png",
+        "route": "model",
+        "labelled": 1,
+        "returned": 1,
+        "dropped_empty": 0,
+        "missed": 0,
+        "acts_wrong": 1,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 1,
+            "correct": 1,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 1,
+            "correct": 1,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 1,
+            "correct": 1,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "acts wrong 2026-08-07: ['THE ENVIES', 'MÜLLET', 'KURT', \"RUSSELL'S MUSCLES\"] vs ['THE ENVIES', 'MÜLLET', \"KURT RUSSELL'S MUSCLES\"]"
+        ],
+        "items": [
+          {
+            "kind": "acts_wrong",
+            "date": "2026-08-07",
+            "index": 0,
+            "field": null
+          }
+        ]
+      },
+      "validated_score": {
+        "fixture": "terminal_bar_show_1.png",
+        "route": "model",
+        "labelled": 1,
+        "returned": 1,
+        "dropped_empty": 0,
+        "missed": 0,
+        "acts_wrong": 1,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 1,
+            "correct": 1,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 1,
+            "correct": 1,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 1,
+            "correct": 1,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "acts wrong 2026-08-07: ['THE ENVIES', 'MÜLLET', 'KURT', \"RUSSELL'S MUSCLES\"] vs ['THE ENVIES', 'MÜLLET', \"KURT RUSSELL'S MUSCLES\"]"
+        ],
+        "items": [
+          {
+            "kind": "acts_wrong",
+            "date": "2026-08-07",
+            "index": 0,
+            "field": null
+          }
+        ]
+      },
+      "committed_score": {
+        "fixture": "terminal_bar_show_1.png",
+        "route": "model",
+        "labelled": 1,
+        "returned": 1,
+        "dropped_empty": 0,
+        "missed": 0,
+        "acts_wrong": 1,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 1,
+            "correct": 1,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 1,
+            "correct": 1,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 1,
+            "correct": 1,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "acts wrong 2026-08-07: ['THE ENVIES', 'MÜLLET', 'KURT', \"RUSSELL'S MUSCLES\"] vs ['THE ENVIES', 'MÜLLET', \"KURT RUSSELL'S MUSCLES\"]"
+        ],
+        "items": [
+          {
+            "kind": "acts_wrong",
+            "date": "2026-08-07",
+            "index": 0,
+            "field": null
+          }
+        ]
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "tier": "initial",
+          "route": "image",
+          "model": "gemma4-e4b-32k",
+          "larger_model_used": false,
+          "error": null,
+          "verdict": "passed",
+          "reasons": [],
+          "score": {
+            "fixture": "terminal_bar_show_1.png",
+            "route": "model",
+            "labelled": 1,
+            "returned": 1,
+            "dropped_empty": 0,
+            "missed": 0,
+            "acts_wrong": 1,
+            "fabricated": 0,
+            "leaks": 0,
+            "unsplit": 0,
+            "order_differs": 0,
+            "fields": {
+              "time": {
+                "stated": 1,
+                "correct": 1,
+                "missing": 0,
+                "wrong": 0
+              },
+              "end_time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_advance": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_day": {
+                "stated": 1,
+                "correct": 1,
+                "missing": 0,
+                "wrong": 0
+              },
+              "free_admission": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "status": {
+                "stated": 1,
+                "correct": 1,
+                "missing": 0,
+                "wrong": 0
+              },
+              "image_url": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              }
+            },
+            "errors": [
+              "acts wrong 2026-08-07: ['THE ENVIES', 'MÜLLET', 'KURT', \"RUSSELL'S MUSCLES\"] vs ['THE ENVIES', 'MÜLLET', \"KURT RUSSELL'S MUSCLES\"]"
+            ],
+            "items": [
+              {
+                "kind": "acts_wrong",
+                "date": "2026-08-07",
+                "index": 0,
+                "field": null
+              }
+            ]
+          },
+          "errors": [],
+          "warnings": [],
+          "recorded_errors": []
+        }
+      ],
+      "route_mismatch": false,
+      "run": 0
+    },
+    {
+      "fixture": "terminal_bar_show_2.webp",
+      "venue_id": 3,
+      "run_id": 1,
+      "seconds": 115.1,
+      "source": "image",
+      "attempt_count": 3,
+      "retried": true,
+      "recovered": false,
+      "escalated": true,
+      "escalation_reason": "validation failed after 3 attempt(s); reasons: low_confidence",
+      "final_verdict": "failed",
+      "policy": {
+        "confidence_threshold": 0.99,
+        "max_attempts": 3,
+        "escalation_model": null
+      },
+      "reconcile_counts": null,
+      "commit_written": null,
+      "raw_score": {
+        "fixture": "terminal_bar_show_2.webp",
+        "route": "model",
+        "labelled": 1,
+        "returned": 1,
+        "dropped_empty": 0,
+        "missed": 0,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 1,
+            "correct": 1,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 1,
+            "correct": 1,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 1,
+            "correct": 1,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [],
+        "items": []
+      },
+      "validated_score": {
+        "fixture": "terminal_bar_show_2.webp",
+        "route": "model",
+        "labelled": 1,
+        "returned": 0,
+        "dropped_empty": 0,
+        "missed": 1,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "missed 2026-08-08 'COWBOY THOUGHTS / BURIED ANIMALS / RUPERT ANGELEYES / TERMINAL BAR AUG 8 - 9PM - $10'"
+        ],
+        "items": [
+          {
+            "kind": "missed",
+            "date": "2026-08-08",
+            "index": null,
+            "field": null
+          }
+        ]
+      },
+      "committed_score": {
+        "fixture": "terminal_bar_show_2.webp",
+        "route": "model",
+        "labelled": 1,
+        "returned": 0,
+        "dropped_empty": 0,
+        "missed": 1,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "missed 2026-08-08 'COWBOY THOUGHTS / BURIED ANIMALS / RUPERT ANGELEYES / TERMINAL BAR AUG 8 - 9PM - $10'"
+        ],
+        "items": [
+          {
+            "kind": "missed",
+            "date": "2026-08-08",
+            "index": null,
+            "field": null
+          }
+        ]
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "tier": "initial",
+          "route": "image",
+          "model": "gemma4-e4b-32k",
+          "larger_model_used": false,
+          "error": null,
+          "verdict": "failed",
+          "reasons": [
+            "low_confidence"
+          ],
+          "score": {
+            "fixture": "terminal_bar_show_2.webp",
+            "route": "model",
+            "labelled": 1,
+            "returned": 1,
+            "dropped_empty": 0,
+            "missed": 0,
+            "acts_wrong": 0,
+            "fabricated": 0,
+            "leaks": 0,
+            "unsplit": 0,
+            "order_differs": 0,
+            "fields": {
+              "time": {
+                "stated": 1,
+                "correct": 1,
+                "missing": 0,
+                "wrong": 0
+              },
+              "end_time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_advance": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_day": {
+                "stated": 1,
+                "correct": 1,
+                "missing": 0,
+                "wrong": 0
+              },
+              "free_admission": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "status": {
+                "stated": 1,
+                "correct": 1,
+                "missing": 0,
+                "wrong": 0
+              },
+              "image_url": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              }
+            },
+            "errors": [],
+            "items": []
+          },
+          "errors": [],
+          "warnings": [],
+          "recorded_errors": []
+        },
+        {
+          "attempt": 2,
+          "tier": "narrowed",
+          "route": "image",
+          "model": "gemma4-e4b-32k",
+          "larger_model_used": false,
+          "error": null,
+          "verdict": "failed",
+          "reasons": [
+            "low_confidence"
+          ],
+          "score": {
+            "fixture": "terminal_bar_show_2.webp",
+            "route": "model",
+            "labelled": 1,
+            "returned": 1,
+            "dropped_empty": 0,
+            "missed": 0,
+            "acts_wrong": 0,
+            "fabricated": 0,
+            "leaks": 0,
+            "unsplit": 0,
+            "order_differs": 0,
+            "fields": {
+              "time": {
+                "stated": 1,
+                "correct": 1,
+                "missing": 0,
+                "wrong": 0
+              },
+              "end_time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_advance": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_day": {
+                "stated": 1,
+                "correct": 1,
+                "missing": 0,
+                "wrong": 0
+              },
+              "free_admission": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "status": {
+                "stated": 1,
+                "correct": 1,
+                "missing": 0,
+                "wrong": 0
+              },
+              "image_url": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              }
+            },
+            "errors": [],
+            "items": []
+          },
+          "errors": [],
+          "warnings": [],
+          "recorded_errors": []
+        },
+        {
+          "attempt": 3,
+          "tier": "larger_model",
+          "route": "image",
+          "model": "gemma4-e4b-32k",
+          "larger_model_used": false,
+          "error": null,
+          "verdict": "failed",
+          "reasons": [
+            "low_confidence"
+          ],
+          "score": {
+            "fixture": "terminal_bar_show_2.webp",
+            "route": "model",
+            "labelled": 1,
+            "returned": 1,
+            "dropped_empty": 0,
+            "missed": 0,
+            "acts_wrong": 0,
+            "fabricated": 0,
+            "leaks": 0,
+            "unsplit": 0,
+            "order_differs": 0,
+            "fields": {
+              "time": {
+                "stated": 1,
+                "correct": 1,
+                "missing": 0,
+                "wrong": 0
+              },
+              "end_time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_advance": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_day": {
+                "stated": 1,
+                "correct": 1,
+                "missing": 0,
+                "wrong": 0
+              },
+              "free_admission": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "status": {
+                "stated": 1,
+                "correct": 1,
+                "missing": 0,
+                "wrong": 0
+              },
+              "image_url": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              }
+            },
+            "errors": [],
+            "items": []
+          },
+          "errors": [],
+          "warnings": [],
+          "recorded_errors": []
+        }
+      ],
+      "route_mismatch": false,
+      "run": 0
+    },
+    {
+      "fixture": "turf_club-2026-11-04.html",
+      "venue_id": 6,
+      "run_id": 1,
+      "seconds": 985.0,
+      "source": "model",
+      "attempt_count": 3,
+      "retried": true,
+      "recovered": true,
+      "escalated": false,
+      "escalation_reason": null,
+      "final_verdict": "passed",
+      "policy": {
+        "confidence_threshold": 0.99,
+        "max_attempts": 3,
+        "escalation_model": null
+      },
+      "reconcile_counts": {
+        "insert": 17,
+        "update": 0,
+        "no_op": 0,
+        "remove": 0,
+        "skip": 0
+      },
+      "commit_written": {
+        "inserted": 17,
+        "updated": 0,
+        "removed": 0
+      },
+      "raw_score": {
+        "fixture": "turf_club-2026-11-04.html",
+        "route": "model",
+        "labelled": 17,
+        "returned": 17,
+        "dropped_empty": 0,
+        "missed": 0,
+        "acts_wrong": 3,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 17,
+            "correct": 17,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "acts wrong 2026-11-11: ['Gardener'] vs ['Fruition', 'Gardener']",
+          "acts wrong 2026-11-13: ['The Rodents'] vs ['The Suburbs', 'The Rodents']",
+          "acts wrong 2026-11-14: ['The Rodents'] vs ['The Suburbs', 'The Rodents']"
+        ],
+        "items": [
+          {
+            "kind": "acts_wrong",
+            "date": "2026-11-11",
+            "index": 3,
+            "field": null
+          },
+          {
+            "kind": "acts_wrong",
+            "date": "2026-11-13",
+            "index": 5,
+            "field": null
+          },
+          {
+            "kind": "acts_wrong",
+            "date": "2026-11-14",
+            "index": 6,
+            "field": null
+          }
+        ]
+      },
+      "validated_score": {
+        "fixture": "turf_club-2026-11-04.html",
+        "route": "model",
+        "labelled": 17,
+        "returned": 17,
+        "dropped_empty": 0,
+        "missed": 0,
+        "acts_wrong": 3,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 17,
+            "correct": 17,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "acts wrong 2026-11-11: ['Gardener'] vs ['Fruition', 'Gardener']",
+          "acts wrong 2026-11-13: ['The Rodents'] vs ['The Suburbs', 'The Rodents']",
+          "acts wrong 2026-11-14: ['The Rodents'] vs ['The Suburbs', 'The Rodents']"
+        ],
+        "items": [
+          {
+            "kind": "acts_wrong",
+            "date": "2026-11-11",
+            "index": 3,
+            "field": null
+          },
+          {
+            "kind": "acts_wrong",
+            "date": "2026-11-13",
+            "index": 5,
+            "field": null
+          },
+          {
+            "kind": "acts_wrong",
+            "date": "2026-11-14",
+            "index": 6,
+            "field": null
+          }
+        ]
+      },
+      "committed_score": {
+        "fixture": "turf_club-2026-11-04.html",
+        "route": "model",
+        "labelled": 17,
+        "returned": 17,
+        "dropped_empty": 0,
+        "missed": 0,
+        "acts_wrong": 3,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 17,
+            "correct": 17,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "acts wrong 2026-11-11: ['Gardener'] vs ['Fruition', 'Gardener']",
+          "acts wrong 2026-11-13: ['The Rodents'] vs ['The Suburbs', 'The Rodents']",
+          "acts wrong 2026-11-14: ['The Rodents'] vs ['The Suburbs', 'The Rodents']"
+        ],
+        "items": [
+          {
+            "kind": "acts_wrong",
+            "date": "2026-11-11",
+            "index": 3,
+            "field": null
+          },
+          {
+            "kind": "acts_wrong",
+            "date": "2026-11-13",
+            "index": 5,
+            "field": null
+          },
+          {
+            "kind": "acts_wrong",
+            "date": "2026-11-14",
+            "index": 6,
+            "field": null
+          }
+        ]
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "tier": "initial",
+          "route": "model",
+          "model": "gemma4-e4b-32k",
+          "larger_model_used": false,
+          "error": null,
+          "verdict": "failed",
+          "reasons": [
+            "low_confidence"
+          ],
+          "score": {
+            "fixture": "turf_club-2026-11-04.html",
+            "route": "model",
+            "labelled": 17,
+            "returned": 17,
+            "dropped_empty": 0,
+            "missed": 0,
+            "acts_wrong": 6,
+            "fabricated": 0,
+            "leaks": 0,
+            "unsplit": 0,
+            "order_differs": 0,
+            "fields": {
+              "time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "end_time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_advance": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_day": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "free_admission": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "status": {
+                "stated": 17,
+                "correct": 17,
+                "missing": 0,
+                "wrong": 0
+              },
+              "image_url": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              }
+            },
+            "errors": [
+              "acts wrong 2026-11-11: ['Gardener'] vs ['Fruition', 'Gardener']",
+              "acts wrong 2026-11-13: ['The Rodents'] vs ['The Suburbs', 'The Rodents']",
+              "acts wrong 2026-11-14: ['The Rodents'] vs ['The Suburbs', 'The Rodents']",
+              "acts wrong 2026-11-25: ['Thomas Sticha', 'Cowboy Thoughts', 'Molly Maher'] vs ['Tropical Depression', 'Thomas Sticha', 'Cowboy Thoughts', 'Molly Maher']",
+              "acts wrong 2026-11-27: ['GOO GOO MUCKS', 'Cretin Avenue Hop'] vs ['World’s Forgotten Boys', 'GOO GOO MUCKS', 'Cretin Avenue Hop']",
+              "acts wrong 2026-11-28: ['Al Church', 'Alex Fuller', 'Annie Thoma', 'Arzu Gokcen', 'Ashley Ackerson', 'Brian Vanderwerf', 'Brynn Arens', 'Cindy Lawson', 'Claire Luger', 'Curtiss A', 'Erik Paulson', 'Faith Boblett', 'Gini Dodds', 'Hilary James', 'Laura Larson', 'Meghan Kriedler', 'Nikii Post', 'Scott Macdonald', 'Sophie Hiroko', 'Tommy Ratz', 'The Penny Peaches', 'Embahn'] vs ['The Melismatics', 'Al Church', 'Alex Fuller', 'Annie Thoma', 'Arzu Gokcen', 'Ashley Ackerson', 'Brian Vanderwerf', 'Brynn Arens', 'Cindy Lawson', 'Claire Luger', 'Curtiss A', 'Erik Paulson', 'Faith Boblett', 'Gini Dodds', 'Hilary James', 'Laura Larson', 'Meghan Kriedler', 'Nikii Post', 'Scott Macdonald', 'Sophie Hiroko', 'Tommy Ratz', 'The Penny Peaches', 'Embahn']"
+            ],
+            "items": [
+              {
+                "kind": "acts_wrong",
+                "date": "2026-11-11",
+                "index": 3,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-11-13",
+                "index": 5,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-11-14",
+                "index": 6,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-11-25",
+                "index": 14,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-11-27",
+                "index": 15,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-11-28",
+                "index": 16,
+                "field": null
+              }
+            ]
+          },
+          "errors": [],
+          "warnings": [],
+          "recorded_errors": []
+        },
+        {
+          "attempt": 2,
+          "tier": "narrowed",
+          "route": "model",
+          "model": "gemma4-e4b-32k",
+          "larger_model_used": false,
+          "error": null,
+          "verdict": "failed",
+          "reasons": [
+            "low_confidence"
+          ],
+          "score": {
+            "fixture": "turf_club-2026-11-04.html",
+            "route": "model",
+            "labelled": 17,
+            "returned": 17,
+            "dropped_empty": 0,
+            "missed": 0,
+            "acts_wrong": 3,
+            "fabricated": 0,
+            "leaks": 0,
+            "unsplit": 0,
+            "order_differs": 1,
+            "fields": {
+              "time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "end_time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_advance": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_day": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "free_admission": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "status": {
+                "stated": 17,
+                "correct": 17,
+                "missing": 0,
+                "wrong": 0
+              },
+              "image_url": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              }
+            },
+            "errors": [
+              "acts wrong 2026-11-13: ['The Rodents'] vs ['The Suburbs', 'The Rodents']",
+              "acts wrong 2026-11-14: ['The Rodents'] vs ['The Suburbs', 'The Rodents']",
+              "acts wrong 2026-11-27: ['GOO GOO MUCKS', 'Cretin Avenue Hop'] vs ['World’s Forgotten Boys', 'GOO GOO MUCKS', 'Cretin Avenue Hop']"
+            ],
+            "items": [
+              {
+                "kind": "acts_wrong",
+                "date": "2026-11-13",
+                "index": 5,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-11-14",
+                "index": 6,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-11-27",
+                "index": 15,
+                "field": null
+              }
+            ]
+          },
+          "errors": [],
+          "warnings": [],
+          "recorded_errors": []
+        },
+        {
+          "attempt": 3,
+          "tier": "larger_model",
+          "route": "model",
+          "model": "gemma4-e4b-32k",
+          "larger_model_used": false,
+          "error": null,
+          "verdict": "passed",
+          "reasons": [],
+          "score": {
+            "fixture": "turf_club-2026-11-04.html",
+            "route": "model",
+            "labelled": 17,
+            "returned": 17,
+            "dropped_empty": 0,
+            "missed": 0,
+            "acts_wrong": 3,
+            "fabricated": 0,
+            "leaks": 0,
+            "unsplit": 0,
+            "order_differs": 0,
+            "fields": {
+              "time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "end_time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_advance": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_day": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "free_admission": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "status": {
+                "stated": 17,
+                "correct": 17,
+                "missing": 0,
+                "wrong": 0
+              },
+              "image_url": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              }
+            },
+            "errors": [
+              "acts wrong 2026-11-11: ['Gardener'] vs ['Fruition', 'Gardener']",
+              "acts wrong 2026-11-13: ['The Rodents'] vs ['The Suburbs', 'The Rodents']",
+              "acts wrong 2026-11-14: ['The Rodents'] vs ['The Suburbs', 'The Rodents']"
+            ],
+            "items": [
+              {
+                "kind": "acts_wrong",
+                "date": "2026-11-11",
+                "index": 3,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-11-13",
+                "index": 5,
+                "field": null
+              },
+              {
+                "kind": "acts_wrong",
+                "date": "2026-11-14",
+                "index": 6,
+                "field": null
+              }
+            ]
+          },
+          "errors": [],
+          "warnings": [],
+          "recorded_errors": []
+        }
+      ],
+      "route_mismatch": false,
+      "run": 0
+    },
+    {
+      "fixture": "white_squirrel-2026-10-10.html",
+      "venue_id": 1,
+      "run_id": 1,
+      "seconds": 83.0,
+      "source": "jsonld",
+      "attempt_count": 1,
+      "retried": false,
+      "recovered": false,
+      "escalated": false,
+      "escalation_reason": null,
+      "final_verdict": "passed",
+      "policy": {
+        "confidence_threshold": 0.99,
+        "max_attempts": 3,
+        "escalation_model": null
+      },
+      "reconcile_counts": {
+        "insert": 10,
+        "update": 0,
+        "no_op": 0,
+        "remove": 0,
+        "skip": 0
+      },
+      "commit_written": {
+        "inserted": 10,
+        "updated": 0,
+        "removed": 0
+      },
+      "raw_score": {
+        "fixture": "white_squirrel-2026-10-10.html",
+        "route": "model",
+        "labelled": 11,
+        "returned": 10,
+        "dropped_empty": 2,
+        "missed": 1,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 10,
+            "correct": 10,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 10,
+            "correct": 10,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 10,
+            "correct": 10,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 9,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "missed 2026-10-14 'Cole Diamond’s Whiskey Wednesdays / Wednesday October 14 @ 9:00 pm - 11:00 pm'"
+        ],
+        "items": [
+          {
+            "kind": "missed",
+            "date": "2026-10-14",
+            "index": 11,
+            "field": null
+          }
+        ]
+      },
+      "validated_score": {
+        "fixture": "white_squirrel-2026-10-10.html",
+        "route": "model",
+        "labelled": 11,
+        "returned": 10,
+        "dropped_empty": 0,
+        "missed": 1,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 10,
+            "correct": 10,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 10,
+            "correct": 10,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 10,
+            "correct": 10,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 9,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "missed 2026-10-14 'Cole Diamond’s Whiskey Wednesdays / Wednesday October 14 @ 9:00 pm - 11:00 pm'"
+        ],
+        "items": [
+          {
+            "kind": "missed",
+            "date": "2026-10-14",
+            "index": null,
+            "field": null
+          }
+        ]
+      },
+      "committed_score": {
+        "fixture": "white_squirrel-2026-10-10.html",
+        "route": "model",
+        "labelled": 11,
+        "returned": 10,
+        "dropped_empty": 0,
+        "missed": 1,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 10,
+            "correct": 10,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 10,
+            "correct": 10,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 10,
+            "correct": 10,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 9,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "missed 2026-10-14 'Cole Diamond’s Whiskey Wednesdays / Wednesday October 14 @ 9:00 pm - 11:00 pm'"
+        ],
+        "items": [
+          {
+            "kind": "missed",
+            "date": "2026-10-14",
+            "index": null,
+            "field": null
+          }
+        ]
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "tier": "initial",
+          "route": "jsonld",
+          "model": "gemma4-e4b-32k",
+          "larger_model_used": false,
+          "error": null,
+          "verdict": "passed",
+          "reasons": [],
+          "score": {
+            "fixture": "white_squirrel-2026-10-10.html",
+            "route": "model",
+            "labelled": 11,
+            "returned": 10,
+            "dropped_empty": 2,
+            "missed": 1,
+            "acts_wrong": 0,
+            "fabricated": 0,
+            "leaks": 0,
+            "unsplit": 0,
+            "order_differs": 0,
+            "fields": {
+              "time": {
+                "stated": 10,
+                "correct": 10,
+                "missing": 0,
+                "wrong": 0
+              },
+              "end_time": {
+                "stated": 10,
+                "correct": 10,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_advance": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_day": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "free_admission": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "status": {
+                "stated": 10,
+                "correct": 10,
+                "missing": 0,
+                "wrong": 0
+              },
+              "image_url": {
+                "stated": 0,
+                "correct": 9,
+                "missing": 0,
+                "wrong": 0
+              }
+            },
+            "errors": [
+              "missed 2026-10-14 'Cole Diamond’s Whiskey Wednesdays / Wednesday October 14 @ 9:00 pm - 11:00 pm'"
+            ],
+            "items": [
+              {
+                "kind": "missed",
+                "date": "2026-10-14",
+                "index": 11,
+                "field": null
+              }
+            ]
+          },
+          "errors": [],
+          "warnings": [
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 5 'Open Jam' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 5
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 11 'Cole Diamond’s Whiskey Wednesdays' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 11
+            }
+          ],
+          "recorded_errors": []
+        }
+      ],
+      "route_mismatch": false,
+      "run": 0
+    }
+  ],
+  "scenarios": []
+}

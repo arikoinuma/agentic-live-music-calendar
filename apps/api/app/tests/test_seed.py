@@ -28,7 +28,7 @@ from app.db.seed import seed
 # fetch_strategy). Typed out here rather than imported from seed.py so the
 # test is an independent statement of the expectation (C2-D8, Dep-D16): the
 # White Squirrel and Terminal Bar URLs from each saved fixture's `saved from url`
-# tag, 7th St Entry's and Mortimer's from agent_worker/eval/labels.py. The Midway
+# tag, 7th St Entry's and Mortimer's from agent_worker/model_eval/labels.py. The Midway
 # Saloon and Zhora Darling wait until they have a route, so they are absent.
 EXPECTED_VENUES = [
     ("The White Squirrel Bar", "https://whitesquirrelbar.com/calendar/", "http"),
@@ -54,6 +54,8 @@ async def test_seed_creates_the_metro_and_the_venue_list(db_session: AsyncSessio
     metro = (await db_session.execute(sa.select(Metro))).scalar_one()
     assert metro.name == "Minneapolis/St. Paul"
     assert metro.timezone == "America/Chicago"
+    # C4-D3: the slug is the metro's host label (msp.<domain>). Written out here, not imported from seed.py.
+    assert metro.slug == "msp"
 
     # Ordered by id = insertion order, so the list below is the insert order.
     venues = (await db_session.execute(sa.select(Venue).order_by(Venue.id))).scalars().all()

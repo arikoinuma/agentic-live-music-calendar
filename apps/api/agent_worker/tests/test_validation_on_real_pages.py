@@ -4,9 +4,9 @@ Milestone A3 (docs/dev/implementations/a3-validation-and-retry.md, test approach
 The eval harness calls `extract_page`, not the graph, so nothing else would notice a check that
 misfires on a real page (an error that escalates White Squirrel every day, or a repair that drops a
 correct value) until `local_test` or production did. The stored extractions in
-`eval/results/a21-confirm.json` plus the fixtures make the replay cheap, and no model is called.
+`model_eval/results/a21-confirm.json` plus the fixtures make the replay cheap, and no model is called.
 
-**This file does not run in CI.** `eval/fixtures/` and `eval/results/` are gitignored
+**This file does not run in CI.** `model_eval/captured_pages/` and `model_eval/results/` are gitignored
 (apps/api/.gitignore), so CI and a fresh clone have neither and every test here skips (visibly,
 `-rs`). It runs on a machine that has them. The committed tests in `test_validation.py` are the
 CI layer.
@@ -24,30 +24,31 @@ catches a real wrong act (A3-CR1-9)
 import datetime
 import hashlib
 import json
-from pathlib import Path
 from typing import Any
 
 import pytest
 
 from agent_worker import validation
-from agent_worker.eval.labels import PAGE_LABELS
 from agent_worker.extraction import clean_text
+from agent_worker.model_eval import run_eval
+from agent_worker.model_eval.labels import PAGE_LABELS
 from agent_worker.policy import DEFAULT_POLICY, combine
 from agent_worker.schemas import VenuePageExtraction
 from agent_worker.sources import jsonld
 from agent_worker.tests.test_retry_plumbing import PINNED
 from agent_worker.validation import CheckCode, Verdict
 
-EVAL = Path(__file__).resolve().parent.parent / "eval"
-FIXTURES = EVAL / "fixtures"
-CONFIRM = EVAL / "results" / "a21-confirm.json"
-REVIEW2 = EVAL / "results" / "a21-review2.json"
+# The folders come from the module that owns them (`run_eval`), not from a name rebuilt here: this test SKIPS when they are missing, so a
+# wrong name here would look exactly like "no captures on this machine" (it did, once, when the folder was renamed).
+FIXTURES = run_eval.CAPTURED_PAGES_DIR
+CONFIRM = run_eval.RESULTS_DIR / "a21-confirm.json"
+REVIEW2 = run_eval.RESULTS_DIR / "a21-review2.json"
 
-A3_CONFIRM = EVAL / "results" / "a3-confirm.json"
+A3_CONFIRM = run_eval.RESULTS_DIR / "a3-confirm.json"
 
 needs_data = pytest.mark.skipif(
     not (CONFIRM.exists() and FIXTURES.exists()),
-    reason="eval fixtures/results are gitignored; this layer runs only where they exist (see the module docstring)",
+    reason="captured pages/results are gitignored; this layer runs only where they exist (see the module docstring)",
 )
 
 # fixture file -> (shows returned, shows kept, repairs as (field, reason-fragment)); the pages in "gated

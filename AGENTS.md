@@ -39,6 +39,9 @@ approach — most "what should we do about X" questions have an answer with reas
 | What non-obvious thing bit us before? | `docs/dev/notes.md` |
 | How is a given milestone being implemented? | `docs/dev/implementations/` |
 | What does a designation like `A2.1-D5` or `v0.1-G6` mean, and how do I write one? | `docs/dev/conventions.md` |
+| How do I add a venue, or a new capture, to the hand-labelled evaluation pool (and mark pages held out)? | `docs/dev/adding-eval-venues.md` |
+| How do I measure the model and the pipeline, read the results, and compare runs (local now, hosted in C6)? | `docs/dev/evaluating-model-performance.md` |
+| Which code runs on every fetch, and which only measures a model? What is in `agent_worker/model_eval/`? | `apps/api/agent_worker/model_eval/README.md` |
 
 When a real debugging session turns up something non-obvious, add it to `docs/dev/notes.md`.
 When a design decision gets made, record it where the surrounding reasoning lives.
@@ -331,7 +334,9 @@ the session model is the author, and the reviewer subagent gets a different one,
      that the name came from the session. Ari chooses the name when he starts the session.
    - **First push:** `git push -u origin <branch>`. The `-u` is needed on a new branch, or a plain
      `git push` fails with "no upstream branch".
-2. Open the PR as a **draft**. Ari reviews and merges; don't merge it yourself. Subscribe to the PR right after opening it (`subscribe_pr_activity`). Don't ask first: Ari has asked for this to be automatic.
+2. Open the PR as a **draft**. Ari reviews and merges; don't merge it yourself. **One exception:** Ari has delegated low-risk Dependabot PRs
+   (patch/minor, off the hold list, all checks green on a current base) to `/dependabot-triage` step 7, which lists
+   the exact conditions; every other PR, including all of your own branches, is still Ari's to merge. Subscribe to the PR right after opening it (`subscribe_pr_activity`). Don't ask first: Ari has asked for this to be automatic.
 3. Run `make check` before pushing and put its result in the PR description. Don't hand-edit
    generated files (`lib/api-types.ts`, `lib/fixtures/`); regenerate with `make types` /
    `make fixtures` if you change `schemas.py` or `testing/sample_data.py`.

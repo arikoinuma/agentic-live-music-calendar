@@ -35,7 +35,7 @@ def build_clients(config: Settings) -> tuple[OpenAI, Any]:
     """The OpenAI client for the configured endpoint, and the instructor client wrapped around it.
 
     Mode.JSON, not Mode.TOOLS: Phase 5 found the local model never reliably completed a tool call but does
-    emit valid JSON (docs/dev/env-setup.md, Phase 5; eval/run_eval.py keeps the longer note). Whether JSON mode
+    emit valid JSON (docs/dev/env-setup.md, Phase 5; model_eval/run_eval.py keeps the longer note). Whether JSON mode
     works against DeepInfra is C6's Step 1 probe, not an assumption. Constructing the clients makes no network
     call, so importing this module is safe in CI. The pipeline and the eval harness both call this, which is
     what keeps them on the same endpoint.

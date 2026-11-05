@@ -1,6 +1,6 @@
 """The one extraction entry point, shared by the pipeline and the eval harness.
 
-`extract_node` (nodes.py) and the eval harness (eval/run_eval.py) both call `extract_page`
+`extract_node` (nodes.py) and the eval harness (model_eval/run_eval.py) both call `extract_page`
 (or `extract_image` for a poster), so the eval always measures exactly what the pipeline
 sends. A2 learned this the hard way with the instruction text (prompts.py); A2.1 adds a
 routing decision, a second model call and a set of experiment switches, so the whole request

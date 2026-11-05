@@ -13,8 +13,8 @@ API_DIR := apps/api
 WEB := calendar
 
 .DEFAULT_GOAL := help
-.PHONY: help setup dev api web db db-up db-down db-reset db-shell db-wait worker \
-        migrate migration seed fixtures types contract-check designation-check test coverage lint typecheck \
+.PHONY: help setup dev api web db db-up db-down db-reset db-shell db-wait worker eval-graph eval-report eval-compare eval-snapshot \
+        migrate migration rehearse-migration seed fixtures types contract-check designation-check test coverage lint typecheck \
         e2e check clean
 
 help: ## Show this help
@@ -94,6 +94,28 @@ db-shell: ## Open psql against the local database
 worker: ## Run the agent worker once: all venues, or VENUE=<id> (needs make db-up and Ollama)
 	cd $(API_DIR) && uv run python -m agent_worker.main $(if $(VENUE),--venue $(VENUE))
 
+# C5 (docs/dev/implementations/c5-pipeline-eval-harness.md): scores a full graph run against the hand-written labels. Calls the
+# model, so it is local only and NOT part of `make check` or CI. Optional: SET (gated|informational|held_out|all), ONLY, RUNS,
+# SCENARIO (repeat|sequence|overlap|perturbed), THRESHOLD, MAX_ATTEMPTS, KEEP_DB=1. The scratch database `calendar_eval` is made on
+# the server DATABASE_URL names (or EVAL_DATABASE_URL, if set); it must be local.
+eval-graph: ## Score the whole pipeline on labelled pages (local only: needs make db-up, Ollama, the fixtures)
+	@test -n "$(LABEL)" || { echo "usage: make eval-graph LABEL=<name> [SET=...] [ONLY=...] [RUNS=n] [SCENARIO=...] [THRESHOLD=x] [MAX_ATTEMPTS=n] [KEEP_DB=1]"; exit 2; }
+	cd $(API_DIR) && uv run python -m agent_worker.model_eval.labeled_page_runs --label $(LABEL) $(if $(SET),--set $(SET)) $(if $(ONLY),--only "$(ONLY)") $(if $(RUNS),--runs $(RUNS)) $(if $(SCENARIO),--scenario $(SCENARIO)) $(if $(THRESHOLD),--threshold $(THRESHOLD)) $(if $(MAX_ATTEMPTS),--max-attempts $(MAX_ATTEMPTS)) $(if $(KEEP_DB),--keep-db)
+
+# docs/dev/evaluating-model-performance.md: the sequence of checks. The report reads a saved results file only (no model, database or
+# fixtures needed); OUT is relative to apps/api.
+eval-report: ## Print a readable Markdown report of a saved graph run (LABEL=<name> [ERRORS=1] [OUT=file.md])
+	@test -n "$(LABEL)" || { echo "usage: make eval-report LABEL=<name> [ERRORS=1] [OUT=file.md]"; exit 2; }
+	cd $(API_DIR) && uv run python -m agent_worker.model_eval.labeled_page_runs --report $(LABEL) $(if $(ERRORS),--errors) $(if $(OUT),--out $(OUT))
+
+eval-snapshot: ## Write a slim, committable summary of a saved run to docs/dev/eval-baselines/ (LABEL=<name>)
+	@test -n "$(LABEL)" || { echo "usage: make eval-snapshot LABEL=<name>"; exit 2; }
+	cd $(API_DIR) && uv run python -m agent_worker.model_eval.labeled_page_runs --snapshot $(LABEL)
+
+eval-compare: ## Compare saved graph runs side by side (LABELS="a b")
+	@test -n "$(LABELS)" || { echo "usage: make eval-compare LABELS=\"label-a label-b\""; exit 2; }
+	cd $(API_DIR) && uv run python -m agent_worker.model_eval.labeled_page_runs --compare $(LABELS)
+
 db-wait: ## Block until Postgres and MongoDB accept connections
 	@echo -n "Waiting for Postgres and MongoDB"
 	@for i in $$(seq 1 30); do \
@@ -111,6 +133,10 @@ db-wait: ## Block until Postgres and MongoDB accept connections
 
 migrate: ## Apply all pending Alembic migrations
 	cd $(API_DIR) && uv run alembic upgrade head
+
+rehearse-migration: ## Rehearse pending migrations on a throwaway Neon branch: make rehearse-migration ENV=staging [ARGS='--sql "select 1"']
+	@test -n "$(ENV)" || { echo 'Usage: make rehearse-migration ENV=staging|dev|prod [ARGS="--sql \"select slug from metro\""]'; exit 1; }
+	cd $(API_DIR) && uv run python -m scripts.rehearse_migration $(ENV) $(ARGS)
 
 migration: ## Autogenerate a migration: make migration m="add show table"
 	@test -n "$(m)" || { echo 'Usage: make migration m="what changed"'; exit 1; }

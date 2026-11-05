@@ -72,9 +72,22 @@ class Metro(TimestampMixin, Base):
     """A metropolitan area. Venues are scoped to one; artists are not."""
 
     __tablename__ = "metro"
+    __table_args__ = (
+        # The slug becomes the first label of the metro's web address (msp.<domain>, Dep-D2), so the database
+        # refuses anything that could not be one: 3 to 32 characters, a letter first, lowercase letters, digits
+        # and hyphens, not ending in a hyphen (C4-D2). Enforced here and not only in application code so a
+        # hand-inserted row cannot break a host. `name=` is mandatory under the `ck` naming convention; this one
+        # renders as metro_slug_format_check.
+        CheckConstraint("slug ~ '^[a-z][a-z0-9-]{1,30}[a-z0-9]$'", name="slug_format"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str]
+    # The metro's short code in its host: `msp` for Minneapolis/St. Paul (Dep-D3). Unique because a host names
+    # exactly one metro (the `uq` convention names it metro_slug_key). The reserved words that can never be a
+    # slug are not in the database: they are a rule about addressing, kept in one JSON file the Next.js app also
+    # reads (apps/calendar/lib/reserved-slugs.json) and checked against the seed by a test (C4-D2).
+    slug: Mapped[str] = mapped_column(unique=True)
     # IANA name. Drives the per-metro 4 a.m. agent trigger and the calendar
     # rendering in the metro's zone rather than the browser's.
     timezone: Mapped[str]

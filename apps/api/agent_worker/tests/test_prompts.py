@@ -1,5 +1,5 @@
 """Tests for the shared extraction instruction (`agent_worker/prompts.py`) and for the two
-places that send it (`nodes.extract_node` and `eval/run_eval.extract`).
+places that send it (`nodes.extract_node` and `model_eval/run_eval.extract`).
 
 Two kinds of test live here, deliberately separate:
 
@@ -26,7 +26,7 @@ from typing import Any
 import pytest
 
 from agent_worker import extraction, nodes, prompts
-from agent_worker.eval import run_eval
+from agent_worker.model_eval import run_eval
 from agent_worker.state import VenueGraphState
 
 # ---------------------------------------------------------------------------
@@ -182,7 +182,7 @@ def test_no_prompt_quotes_a_labelled_answer() -> None:
     # first conventions quoted the gated pages' own hard titles with their answers; three were
     # added right after their row failed.) Expected act names come from labels.py, not prompts.py.
     from agent_worker import act_split, extraction, policy
-    from agent_worker.eval.labels import PAGE_LABELS
+    from agent_worker.model_eval.labels import PAGE_LABELS
     from agent_worker.normalize import fold_text
     from agent_worker.schemas import SPLIT_ACTS_DESCRIPTION
 

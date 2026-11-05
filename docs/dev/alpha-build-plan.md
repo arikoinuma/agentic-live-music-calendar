@@ -274,6 +274,8 @@ Plan and review: `docs/dev/implementations/a7-testing.md` (plan approved by Ari 
 
 The four items kept their `[fill-in]` marking.
 
+**Status (November 4, 2026):** C5 is built and its local baseline recorded (`docs/dev/implementations/c5-pipeline-eval-harness.md`, Implementation log Round 4); signed off by Ari, November 5, 2026. C7 is unchanged.
+
 ---
 
 ## 6. Track B — Next.js and React

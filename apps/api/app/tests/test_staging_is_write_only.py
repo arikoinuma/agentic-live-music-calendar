@@ -18,7 +18,7 @@ from agent_worker.staging import Stager
 
 API_DIR = Path(__file__).resolve().parents[2]
 PACKAGES = ("app", "agent_worker")
-NOT_PRODUCTION_DIRS = {"tests", "testing", "__pycache__", "eval"}
+NOT_PRODUCTION_DIRS = {"tests", "testing", "__pycache__", "model_eval"}
 NOT_PRODUCTION_FILES = {"local_test.py"}
 
 # pymongo collection methods that return documents or counts of them. `find` is separate (below), because

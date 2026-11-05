@@ -140,7 +140,7 @@ Branch: `c6-hosted-inference` (Part 1), then `c6-hosted-inference-gate` (Part 2)
 | `apps/api/app/config.py` | New fields; check (e) in `environment_problem` |
 | `apps/api/agent_worker/llm.py` | Provider, `build_clients`, `ModelRoles`; `request_kwargs` per D5 |
 | `apps/api/agent_worker/extraction.py`, `act_split.py`, `status_check.py`, `artist_match.py`, `reconcile.py`, `nodes.py`, `policy.py` | Per-role options threaded; escalation per D4; `_on_page` whole words |
-| `apps/api/agent_worker/eval/run_eval.py`, `labels.py` | One shared client factory; hosted provenance; usage capture; role overrides; labels sha; `VENUE_FACTS` rows; `held_out` and `--set held_out` (C5-D3 names); new label rows (Ari) |
+| `apps/api/agent_worker/model_eval/run_eval.py`, `labels.py` | One shared client factory; hosted provenance; usage capture; role overrides; labels sha; `VENUE_FACTS` rows; `held_out` and `--set held_out` (C5-D3 names); new label rows (Ari) |
 | `apps/api/agent_worker/main.py` | `model_endpoint_problem` start-up refusal beside the `MONGODB_URI` one |
 | `apps/api/agent_worker/staging.py`, `audit.py`, `state.py` | Models recorded per role |
 | `apps/api/agent_worker/validation.py` | Only if D6 promotes `ACT_NOT_IN_TITLE` |
@@ -268,6 +268,16 @@ Run from the laptop with `MODEL_API_KEY` from `apps/api/.env` (never printed); s
 4. `arch-initial.md` §10/§11's claim about `gemma-4-e4b-it` and its price line need correcting when the chosen models are recorded (Step 13).
 
 No code changed in this round. **Sequencing (Ari, October 30, 2026):** the full hosted eval is deferred until C5 (which changes `run_eval.py` and `labels.py`, and owns the held-out set) has merged and this branch has been rebased onto it, so it runs once, on the final harness. Results files are gitignored, so nothing is lost by waiting.
+
+### Round 3 — merge of `main` (C4, C5, C5.1), Claude Sonnet 5.5, November 5, 2026
+
+**Scope.** `origin/main` (`c669fb1`) merged into `c6-hosted-inference`; the diff base for `make designation-check` is now `origin/main`. Part 1's own change is unchanged. Three textual conflicts, all mechanical: `llm.py` (kept the `build_clients` factory over main's hard-coded client), `model_eval/run_eval.py` (import blocks, moved to the `model_eval` paths C5.1 introduced) and `tests/model_eval/test_eval_harness.py` (both sides appended tests; kept both).
+
+**Not caught by git, found by mypy and the tests.** C5's `labeled_page_runs/run_labeled_pages.py` called `model_provenance(model, num_ctx)`, the signature C6 replaced with `model_provenance(options, base_url)`. It now records one provenance entry per distinct role model of `PIPELINE_ROLES`, as `run_eval` does, so a hosted graph run neither calls localhost nor drops the splitter's model. A C6 test and a `llm.py` comment still named `agent_worker.eval`; updated.
+
+**C5 names C6 relies on, confirmed present:** `PageLabel.held_out`, `held_out_fixtures()`, `--set held_out`, `labels_sha` (`run_eval.py`).
+
+**Verification.** `ruff` clean, `mypy` clean (152 files), `pytest` 1216 passed locally. Hosted parity run (Step 6) and Part 2 remain open.
 
 ## Code review
 

@@ -1,4 +1,4 @@
-"""Tests for `agent_worker/eval/capture.py`, which saves venue pages as eval fixtures.
+"""Tests for `agent_worker/model_eval/capture.py`, which saves venue pages as eval fixtures.
 
 A captured page is what a label describes (A2.1-D2: labels describe the captured page,
 and "re-capturing means re-labelling"). So capture must never silently replace a fixture that
@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from agent_worker.eval import capture
+from agent_worker.model_eval import capture
 
 TODAY = datetime.date(2026, 10, 10)
 
@@ -21,7 +21,7 @@ TODAY = datetime.date(2026, 10, 10)
 @pytest.fixture
 def fixtures_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     """A temporary fixtures directory, and a fetch that returns a page naming its URL."""
-    monkeypatch.setattr(capture, "FIXTURES_DIR", tmp_path)
+    monkeypatch.setattr(capture, "CAPTURED_PAGES_DIR", tmp_path)
     monkeypatch.setattr(capture, "fetch_html", lambda url: f"<html><body>{url} " + "x" * 600 + "</body></html>")
     return tmp_path
 
