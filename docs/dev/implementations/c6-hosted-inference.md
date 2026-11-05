@@ -296,12 +296,12 @@ No code changed in this round. **Sequencing (Ari, October 30, 2026):** the full 
 | validation recall | 0.0 | 0.0 (8 errors: 0 caught, 3 flagged, 5 silent) |
 
 - **Field accuracy** is clean: no wrong value and no missing rate over 10% on any field.
-- **Gate failures (run 0, gated pages):** `mortimers` 2 missed (two `/ Sat, Oct 10`-style titles with a date suffix), `seventh_st_entry` 1 wrong act (an extra act on 2026-10-31), `white_squirrel` 1 missed (`The Dan's`) and 1 wrong act (an extra act `Steve McPherson`). `turf_club` passed in run 0 but failed in the 5-run gate. Informational pages: two wrong acts on Zhora, one on a poster.
+- **Gate failures (run 0, gated pages):** `mortimers` 2 missed (the two Oct 10 / Oct 14 listings), `seventh_st_entry` 1 wrong act (an extra act on 2026-10-31), `white_squirrel` 1 missed (`The Dan's`) and 1 wrong act (an extra act `Steve McPherson`). `turf_club` passed in run 0 but failed in the 5-run gate. Informational pages: two wrong acts on Zhora, one on a poster.
 - **Sequence scenario:** inserts 12 then 10, no removals, 0 invented; the database ends with 1 missed and 1 wrong act (the same two white_squirrel errors). **Perturbed:** update 1, remove 1, insert 1 as designed.
 - **Repeatability:** `white_squirrel` identical across 3 runs (recall 0.818); `mortimers` DIFFERENT across 3 runs (recall 0.857), as expected from the probe finding that seed is not honoured.
 - **Speed:** 4–6 s per run on JSON-LD pages, 10 s on small model-route pages, 40–70 s on the large ones (`seventh_st`, `turf_club`).
 
-**Reading it.** Hosting a larger model raises accuracy by about 12 points of recall and 15 of precision but does not pass the gate; what is left are stable, repeating act-split and missed-show errors, and validation catches none of them. That is the case for Part 2 (the splitter rungs), and for treating `ACT_NOT_IN_TITLE` (C6-D6) as worth measuring: the extra acts (`Steve McPherson`, `Wizard.Imma`) are not in the title text. Not done: thinking-off and `--concurrency` throughput (Step 11), the rungs (Step 9) and the held-out set (Step 8).
+**Reading it.** Hosting a larger model raises accuracy by about 12 points of recall and 15 of precision but does not pass the gate; what is left are stable, repeating act-split and missed-show errors, and validation catches none of them. That is the case for Part 2 (the splitter rungs), and for measuring `ACT_NOT_IN_TITLE` (C6-D6) on the extra acts (`Steve McPherson`, `Wizard.Imma`); whether the title text lacks them is not yet checked. Not done: thinking-off and `--concurrency` throughput (Step 11), the rungs (Step 9) and the held-out set (Step 8).
 
 ## Code review
 
