@@ -277,13 +277,15 @@ The items are unmarked; their marking is set in C3.1's plan (Dep-D15). One candi
 
 ### C5. Pipeline evaluation harness (was A8, first half)
 
+Plan and review: `docs/dev/implementations/c5-pipeline-eval-harness.md` (plan approved by Ari October 29, 2026, C5-D1 to C5-D7 as recommended). **Done: signed off by Ari, November 5, 2026 (baseline recorded November 4).** The four `TODO(Ari)` gaps are filled and cleaned up; the findings (validation caught 0 of 24 errors, the first-billed act is dropped on Turf Club, the model is not repeatable at temperature 0) are in the plan's Implementation log, Round 4. **Departures from the wording below (C5 plan, "Departures"):** the graph-level harness is a new `eval/graph_eval.py` beside `run_eval.py`, not `run_eval.py` promoted (C5-D1); `PageLabel` gains `held_out` (C5-D3); `main.run_venue` gains an optional `policy` argument (C5-D5); and `docs/dev/conventions.md` has a `C5` scope row. Also as built: scenarios feed every capture from one fixed path (reconcile compares `original_url`), and validation recall is reported per error kind.
+
 *Migrated from `alpha-build-plan.md` A8, October 21, 2026.* Phase 5 evaluated whether a *model* could extract. This evaluates whether the *pipeline* produces correct calendar data. The harness is model-independent, so it is built now on the local model. That baseline also has errors to measure: 4 in 60, where a better model leaves fewer.
 
-- [ ] **[fill-in]** Hand-label the four fixtures with their correct extraction — what a perfect run would produce. *A2.1 labelled the pages it gates on (`eval/labels.py`; Ari labels Mortimer's); what remains is labelling further venues. These labels are also C6's held-out set: label once.*
-- [ ] **[fill-in]** Promote `eval/run_eval.py` from throwaway to a real harness that scores a full graph run against those labels: precision and recall on shows found, field-level accuracy, and how often the retry loop fires. *A2.1 built the extraction-level scorer and gate (`eval/scoring.py`); what remains is scoring a full graph run and the retry loop. `run_eval.py` reaches `extract_page` only, so no graph-level retry data exists yet.*
-- [ ] *(added)* **Score the database, not only the extraction:** run the graph twice over two captures of one venue (White Squirrel has two) and score the rows left behind: inserts, updates and soft deletes.
-- [ ] *(added)* **Validation recall:** of the extraction errors the labels reveal, the fraction validation flagged versus let through silently. Act-naming slips look plausible to every check (an inference to confirm here, not measured), and this is what shows which layer catches which failure.
-- [ ] *(added)* Record the baseline on `gemma4-e4b`.
+- [x] **[fill-in]** Hand-label the four fixtures with their correct extraction — what a perfect run would produce. *A2.1 labelled the pages it gates on (`eval/labels.py`; Ari labels Mortimer's); what remains is labelling further venues. These labels are also C6's held-out set: label once.*
+- [x] **[fill-in]** Promote `eval/run_eval.py` from throwaway to a real harness that scores a full graph run against those labels: precision and recall on shows found, field-level accuracy, and how often the retry loop fires. *A2.1 built the extraction-level scorer and gate (`eval/scoring.py`); what remains is scoring a full graph run and the retry loop. `run_eval.py` reaches `extract_page` only, so no graph-level retry data exists yet.*
+- [x] *(added)* **Score the database, not only the extraction:** run the graph twice over two captures of one venue (White Squirrel has two) and score the rows left behind: inserts, updates and soft deletes.
+- [x] *(added)* **Validation recall:** of the extraction errors the labels reveal, the fraction validation flagged versus let through silently. Act-naming slips look plausible to every check (an inference to confirm here, not measured), and this is what shows which layer catches which failure.
+- [x] *(added)* Record the baseline on `gemma4-e4b`.
 
 **Done when:** the harness reports precision and recall on shows found, field-level accuracy, the retry rate, validation recall and the database rows left after two runs, and the baseline is recorded. Needs the local model and the gitignored fixtures, so it can't run in the cloud.
 
@@ -305,6 +307,8 @@ The items are unmarked; their marking is set in C3.1's plan (Dep-D15). One candi
 - [ ] *(carried from A7)* Tighten `status_check._on_page`'s short-name substring fallback to whole words (`agent_worker/status_check.py` records it as a follow-up for the evaluation or the hosted-inference work).
 
 **Done when:** the A2.1-D1 gate passes on every run of a 5-run confirmation (as `a21-confirm` in A2.1), on both the gated pages and the held-out capture; the chosen models and their configuration are recorded in `arch-initial.md` §7; duration and cost per page are recorded. **Exit:** if the gate has not passed after the larger-model work (A2.1-E1 to A2.1-E3), C6's plan sets the point at which Ari is asked to continue or to accept the miss under Dep-D13; C11 does not wait on a gate nobody can close.
+
+**From C5 (November 5, 2026), read before planning this milestone:** the "before" snapshots are in `docs/dev/eval-baselines/`, the sequence of checks is `docs/dev/evaluating-model-performance.md`, the current list of errors replaces the four known misses above, and the harness facts that bear on hosted inference (keep API keys out of `RequestOptions`, which the results files and committed snapshots record; `model_provenance` is Ollama-only; no token cost recorded) are in `docs/dev/implementations/c5-pipeline-eval-harness.md`, Implementation log Round 7.
 
 **Constraints carried over from A2.1:** never try to get past a bot challenge (Midway, A2.1-D3); capture fixtures with the pipeline's own fetch, one plain GET per URL; results files record every prompt sent (code review round 2, #3).
 

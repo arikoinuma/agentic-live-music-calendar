@@ -58,6 +58,7 @@ from agent_worker.eval.labels import (
     PAGE_LABELS,
     VENUE_FACTS,
     gated_fixtures,
+    held_out_fixtures,
     informational_fixtures,
 )
 from agent_worker.eval.reference import REFERENCE, FixtureReference, fixture_key
@@ -641,8 +642,9 @@ def compare(labels: list[str]) -> None:
 def select_fixtures(which: str, only: str | None) -> list[Path]:
     """The fixtures a label runs: drawn only from `labels.PAGE_LABELS` (so an unlabelled file,
     such as the Uptown Art House .ics feed with no reader yet, is never run as a page — A2.1-PR2-10), filtered by set and by `--only`, and present on disk (fixtures are git-ignored)."""
+    # `held_out` (C5-D3) is its own set: "all" does not include it, so a run that scores everything else never sees those pages.
     names = {"gated": gated_fixtures(), "informational": informational_fixtures(),
-             "all": gated_fixtures() + informational_fixtures()}[which]
+             "all": gated_fixtures() + informational_fixtures(), "held_out": held_out_fixtures()}[which]
     chosen = []
     for name in sorted(names):
         path = FIXTURES_DIR / name
@@ -659,7 +661,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--label", help="name for this run set; results go to results/<label>.json")
     parser.add_argument("--runs", type=int, default=5, help="runs per fixture (default 5, seeds 0..n-1; A2.1 D1)")
-    parser.add_argument("--set", choices=["gated", "informational", "all"], default="all",
+    parser.add_argument("--set", choices=["gated", "informational", "all", "held_out"], default="all",
                         help="which labelled fixtures to run (labels.py; D2)")
     parser.add_argument("--only", help="only fixtures whose file name contains this text")
     parser.add_argument(

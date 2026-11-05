@@ -1,0 +1,1740 @@
+{
+  "label": "c5-perturbed",
+  "started_at": "2026-11-04T23:13:44+00:00",
+  "set": "all",
+  "scenario": "perturbed",
+  "labels_sha": "68539c301c123c7ab65cf83bdf8a27928d567bd79d0f4e42261d40c91b2ce164",
+  "held_out_scored": false,
+  "harness_commit": "04fcfed26940076418f1e4f06773b8b6b5ba7539",
+  "config": {
+    "route": "auto",
+    "keep_line_breaks": true,
+    "include_new_rules": true,
+    "status_field": false,
+    "year_rule": true,
+    "act_conventions": true,
+    "acts_split_description": false,
+    "status_pass": true,
+    "title_split": true,
+    "keep_image_urls": false,
+    "retry_hint": "",
+    "splitter_hint": ""
+  },
+  "request_options": {
+    "model": "gemma4-e4b-32k",
+    "temperature": 0.0,
+    "max_tokens": 16000,
+    "max_retries": 1,
+    "num_ctx": 32768
+  },
+  "policy": {
+    "confidence_threshold": 0.8,
+    "max_attempts": 3,
+    "escalation_model": null
+  },
+  "provenance": {
+    "gemma4-e4b-32k": {
+      "ollama_version": "0.40.6",
+      "model_digest": "654af1bf75f4ac7c6b38f94cf7f2edbf29991a2d9227f6c10927fb236598fb2d",
+      "loaded_context_length": 32768,
+      "requested_num_ctx": 32768
+    }
+  },
+  "aggregate": {
+    "runs": 2,
+    "columns": {
+      "raw": {
+        "labelled": 22,
+        "returned": 21,
+        "dropped_empty": 3,
+        "missed": 1,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "found": 21,
+        "rates": {
+          "found": 21,
+          "labelled": 22,
+          "returned": 21,
+          "recall": 0.9545454545454546,
+          "precision": 1.0,
+          "precision_lenient": 1.0
+        },
+        "fields": {
+          "time": {
+            "stated": 21,
+            "correct": 21,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": 0.0
+          },
+          "end_time": {
+            "stated": 21,
+            "correct": 21,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": 0.0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          },
+          "status": {
+            "stated": 21,
+            "correct": 21,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": 0.0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 19,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          }
+        }
+      },
+      "validated": {
+        "labelled": 22,
+        "returned": 21,
+        "dropped_empty": 0,
+        "missed": 1,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "found": 21,
+        "rates": {
+          "found": 21,
+          "labelled": 22,
+          "returned": 21,
+          "recall": 0.9545454545454546,
+          "precision": 1.0,
+          "precision_lenient": 1.0
+        },
+        "fields": {
+          "time": {
+            "stated": 21,
+            "correct": 21,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": 0.0
+          },
+          "end_time": {
+            "stated": 21,
+            "correct": 21,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": 0.0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          },
+          "status": {
+            "stated": 21,
+            "correct": 21,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": 0.0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 19,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          }
+        }
+      },
+      "committed": {
+        "labelled": 22,
+        "returned": 21,
+        "dropped_empty": 0,
+        "missed": 1,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "found": 21,
+        "rates": {
+          "found": 21,
+          "labelled": 22,
+          "returned": 21,
+          "recall": 0.9545454545454546,
+          "precision": 1.0,
+          "precision_lenient": 1.0
+        },
+        "fields": {
+          "time": {
+            "stated": 21,
+            "correct": 21,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": 0.0
+          },
+          "end_time": {
+            "stated": 21,
+            "correct": 21,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": 0.0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          },
+          "status": {
+            "stated": 21,
+            "correct": 21,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": 0.0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 19,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          }
+        }
+      }
+    },
+    "gate": {
+      "raw": {
+        "passed": false,
+        "failures": [
+          "run 0: white_squirrel-2026-10-10.html: 1 missed"
+        ],
+        "pages": 2
+      },
+      "validated": {
+        "passed": false,
+        "failures": [
+          "run 0: white_squirrel-2026-10-10.html: 1 missed"
+        ],
+        "pages": 2
+      },
+      "committed": {
+        "passed": false,
+        "failures": [
+          "run 0: white_squirrel-2026-10-10.html: 1 missed"
+        ],
+        "pages": 2
+      }
+    },
+    "retry": {
+      "runs": 2,
+      "retried": 0,
+      "retry_rate": 0.0,
+      "mean_attempts": 1.0,
+      "escalated": 0,
+      "recovered": 0,
+      "attempts_by_tier": {
+        "initial": 2
+      },
+      "reasons": {},
+      "errors_first_attempt": 0,
+      "errors_final_attempt": 0
+    },
+    "validation": {
+      "total": 1,
+      "caught": 0,
+      "flagged": 1,
+      "silent": 0,
+      "recall": 0.0,
+      "by_kind": {
+        "missed": {
+          "caught": 0,
+          "flagged": 1,
+          "silent": 0
+        }
+      },
+      "findings_fired": {
+        "excluded_no_acts": 3
+      },
+      "findings_disagree": 0,
+      "route_mismatches": 0
+    },
+    "per_fixture": {
+      "white_squirrel-2026-10-10.html": {
+        "runs": 2,
+        "seconds": [
+          85.9,
+          72.7
+        ],
+        "runs_identical": false
+      }
+    },
+    "cost": {
+      "mean_seconds": 79.3,
+      "mean_seconds_by_route": {
+        "jsonld": 79.3
+      }
+    }
+  },
+  "request": {
+    "instruction_sha": "1c13629a64",
+    "response_schema_chars": 3335,
+    "response_schema_sha": "186eb8c3e9"
+  },
+  "runs": [
+    {
+      "fixture": "white_squirrel-2026-10-10.html",
+      "venue_id": 1,
+      "run_id": 1,
+      "seconds": 85.9,
+      "source": "jsonld",
+      "attempt_count": 1,
+      "retried": false,
+      "recovered": false,
+      "escalated": false,
+      "escalation_reason": null,
+      "final_verdict": "passed",
+      "policy": {
+        "confidence_threshold": 0.8,
+        "max_attempts": 3,
+        "escalation_model": null
+      },
+      "reconcile_counts": {
+        "insert": 10,
+        "update": 0,
+        "no_op": 0,
+        "remove": 0,
+        "skip": 0
+      },
+      "commit_written": {
+        "inserted": 10,
+        "updated": 0,
+        "removed": 0
+      },
+      "raw_score": {
+        "fixture": "white_squirrel-2026-10-10.html",
+        "route": "model",
+        "labelled": 11,
+        "returned": 10,
+        "dropped_empty": 2,
+        "missed": 1,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 10,
+            "correct": 10,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 10,
+            "correct": 10,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 10,
+            "correct": 10,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 9,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "missed 2026-10-14 'Cole Diamond’s Whiskey Wednesdays / Wednesday October 14 @ 9:00 pm - 11:00 pm'"
+        ],
+        "items": [
+          {
+            "kind": "missed",
+            "date": "2026-10-14",
+            "index": 11,
+            "field": null
+          }
+        ]
+      },
+      "validated_score": {
+        "fixture": "white_squirrel-2026-10-10.html",
+        "route": "model",
+        "labelled": 11,
+        "returned": 10,
+        "dropped_empty": 0,
+        "missed": 1,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 10,
+            "correct": 10,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 10,
+            "correct": 10,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 10,
+            "correct": 10,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 9,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "missed 2026-10-14 'Cole Diamond’s Whiskey Wednesdays / Wednesday October 14 @ 9:00 pm - 11:00 pm'"
+        ],
+        "items": [
+          {
+            "kind": "missed",
+            "date": "2026-10-14",
+            "index": null,
+            "field": null
+          }
+        ]
+      },
+      "committed_score": {
+        "fixture": "white_squirrel-2026-10-10.html",
+        "route": "model",
+        "labelled": 11,
+        "returned": 10,
+        "dropped_empty": 0,
+        "missed": 1,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 10,
+            "correct": 10,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 10,
+            "correct": 10,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 10,
+            "correct": 10,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 9,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "missed 2026-10-14 'Cole Diamond’s Whiskey Wednesdays / Wednesday October 14 @ 9:00 pm - 11:00 pm'"
+        ],
+        "items": [
+          {
+            "kind": "missed",
+            "date": "2026-10-14",
+            "index": null,
+            "field": null
+          }
+        ]
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "tier": "initial",
+          "route": "jsonld",
+          "model": "gemma4-e4b-32k",
+          "larger_model_used": false,
+          "error": null,
+          "verdict": "passed",
+          "reasons": [],
+          "score": {
+            "fixture": "white_squirrel-2026-10-10.html",
+            "route": "model",
+            "labelled": 11,
+            "returned": 10,
+            "dropped_empty": 2,
+            "missed": 1,
+            "acts_wrong": 0,
+            "fabricated": 0,
+            "leaks": 0,
+            "unsplit": 0,
+            "order_differs": 0,
+            "fields": {
+              "time": {
+                "stated": 10,
+                "correct": 10,
+                "missing": 0,
+                "wrong": 0
+              },
+              "end_time": {
+                "stated": 10,
+                "correct": 10,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_advance": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_day": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "free_admission": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "status": {
+                "stated": 10,
+                "correct": 10,
+                "missing": 0,
+                "wrong": 0
+              },
+              "image_url": {
+                "stated": 0,
+                "correct": 9,
+                "missing": 0,
+                "wrong": 0
+              }
+            },
+            "errors": [
+              "missed 2026-10-14 'Cole Diamond’s Whiskey Wednesdays / Wednesday October 14 @ 9:00 pm - 11:00 pm'"
+            ],
+            "items": [
+              {
+                "kind": "missed",
+                "date": "2026-10-14",
+                "index": 11,
+                "field": null
+              }
+            ]
+          },
+          "errors": [],
+          "warnings": [
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 5 'Open Jam' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 5
+            },
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 11 'Cole Diamond’s Whiskey Wednesdays' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 11
+            }
+          ],
+          "recorded_errors": []
+        }
+      ],
+      "route_mismatch": false,
+      "run": 0,
+      "scenario": "perturbed",
+      "committed_scored": true
+    },
+    {
+      "fixture": "white_squirrel-2026-10-10.html",
+      "venue_id": 1,
+      "run_id": 2,
+      "seconds": 72.7,
+      "source": "jsonld",
+      "attempt_count": 1,
+      "retried": false,
+      "recovered": false,
+      "escalated": false,
+      "escalation_reason": null,
+      "final_verdict": "passed",
+      "policy": {
+        "confidence_threshold": 0.8,
+        "max_attempts": 3,
+        "escalation_model": null
+      },
+      "reconcile_counts": {
+        "insert": 2,
+        "update": 1,
+        "no_op": 8,
+        "remove": 1,
+        "skip": 0
+      },
+      "commit_written": {
+        "inserted": 2,
+        "updated": 1,
+        "removed": 1
+      },
+      "raw_score": {
+        "fixture": "white_squirrel-2026-10-10.html",
+        "route": "model",
+        "labelled": 11,
+        "returned": 11,
+        "dropped_empty": 1,
+        "missed": 0,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 11,
+            "correct": 11,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 11,
+            "correct": 11,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 11,
+            "correct": 11,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 10,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [],
+        "items": []
+      },
+      "validated_score": {
+        "fixture": "white_squirrel-2026-10-10.html",
+        "route": "model",
+        "labelled": 11,
+        "returned": 11,
+        "dropped_empty": 0,
+        "missed": 0,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 11,
+            "correct": 11,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 11,
+            "correct": 11,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 11,
+            "correct": 11,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 10,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [],
+        "items": []
+      },
+      "committed_score": {
+        "fixture": "white_squirrel-2026-10-10.html",
+        "route": "model",
+        "labelled": 11,
+        "returned": 11,
+        "dropped_empty": 0,
+        "missed": 0,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 11,
+            "correct": 11,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 11,
+            "correct": 11,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 11,
+            "correct": 11,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 10,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [],
+        "items": []
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "tier": "initial",
+          "route": "jsonld",
+          "model": "gemma4-e4b-32k",
+          "larger_model_used": false,
+          "error": null,
+          "verdict": "passed",
+          "reasons": [],
+          "score": {
+            "fixture": "white_squirrel-2026-10-10.html",
+            "route": "model",
+            "labelled": 11,
+            "returned": 11,
+            "dropped_empty": 1,
+            "missed": 0,
+            "acts_wrong": 0,
+            "fabricated": 0,
+            "leaks": 0,
+            "unsplit": 0,
+            "order_differs": 0,
+            "fields": {
+              "time": {
+                "stated": 11,
+                "correct": 11,
+                "missing": 0,
+                "wrong": 0
+              },
+              "end_time": {
+                "stated": 11,
+                "correct": 11,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_advance": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_day": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "free_admission": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "status": {
+                "stated": 11,
+                "correct": 11,
+                "missing": 0,
+                "wrong": 0
+              },
+              "image_url": {
+                "stated": 0,
+                "correct": 10,
+                "missing": 0,
+                "wrong": 0
+              }
+            },
+            "errors": [],
+            "items": []
+          },
+          "errors": [],
+          "warnings": [
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 5 'Open Jam' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 5
+            }
+          ],
+          "recorded_errors": []
+        }
+      ],
+      "route_mismatch": false,
+      "run": 1,
+      "scenario": "perturbed",
+      "committed_scored": true
+    }
+  ],
+  "scenarios": [
+    {
+      "pages": [
+        "white_squirrel-2026-10-10.html"
+      ],
+      "result": {
+        "scenario": "perturbed",
+        "runs": [
+          {
+            "fixture": "white_squirrel-2026-10-10.html",
+            "venue_id": 1,
+            "run_id": 1,
+            "seconds": 85.9,
+            "source": "jsonld",
+            "attempt_count": 1,
+            "retried": false,
+            "recovered": false,
+            "escalated": false,
+            "escalation_reason": null,
+            "final_verdict": "passed",
+            "policy": {
+              "confidence_threshold": 0.8,
+              "max_attempts": 3,
+              "escalation_model": null
+            },
+            "reconcile_counts": {
+              "insert": 10,
+              "update": 0,
+              "no_op": 0,
+              "remove": 0,
+              "skip": 0
+            },
+            "commit_written": {
+              "inserted": 10,
+              "updated": 0,
+              "removed": 0
+            },
+            "raw_score": {
+              "fixture": "white_squirrel-2026-10-10.html",
+              "route": "model",
+              "labelled": 11,
+              "returned": 10,
+              "dropped_empty": 2,
+              "missed": 1,
+              "acts_wrong": 0,
+              "fabricated": 0,
+              "leaks": 0,
+              "unsplit": 0,
+              "order_differs": 0,
+              "fields": {
+                "time": {
+                  "stated": 10,
+                  "correct": 10,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "end_time": {
+                  "stated": 10,
+                  "correct": 10,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "admission_advance": {
+                  "stated": 0,
+                  "correct": 0,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "admission_day": {
+                  "stated": 0,
+                  "correct": 0,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "free_admission": {
+                  "stated": 0,
+                  "correct": 0,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "status": {
+                  "stated": 10,
+                  "correct": 10,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "image_url": {
+                  "stated": 0,
+                  "correct": 9,
+                  "missing": 0,
+                  "wrong": 0
+                }
+              },
+              "errors": [
+                "missed 2026-10-14 'Cole Diamond’s Whiskey Wednesdays / Wednesday October 14 @ 9:00 pm - 11:00 pm'"
+              ],
+              "items": [
+                {
+                  "kind": "missed",
+                  "date": "2026-10-14",
+                  "index": 11,
+                  "field": null
+                }
+              ]
+            },
+            "validated_score": {
+              "fixture": "white_squirrel-2026-10-10.html",
+              "route": "model",
+              "labelled": 11,
+              "returned": 10,
+              "dropped_empty": 0,
+              "missed": 1,
+              "acts_wrong": 0,
+              "fabricated": 0,
+              "leaks": 0,
+              "unsplit": 0,
+              "order_differs": 0,
+              "fields": {
+                "time": {
+                  "stated": 10,
+                  "correct": 10,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "end_time": {
+                  "stated": 10,
+                  "correct": 10,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "admission_advance": {
+                  "stated": 0,
+                  "correct": 0,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "admission_day": {
+                  "stated": 0,
+                  "correct": 0,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "free_admission": {
+                  "stated": 0,
+                  "correct": 0,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "status": {
+                  "stated": 10,
+                  "correct": 10,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "image_url": {
+                  "stated": 0,
+                  "correct": 9,
+                  "missing": 0,
+                  "wrong": 0
+                }
+              },
+              "errors": [
+                "missed 2026-10-14 'Cole Diamond’s Whiskey Wednesdays / Wednesday October 14 @ 9:00 pm - 11:00 pm'"
+              ],
+              "items": [
+                {
+                  "kind": "missed",
+                  "date": "2026-10-14",
+                  "index": null,
+                  "field": null
+                }
+              ]
+            },
+            "committed_score": {
+              "fixture": "white_squirrel-2026-10-10.html",
+              "route": "model",
+              "labelled": 11,
+              "returned": 10,
+              "dropped_empty": 0,
+              "missed": 1,
+              "acts_wrong": 0,
+              "fabricated": 0,
+              "leaks": 0,
+              "unsplit": 0,
+              "order_differs": 0,
+              "fields": {
+                "time": {
+                  "stated": 10,
+                  "correct": 10,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "end_time": {
+                  "stated": 10,
+                  "correct": 10,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "admission_advance": {
+                  "stated": 0,
+                  "correct": 0,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "admission_day": {
+                  "stated": 0,
+                  "correct": 0,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "free_admission": {
+                  "stated": 0,
+                  "correct": 0,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "status": {
+                  "stated": 10,
+                  "correct": 10,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "image_url": {
+                  "stated": 0,
+                  "correct": 9,
+                  "missing": 0,
+                  "wrong": 0
+                }
+              },
+              "errors": [
+                "missed 2026-10-14 'Cole Diamond’s Whiskey Wednesdays / Wednesday October 14 @ 9:00 pm - 11:00 pm'"
+              ],
+              "items": [
+                {
+                  "kind": "missed",
+                  "date": "2026-10-14",
+                  "index": null,
+                  "field": null
+                }
+              ]
+            },
+            "attempts": [
+              {
+                "attempt": 1,
+                "tier": "initial",
+                "route": "jsonld",
+                "model": "gemma4-e4b-32k",
+                "larger_model_used": false,
+                "error": null,
+                "verdict": "passed",
+                "reasons": [],
+                "score": {
+                  "fixture": "white_squirrel-2026-10-10.html",
+                  "route": "model",
+                  "labelled": 11,
+                  "returned": 10,
+                  "dropped_empty": 2,
+                  "missed": 1,
+                  "acts_wrong": 0,
+                  "fabricated": 0,
+                  "leaks": 0,
+                  "unsplit": 0,
+                  "order_differs": 0,
+                  "fields": {
+                    "time": {
+                      "stated": 10,
+                      "correct": 10,
+                      "missing": 0,
+                      "wrong": 0
+                    },
+                    "end_time": {
+                      "stated": 10,
+                      "correct": 10,
+                      "missing": 0,
+                      "wrong": 0
+                    },
+                    "admission_advance": {
+                      "stated": 0,
+                      "correct": 0,
+                      "missing": 0,
+                      "wrong": 0
+                    },
+                    "admission_day": {
+                      "stated": 0,
+                      "correct": 0,
+                      "missing": 0,
+                      "wrong": 0
+                    },
+                    "free_admission": {
+                      "stated": 0,
+                      "correct": 0,
+                      "missing": 0,
+                      "wrong": 0
+                    },
+                    "status": {
+                      "stated": 10,
+                      "correct": 10,
+                      "missing": 0,
+                      "wrong": 0
+                    },
+                    "image_url": {
+                      "stated": 0,
+                      "correct": 9,
+                      "missing": 0,
+                      "wrong": 0
+                    }
+                  },
+                  "errors": [
+                    "missed 2026-10-14 'Cole Diamond’s Whiskey Wednesdays / Wednesday October 14 @ 9:00 pm - 11:00 pm'"
+                  ],
+                  "items": [
+                    {
+                      "kind": "missed",
+                      "date": "2026-10-14",
+                      "index": 11,
+                      "field": null
+                    }
+                  ]
+                },
+                "errors": [],
+                "warnings": [
+                  {
+                    "code": "excluded_no_acts",
+                    "severity": "warning",
+                    "message": "show 5 'Open Jam' names no act and was left out; it may be a real show the act splitter missed",
+                    "show_index": 5
+                  },
+                  {
+                    "code": "excluded_no_acts",
+                    "severity": "warning",
+                    "message": "show 11 'Cole Diamond’s Whiskey Wednesdays' names no act and was left out; it may be a real show the act splitter missed",
+                    "show_index": 11
+                  }
+                ],
+                "recorded_errors": []
+              }
+            ],
+            "route_mismatch": false
+          },
+          {
+            "fixture": "white_squirrel-2026-10-10.html",
+            "venue_id": 1,
+            "run_id": 2,
+            "seconds": 72.7,
+            "source": "jsonld",
+            "attempt_count": 1,
+            "retried": false,
+            "recovered": false,
+            "escalated": false,
+            "escalation_reason": null,
+            "final_verdict": "passed",
+            "policy": {
+              "confidence_threshold": 0.8,
+              "max_attempts": 3,
+              "escalation_model": null
+            },
+            "reconcile_counts": {
+              "insert": 2,
+              "update": 1,
+              "no_op": 8,
+              "remove": 1,
+              "skip": 0
+            },
+            "commit_written": {
+              "inserted": 2,
+              "updated": 1,
+              "removed": 1
+            },
+            "raw_score": {
+              "fixture": "white_squirrel-2026-10-10.html",
+              "route": "model",
+              "labelled": 11,
+              "returned": 11,
+              "dropped_empty": 1,
+              "missed": 0,
+              "acts_wrong": 0,
+              "fabricated": 0,
+              "leaks": 0,
+              "unsplit": 0,
+              "order_differs": 0,
+              "fields": {
+                "time": {
+                  "stated": 11,
+                  "correct": 11,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "end_time": {
+                  "stated": 11,
+                  "correct": 11,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "admission_advance": {
+                  "stated": 0,
+                  "correct": 0,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "admission_day": {
+                  "stated": 0,
+                  "correct": 0,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "free_admission": {
+                  "stated": 0,
+                  "correct": 0,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "status": {
+                  "stated": 11,
+                  "correct": 11,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "image_url": {
+                  "stated": 0,
+                  "correct": 10,
+                  "missing": 0,
+                  "wrong": 0
+                }
+              },
+              "errors": [],
+              "items": []
+            },
+            "validated_score": {
+              "fixture": "white_squirrel-2026-10-10.html",
+              "route": "model",
+              "labelled": 11,
+              "returned": 11,
+              "dropped_empty": 0,
+              "missed": 0,
+              "acts_wrong": 0,
+              "fabricated": 0,
+              "leaks": 0,
+              "unsplit": 0,
+              "order_differs": 0,
+              "fields": {
+                "time": {
+                  "stated": 11,
+                  "correct": 11,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "end_time": {
+                  "stated": 11,
+                  "correct": 11,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "admission_advance": {
+                  "stated": 0,
+                  "correct": 0,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "admission_day": {
+                  "stated": 0,
+                  "correct": 0,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "free_admission": {
+                  "stated": 0,
+                  "correct": 0,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "status": {
+                  "stated": 11,
+                  "correct": 11,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "image_url": {
+                  "stated": 0,
+                  "correct": 10,
+                  "missing": 0,
+                  "wrong": 0
+                }
+              },
+              "errors": [],
+              "items": []
+            },
+            "committed_score": {
+              "fixture": "white_squirrel-2026-10-10.html",
+              "route": "model",
+              "labelled": 11,
+              "returned": 11,
+              "dropped_empty": 0,
+              "missed": 0,
+              "acts_wrong": 0,
+              "fabricated": 0,
+              "leaks": 0,
+              "unsplit": 0,
+              "order_differs": 0,
+              "fields": {
+                "time": {
+                  "stated": 11,
+                  "correct": 11,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "end_time": {
+                  "stated": 11,
+                  "correct": 11,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "admission_advance": {
+                  "stated": 0,
+                  "correct": 0,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "admission_day": {
+                  "stated": 0,
+                  "correct": 0,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "free_admission": {
+                  "stated": 0,
+                  "correct": 0,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "status": {
+                  "stated": 11,
+                  "correct": 11,
+                  "missing": 0,
+                  "wrong": 0
+                },
+                "image_url": {
+                  "stated": 0,
+                  "correct": 10,
+                  "missing": 0,
+                  "wrong": 0
+                }
+              },
+              "errors": [],
+              "items": []
+            },
+            "attempts": [
+              {
+                "attempt": 1,
+                "tier": "initial",
+                "route": "jsonld",
+                "model": "gemma4-e4b-32k",
+                "larger_model_used": false,
+                "error": null,
+                "verdict": "passed",
+                "reasons": [],
+                "score": {
+                  "fixture": "white_squirrel-2026-10-10.html",
+                  "route": "model",
+                  "labelled": 11,
+                  "returned": 11,
+                  "dropped_empty": 1,
+                  "missed": 0,
+                  "acts_wrong": 0,
+                  "fabricated": 0,
+                  "leaks": 0,
+                  "unsplit": 0,
+                  "order_differs": 0,
+                  "fields": {
+                    "time": {
+                      "stated": 11,
+                      "correct": 11,
+                      "missing": 0,
+                      "wrong": 0
+                    },
+                    "end_time": {
+                      "stated": 11,
+                      "correct": 11,
+                      "missing": 0,
+                      "wrong": 0
+                    },
+                    "admission_advance": {
+                      "stated": 0,
+                      "correct": 0,
+                      "missing": 0,
+                      "wrong": 0
+                    },
+                    "admission_day": {
+                      "stated": 0,
+                      "correct": 0,
+                      "missing": 0,
+                      "wrong": 0
+                    },
+                    "free_admission": {
+                      "stated": 0,
+                      "correct": 0,
+                      "missing": 0,
+                      "wrong": 0
+                    },
+                    "status": {
+                      "stated": 11,
+                      "correct": 11,
+                      "missing": 0,
+                      "wrong": 0
+                    },
+                    "image_url": {
+                      "stated": 0,
+                      "correct": 10,
+                      "missing": 0,
+                      "wrong": 0
+                    }
+                  },
+                  "errors": [],
+                  "items": []
+                },
+                "errors": [],
+                "warnings": [
+                  {
+                    "code": "excluded_no_acts",
+                    "severity": "warning",
+                    "message": "show 5 'Open Jam' names no act and was left out; it may be a real show the act splitter missed",
+                    "show_index": 5
+                  }
+                ],
+                "recorded_errors": []
+              }
+            ],
+            "route_mismatch": false
+          }
+        ],
+        "expected_counts": {
+          "insert": 1,
+          "update": 1,
+          "no_op": 9,
+          "remove": 1,
+          "skip": 0
+        },
+        "count_differences": [
+          "insert: expected 1, got 2",
+          "no_op: expected 9, got 8"
+        ],
+        "perturbation": {
+          "time_nulled": 1,
+          "deleted": 10,
+          "stale": 11
+        },
+        "not_run": null
+      },
+      "database_score": {
+        "fixture": "database:perturbed",
+        "route": "model",
+        "labelled": 11,
+        "returned": 11,
+        "dropped_empty": 0,
+        "missed": 0,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 11,
+            "correct": 11,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 11,
+            "correct": 11,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 11,
+            "correct": 11,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 10
+          }
+        },
+        "errors": [
+          "image_url 2026-10-10: 'https://whitesquirrelbar.com/wp-content/uploads/1160.png' is not on the page",
+          "image_url 2026-10-10: 'https://whitesquirrelbar.com/wp-content/uploads/1010-scaled.jpg' is not on the page",
+          "image_url 2026-10-10: 'https://whitesquirrelbar.com/wp-content/uploads/Joan-of-Profile-4.jpeg' is not on the page",
+          "image_url 2026-10-11: 'https://whitesquirrelbar.com/wp-content/uploads/1011-dr.jpeg' is not on the page",
+          "image_url 2026-10-11: 'https://whitesquirrelbar.com/wp-content/uploads/PNB-Clawhammer-Mike-10-11-26.png' is not on the page",
+          "image_url 2026-10-12: 'https://whitesquirrelbar.com/wp-content/uploads/mumblindrews.jpg' is not on the page",
+          "image_url 2026-10-12: 'https://whitesquirrelbar.com/wp-content/uploads/bh.jpeg' is not on the page",
+          "image_url 2026-10-13: 'https://whitesquirrelbar.com/wp-content/uploads/The-Dans-with-Pat-Donohue-and-Erik-Lillestol-1-scaled.jpg' is not on the page",
+          "image_url 2026-10-14: 'https://whitesquirrelbar.com/wp-content/uploads/mollymayerres.jpeg' is not on the page",
+          "image_url 2026-10-14: 'https://whitesquirrelbar.com/wp-content/uploads/Whiskey-Wednesday-Insta-Square.jpg' is not on the page"
+        ],
+        "items": [
+          {
+            "kind": "image_wrong",
+            "date": "2026-10-10",
+            "index": 0,
+            "field": "image_url"
+          },
+          {
+            "kind": "image_wrong",
+            "date": "2026-10-10",
+            "index": 1,
+            "field": "image_url"
+          },
+          {
+            "kind": "image_wrong",
+            "date": "2026-10-10",
+            "index": 2,
+            "field": "image_url"
+          },
+          {
+            "kind": "image_wrong",
+            "date": "2026-10-11",
+            "index": 3,
+            "field": "image_url"
+          },
+          {
+            "kind": "image_wrong",
+            "date": "2026-10-11",
+            "index": 4,
+            "field": "image_url"
+          },
+          {
+            "kind": "image_wrong",
+            "date": "2026-10-12",
+            "index": 5,
+            "field": "image_url"
+          },
+          {
+            "kind": "image_wrong",
+            "date": "2026-10-12",
+            "index": 6,
+            "field": "image_url"
+          },
+          {
+            "kind": "image_wrong",
+            "date": "2026-10-13",
+            "index": 7,
+            "field": "image_url"
+          },
+          {
+            "kind": "image_wrong",
+            "date": "2026-10-14",
+            "index": 9,
+            "field": "image_url"
+          },
+          {
+            "kind": "image_wrong",
+            "date": "2026-10-14",
+            "index": 10,
+            "field": "image_url"
+          }
+        ]
+      }
+    }
+  ]
+}

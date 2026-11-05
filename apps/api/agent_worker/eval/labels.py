@@ -67,6 +67,9 @@ class PageLabel:
     shows: tuple[LabelledShow, ...]
     non_shows: tuple[NonShow, ...] = ()
     note: str = ""
+    # C5-D3: set aside for C6's held-out test. A held-out page is labelled now (label once) but is in no default set, so the
+    # baseline and every tuning run never score it; `--set held_out` is how C6 scores it, and the results file says it did.
+    held_out: bool = False
 
 
 @dataclass(frozen=True)
@@ -86,7 +89,8 @@ class VenueFacts:
 
 VENUE_FACTS: dict[str, VenueFacts] = {
     "white_squirrel": VenueFacts("The White Squirrel Bar", "https://whitesquirrelbar.com/calendar/"),
-    "terminal": VenueFacts("The Terminal Bar", "https://terminalbarmn.com/live-music/"),
+    "terminal": VenueFacts("The Terminal Bar", "https://terminalbarmn.com/live-music/",
+                           blocked="show details are in poster images; image route deferred (arch-initial.md §11)"),
     "zhora": VenueFacts("Zhora Darling", "https://www.zhoradarling.com/events",
                         blocked="listings drawn client-side by the DICE widget; needs a browser"),
     "midway": VenueFacts("The Midway Saloon", "https://www.themidwaysaloon.com/events",
@@ -98,6 +102,34 @@ VENUE_FACTS: dict[str, VenueFacts] = {
         "https://uptownarthousetheater.org/shows-events.html",
         feed_url="https://calendar.google.com/calendar/ical/arthousetheatermpls%40gmail.com/public/basic.ics",
     ),
+    "ginkgo_coffee": VenueFacts(
+        "Ginkgo Coffeehouse",
+        "https://ginkgocoffee.com/events/list/",
+    ),
+    "finnish_bistro": VenueFacts(
+      "The Finnish Bistro",
+      "https://finnishbistro.com/events/",
+      blocked="HTTP 403; not to be worked around (A2.1-D3)"
+    ),
+    "cloudland": VenueFacts(
+      "Cloudland",
+      "https://www.cloudlandtheater.com/",
+      blocked="show details are in poster images; image route deferred (arch-initial.md §11)",
+    ),
+    "331": VenueFacts(
+      "331 Club",
+      "https://331club.com/",
+      blocked="show details load via JavaScript on the home page, will be tricky to read the calendar",
+    ),
+    "hook_ladder": VenueFacts(
+        "The Hook & Ladder",
+        "https://thehookmpls.com/events/",
+    ),
+    "turf_club": VenueFacts(
+        "Turf Club",
+        "https://first-avenue.com/shows/?venues=26147"
+    )
+
 }
 
 # The August fixtures were saved from a browser on this date (their files' dates; the White
@@ -105,6 +137,8 @@ VENUE_FACTS: dict[str, VenueFacts] = {
 AUGUST_CAPTURE = D(2026, 8, 17)
 
 OCTOBER_CAPTURE = D(2026, 10, 10)  # eval/capture.py, the pipeline's own fetch
+
+NOVEMBER_CAPTURE = D(2026, 11, 4) # Ari's manual effort as part of the milestone C5
 
 S = LabelledShow  # short alias: the rows below are long enough already
 
@@ -366,14 +400,175 @@ PAGE_LABELS: dict[str, PageLabel] = {
               convention="'OXYGEN' on the tanks in the drawing is not an act"),
         ),
     ),
+    # -------------------------------------------------------------------------------------
+    # Ginkgo's — gated. held out. The labelling fill-in (A2.1-D11): rows by Ari and Claude, November 4.
+    # -------------------------------------------------------------------------------------
+    "ginkgo_coffee-2026-11-04.html": PageLabel(
+        venue="ginkgo_coffee",
+        gated=True,
+        captured_on=NOVEMBER_CAPTURE,
+        held_out=True,
+        note="Open mics are 1st and 3rd Wednesdays and trivia is Thursdays, each listed as its own dated entry. "
+          "The 'Featured Concerts' block at the top shows Chuck Suchy dated 'November 14, 2025' (a stale year); "
+          "the real listing is November 14, 2026.",
+        shows = (
+            S(D(2026, 11, 6), ("David Singley",), "David Singley / November 6 @ 6:00 pm", T(18, 0)),
+            S(D(2026, 11, 13), ("JOAN",), "JOAN / November 13 @ 6:00 pm", T(18, 0)),
+            S(D(2026, 11, 14), ("Chuck Suchy",), "Chuck Suchy / November 14 @ 7:30 pm", T(19, 30), admission_advance=20.0, admission_day=20.0, free_admission=False,
+              convention="Tickets: $20 with an ORDER TICKETS link, when the ticket price doesn't specify advance or door, assume it applies to both"),
+            S(D(2026, 11, 20), ("Mac Hoffman",), "Mac Hoffman / November 20 @ 6:00 pm", T(18, 0)),
+            S(D(2026, 11, 27), ("Nicholas Soden",), "Nicholas Soden / November 27 @ 6:00 pm", T(18, 0)),
+            S(D(2026, 12, 4), ("Cathie English",), "Cathie English / December 4 @ 6:00 pm", T(18, 0)),
+        ),
+        non_shows=(
+            NonShow("Open Mic with host Neal Dimick", D(2026, 11, 4), None, "open mic"),
+            NonShow("Open Mic with host Neal Dimick", D(2026, 11, 18), None, "open mic"),
+            NonShow("Trivia Mafia", D(2026, 11, 5), None, "trivia night"),
+            NonShow("Trivia Mafia", D(2026, 11, 12), None, "trivia night"),
+            NonShow("Trivia Mafia", D(2026, 11, 19), None, "trivia night"),
+            NonShow("Trivia Mafia", D(2026, 12, 3), None, "trivia night"),
+        )
+    ),
+    # -------------------------------------------------------------------------------------
+    # Hook & Ladder — gated, held out. The labelling fill-in (A2.1-D11): rows by Ari and Claude, November 4.
+    # -------------------------------------------------------------------------------------
+    "hook_ladder-2026-11-04.html": PageLabel(
+        venue="hook_ladder", gated=True, captured_on=NOVEMBER_CAPTURE,
+        held_out=True,
+        note="Event names ('Sleepy Weekend', 'AMERIGRASS '26') are not acts. The page runs into January 2027. Each event "
+            "carries a room (Theater / Zen Arcade), which the schema does not model. The two Trailer Trash titles say "
+            "Friday and Saturday but are dated Saturday and Sunday.",
+        shows=(
+            S(D(2026, 11, 6), ("Paul Cebar & Tomorrow Sound",), "Paul Cebar & Tomorrow Sound / Theater / 6:30 pm", T(18, 30),
+              alternatives=(("Paul Cebar", "Tomorrow Sound"),), convention="'&' may join two names or be one band name; both accepted"),
+            S(D(2026, 11, 6), ("Heather Mae", "Mother Banjo"), "Heather Mae with Mother Banjo / Zen Arcade / 7 pm", T(19, 0)),
+            S(D(2026, 11, 7), ("Sleeping Jesus", "Harlow", "anni xo", "Hiahli", "Simon Cropp & his All-Star Band", "Molly Brandt",
+              "Kiernan", "Sugar Lads", "DJ Sumthyn Sumthyn"), "Sleepy Weekend with Sleeping Jesus, Harlow, ... / 6 pm", T(18, 0),
+              convention="'Sleepy Weekend' is the event's name, not an act"),
+            S(D(2026, 11, 8), ("Davy Knowles",), "Davy Knowles / Theater / 6 pm", T(18, 0)),
+            S(D(2026, 11, 11), ("Sqwerv",), "Sqwerv 'Fall Tour 2026' / Theater / 7:30 pm", T(19, 30), convention="tour name is not an act"),
+            S(D(2026, 11, 12), ("ODD1OUT", "EMPTHY", "Obsidian James"), "RISING VOICES feat. ODD1OUT, EMPTHY, Obsidian James / 7 pm", T(19, 0),
+              convention="'RISING VOICES' is the event's name"),
+            S(D(2026, 11, 13), ("Rue Nouveau",), "Rue Nouveau / Theater / 7 pm", T(19, 0)),
+            S(D(2026, 11, 13), ("Andra Suchy", "The Long Honeymoon", "Mary K and the Realistix"),
+              "Andra Suchy with The Long Honeymoon and Mary K and the Realistix / 7 pm", T(19, 0)),
+            S(D(2026, 11, 14), ("Maygen & The Birdwatcher", "Rich Mattson and the Northstars", "Emmy Woods", "Ross Thorn"),
+              "AMERIGRASS '26 with Maygen & The Birdwatcher, Rich Mattson and the Northstars, Emmy Woods, Ross Thorn / 6:30 pm", T(18, 30),
+              convention="'AMERIGRASS '26' is the event's name; the acts are on the 'with' line"),
+            S(D(2026, 11, 14), ("Golden Satellite", "Killed By Kiwis", "JuiceNeck"), "Golden Satellite / Killed By Kiwis / JuiceNeck / 7:30 pm", T(19, 30)),
+            S(D(2026, 11, 20), ("Atypical Daydream",), "Deadsgiving Feat. Atypical Daydream / 7:30 pm", T(19, 30)),
+            S(D(2026, 11, 20), ("Becca Murray & The Wildflowers", "Auronova"), "Clean Plate Club with Becca Murray & The Wildflowers and Auronova / 7:30 pm",
+              T(19, 30), convention="'Clean Plate Club' is the night's name"),
+            S(D(2026, 11, 21), ("Corpse Reviver", "Adam Kiesling", "Jillian Rae", "Pop Wagner", "Mikkel"),
+              "SONGS OF LEAD BELLY ... feat. Corpse Reviver, Adam Kiesling, Jillian Rae, Pop Wagner, Mikkel / 6:30 pm", T(18, 30),
+              convention="'Mikkel' exactly as the page writes it, in both the title and the 'with' line"),
+            S(D(2026, 11, 21), ("Follow the Firefly", "Matt Wilson"), "Follow the Firefly Album Release w/ Guest Matt Wilson / 7 pm", T(19, 0),
+              alternatives=(("Matt Wilson",),), convention="unclear whether 'Follow the Firefly' is the artist or the album"),
+            S(D(2026, 11, 25), ("ELnO", "DJ TimeMachine"), "Drinksgiving with ELnO + DJ TimeMachine / 7 pm", T(19, 0),
+              convention="'Drinksgiving' is the night's name; a named DJ is an act"),
+            S(D(2026, 11, 27), ("Bluedog", "Jada Brown", "Laura Hugo", "Corey Medina & Brothers", "Imnížaska Drum Group"),
+              "Truthsgiving: A Decolonized Thanksgiving Show with Bluedog, Jada Brown, ... / 5 pm", T(17, 0),
+              convention="acts come from the 'with' line, as on the other listings"),
+            S(D(2026, 11, 28), ("The Brothers Allmanac", "Shoeless Revolution", "Shane Cox & the Funky Spuds"),
+              "GETDOWN & GIVE - The Brothers Allmanac • Shoeless Revolution • Shane Cox & the Funky Spuds / 7 pm", T(19, 0),
+              convention="'GETDOWN & GIVE' is the night's name"),
+            S(D(2026, 12, 3), ("Benjamin Cartel & Friends",), "Hanukkah Rocks Feat. Benjamin Cartel & Friends / 6:30 pm", T(18, 30),
+              alternatives=(("Benjamin Cartel",),)),
+            S(D(2026, 12, 4), ("Debbie Briggs",), "Debbie Briggs - Very Vintage Holiday Swing Dance / 7 pm", T(19, 0)),
+            S(D(2026, 12, 4), ("The Silverteens", "Mary Strand & The Garage", "The Hell And The Quiet"),
+              "RAWK The Halls! with The Silverteens, Mary Strand & The Garage, and The Hell And The Quiet / 7 pm", T(19, 0)),
+            S(D(2026, 12, 9), ("David Cook",), "David Cook / Theater / 7 pm", T(19, 0)),
+            S(D(2026, 12, 10), ("The Steepwater Band", "Mark Joseph", "Nicholas David"), "The Steepwater Band with Mark Joseph, Nicholas David / 7:30 pm",
+              T(19, 30), convention="the 'with' line names the supporting acts"),
+            S(D(2026, 12, 11), ("Trailer Trash",), "Trailer Trash's Trashy Little X-Mas (Friday) / SAT 12 / 7 pm", T(19, 0),
+              convention="the title says (Friday) but the page dates it Saturday Dec 12; labelled by the page's date"),
+            S(D(2026, 12, 12), ("Trailer Trash",), "Trailer Trash's Trashy Little X-Mas (Saturday) / SUN 13 / 7 pm", T(19, 0),
+              convention="the title says (Saturday) but the page dates it Sunday Dec 13; labelled by the page's date"),
+            S(D(2026, 12, 17), ("Cornbread & Friends",), "Cornbread & Friends - Holiday Blues Show / 6:30 pm", T(18, 30)),
+            S(D(2026, 12, 18), ("Hipshaker MPLS",), "Hipshaker MPLS | Heavy Funk & Rare Soul Dance Party / 8 pm", T(20, 0),
+              convention="a dance-party collective; Ari to decide whether it is an act or a night's name"),
+            S(D(2026, 12, 19), ("The Belfast Cowboys",), "The Belfast Cowboys \"Santa Watch at The Hook\" / 7 pm", T(19, 0)),
+            S(D(2026, 12, 27), ("Mark Joseph & The American Soul", "Dean Magraw", "Ryan David Young", "The Tillerman Choir"),
+              "Mark Joseph & The American Soul - Annual 'Tea For The Tillerman' Concert with Dean Magraw, Ryan David Young, The Tillerman Choir / 6 pm", T(18, 0)),
+            S(D(2027, 1, 23), ("Ryan Picone Quartet",), "Ryan Picone Quartet Album Release / JAN 24 / 6 pm", T(18, 0),
+              convention="the page rolls into 2027 here; the year rule must give 2027, not 2026"),
+        ),
+        non_shows=(
+            NonShow("ABOLISH ICE: A Benefit Concert for the MN15!", D(2026, 11, 7), None, "benefit concert, no performer named"),
+            NonShow("Space Between Monthly Music Industry MEETUP", D(2026, 11, 10), None, "industry meetup"),
+            NonShow("IRA FORD Comedy Special 'Live Recording'", D(2026, 11, 12), None, "comedy"),
+            NonShow("Light 'em Up The Bong Show", D(2026, 11, 15), None, "variety night, no performer named"),
+            NonShow("Music For Everyone - Give To The Max Celebration", D(2026, 11, 19), None, "fundraiser, no performer named"),
+            NonShow("Dirty P’s Thirsty 3rd Thursdays Club", D(2026, 11, 19), None, "club night, no performer named"),
+            NonShow("Space Between JAM", D(2026, 11, 24), None, "open jam"),
+            NonShow("Private Event", D(2026, 11, 28), None, "private event"),
+            NonShow("Record Sale", D(2026, 12, 5), None, "record sale, not a show"),
+            NonShow("Space Between Monthly Music Industry MEETUP", D(2026, 12, 9), None, "industry meetup"),
+            NonShow("Dirty P’s Thirsty 3rd Thursdays Club", D(2026, 12, 17), None, "club night, no performer named"),
+            NonShow("Space Between JAM", D(2026, 12, 23), None, "open jam"),
+        ),
+    ),
+    # -------------------------------------------------------------------------------------
+    # Turf Club — gated. The labelling fill-in (A2.1-D11): rows by Ari and Claude, November 4.
+    # -------------------------------------------------------------------------------------
+    "turf_club-2026-11-04.html": PageLabel(
+      venue="turf_club", gated=True, captured_on=NOVEMBER_CAPTURE,
+      held_out=False,
+      note="First Avenue's site, same layout as 7th St Entry: no times or prices in the listing. Each event appears twice "
+          "in the markup (two blocks). Covers November 2026 only. Nov 28's last two acts are in the Clown Lounge.",
+      shows=(
+        S(D(2026, 11, 3), ("BLITZKID", "They Live"), "BLITZKID | Modern Hel Tour 2026 | with | They Live",
+          convention="tour name is not an act"),
+        S(D(2026, 11, 6), ("Levi Bloom",), "Levi Bloom"),
+        S(D(2026, 11, 7), ("Michael Grey",), "Last Nite ⏤ An Indie Sleaze Dance Party | ★ Local Show ★ | with | Michael Grey",
+          convention="'Last Nite' is the night's name; the named performer is the act. Ari to confirm"),
+        S(D(2026, 11, 11), ("Fruition", "Gardener"), "Fruition | Something More: The Final Tour | with | Gardener",
+          convention="tour name is not an act"),
+        S(D(2026, 11, 12), ("Tired Eyes",), "Tired Eyes — Neil Young and Crazy Horse Tribute Band | ★ Local Show ★",
+          alternatives=(("Tired Eyes — Neil Young and Crazy Horse Tribute Band",),),
+          convention="the band is 'Tired Eyes'; the rest describes the tribute"),
+        S(D(2026, 11, 13), ("The Suburbs", "The Rodents"), "The Suburbs | ★ Local Show ★ | with | The Rodents"),
+        S(D(2026, 11, 14), ("The Suburbs", "The Rodents"), "The Suburbs | ★ Local Show ★ | with | The Rodents"),
+        S(D(2026, 11, 17), ("Nicole Atkins", "John Gallagher Jr.", "Emily Bjorke"), "Nicole Atkins | with | John Gallagher Jr. | and | Emily Bjorke"),
+        S(D(2026, 11, 18), ("GHOSTWOMAN", "Croaker"), "GHOSTWOMAN | with | Croaker"),
+        S(D(2026, 11, 19), ("Jennifer Eckes", "Annie Enneking", "Matthew French", "Ted Hajnasiewicz", "Zachary Scot Johnson", "Leslie Rich",
+          "Colleen Somerville", "Lydia Sophia", "The Twins of Franklin", "Katy Vernon", "Nicole Wilder & Emmy Woods"),
+          "Zachary Scot Johnson presents A Twin Cities All-Star ‘90s Tribute featuring Jennifer Eckes • Annie Enneking • ...",
+          alternatives=(("Jennifer Eckes", "Annie Enneking", "Matthew French", "Ted Hajnasiewicz", "Zachary Scot Johnson", "Leslie Rich",
+          "Colleen Somerville", "Lydia Sophia", "The Twins of Franklin", "Katy Vernon", "Nicole Wilder", "Emmy Woods"),),
+          convention="the title is the night's name; each bullet is a performer; the last bullet is two names joined by '&', so the split reading is also accepted"),
+        S(D(2026, 11, 20), ("Them Coulee Boys", "Good Morning Bedlam"), "Them Coulee Boys | with | Good Morning Bedlam"),
+        S(D(2026, 11, 21), ("Erik Koskinen Band", "Nieves del Norte"), "Erik Koskinen Band | ★ Local Show ★ | with | Nieves del Norte"),
+        S(D(2026, 11, 22), ("The Mainliners", "The Nu-Viles"), "The Mainliners | with | The Nu-Viles"),
+        S(D(2026, 11, 23), ("Devil Master", "BAAZLVAAT", "Jail", "Glorious Descent"), "Devil Master | with | BAAZLVAAT, Jail | and | Glorious Descent"),
+        S(D(2026, 11, 25), ("Tropical Depression", "Thomas Sticha", "Cowboy Thoughts", "Molly Maher"),
+          "Cole Diamond’s Twangsgiving ft. Tropical Depression ( Alan Jackson Tribute ) | ★ Local Show ★ | with | Thomas Sticha, Cowboy Thoughts | and | Molly Maher",
+          alternatives=(("Cole Diamond", "Tropical Depression", "Thomas Sticha", "Cowboy Thoughts", "Molly Maher"),),
+          convention="'Cole Diamond’s Twangsgiving' is the night's name; parenthetical dropped; this is a music event, assumes the headliner Cole Diamond is a performer and not just a host"),
+        S(D(2026, 11, 27), ("World’s Forgotten Boys", "GOO GOO MUCKS", "Cretin Avenue Hop"),
+          "World’s Forgotten Boys (Stooges Tribute ft. members of Impaler, Dumpster Juice, Extermination Day) | ★ Local Show ★ | with | GOO GOO MUCKS | and | Cretin Avenue Hop (Ramones Tribute)",
+          convention="parentheticals dropped; the 'members of' bands are not billed acts"),
+        S(D(2026, 11, 28), ("The Melismatics", "Al Church", "Alex Fuller", "Annie Thoma", "Arzu Gokcen", "Ashley Ackerson", "Brian Vanderwerf",
+          "Brynn Arens", "Cindy Lawson", "Claire Luger", "Curtiss A", "Erik Paulson", "Faith Boblett", "Gini Dodds", "Hilary James",
+          "Laura Larson", "Meghan Kriedler", "Nikii Post", "Scott Macdonald", "Sophie Hiroko", "Tommy Ratz", "The Penny Peaches", "Embahn"),
+          "A Tribute to the Replacements ft. The Melismatics with special guest vocalists Al Church • Alex Fuller (Pullstring) • ... + The Penny Peaches • Embahn performing in the Clown Lounge",
+          convention="the title is the night's name; each vocalist is an act; their band names in parentheses are dropped; the last two perform in the Clown Lounge"),
+      ),
+      non_shows=(),
+    ),
 }
 
 
 def gated_fixtures() -> list[str]:
-    """Fixture file names in the gated set (A2.1-D2)."""
-    return [name for name, page in PAGE_LABELS.items() if page.gated]
+    """Fixture file names in the gated set (A2.1-D2). Held-out pages (C5-D3) are never in it."""
+    return [name for name, page in PAGE_LABELS.items() if page.gated and not page.held_out]
 
 
 def informational_fixtures() -> list[str]:
-    """Fixture file names reported but not gated (A2.1-D2)."""
-    return [name for name, page in PAGE_LABELS.items() if not page.gated]
+    """Fixture file names reported but not gated (A2.1-D2). Held-out pages (C5-D3) are never in it."""
+    return [name for name, page in PAGE_LABELS.items() if not page.gated and not page.held_out]
+
+
+def held_out_fixtures() -> list[str]:
+    """Fixture file names set aside for C6's held-out test (C5-D3): labelled, and in no other set."""
+    return [name for name, page in PAGE_LABELS.items() if page.held_out]

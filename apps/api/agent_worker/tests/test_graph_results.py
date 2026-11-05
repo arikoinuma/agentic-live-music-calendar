@@ -1,0 +1,135 @@
+"""Tests for the results file: its labels hash, held-out flag, slim snapshot and loading (`eval/graph_results.py`).
+
+Milestone C5 (docs/dev/implementations/c5-pipeline-eval-harness.md, Steps 3 and 8). A run is stored in a gitignored file that holds
+the venues' page text and every extraction; a slim summary of it is what gets committed. These tests pin what the file records,
+what the summary keeps and drops, and that a missing run is reported clearly.
+
+How to read it: `heavy_results` builds a results dict carrying everything a snapshot must leave out. Tests that read or write the
+results and snapshot folders redirect `graph_results.RESULTS_DIR` / `SNAPSHOT_DIR` to a temporary folder (they are read as module
+attributes at call time, so the patch reaches the code), and never touch the real ones.
+"""
+
+import dataclasses
+import json
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from agent_worker.eval import graph_aggregate, graph_report, graph_results
+from agent_worker.tests.test_graph_aggregate import GATED, record
+
+# ---------------------------------------------------------------------------
+# The file: labels hash, held-out
+# ---------------------------------------------------------------------------
+
+
+def test_the_labels_hash_changes_when_a_label_does(tmp_path: Path) -> None:
+    # Proves: a results file names the labels that scored it. Two label files that differ by one character hash differently,
+    # and the same text hashes the same.
+    one, two = tmp_path / "one.py", tmp_path / "two.py"
+    one.write_text("PAGE_LABELS = {'a': 1}")
+    two.write_text("PAGE_LABELS = {'a': 2}")
+    assert graph_results.labels_sha(one) != graph_results.labels_sha(two)
+    assert graph_results.labels_sha(one) == graph_results.labels_sha(one)
+
+
+def test_the_file_records_whether_a_held_out_page_was_scored() -> None:
+    # Proves: C5-D3. The first held-out scoring is C6's, so the file says outright whether any held-out page was scored here.
+    held = dataclasses.replace(GATED, held_out=True)
+    assert graph_results.held_out_scored(["a.html"], {"a.html": GATED}) is False
+    assert graph_results.held_out_scored(["a.html", "b.html"], {"a.html": GATED, "b.html": held}) is True
+
+
+# ---------------------------------------------------------------------------
+# Snapshots: a slim, committable summary of a run (raw results stay gitignored)
+# ---------------------------------------------------------------------------
+
+
+def heavy_results() -> dict[str, Any]:
+    """A results dict carrying the heavy parts a snapshot must leave out: extractions, staged documents (page text) and the prompt."""
+    run = record("page.html", raw={"shows": [{"date": "2026-10-20"}]})
+    run["validated"] = run["committed"] = run["raw"]
+    run["staged_documents"] = [{"attempt": 1, "page_text": "THE VENUE PAGE TEXT " * 500, "raw_extraction": run["raw"]}]
+    return {
+        "label": "demo", "started_at": "2026-11-04T17:00:00+00:00", "set": "all", "scenario": None, "labels_sha": "abc",
+        "held_out_scored": False, "harness_commit": "def", "config": {"route": "auto"}, "request_options": {"model": "m"},
+        "request": {"instruction": "A LONG PROMPT " * 500, "instruction_sha": "1234abcd56", "response_schema": {"big": "schema"},
+                    "response_schema_sha": "9999aaaa00", "response_schema_chars": 4000},
+        "policy": {"confidence_threshold": 0.8}, "provenance": {"m": {"model_digest": "d"}},
+        "aggregate": graph_aggregate.aggregate([run], {"page.html": GATED}), "scenarios": [], "runs": [run],
+    }
+
+
+def test_a_snapshot_drops_the_page_text_extractions_and_prompt_but_keeps_the_scores() -> None:
+    # Proves: a snapshot is safe and small enough to commit. It must NOT carry the venue pages' text (staged documents), the raw
+    # extractions, or the full prompt (the raw results are gitignored for exactly these reasons), and must keep everything the
+    # report and --compare read: the aggregate, each run's scores and attempts, the policy, the model and the prompt's hashes
+    # (they identify which prompt produced the numbers).
+    data = heavy_results()
+    snap = graph_results.slim(data)
+    text = json.dumps(snap)
+    assert "THE VENUE PAGE TEXT" not in text and "A LONG PROMPT" not in text and "raw_extraction" not in text
+    assert len(text) < len(json.dumps(data)) / 2  # the real guarantees are the absences above; this only catches a bulky regression
+    assert snap["aggregate"] == data["aggregate"] and snap["labels_sha"] == "abc"
+    assert snap["request"] == {"instruction_sha": "1234abcd56", "response_schema_sha": "9999aaaa00", "response_schema_chars": 4000}
+    assert snap["runs"][0]["raw_score"] == data["runs"][0]["raw_score"] and "raw" not in snap["runs"][0]
+    assert snap["runs"][0]["attempts"] == data["runs"][0]["attempts"]
+
+
+def test_a_snapshot_renders_a_report_and_compares_like_the_full_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Proves: the point of the snapshot. After the raw results are gone (a new laptop, a cleaned folder), the committed snapshot is
+    # enough for `--report` and `--compare`. The report from the snapshot equals the report from the full file.
+    data = heavy_results()
+    snapshots = tmp_path / "snapshots"
+    monkeypatch.setattr(graph_results, "RESULTS_DIR", tmp_path / "results")
+    monkeypatch.setattr(graph_results, "SNAPSHOT_DIR", snapshots)
+    (tmp_path / "results").mkdir()
+    (tmp_path / "results" / "graph-demo.json").write_text(json.dumps(data))
+    out = graph_results.snapshot("demo")
+    assert out == snapshots / "demo.json" and out.is_file()
+    (tmp_path / "results" / "graph-demo.json").unlink()  # the raw file is gone
+    loaded = graph_results.load_results("demo")
+    assert graph_report.render(loaded, {"page.html": GATED}) == graph_report.render(graph_results.slim(data), {"page.html": GATED})
+    assert "labels_sha" in graph_report.compare_table({"demo": loaded})
+
+
+def test_load_results_prefers_the_raw_file_and_says_where_it_looked(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Proves: a missing label gives an error naming both places it looked, instead of a bare FileNotFoundError, and a label present in
+    # both places loads the full raw file (the snapshot is the fallback).
+    monkeypatch.setattr(graph_results, "RESULTS_DIR", tmp_path / "results")
+    monkeypatch.setattr(graph_results, "SNAPSHOT_DIR", tmp_path / "snapshots")
+    with pytest.raises(FileNotFoundError, match="snapshots"):
+        graph_results.load_results("nope")
+    (tmp_path / "results").mkdir()
+    (tmp_path / "snapshots").mkdir()
+    (tmp_path / "results" / "graph-both.json").write_text(json.dumps({"which": "raw"}))
+    (tmp_path / "snapshots" / "both.json").write_text(json.dumps({"which": "snapshot"}))
+    assert graph_results.load_results("both") == {"which": "raw"}
+
+
+# ---------------------------------------------------------------------------
+# Code review round 2 (C5-CR2-2): the file's shape is defined in one place
+# ---------------------------------------------------------------------------
+
+
+def test_build_record_has_the_keys_a_report_and_a_snapshot_read_and_survives_a_round_trip(tmp_path: Path) -> None:
+    # Proves: the results file's shape is one function, and what it builds is plain JSON that `load_results` reads back
+    # unchanged. The key list is what `graph_report.render`, `slim` and `--compare` read; a key dropped here breaks them.
+    from agent_worker.eval import run_eval
+    from agent_worker.policy import DEFAULT_POLICY
+
+    config, options = run_eval.configure({})[1], run_eval.configure({})[0]
+    run = record("page.html", raw={"shows": []})
+    built = graph_results.build_record(
+        label="demo", started_at="2026-11-05T00:00:00+00:00", set_name="all", scenario=None, fixture_names=["page.html"],
+        page_labels={"page.html": GATED}, config=config, options=options, request={"instruction_sha": "abc"}, policy=DEFAULT_POLICY,
+        provenance=None, aggregate=graph_aggregate.aggregate([run], {"page.html": GATED}), scenarios=[], runs=[run],
+    )
+    assert list(built) == [
+        "label", "started_at", "set", "scenario", "labels_sha", "held_out_scored", "harness_commit", "config", "request_options",
+        "request", "policy", "provenance", "aggregate", "scenarios", "runs",
+    ]
+    assert built["held_out_scored"] is False and built["policy"]["max_attempts"] == DEFAULT_POLICY.max_attempts
+    out = graph_results.write_results(tmp_path / "graph-demo.json", built)
+    assert json.loads(out.read_text()) == json.loads(json.dumps(built, default=str))

@@ -43,6 +43,7 @@ from agent_worker.context import WorkerContext
 from agent_worker.graph import (
     compiled_graph,
 )
+from agent_worker.policy import RetryPolicy
 from agent_worker.staging import COLLECTION, MongoStager
 from agent_worker.state import VenueGraphState
 from app.config import settings
@@ -89,17 +90,21 @@ async def load_venues(session: AsyncSession, venue_id: int | None = None) -> lis
 
 async def run_venue(
     venue: VenueFacts, ctx: WorkerContext, *, trigger: RunTrigger = RunTrigger.MANUAL,
-    calendar_url: str | None = None, fetched_on: datetime.date | None = None,
+    calendar_url: str | None = None, fetched_on: datetime.date | None = None, policy: RetryPolicy | None = None,
 ) -> VenueGraphState:
     """One venue's processing cycle: open a run, run the graph, close the run. Returns the final state.
 
     `calendar_url` and `fetched_on` override the venue's URL and the fetch date; `local_test.py` uses them to
-    run a saved fixture through the real cycle. Exceptions propagate (after the run is closed).
+    run a saved fixture through the real cycle. `policy` replaces the default retry policy for this run (the eval harness
+    varies the confidence threshold and the attempt cap this way, C5-D5); None keeps `DEFAULT_POLICY`, so the scheduled
+    worker is unchanged. Exceptions propagate (after the run is closed).
     """
     initial = VenueGraphState(
         venue_id=venue.id, calendar_url=calendar_url or venue.calendar_url,
         venue_name=venue.name, metro_timezone=venue.metro_timezone, fetched_on=fetched_on,
     )
+    if policy is not None:
+        initial = initial.model_copy(update={"policy": policy})
 
     #   The run is the parent of every audit row (arch-initial.md §7,
     #   `parent_run_id`). Its id travels IN THE STATE, not in a module global, so each node's row points at

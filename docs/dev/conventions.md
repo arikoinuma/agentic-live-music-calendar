@@ -34,6 +34,7 @@ carries that defining document's scope.
 | `C2` | `docs/dev/implementations/c2-api-reads-database.md` |
 | `C3` | `docs/dev/implementations/c3-environments-and-deploy.md` |
 | `C4` | `docs/dev/implementations/c4-metro-hosts.md` |
+| `C5` | `docs/dev/implementations/c5-pipeline-eval-harness.md` |
 
 Future milestones use their own IDs (`B6`, `C2`, …) the same way.
 
