@@ -1,15 +1,17 @@
-"""Tests for scoring the database a graph run leaves behind (`eval/db_score.py`), against a real Postgres.
+"""Tests for the database scenarios and scoring the rows they leave (`eval/db_score.py`, with the `eval/scratch_rows.py` helpers they
+rely on), against a real Postgres.
 
 Milestone C5 (docs/dev/implementations/c5-pipeline-eval-harness.md, Test approach §5). The harness runs the graph on a page, then
 again, and holds the rows left behind to what a perfect pipeline would have left. These tests use the real reader, writer and
 audit writer on the `calendar_test` database (the savepoint pattern of test_run_venue.py), the real compiled graph, and a
 scripted model: JSON-LD pages, so the act splitter is the only call.
 
-How to read it, in four sections:
-  1. `committed_extraction`: rows into the extraction shape the scorer reads.
+How to read it, in four sections (sections 1 and 3 test `scratch_rows`, and sit here because they share this file's venue, savepoint
+factory and page-building helpers, which need the scenarios' machinery):
+  1. `scratch_rows.committed_extraction`: rows into the extraction shape the scorer reads.
   2. The scenarios' MECHANICS (repeat, sequence, overlap, perturbed): what the pipeline did, asserted on the rows directly and
      on reconcile's decisions.
-  3. `reset`, the one destructive statement the harness runs.
+  3. `scratch_rows.reset`, the one destructive statement the harness runs.
   4. `expected_rows` (C5-K3): what the database SHOULD hold after the second run.
 
 Expected values are the literal pages, the scripted answers, and the rules of reconcile (docs/dev/implementations/a5-reconcile.md:
@@ -33,7 +35,7 @@ from agent_worker.audit import PostgresAuditWriter
 from agent_worker.calendar_reader import PostgresCalendarReader
 from agent_worker.calendar_writer import PostgresCalendarWriter
 from agent_worker.context import WorkerContext
-from agent_worker.eval import db_score
+from agent_worker.eval import db_score, scratch_rows
 from agent_worker.eval.db_score import Scenario, ScenarioPage
 from agent_worker.eval.graph_run import InMemoryStager
 from agent_worker.eval.labels import LabelledShow, NonShow, PageLabel
@@ -72,7 +74,7 @@ def ctx(factory: async_sessionmaker[AsyncSession]) -> WorkerContext:
 @pytest_asyncio.fixture(loop_scope="session")
 async def venue(factory: async_sessionmaker[AsyncSession]) -> VenueFacts:
     """A venue row made by the harness's own `ensure_venue` (and the metro it needs)."""
-    return await db_score.ensure_venue(factory, LabelVenueFacts("The Test Venue", "https://example.test/calendar"))
+    return await scratch_rows.ensure_venue(factory, LabelVenueFacts("The Test Venue", "https://example.test/calendar"))
 
 
 def page(
@@ -129,7 +131,7 @@ async def test_committed_extraction_reads_active_shows_with_acts_in_sequence_ord
             ShowArtist(show_id=live.id, artist_id=opener.id, sequence_number=1),
         ])
         await session.commit()
-    extraction = await db_score.committed_extraction(factory, venue.id)
+    extraction = await scratch_rows.committed_extraction(factory, venue.id)
     [show] = extraction["shows"]
     assert (show["date"], show["time"], show["admission_day"]) == ("2026-10-20", "21:00:00", 12.5)
     assert [a["name"] for a in show["acts"]] == ["Opener", "Headliner"]
@@ -245,7 +247,7 @@ async def test_reset_empties_the_calendar_and_audit_tables_but_keeps_venues_and_
     first = page(tmp_path, "a", [("2026-10-20", "Nona")], D(2026, 10, 12))
     monkeypatch.setattr(nodes, "instructor_client", scripted_client(script_for(first)))
     await db_score.run_scenario(Scenario.REPEAT, first=first, second=None, venue=venue, ctx=ctx, factory=factory)
-    await db_score.reset(factory)
+    await scratch_rows.reset(factory)
     async with factory() as session:
         for model in (Show, ShowArtist, Artist, AuditLog):
             assert (await session.execute(select(func.count()).select_from(model))).scalar_one() == 0, model.__name__

@@ -20,7 +20,7 @@ import pytest
 
 from agent_worker import nodes
 from agent_worker.context import WorkerContext
-from agent_worker.eval.graph_run import InMemoryStager, PageRun, run_page
+from agent_worker.eval.graph_run import InMemoryStager, PageRun, column_scores, run_page
 from agent_worker.eval.labels import LabelledShow, PageLabel
 from agent_worker.main import VenueFacts
 from agent_worker.policy import DEFAULT_POLICY
@@ -128,3 +128,21 @@ async def test_the_run_record_is_plain_json_data(tmp_path: Path, monkeypatch: py
     stored = json.loads(json.dumps(dataclasses.asdict(run)))
     assert stored["attempt_count"] == 2
     assert stored["attempts"][0]["errors"][0]["code"] == "splitter_dropped"
+
+
+# ---------------------------------------------------------------------------
+# Code review round 2 (C5-CR2-3): one function scores a run's columns, for a fresh run and for --rescore
+# ---------------------------------------------------------------------------
+
+
+def test_the_committed_column_is_held_to_the_scheduled_shows_but_raw_and_validated_are_not() -> None:
+    # Proves: the column rule `run_page` and `--rescore` now share. The database cannot hold a cancelled show (reconcile skips
+    # it), so with a cancelled show labelled, the raw and validated columns that return nothing miss both labelled shows while the
+    # committed column that returns nothing misses only the scheduled one. Expected counts are read off the label below.
+    label = PageLabel(venue="v", gated=True, captured_on=datetime.date(2026, 10, 12), shows=(
+        LabelledShow(datetime.date(2026, 10, 20), ("Nona",), "Nona"),
+        LabelledShow(datetime.date(2026, 10, 21), ("Lent",), "Lent", status="cancelled"),
+    ))
+    scores = column_scores(label, raw=None, validated=None, committed={"shows": []}, page_html="", fixture="p.html")
+    assert set(scores) == {"raw_score", "validated_score", "committed_score"}
+    assert (scores["raw_score"]["missed"], scores["validated_score"]["missed"], scores["committed_score"]["missed"]) == (2, 2, 1)

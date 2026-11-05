@@ -6,6 +6,9 @@ database). This is that script, written once: `render(data, labels)` returns Mar
 (or writes it with `--out`, so a long report reaches a file or the plan's log without a terminal's line wrapping in between). The
 same report reads a local run today and a hosted-model run in C6, which is what makes them comparable (`--compare` lines labels up).
 
+Two shorter console views live here too, so every reading of the aggregate is in one module: `compare_table` (saved runs side by
+side) and `summary` (the lines a run prints when it finishes).
+
 How to read it, in the order it prints: header (what produced the numbers); headline (raw, validated, committed); the retry loop;
 validation recall by error kind; one row per page; the attempts of every retried page; scenarios; the gate's failures; and, with
 `errors=True`, every error string in full. It reads the stored aggregate and runs only and never re-scores anything, so it needs no
@@ -17,13 +20,14 @@ docs/dev/evaluating-model-performance.md says where this fits in the sequence of
 from collections.abc import Mapping
 from typing import Any
 
+from agent_worker.eval import scoring
+from agent_worker.eval.graph_aggregate import COLUMNS
 from agent_worker.eval.labels import PageLabel
 
-COLUMNS = ("raw", "validated", "committed")
 # The fields the standard judges besides date and acts, in the order the labels and the schema list them (A2.1-D1): missing is
 # tolerated up to a tenth of the values the page states, a wrong value never.
 FIELD_ORDER = ("time", "end_time", "admission_advance", "admission_day", "free_admission", "status", "image_url")
-MISSING_LIMIT = 0.10
+MISSING_LIMIT = scoring.MISSING_TOLERANCE  # one decision, made in scoring.py
 
 
 def _counts(score: Mapping[str, Any]) -> str:
@@ -144,7 +148,7 @@ def _fields(data: Mapping[str, Any]) -> list[str]:
         if wrong:
             verdict = "WRONG"
         elif rate is not None and rate > MISSING_LIMIT:
-            verdict = "over 10% missing"
+            verdict = f"over {MISSING_LIMIT:.0%} missing"
         elif not stated and not correct:
             verdict = "n/a"
         else:
@@ -276,3 +280,42 @@ def render(data: Mapping[str, Any], labels: Mapping[str, PageLabel], *, show_err
     if show_errors:
         lines += _errors(data)
     return "\n".join(lines).rstrip() + "\n"
+
+
+# ---------------------------------------------------------------------------
+# Console views: runs side by side, and the closing summary of a run
+# ---------------------------------------------------------------------------
+
+
+def compare_table(files: Mapping[str, Mapping[str, Any]]) -> str:
+    """The headline numbers of saved runs side by side, one column per run, in the order `files` lists them."""
+    width = 26
+    rows: list[tuple[str, Any]] = [("labels_sha", lambda f: str(f.get("labels_sha"))[:10]), ("started_at", lambda f: f.get("started_at"))]
+    for column in COLUMNS:
+        rows += [
+            (f"{column}: recall", lambda f, c=column: round(f["aggregate"]["columns"][c]["rates"]["recall"], 3)),
+            (f"{column}: precision", lambda f, c=column: round(f["aggregate"]["columns"][c]["rates"]["precision"], 3)),
+            (f"{column}: gate", lambda f, c=column: "PASS" if f["aggregate"]["gate"][c]["passed"] else "FAIL"),
+        ]
+    rows += [
+        ("retry rate", lambda f: round(f["aggregate"]["retry"]["retry_rate"], 3)),
+        ("escalated", lambda f: f["aggregate"]["retry"]["escalated"]),
+        ("validation recall", lambda f: round(f["aggregate"]["validation"]["recall"], 3)),
+    ]
+    lines = ["".ljust(width) + "".join(name.ljust(22) for name in files)]
+    lines += [name.ljust(width) + "".join(str(getter(f)).ljust(22) for f in files.values()) for name, getter in rows]
+    return "\n".join(lines)
+
+
+def summary(aggregate: Mapping[str, Any]) -> str:
+    """The lines printed when a run finishes: recall, precision and the gate per column, then the retry loop and validation recall."""
+    lines = []
+    for column in COLUMNS:
+        rates = aggregate["columns"][column]["rates"]
+        gate = aggregate["gate"][column]
+        lines.append(f"{column:10} recall {rates['recall']:.3f}  precision {rates['precision']:.3f}  gate {'PASS' if gate['passed'] else 'FAIL'}")
+    lines.append(
+        f"retry rate {aggregate['retry']['retry_rate']:.3f}; escalated {aggregate['retry']['escalated']}; "
+        f"validation recall {aggregate['validation']['recall']:.3f} ({aggregate['validation']['silent']} silent)"
+    )
+    return "\n".join(lines)

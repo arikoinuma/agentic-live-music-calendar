@@ -1,16 +1,17 @@
-"""Score the database a graph run leaves behind: the rows, the scenarios that produce them, and what they should hold.
+"""The two-run database scenarios and what the database should hold after them (the "committed" half of the C5 harness).
 
-What this is: the "committed" half of the C5 harness. A page run through the graph ends with rows in Postgres; this module reads
-them back as an extraction-shaped dict (so `scoring.score_page` scores them with the same tiers as the model's answer), runs the
-two-run SCENARIOS the plan asks for, and states what the database SHOULD hold after each (`expected_rows`, C5-K3).
+What this is: a page run through the graph ends with rows in Postgres. This module runs the two-run SCENARIOS the plan asks for,
+states what the database SHOULD hold after each (`expected_rows`, C5-K3), and scores the rows actually left against that
+(`score_database`). Reading and clearing those rows is `scratch_rows.py` (the helpers here call it); the runners that drive many
+pages are `graph_eval.py`.
 
 How to read it, top to bottom:
-1. `committed_extraction`, `reset`, `ensure_venue`: reading the rows, clearing between independent pages, and the venue rows the
-   harness needs (it runs in its own database, `scratch_db.py`).
-2. `Scenario` and `run_scenario`: repeat (the same page twice), sequence (two captures of one venue), overlap (a second capture
+1. `Scenario` and `run_scenario`: repeat (the same page twice), sequence (two captures of one venue), overlap (a second capture
    that repeats the first's dates, minus a show), perturbed (the database is damaged between two runs of one page). What each
    proves is in `run_scenario`'s docstring.
-3. `expected_rows` (C5-K3) and `score_database`: what a perfect pipeline would leave, and the score of the actual rows against it.
+2. `expected_rows` (C5-K3) and `score_database`: what a perfect pipeline would leave, and the score of the actual rows against it.
+   They stay in this file beside the scenarios on purpose: `_perturb`'s three damages and `_expected_counts`' "one insert, one
+   update, one remove" are two halves of one rule, and change together.
 
 docs/dev/implementations/c5-pipeline-eval-harness.md, Step 5 (C5-D2, C5-D6, C5-PR1-3, C5-PR1-4, C5-PR1-5).
 """
@@ -23,105 +24,20 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import delete, select, text, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agent_worker.context import WorkerContext
-from agent_worker.eval import scoring
+from agent_worker.eval import scoring, scratch_rows
 from agent_worker.eval.graph_run import PageRun, run_page
 from agent_worker.eval.labels import LabelledShow, PageLabel
-from agent_worker.eval.labels import VenueFacts as LabelVenueFacts
-from agent_worker.main import VenueFacts, load_venues
+from agent_worker.main import VenueFacts
 from agent_worker.policy import RetryPolicy
-from app.db.models import Artist, Metro, Show, ShowArtist, Venue
-from app.db.seed import METRO_NAME, METRO_SLUG, METRO_TIMEZONE
-from app.enums import FetchStrategy, ShowStatus
+from app.db.models import Show, ShowArtist
+from app.enums import ShowStatus
 
 # ---------------------------------------------------------------------------
-# 1. Reading and clearing the rows
-# ---------------------------------------------------------------------------
-
-
-async def committed_extraction(factory: async_sessionmaker[AsyncSession], venue_id: int) -> dict[str, Any]:
-    """The venue's ACTIVE shows as an extraction-shaped dict, so `score_page` scores the rows unchanged.
-
-    A removed show is not "left" (soft delete). Acts are in `sequence_number` order, as the reader's lineup query orders them.
-    Dates and times are ISO text and prices are floats, so the dict is JSON-serialisable (a `Decimal` would not be) and a
-    --rescore reads the same shape from a stored file (C5-PR1-12). The status is `scheduled`: the database cannot hold a
-    cancelled show, which is why the committed column is scored against `scoring.scheduled_only` (C5-PR1-5).
-    """
-    async with factory() as session:
-        shows = (
-            await session.execute(
-                select(Show).where(Show.venue_id == venue_id, Show.status == ShowStatus.ACTIVE).order_by(Show.date, Show.start_time, Show.id)
-            )
-        ).scalars().all()
-        lineups: dict[int, list[str]] = {show.id: [] for show in shows}
-        if shows:
-            rows = await session.execute(
-                select(ShowArtist.show_id, Artist.name)
-                .join(Artist, Artist.id == ShowArtist.artist_id)
-                .where(ShowArtist.show_id.in_(lineups))
-                .order_by(ShowArtist.show_id, ShowArtist.sequence_number, ShowArtist.artist_id)
-            )
-            for show_id, name in rows.all():
-                lineups[show_id].append(name)
-        return {
-            "page_readable": True,
-            "shows": [
-                {
-                    "date": s.date.isoformat(),
-                    "time": s.start_time.isoformat() if s.start_time else None,
-                    "end_time": s.end_time.isoformat() if s.end_time else None,
-                    "acts": [{"name": name} for name in lineups[s.id]],
-                    "admission_advance": float(s.admission_advance) if s.admission_advance is not None else None,
-                    "admission_day": float(s.admission_day) if s.admission_day is not None else None,
-                    "free_admission": s.free_admission,
-                    "image_url": s.image_url,
-                    "status": "scheduled",
-                }
-                for s in shows
-            ],
-        }
-
-
-async def reset(factory: async_sessionmaker[AsyncSession]) -> None:
-    """Empty what a run writes: shows, lineups, artists, the audit trail and the runs. NEVER `venue` or `metro`.
-
-    Run between INDEPENDENT pages, so one page's artists cannot change how the next page's artists are matched (reconcile
-    resolves a name against every artist already stored). Scenarios do not reset between their two runs: that is the point of
-    them. This is the one destructive statement the harness runs, and `scratch_db` has already proved the database is the scratch
-    one.
-    """
-    async with factory() as session:
-        await session.execute(text("TRUNCATE show_artist, show, artist, audit_log, agent_run RESTART IDENTITY CASCADE"))
-        await session.commit()
-
-
-async def ensure_venue(factory: async_sessionmaker[AsyncSession], facts: LabelVenueFacts) -> VenueFacts:
-    """The venue row for a labelled venue (created, with the Minneapolis metro, if missing), as the worker sees it."""
-    async with factory() as session:
-        metro = (await session.execute(select(Metro).where(Metro.name == METRO_NAME))).scalar_one_or_none()
-        if metro is None:
-            metro = Metro(name=METRO_NAME, timezone=METRO_TIMEZONE, slug=METRO_SLUG)
-            session.add(metro)
-            await session.flush()
-        venue_id = (
-            await session.execute(select(Venue.id).where(Venue.metro_id == metro.id, Venue.name == facts.name))
-        ).scalar_one_or_none()
-        if venue_id is None:
-            row = Venue(metro_id=metro.id, name=facts.name, calendar_url=facts.url, fetch_strategy=FetchStrategy.HTTP)
-            session.add(row)
-            await session.flush()
-            venue_id = row.id
-        await session.commit()
-    async with factory() as session:
-        [venue] = await load_venues(session, venue_id)
-    return venue
-
-
-# ---------------------------------------------------------------------------
-# 2. The scenarios
+# 1. The scenarios
 # ---------------------------------------------------------------------------
 
 
@@ -253,7 +169,7 @@ async def run_scenario(
     repeat: `first` twice. sequence / overlap: `first`, then `second`. perturbed: `first`, damage the database, `first` again.
     """
     async def committed() -> dict[str, Any]:
-        return await committed_extraction(factory, venue.id)
+        return await scratch_rows.committed_extraction(factory, venue.id)
 
     # Every capture of a venue comes from ONE calendar URL, and the pipeline stores that URL on each show (`original_url`);
     # reconcile treats a changed `original_url` as an update. The harness feeds a fixture's path as that URL, so two capture
@@ -287,7 +203,7 @@ async def run_scenario(
 
 
 # ---------------------------------------------------------------------------
-# 3. What the database should hold, and how it scored
+# 2. What the database should hold, and how it scored
 # ---------------------------------------------------------------------------
 
 

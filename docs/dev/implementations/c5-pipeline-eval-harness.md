@@ -1,10 +1,10 @@
 # C5 — pipeline evaluation harness
 
-**Status:** Code review (round 2, requested by Ari after sign-off: separation of concerns), November 5, 2026
+**Status:** Awaiting sign-off (code review round 2, separation of concerns: all 10 rows resolved; Ari's sign-off of November 5 stands for the milestone, this is a restructuring after it), November 5, 2026
 **Date:** October 29, 2026
 **Author model:** Claude Sonnet 5.5 (plan, October 29, 2026; written in a cloud session)
 **Approval:** Ari, October 29, 2026: accepted the recommendations on D1 to D7 and invoked `/build-milestone` (so Status went from `Awaiting approval` to `Approved` to `Code review` in one session; recorded here at code review, C5-CR1-10).
-**Reviewer model:** Claude Opus 5.5 (plan review round 1, October 29, 2026; code review round 1, October 29, 2026)
+**Reviewer model:** Claude Opus 5.5 (plan review round 1, October 29, 2026; code review round 1, October 29, 2026; code review round 2, November 5, 2026)
 **Spec:** `docs/dev/alpha-deployment-plan.md` §6 C5 (and Dep-D5, Dep-D15, Dep-D16, §5.2 "Labelling twice"); `docs/dev/alpha-build-plan.md` §5 A8
 (the pointer; the items migrated to C5 and C7); `docs/dev/implementations/a2.1-extraction-reliability.md` (A2.1-D1 the tiered standard,
 A2.1-D11 the labelling fill-in, A2.1-D13 the year rule); `docs/dev/implementations/a3-validation-and-retry.md` (the verdict, the
@@ -777,6 +777,25 @@ Ari, reading the PR file by file, found `db_score.py` and `graph_eval.py` hard t
 
 **Departures from the plan:** none in this round. **`TODO(Ari)` gaps:** all closed (round 3). **Verification at this point:** working tree clean, `make check` exit 0 at the last push (CI 9 of 9 green on PR #78). **Where to look hardest:** `graph_eval.py` and `db_score.py`, then whether `graph_report.py` / `graph_run.py` / `validation_recall.py` have the same kind of mixing.
 
+### Round 9 — Claude Sonnet 5.5, November 5, 2026 (fixes for code review round 2: separation of concerns)
+
+A pure restructuring of the C5 files Ari found hard to read; no behaviour changed. Scope: the branch against the diff base `cd86e4db367d1a5904828c09f4edb07bc6277c02`, `apps/api/agent_worker/eval/` and its tests, plus `apps/api/AGENTS.md`.
+
+**What moved where** (the answer to "why is this in that file"):
+
+| Module | Holds | Changes when |
+|---|---|---|
+| `graph_eval.py` (357 lines, was 581) | the runner and the CLI: flags, `run_pages`, `run_scenarios`, `scenario_records`, `rescore`, `evaluate`, `main` | a flag, or how pages are run |
+| `graph_aggregate.py` (new, pure) | the numbers computed from run records | the report's metrics change (C6 cost, C7) |
+| `graph_results.py` (new) | the results file: shape (`build_record`), paths, load, `slim`, `snapshot` | the file's shape (C6 key redaction goes here) |
+| `graph_report.py` | Markdown report, `compare_table`, `summary` | how numbers are shown |
+| `scratch_rows.py` (new) | read, clear and create rows in the scratch calendar | the schema changes |
+| `db_score.py` (246 lines, was 330) | the two-run scenarios, what they should leave, its score | a scenario changes |
+| `graph_run.py` | one page through the graph; `score_dict` and `column_scores` score a run's columns, for a fresh run and for `--rescore` | a column's scoring rule changes |
+| `scoring.py` | gained `summed` | `PageScore` gains a count |
+
+**Departures from the plan:** none, apart from the new module names (the plan's Critical files list predates them). **`TODO(Ari)` gaps:** none open. **Verification:** as in the Resolution summary of code review round 2. **Where to look hardest:** (1) `graph_eval.rescore` now reads `graph_results.results_path(label)` directly, deliberately not `load_results`, so a rescore never falls back to a snapshot; (2) nothing runs `--rescore` against a real raw file in the cloud, so the byte comparison for that path is the one check left for the laptop (the rescore unit tests pass); (3) the patched module attributes (`graph_results.RESULTS_DIR`, `SNAPSHOT_DIR`) in tests.
+
 ## Code review
 
 *(Written by `plan-reviewer`.)*
@@ -836,3 +855,104 @@ reason (`NotImplementedError("TODO(Ari)")`). The gap blocks match the plan's Cod
 **Rejected:** none. All 10 findings were checked and accepted (rows 1 and 2 reproduced by the reviewer with probe tests; the fixes started from failing tests).
 
 **After the fixes:** `uv run ruff check .` clean; `uv run mypy` clean (135 files); `REQUIRE_DB=1 uv run pytest`: **16 failed, 1059 passed, 16 skipped**. The 16 are the 15 open-gap tests plus the one new test that uses the real `coverage` in the aggregate (`test_validation_recall_in_the_aggregate_follows_the_real_coverage_definition`, red until C5-K4 is filled); the 12 tests added in this pass for rows 1, 2, 3 and 6 are green. `make designation-check BASE=ea6d1e0ae773c705b45b22093a2405ba920a78bc` exit 0; `make contract-check` current. `make e2e` was not rerun: the pass changed no schema, route or frontend file (it passed, 104, before it).
+
+### Round 2 — Claude Opus 5.5, November 5, 2026 (separation of concerns, requested by Ari)
+
+**Scope:** Implementation log Round 8. Diff base `cd86e4db367d1a5904828c09f4edb07bc6277c02` to the branch head (`1c002d9`; the head commit
+changes only this file). The C5 files under `apps/api/agent_worker/eval/` (`graph_eval.py`, `db_score.py`, `graph_run.py`,
+`graph_report.py`, `validation_recall.py`, the C5 additions to `scoring.py`, `scratch_db.py`, `label_draft.py`) and their tests. The
+question is structural only: which functions belong together, judged by who changes them and why, and what a move would break.
+Every move proposed below is meant to be a pure restructuring with identical behaviour; none of the rows is a behaviour defect.
+
+**What was checked and how.**
+- Read every module above in full, the C5 test files' imports, fixtures and `monkeypatch` targets, `apps/api/AGENTS.md` (the eval
+  paragraph), `app/tests/test_no_testing_imports.py`, the Makefile's `eval-*` targets, and the Implementation log Rounds 4 to 8
+  (for what has already had to change, and why).
+- Mapped the import graph of `eval/` with grep. Today it is a DAG: `labels` ← `scoring` ← `validation_recall` ← `graph_run` ←
+  `db_score` ← `graph_eval`, with `graph_report` importing only `labels` and `run_eval` importing no C5 module. Nothing but tests
+  imports `graph_eval`. CONFIRMED.
+- Baseline: `uv run pytest` on the eight C5 test modules plus `test_no_testing_imports.py`: **130 passed** (real Postgres was up, so
+  the database tests ran). `uv run mypy`: no issues in 141 files. `uv run ruff check .`: clean. `make designation-check
+  BASE=cd86e4db…`: exit 0. I did not rerun the full `make check`: no code changed since Round 8's green run. CONFIRMED.
+- `graph_eval --report c5-baseline-seq` and `--compare c5-baseline c5-baseline-retry` run in this cloud sandbox from the committed
+  snapshots (no raw files, no model). So a byte-for-byte golden check of the restructuring is possible without the laptop (row 10).
+  CONFIRMED.
+- One probe in a throwaway `git worktree` (removed afterwards): moved `load_results`, `slim`, `snapshot` and `SNAPSHOT_DIR` into a new
+  module, imported them back into `graph_eval`, and left the tests alone. Result: **3 failed, 42 passed** in `test_graph_eval.py` plus
+  `test_graph_report.py`. Each failure was a `FileNotFoundError` that looked in the real `eval/results/` and `docs/dev/eval-baselines/`,
+  because the tests' `monkeypatch.setattr(graph_eval, "RESULTS_DIR"/"SNAPSHOT_DIR", …)` no longer reached the code (rows 2 and 10).
+  CONFIRMED.
+
+Nothing in the repo was changed apart from this round and the header's Status and Reviewer lines.
+
+**What changes for which reason today.** `graph_eval.py` changes for six unrelated reasons:
+1. A CLI flag (`parse_args`, `main`, `build_policy`).
+2. What the milestone reports (the aggregate). C7 is likely to add the "attempt failed for any reason" dimension (F14), and C6 adds
+   cost.
+3. The stored file's shape and what gets committed (`slim`, the dict literal in `evaluate`). C6 must add redaction and a
+   secret-scanning test here (Round 7).
+4. How a stored run is rescored.
+5. How pages are run against the database.
+6. How numbers are printed (`compare`, `evaluate`'s closing lines).
+
+`db_score.py` changes for three:
+1. The schema (section 1). Round 4's metro-`slug` defect was in `ensure_venue`.
+2. What a scenario does.
+3. What a scenario should leave (sections 2 and 3).
+
+**Groupings that are justified and should stay.**
+- **`graph_run.py`:** one page through the graph, its two record types and the stager the records come from. One reason to change.
+- **`validation_recall.py`:** coverage, the tally and the findings' dict form. The dict form is the serialisation of exactly what
+  this module consumes, and `recompute_findings` is the input side of the same question.
+- **`scoring.py`'s C5 additions:** `ErrorItem`, `ReturnedShow.index`, `scheduled_only`, `Rates`, `headline_rates`. All of them are
+  "how one page is counted".
+- **`scratch_db.py`:** the guard and the create/migrate/drop trio. Keep it small and free of ORM imports, because it is where the
+  `DROP DATABASE` safety lives. Don't merge the row helpers into it (see row 4).
+- **`label_draft.py`:** self-contained.
+- **`graph_report.py`:** pure rendering of stored data, apart from the duplicated constants in row 7.
+- **`db_score.py` sections 2 and 3** together (`Scenario`, `_perturb`, `_expected_counts`, `_compare_counts`, `run_scenario`,
+  `expected_rows`, `score_database`). A new or changed scenario touches all of them at once. `_perturb`'s three damages and
+  `_expected_counts`' "1 insert, 1 update, 1 remove" must change together, so a pure/impure split here would separate two halves of
+  one rule.
+- **The runners `run_pages` and `run_scenarios` stay in `graph_eval.py`, progress `print`s included.** A 60-minute run has to show
+  progress as it goes. Moving `run_scenarios` into `db_score` would also force `_context` down a layer, because `db_score` cannot
+  import `graph_eval`: that would be a cycle. So after rows 1 to 3 `graph_eval` is the runner and the CLI, which is what its name
+  says.
+
+**Target import graph after the moves** (a DAG, no cycle):
+- `labels` ← `scoring` ← `validation_recall` ← `graph_run` ← `db_score` ← `graph_eval`
+- `scoring`, `validation_recall` ← `graph_aggregate` ← `graph_eval`, `graph_report`
+- `main` ← `scratch_rows` ← `db_score`, `graph_eval`
+- `run_eval` ← `graph_results` ← `graph_eval`
+
+`graph_results` must not import `db_score` or `graph_run`. That is why `rescore` stays in `graph_eval` (row 3).
+
+**Hazards that apply to every row.**
+- **(a) Module-attribute patches.** Tests patch `graph_eval.RESULTS_DIR`, `graph_eval.SNAPSHOT_DIR`, `graph_eval.PAGE_LABELS`,
+  `graph_eval.VENUE_FACTS` and `db_score.expected_rows`. A patch reaches the code only if the code reads the attribute at call time
+  in the module that is patched. A `from x import NAME` copy silently escapes the patch, and the probe above shows it happening.
+- **(b) The `app.testing` ban.** `test_no_testing_imports.py` scans every module under `agent_worker/` by `rglob`, so new modules
+  in `eval/` are covered automatically. None of the moved code imports `app.testing`. CONFIRMED by reading
+  `test_no_testing_imports.py:14-29`.
+- **(c) Names other files rely on.** The Makefile calls only `python -m agent_worker.eval.graph_eval` with flags, so `graph_eval`
+  must keep `main` and `parse_args` and its module path. `run_eval.py` imports nothing from C5. `apps/api/AGENTS.md:144-146` lists
+  what each module holds and must follow the moves.
+
+**Counts:** 0 blocker, 4 should-fix, 6 nit. **Verdict: proceed after fixes.** Rows 1 to 4 answer Ari's question. Rows 5 to 10 are
+small and can ride along or be rejected.
+
+| # | Sev | Finding | Evidence | What goes wrong | Resolution |
+|---|---|---|---|---|---|
+| 1 | should-fix | **Move the aggregate out of `graph_eval.py` into a new pure module, `eval/graph_aggregate.py`.** Move `COLUMNS`, `_summed` (or see row 9), `_column`, `_scored_in`, `_gate`, `_errors_of`, `_retry`, `_validation`, `_per_fixture` and `aggregate`: about 135 lines, `graph_eval.py:66,127-257`. Import direction: `graph_eval` → `graph_aggregate` → `scoring`, `validation_recall`, `labels`. `graph_report` imports `COLUMNS` from it instead of redefining it (`graph_report.py:22`). The aggregate changes when the milestone's report changes, and that is also when `graph_report` changes. It does not change when the CLI or the database runner does. **What breaks:** the 14 `graph_eval.aggregate(...)` calls in `test_graph_eval.py` and the one in `test_graph_report.py:43` must call `graph_aggregate.aggregate`. No `monkeypatch` targets any aggregate name, and the move creates no cycle. The aggregate tests (the "The aggregate" section of `test_graph_eval.py`, lines 77-213) could move to `test_graph_aggregate.py`. | CONFIRMED by reading and grep: `test_graph_report.py:20,43` imports the CLI module (and with it the DB, `httpx` and `run_eval` stacks) only to build fixtures with `graph_eval.aggregate`. `graph_eval.py:16-19` already treats "the pure parts" as a separate layer. | The report's tests depend on the CLI module. A metric added for C6 or C7 lands in a 581-line file that also holds the database runner and the CLI, which is the mixing Ari found. | **Fixed.** New `eval/graph_aggregate.py` (pure; `COLUMNS`, `_column`, `_scored_in`, `_gate`, `_errors_of`, `_retry`, `_validation`, `_per_fixture`, `aggregate`). `graph_report` imports `COLUMNS` from it. The aggregate tests moved to `tests/test_graph_aggregate.py`, which also holds the shared record helpers; `test_graph_report` and `test_graph_eval` import them from there and no longer need the CLI module. |
+| 2 | should-fix | **Move results-file IO and the file's shape into a new `eval/graph_results.py`.** Move `RESULTS_DIR`, `SNAPSHOT_DIR`, `LABELS_FILE`, `labels_sha`, `held_out_scored`, `_git_commit`, `_HEAVY_RUN_KEYS`, `_PROMPT_HASHES`, `_slim_run`, `slim`, `snapshot` and `load_results` (`graph_eval.py:61-65,76-83,314-353,484-489`). Add a `write_results(label, record) -> Path` built from the dict literal and write in `evaluate` (`graph_eval.py:535-545`), plus small `raw_path(label)` and `rescore_path(label)` helpers. Import direction: `graph_eval` → `graph_results` → `run_eval` (for `RESULTS_DIR` only) and `labels`. It must not import `db_score` or `graph_run`. `build_policy` stays in `graph_eval` (it turns flags into a policy). The stored shape changes for its own reasons, and Round 7 names one already: C6 must redact or exclude secrets "where `evaluate` builds the file" and test that a results file and a snapshot carry no key. Both the writing and `slim` then sit in one module with one test file. **What breaks:** (a) the `monkeypatch.setattr(graph_eval, "RESULTS_DIR"/"SNAPSHOT_DIR", …)` calls at `test_graph_eval.py:293,359,427-428,443-444` and `test_graph_report.py:160` must target `graph_results`. (b) `rescore` (still in `graph_eval`, row 3) and `main`'s `--report` path must read `graph_results.RESULTS_DIR` and call `graph_results.load_results` by attribute, never through `from graph_results import RESULTS_DIR`, or the rescore tests' patches stop reaching them. (c) The tests that call `labels_sha`, `held_out_scored`, `slim`, `snapshot` and `load_results` change module. | CONFIRMED: the worktree probe above (3 failed, `FileNotFoundError` in the real `eval/results/` and `docs/dev/eval-baselines/`). `graph_eval.py:535-544` is the file's only definition. Round 7, "Keep secrets out of `RequestOptions`". | Today the shape of the committed snapshot is split between `slim` (line 333) and a dict literal 200 lines further down inside `evaluate`, which is easy to miss in exactly the change C6 has to make. If a patch silently misses, a test reads or writes the developer's real results folder. | **Fixed.** New `eval/graph_results.py`: paths, `labels_sha`, `held_out_scored`, `git_commit`, `build_record` (the file's shape, one function), `results_path`, `rescore_path`, `write_results`, `load_results`, `slim`, `snapshot`. No database or graph imports. Tests moved to `tests/test_graph_results.py`; every `monkeypatch.setattr(graph_eval, "RESULTS_DIR"/"SNAPSHOT_DIR")` now targets `graph_results`, and the module docstring says readers must look the directories up as attributes. One new test pins `build_record`'s key order and a write/read round trip. |
+| 3 | should-fix | **`--rescore` re-implements how `run_page` scores a run. Share one function instead.** `graph_eval._score_dict` (`:117-119`) is `graph_run._score` (`:113-115`) under another name. `_rescore_run` (`:297-311`) repeats `run_page`'s three column rules (raw and validated against the full label, committed against `scheduled_only`) and `_attempt_result`'s "score only when `raw_extraction` is not None". Move: in `graph_run.py`, rename `_score` to a public `score_dict` and add `column_scores(label, raw, validated, committed, page_html, name) -> dict[str, dict]`, returning `raw_score`, `validated_score` and `committed_score`. `run_page` and `_rescore_run` both use it, and `_score_dict` and the `NOTHING` import leave `graph_eval`. `rescore` itself (load, loop, aggregate, write) stays in `graph_eval` as the thin orchestration of a CLI subcommand. Keep it out of `graph_results`, which would otherwise import `db_score` → `graph_run` → `main`. Its scenario block keeps calling `db_score.score_database`, so the `monkeypatch.setattr(db_score, "expected_rows", …)` at `test_graph_eval.py:374` still works. Identical behaviour: `run_page` passes `committed` without `or NOTHING`, but `score_page` reads only `extraction.get("shows") or []` (`scoring.py`, `score_page`'s first line), so the two agree. | CONFIRMED by reading `graph_eval.py:117-119,297-311` against `graph_run.py:113-132,182-187`. | Changing a column's rule (C5-PR1-5 was such a change) has to be made in two files. A miss makes `--rescore` disagree with a fresh run, and no test compares the two. | **Fixed.** `graph_run.score_dict` (public) and `graph_run.column_scores` are the only column-scoring code; `run_page` and `_rescore_run` both call them, and `_score_dict` is gone from `graph_eval`. `rescore` stays in `graph_eval`. It still reads the RAW file only (`results_path`), not `load_results`, so a rescore never silently falls back to a snapshot that has no extractions. New test: the committed column is held to `scheduled_only`, raw and validated are not. |
+| 4 | should-fix | **Move `db_score.py` section 1 (`committed_extraction`, `reset`, `ensure_venue`, `db_score.py:40-120`) into a new `eval/scratch_rows.py`, "the harness's reads and writes on the scratch calendar".** They change with the schema (Round 4: `ensure_venue` missed the `slug` C4 made required), and `graph_eval.run_pages` uses them outside any scenario. Import direction: `db_score` → `scratch_rows`; `graph_eval` → `scratch_rows`; `scratch_rows` → `app.db.models`, `app.db.seed`, `main.load_venues`. No cycle, since `main` imports nothing from `eval/`. Keep `_perturb` in `db_score`, because it is half of the perturbed scenario's rule (see "justified groupings"). Don't put these in `scratch_db.py`: that module holds the `DROP DATABASE` guard and none of the ORM, and it is easier to audit that way. Its docstring says `reset` relies on the guard having already run, and that stays true wherever `reset` lives. Then `db_score` holds "the scenarios: what they run, what they should leave, and its score", and its docstring's reading order (lines 7-13) loses item 1. **What breaks:** `test_db_score.py:75,132,248` and `graph_run.py:142`'s docstring (`db_score.committed_extraction`). No monkeypatch targets these names. | CONFIRMED by reading and grep (callers: `graph_eval.py:402-406,430,433,437`; `db_score.py:256`). | Schema-driven fixes land in the scenario module, and a reader of `run_pages` has to open the scenario module to learn how a calendar is cleared. | **Fixed, with one part rejected.** New `eval/scratch_rows.py` (`committed_extraction`, `reset`, `ensure_venue`); `db_score` and `graph_eval` import it, `scratch_db.py` untouched. Rejected: moving the two tests for these helpers into their own file. They share `test_db_score.py`'s savepoint factory, venue fixture and page builders, so a split would copy or re-export them; the file's docstring now says which sections test `scratch_rows`. |
+| 5 | nit | **The "second run of a sequence or overlap is not scored as committed" rule sits in `evaluate`, as string literals.** `graph_eval.py:515-521` compares `s["result"]["scenario"] in ("sequence", "overlap")`, while `run_scenarios` 90 lines up uses `db_score.Scenario.SEQUENCE/OVERLAP`. Move: a pure `scenario_records(scenarios) -> list[dict]` beside `run_scenarios` in `graph_eval` that uses the enum (a `StrEnum` compares equal to its string, so behaviour is identical), and give it a unit test. `evaluate` is untested because it needs the model, so this C5-CR1-1 rule has no direct test today. | CONFIRMED by reading; grep finds no test that calls `evaluate`. | A new scenario that also leaves another page's rows (or a renamed value) needs an edit in the CLI's results-writing code, which nobody would think to look for. | **Fixed.** `graph_eval.scenario_records` uses `db_score.Scenario` and has a unit test (only the second run of a sequence or overlap is unscored). |
+| 6 | nit | **Console formatting of saved runs lives in two places.** `compare` (`graph_eval.py:356-374`) builds and prints a table from the aggregate's shape, and `evaluate`'s closing lines (`:546-551`) print a headline. That shape is what `graph_report` already reads. Move: `graph_report.compare_table(files: Mapping[str, Mapping]) -> str` and `graph_report.summary(aggregate) -> str`, both pure. `graph_eval.main` loads (`graph_results.load_results`) and prints. Keep the text byte-identical (the column widths 26 and 22, one `print` per row). **What breaks:** `test_graph_eval.py:436` (`graph_eval.compare(["demo"])` with `capsys`) calls `main(["--compare", "demo"])` or the new function instead. | CONFIRMED by reading. | A change to the aggregate's keys has to be followed in three places (report, compare, closing summary), two of them in the CLI module. | **Fixed.** `graph_report.compare_table` and `graph_report.summary` are pure; `main` loads and prints. Output is byte-identical (golden check, row 10). Tests added in `test_graph_report.py`; the old `capsys` assertion became a `compare_table` assertion in `test_graph_results.py`. |
+| 7 | nit | **Duplicated constants that encode a single decision.** `IMAGE_SUFFIXES` is defined three times (`nodes.py:56`, `graph_run.py:41`, `graph_eval.py:68`), `COLUMNS` twice (`graph_eval.py:66`, `graph_report.py:22`; row 1), and `graph_report.MISSING_LIMIT = 0.10` (`:26`) re-states `scoring.MISSING_TOLERANCE` (`scoring.py:37`). Move: `graph_run` and `graph_eval` import `nodes.IMAGE_SUFFIXES`, but keep each call site's own test as it is: `graph_eval` lower-cases (`.lower().endswith`) and `graph_run` does not (`suffix in`). Unifying them would change behaviour for an upper-case suffix (no current fixture has one: `labels.py:392,397`). Set `MISSING_LIMIT = scoring.MISSING_TOLERANCE`, which needs a pure `graph_report` → `scoring` import. If the verdict string should follow the constant, `f"over {MISSING_TOLERANCE:.0%} missing"` renders the same "over 10% missing". `LABELS_FILE` (`graph_eval.py:65`) is better as `Path(labels.__file__)` than as `run_eval.__file__`'s sibling. | CONFIRMED by grep. | If Ari tightens the field standard in `scoring`, the gate and the report's Field accuracy verdict disagree with no test noticing. | **Fixed.** `IMAGE_SUFFIXES` is defined once, in `nodes.py`; `graph_run` and `graph_eval` import it and keep their own (differently cased) tests. `COLUMNS` is defined once, in `graph_aggregate`. `graph_report.MISSING_LIMIT` is `scoring.MISSING_TOLERANCE` and the verdict text is formatted from it (still reads "over 10% missing"; a test pins the link). `LABELS_FILE` is `labels.__file__`. |
+| 8 | nit | **`validation_recall.findings_fired` (`:82-84`) has no caller.** `graph_eval._validation` re-implements it inline (`:208,213`, `fired.update(f.code.value for f in findings)`). Use it (`fired.update(validation_recall.findings_fired(findings))`, which gives an identical `Counter`) or delete it. | CONFIRMED: `grep -rn "findings_fired("` matches only its definition. | Dead code next to its own reimplementation: a reader can't tell which one is authoritative. | **Fixed.** `_validation` calls `validation_recall.findings_fired`; the function now has a caller. |
+| 9 | nit | **`_summed` (`graph_eval.py:127-140`) is `PageScore` arithmetic and belongs in `scoring.py` (`scoring.summed(scores) -> PageScore`).** It lists `PageScore`'s count fields by name, so it changes whenever `PageScore` gains a count, which is `scoring`'s change, not the aggregate's. It also sits next to `headline_rates`, whose "rates from summed counts" rule (C5-M2) it exists for. `test_rates_are_computed_from_summed_counts_not_averaged_per_page` goes through `aggregate` and keeps working. If row 1 is done, this is the one function to send to `scoring` rather than `graph_aggregate`. | CONFIRMED by reading. | A count added to `PageScore` that the list misses would be silently left out of the aggregate. | **Fixed.** `scoring.summed`, beside `headline_rates`. Two tests: the worked sum of two pages, and one that gives every integer count field its own value so a field the function forgets fails (mutation-checked by removing `order_differs` from the list: the test failed). |
+| 10 | nit | **Verification and docs for a pure restructuring.** This is not a comment-only pass, so the AST comparison doesn't apply, but a golden check does, and it runs in the cloud. Before the moves, save the output of `graph_eval --report <label> --errors` for each of the four committed snapshots (`docs/dev/eval-baselines/`) and `--compare` across all four. After the moves, they must be byte-identical. Add `make check` and, locally, one `--rescore` diffed against the pre-move rescore of the same raw file. Grep the tests for `setattr(graph_eval,` and `setattr(db_score,` after each move (hazard (a)). Update `apps/api/AGENTS.md:144-146` (which module holds what), the docstrings of `graph_eval.py` (reading order, `:16-19`), `db_score.py` (`:7-13`) and `graph_run.py` (`:142`), and the opening line of `test_graph_eval.py`. A sensible order is one commit per row, rows 3, 1, 2, 4 first, each green before the next. | CONFIRMED: `--report c5-baseline-seq` and `--compare c5-baseline c5-baseline-retry` ran here from the snapshots. The probe shows the patch hazard. | Without a golden diff, "behaviour unchanged" for the report and compare paths rests only on unit tests, and those test sections, not the whole output. | **Fixed.** Golden check: `--report <label> --errors` for all four committed snapshots and `--compare` across them were saved before the moves and diffed after: identical. Tests grepped for `setattr(graph_eval,` and `setattr(db_score,` after each move; `apps/api/AGENTS.md`, and the docstrings of `graph_eval.py`, `db_score.py`, `graph_run.py` and `test_graph_eval.py`, follow the moves. A `--rescore` golden needs a raw file, so it is the one check left for a laptop (see the log). |
+
+**Resolution summary (author, November 5, 2026).** Rows 1 to 10 are fixed; row 4 has one part rejected (see its cell).
+Rejected: moving the `scratch_rows` tests out of `test_db_score.py` (row 4: they share that file's fixtures). Test suite after the fixes: `make check` exit 0 (ruff, mypy 146 files, 1154 pytest passed and 16 skipped, vitest 523, contract-check, designation-check, e2e 107 passed); `make designation-check BASE=cd86e4db…` exit 0. Behaviour check: `--report --errors` for the four committed snapshots and `--compare` across them, saved before the moves and diffed after, are byte-identical.

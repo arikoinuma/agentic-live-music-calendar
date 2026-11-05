@@ -11,6 +11,7 @@ How to read it: helpers build labels and returned shows by hand -> matching (A2.
 out by hand from the case and the standard, never read from the scorer.
 """
 
+import dataclasses
 import datetime
 from typing import Any
 
@@ -506,3 +507,28 @@ def test_headline_rates_on_an_empty_page_are_perfect_not_a_division_error() -> N
         returned(8, "Karaoke Night"),
     )
     assert scoring.headline_rates(only_leak).precision_lenient == 1.0
+
+
+def test_summed_adds_every_count_and_field_tally_across_pages() -> None:
+    # Proves: C5-M2 (`scoring.summed`, the sum the aggregate divides once). Two pages' counts and their per-field tallies are
+    # added, so a rate taken from the sum weighs every show equally. Expected numbers are worked by hand from the two scores
+    # below: 5 + 10 labelled, 1 + 0 missed, 2 + 3 time values stated, 1 + 3 of them correct.
+    first, second = scoring.PageScore(labelled=5, returned=4, missed=1), scoring.PageScore(labelled=10, returned=10, leaks=2)
+    first.fields["time"].stated, first.fields["time"].correct = 2, 1
+    second.fields["time"].stated, second.fields["time"].correct = 3, 3
+    total = scoring.summed([first, second])
+    assert (total.labelled, total.returned, total.missed, total.leaks) == (15, 14, 1, 2)
+    assert (total.fields["time"].stated, total.fields["time"].correct) == (5, 4)
+    assert first.labelled == 5  # the inputs are left alone
+
+
+def test_summed_names_every_count_field_of_a_page_score() -> None:
+    # Proves: `summed` cannot silently skip a count added to `PageScore` later. Every integer count field must be summed, which
+    # is checked by giving each its own value and reading it back; a new count that the list in `summed` misses reads 0 here.
+    counts = [f.name for f in dataclasses.fields(scoring.PageScore) if isinstance(getattr(scoring.PageScore(), f.name), int)
+              and not isinstance(getattr(scoring.PageScore(), f.name), bool)]
+    page = scoring.PageScore()
+    for i, name in enumerate(counts):
+        setattr(page, name, i + 1)
+    total = scoring.summed([page, page])
+    assert {name: getattr(total, name) for name in counts} == {name: 2 * (i + 1) for i, name in enumerate(counts)}

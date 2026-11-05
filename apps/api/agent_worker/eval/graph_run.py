@@ -33,12 +33,11 @@ from agent_worker.eval import scoring
 from agent_worker.eval.labels import PageLabel
 from agent_worker.eval.validation_recall import finding_dict, recompute_findings
 from agent_worker.main import VenueFacts, run_venue
+from agent_worker.nodes import IMAGE_SUFFIXES
 from agent_worker.policy import AttemptRecord, RetryPolicy
 from agent_worker.state import VenueGraphState
 from agent_worker.validation import Severity
 from app.enums import RunTrigger
-
-IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp")
 
 # What a scored column holds when nothing was produced: no shows. Scoring it against a label counts every labelled show missed,
 # which is the truth for an escalated run (it commits nothing) and for a model call that failed outright.
@@ -110,9 +109,27 @@ class PageRun:
     route_mismatch: bool = False
 
 
-def _score(label: PageLabel, extraction: dict[str, Any] | None, page_html: str, fixture: str) -> dict[str, Any]:
-    """`score_page` as a plain dict; a missing extraction is scored as nothing returned."""
+def score_dict(label: PageLabel, extraction: dict[str, Any] | None, page_html: str, fixture: str) -> dict[str, Any]:
+    """`score_page` as a plain dict; a missing extraction is scored as nothing returned (every labelled show missed).
+
+    Public because `--rescore` (`graph_eval`) rebuilds a saved run's scores with the very same function: a rule for how a column
+    is scored then lives in one place, and a rescore cannot disagree with a fresh run (C5-CR2-3)."""
     return dataclasses.asdict(scoring.score_page(label, extraction or NOTHING, page_html, fixture))
+
+
+def column_scores(
+    label: PageLabel, *, raw: dict[str, Any] | None, validated: dict[str, Any] | None, committed: dict[str, Any],
+    page_html: str, fixture: str,
+) -> dict[str, dict[str, Any]]:
+    """The three scored columns of one run, keyed as `PageRun` names them (`raw_score`, `validated_score`, `committed_score`).
+
+    Raw and validated are held to the full label. The database cannot hold a cancelled or postponed show (reconcile skips it), so
+    the committed column is held to the scheduled ones only (`scoring.scheduled_only`)."""
+    return {
+        "raw_score": score_dict(label, raw, page_html, fixture),
+        "validated_score": score_dict(label, validated, page_html, fixture),
+        "committed_score": score_dict(scoring.scheduled_only(label), committed, page_html, fixture),
+    }
 
 
 def _attempt_result(
@@ -125,7 +142,7 @@ def _attempt_result(
         attempt=document["attempt"], tier=document["tier"], route=document["route"], model=document["model"],
         larger_model_used=document["larger_model_used"], error=document["error"],
         verdict=record.verdict.value if record else "none", reasons=[r.value for r in record.reasons] if record else [],
-        score=_score(label, raw, page_html, fixture) if raw is not None else None,
+        score=score_dict(label, raw, page_html, fixture) if raw is not None else None,
         errors=[finding_dict(f) for f in findings if f.severity is Severity.ERROR],
         warnings=[finding_dict(f) for f in findings if f.severity is Severity.WARNING],
         recorded_errors=[finding_dict(f) for f in record.findings] if record else [],
@@ -139,7 +156,7 @@ async def run_page(
     """Run `fixture` through the graph as `venue`, and score the raw, validated and committed results against `label`.
 
     `ctx.stager` must be an `InMemoryStager`: its documents are the per-attempt record. `committed_rows` reads the rows left in
-    the database after the run (`db_score.committed_extraction`); it is injected so the graph-level tests need no database
+    the database after the run (`scratch_rows.committed_extraction`); it is injected so the graph-level tests need no database
     (C5-PR1-7). `policy` replaces the default retry policy for this run (C5-D5). `name` is what the record calls the page when
     it differs from the file's name (a scenario feeds every capture of a venue from one fixed path, see `db_score.run_scenario`).
     """
@@ -179,12 +196,7 @@ async def run_page(
         reconcile_counts=state.reconcile_plan.counts() if state.reconcile_plan else None,
         commit_written=dict(state.commit_result.written) if state.commit_result else None,
         raw=raw, validated=validated, committed=committed,
-        raw_score=_score(label, raw, page_html, name),
-        validated_score=_score(label, validated, page_html, name),
-        # The database cannot hold a cancelled or postponed show (reconcile skips it), so it is held to the scheduled ones.
-        committed_score=dataclasses.asdict(
-            scoring.score_page(scoring.scheduled_only(label), committed, page_html, name)
-        ),
+        **column_scores(label, raw=raw, validated=validated, committed=committed, page_html=page_html, fixture=name),
         attempts=attempts, staged_documents=documents,
         route_mismatch=bool(documents and state.extraction_source is not None and documents[-1]["route"] != state.extraction_source),
     )

@@ -6,7 +6,7 @@ hosted model in C6, and of every later run (`--compare` then lines the labels up
 Markdown, so it is tested on small hand-built files.
 
 How to read it: `results_file` builds a results dict the way `graph_eval.evaluate` stores one (reusing the record helpers of
-test_graph_eval.py); each test then pins one section of the report. Expected text is what the section is specified to show, worked
+test_graph_aggregate.py); each test then pins one section of the report. Expected text is what the section is specified to show, worked
 from the hand-built counts, never from the report's own output.
 """
 
@@ -17,9 +17,15 @@ from typing import Any
 
 import pytest
 
-from agent_worker.eval import graph_eval, graph_report, labels
+from agent_worker.eval import (
+    graph_aggregate,
+    graph_eval,
+    graph_report,
+    graph_results,
+    labels,
+)
 from agent_worker.eval.labels import LabelledShow, PageLabel
-from agent_worker.tests.test_graph_eval import (
+from agent_worker.tests.test_graph_aggregate import (
     FINDING,
     GATED,
     D,
@@ -40,7 +46,7 @@ def results_file(runs: list[dict[str, Any]], **extra: Any) -> dict[str, Any]:
         "policy": {"confidence_threshold": 0.8, "max_attempts": 3},
         "provenance": {"gemma-test": {"model_digest": "deadbeefcafe", "ollama_version": "0.99"}},
         "request": {"instruction": "long prompt text", "instruction_sha": "1234abcd56", "response_schema_sha": "9999aaaa00", "response_schema_chars": 4000},
-        "aggregate": graph_eval.aggregate(runs, LABELS), "scenarios": [], "runs": runs, **extra,
+        "aggregate": graph_aggregate.aggregate(runs, LABELS), "scenarios": [], "runs": runs, **extra,
     }
 
 
@@ -157,7 +163,7 @@ def test_a_page_missing_from_the_labels_is_still_reported() -> None:
 def test_the_command_line_prints_or_writes_the_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     # Proves: `--report LABEL` reads graph-<LABEL>.json and prints it; `--out FILE` writes it instead, which is how a long report gets
     # into the plan's log without a terminal in between.
-    monkeypatch.setattr(graph_eval, "RESULTS_DIR", tmp_path)
+    monkeypatch.setattr(graph_results, "RESULTS_DIR", tmp_path)
     monkeypatch.setattr(labels, "PAGE_LABELS", LABELS)
     monkeypatch.setattr(graph_eval, "PAGE_LABELS", LABELS)
     (tmp_path / "graph-demo.json").write_text(json.dumps(results_file(clean_and_bad())))
@@ -237,3 +243,40 @@ def test_the_fields_table_says_what_it_sums_over() -> None:
 
 # keep names imported for the helper signatures above
 _ = (D, LabelledShow, PageLabel, FINDING)
+
+
+# ---------------------------------------------------------------------------
+# Code review round 2 (C5-CR2-6): the console views of an aggregate
+# ---------------------------------------------------------------------------
+
+
+def test_the_comparison_table_lines_runs_up_in_the_order_given() -> None:
+    # Proves: `compare_table` prints one column per run in the order the labels were given, with the same rows for each, so two
+    # runs can be read down a row. Expected text is the specified layout: a 26-wide row name, then 22-wide cells.
+    runs = clean_and_bad()
+    first, second = results_file(runs, labels_sha="1111111111aaaa"), results_file(runs, labels_sha="2222222222bbbb")
+    lines = graph_report.compare_table({"one": first, "two": second}).split("\n")
+    assert lines[0] == "".ljust(26) + "one".ljust(22) + "two".ljust(22)
+    assert lines[1] == "labels_sha".ljust(26) + "1111111111".ljust(22) + "2222222222".ljust(22)
+    assert [line.split()[0] for line in lines[3:6]] == ["raw:", "raw:", "raw:"]
+    assert lines[-1].startswith("validation recall")
+
+
+def test_the_closing_summary_has_a_line_per_column_and_the_retry_loop() -> None:
+    # Proves: `summary` is what a finished run prints: recall, precision and the gate for raw, validated and committed, then the
+    # retry rate, escalations and validation recall. Checked against the aggregate's own numbers, formatted to three places.
+    aggregate = results_file(clean_and_bad())["aggregate"]
+    lines = graph_report.summary(aggregate).split("\n")
+    assert len(lines) == 4
+    for line, column in zip(lines, ("raw", "validated", "committed"), strict=False):
+        rates = aggregate["columns"][column]["rates"]
+        assert line.startswith(f"{column:10} recall {rates['recall']:.3f}  precision {rates['precision']:.3f}  gate ")
+    assert lines[3].startswith(f"retry rate {aggregate['retry']['retry_rate']:.3f}; escalated {aggregate['retry']['escalated']}; ")
+
+
+def test_the_missing_value_limit_is_the_standards_not_a_second_copy() -> None:
+    # Proves: C5-CR2-7. The report's "over 10% missing" verdict follows `scoring.MISSING_TOLERANCE`, so changing the standard
+    # moves the gate and the report together.
+    from agent_worker.eval import scoring
+
+    assert graph_report.MISSING_LIMIT == scoring.MISSING_TOLERANCE

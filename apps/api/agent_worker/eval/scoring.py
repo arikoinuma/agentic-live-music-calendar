@@ -365,6 +365,23 @@ class Rates:
     precision_lenient: float
 
 
+def summed(scores: list[PageScore]) -> PageScore:
+    """One score holding the sum of the counts and field tallies of many pages: rates are divided ONCE from this, never averaged
+    per page (a 5-show page must not weigh as much as a 10-show one; C5-M2). It lists `PageScore`'s count fields by name, so a
+    count added to `PageScore` must be added here too."""
+    total = PageScore()
+    for name in ("labelled", "returned", "dropped_empty", "missed", "acts_wrong", "fabricated", "leaks", "unsplit", "order_differs"):
+        setattr(total, name, sum(getattr(s, name) for s in scores))
+    for field_name, tally in total.fields.items():
+        for s in scores:
+            theirs = s.fields[field_name]
+            tally.stated += theirs.stated
+            tally.correct += theirs.correct
+            tally.missing += theirs.missing
+            tally.wrong += theirs.wrong
+    return total
+
+
 def headline_rates(score: PageScore) -> Rates:
     """Precision and recall for one page's counts."""
     # A show is FOUND when it was matched AND its acts are right (C5-K2). Ari's standard makes a show's identity its date and
