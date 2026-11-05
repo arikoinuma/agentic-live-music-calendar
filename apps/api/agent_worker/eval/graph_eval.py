@@ -44,7 +44,14 @@ from agent_worker.audit import PostgresAuditWriter
 from agent_worker.calendar_reader import PostgresCalendarReader
 from agent_worker.calendar_writer import PostgresCalendarWriter
 from agent_worker.context import WorkerContext
-from agent_worker.eval import db_score, run_eval, scoring, scratch_db, validation_recall
+from agent_worker.eval import (
+    db_score,
+    graph_report,
+    run_eval,
+    scoring,
+    scratch_db,
+    validation_recall,
+)
 from agent_worker.eval.graph_run import NOTHING, InMemoryStager, PageRun, run_page
 from agent_worker.eval.labels import PAGE_LABELS, VENUE_FACTS, PageLabel
 from agent_worker.eval.labels import VenueFacts as LabelVenueFacts
@@ -422,6 +429,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--keep-db", action="store_true", help="leave the scratch database in place afterwards, to read the rows")
     parser.add_argument("--rescore", metavar="LABEL", help="rescore a saved run into graph-rescore-<LABEL>.json (no model)")
     parser.add_argument("--compare", nargs="+", metavar="LABEL", help="print saved runs side by side")
+    parser.add_argument("--report", metavar="LABEL", help="print a readable Markdown report of a saved run (graph_report.py)")
+    parser.add_argument("--errors", action="store_true", help="with --report: also list every error string in full")
+    parser.add_argument("--out", metavar="FILE", help="with --report: write the report to this file instead of printing it")
     return parser.parse_args(argv)
 
 
@@ -500,6 +510,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     if args.compare:
         compare(args.compare)
+        return 0
+    if args.report:
+        data = json.loads((RESULTS_DIR / f"graph-{args.report}.json").read_text())
+        text = graph_report.render(data, PAGE_LABELS, show_errors=args.errors)
+        if args.out:
+            Path(args.out).write_text(text)
+            print(f"wrote {args.out}")
+        else:
+            print(text)
         return 0
     if args.rescore:
         print(f"wrote {rescore(args.rescore)}")

@@ -40,6 +40,7 @@ approach — most "what should we do about X" questions have an answer with reas
 | How is a given milestone being implemented? | `docs/dev/implementations/` |
 | What does a designation like `A2.1-D5` or `v0.1-G6` mean, and how do I write one? | `docs/dev/conventions.md` |
 | How do I add a venue, or a new capture, to the hand-labelled evaluation pool (and mark pages held out)? | `docs/dev/adding-eval-venues.md` |
+| How do I measure the model and the pipeline, read the results, and compare runs (local now, hosted in C6)? | `docs/dev/evaluating-model-performance.md` |
 
 When a real debugging session turns up something non-obvious, add it to `docs/dev/notes.md`.
 When a design decision gets made, record it where the surrounding reasoning lives.

@@ -143,7 +143,7 @@ in `make check` or CI**: it calls the model, needs the gitignored fixtures, and 
 `calendar_eval` (`eval/scratch_db.py`, which refuses any other name or a non-local host) that it drops at the end (it derives the server from `DATABASE_URL`; `EVAL_DATABASE_URL` overrides it, and the guard still demands the name `calendar_eval` on a local host). Its pieces:
 `graph_run.py` (one page through `main.run_venue`), `graph_eval.py` (the CLI, the results file, the aggregate, `--rescore`),
 `db_score.py` (the rows left, the two-run scenarios, what they should hold), `validation_recall.py` (which errors validation
-caught), `label_draft.py` (candidate lines for a hand-written label). `run_eval.py` stays the extraction-level tool. `eval/`
+caught), `label_draft.py` (candidate lines for a hand-written label). `graph_report.py` reads a saved run as Markdown (`make eval-report LABEL=<name>`, `make eval-compare`); the sequence of checks is `docs/dev/evaluating-model-performance.md`. `run_eval.py` stays the extraction-level tool. `eval/`
 must not import `app.testing` (`test_no_testing_imports.py` scans it). A page flagged `held_out` in `labels.py` is in no
 default set: its first scoring is C6's.
 

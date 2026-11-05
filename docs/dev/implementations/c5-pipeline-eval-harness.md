@@ -625,7 +625,7 @@ Until K2, K3 and K4 are filled, `graph_eval.evaluate` raises `NotImplementedErro
 
 **Designations.** The findings below are `F1` to `F8` inside this plan; elsewhere they are `C5-F1` and so on.
 
-**Provenance (Ari to complete).** Model, Ollama version and model digest are in the `provenance` block of each results file, and `labels_sha` and `harness_commit` beside it; the author could not read them from the cloud. Paste them here: *model / digest: ______ ; labels_sha: ______ ; harness commit: ______*. The results files are gitignored, in `apps/api/agent_worker/eval/results/`: `graph-c5-smoke.json`, `graph-c5-baseline.json`, `graph-c5-baseline-seq.json`, `graph-c5-perturbed.json`, and `graph-c5-baseline-retry.json` (pending, see below). Policy: the pipeline's defaults (threshold 0.8, cap 3), one run per page, temperature 0.
+**Provenance (Ari to complete).** Model, Ollama version and model digest are in the `provenance` block of each results file, and `labels_sha` and `harness_commit` beside it; the author could not read them from the cloud. Paste them here: *model / digest: ______ ; labels_sha: ______ ; harness commit: ______*. The results files are gitignored, in `apps/api/agent_worker/eval/results/`: `graph-c5-smoke.json`, `graph-c5-baseline.json`, `graph-c5-baseline-seq.json`, `graph-c5-perturbed.json`, and `graph-c5-baseline-retry.json` (Round 5). Policy: the pipeline's defaults (threshold 0.8, cap 3), one run per page, temperature 0.
 
 **The main baseline** (`make eval-graph LABEL=c5-baseline SET=all`, 10 pages, 1,780 s ≈ 30 minutes). Held-out pages (Ginkgo Coffee, Hook & Ladder) were excluded by design. **Raw, validated and committed counts are identical on every page**; the committed column's recall and precision differ slightly in the summary only because it is scored against the label without the 3 cancelled shows on 7th St Entry (a smaller denominator), not because anything was lost.
 
@@ -682,9 +682,41 @@ Findings fired: `excluded_no_acts` 14 (mostly correct exclusions of non-music en
 
 **Harness defects found by using it** (each fixed, with a test, on this branch): `ensure_venue` created a metro without the `slug` C4 made required; the database score judged stored image links against an empty page (19 phantom errors); expected reconcile counts were computed from the label, so a model that read a page differently on run 2 produced "mismatches" that were the model's; the perturbation's stale row could land on a date where the model had left a listing out, where reconcile rightly removes nothing; `label_draft` hid repeated lines, which on a calendar are the titles and end times of later events (`--all`).
 
-**Not yet done.** The retry run (`make eval-graph LABEL=c5-baseline-retry THRESHOLD=0.99`, which provokes the retry loop on model-route and image pages only) is running as this round is written; its numbers go in a short Round 5. The `repeat` scenario and the field-accuracy block were not run or reviewed.
+**Not yet done in this round.** The `repeat` scenario and the field-accuracy block were not run or reviewed. The retry run is Round 5.
 
 **Done-when check (deployment plan, C5).** The harness reports precision and recall on shows found (yes), field-level accuracy (in the file, unreviewed), the retry rate (0; provoked run pending), validation recall (yes: 0 caught, 2 flagged, 22 silent) and the database rows left after two runs (yes: both sequence scenarios and the perturbed run), and the baseline is recorded (this round). Needs Ari's sign-off.
+
+### Round 5 — Claude Sonnet 5.5, November 5, 2026 (the retry run; a reusable report and the sequence of checks)
+
+**The retry run** (`make eval-graph LABEL=c5-baseline-retry THRESHOLD=0.99`, pipeline defaults otherwise, 10 pages, 3,622 s ≈ 60 minutes, about twice the main run). A threshold of 0.99 makes low confidence fire on the pages the model reads whole; JSON-LD pages carry no confidence and cannot be retried.
+
+| Page | Route | Attempts: errors (missed/wrong/invented) | End |
+|---|---|---|---|
+| White Squirrel Aug | jsonld | 1: 0/0/0 | passed |
+| Zhora Darling | jsonld | 1: 0/4/0 | passed |
+| Terminal Bar Aug | model | 1: 1/3/0, 2: 2/3/0, 3: 1/3/0 | **escalated** |
+| Mortimer's | model | 1: 0/1/0, 2: 0/1/0, 3: 0/2/0 | passed on attempt 3 |
+| 7th St Entry | model | 1: 0/1/0 | passed |
+| Terminal Bar Oct | model | 1: 0/5/2, 2: 0/4/1, 3: 0/5/4 | **escalated** |
+| Terminal poster 1 | image | 1: 0/1/0 | passed |
+| Terminal poster 2 | image | 1, 2, 3: 0/0/0 each | **escalated** |
+| Turf Club | model | 1: 0/6/0, 2: 0/3/0, 3: 0/3/0 | passed on attempt 3 |
+| White Squirrel Oct | jsonld | 1: 1/0/0 | passed |
+
+Retried 5 of 10 runs (rate 0.5), mean attempts 2.0, escalated 3, recovered 2; attempts by tier: initial 10, narrowed 5, larger_model 5; all 13 failed attempts failed for `low_confidence` (none for a check error). **Errors summed over the retried pages: 18 on the first attempt and 18 on the final one.** Raw recall 0.825 and precision 0.811 (main run: 0.817 and 0.810); validated 0.742 and 0.890, committed 0.735 and 0.887, lower recall because an escalated run commits nothing (Terminal Bar Aug and Oct and poster 2: 19 labelled shows). Validation recall 0 caught and 51 silent.
+
+**Findings from the retry run.**
+
+- **F9. The retry loop works end to end on real pages, for the first time.** A low-confidence record is retried with a changed request, passes or escalates with a plain reason (`validation failed after 3 attempt(s); reasons: low_confidence`), and the escalated venue is flagged for human review.
+- **F10. Retrying did not improve accuracy on net (18 errors before, 18 after).** Turf Club improved from 6 wrong-acts errors to 3; Mortimer's got worse (1 to 2) and was accepted; Terminal Bar Oct got worse (7 errors to 9); Terminal Bar Aug stayed at 4.
+- **F11. At this threshold the model's confidence does not track correctness.** Poster 2 had no errors in any attempt and was escalated and thrown away; Mortimer's and Turf Club passed on attempt 3 with 2 and 3 wrong-acts errors, and 7th St Entry and poster 1 passed on attempt 1 with one wrong-acts error each. The sample is ten pages and the threshold was chosen to provoke retries, so this is a pointer for C7's calibration question and not a conclusion.
+- **F12. The "larger model" tier ran the same model.** No escalation model is configured (A3-D5), so tier 3 re-asked the local model with the full hint; the tier has not been tested until C6 provides a hosted one.
+- **F13. Retrying costs time and, when it escalates, data:** about double the main run's duration (Turf Club 985 s, Mortimer's 741 s), and three pages committed nothing.
+- **F14. The validation-recall measure undercounts retries.** "51 silent" counts the errors of every attempt, and an attempt failed for low confidence has a verdict reason but no finding, so errors a retry did stop read as silent. A complementary "the attempt was failed for any reason" dimension would separate them; the definition of coverage is Ari's (C5-K4), so this is a proposal for C7.
+
+**Departure (added in this round): a reusable report and a documented sequence.** Reading results had meant a throwaway script per question. `eval/graph_report.py` (`render`) turns a results file into Markdown (header, headline, retry loop, validation recall by error kind, one row per page, every retried page's attempts, scenarios, gate failures, repeatability, and with `--errors` every error string in full), reading the stored file only. `graph_eval --report LABEL [--errors] [--out FILE]`, `make eval-report` and `make eval-compare` expose it, and `docs/dev/evaluating-model-performance.md` records the sequence of checks (prepare, smoke, main run, scenarios, repeatability, retry, compare, record) and what stays fixed so a hosted-model run in C6 is comparable. 15 tests in `test_graph_report.py`; an older results file (missing later fields) renders.
+
+**Verification.** `make check` exit 0 (ruff, mypy on 141 files, 1139 pytest passed, vitest, contract-check, designation-check, e2e 107 passed).
 
 ## Code review
 
