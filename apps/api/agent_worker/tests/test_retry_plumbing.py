@@ -59,12 +59,13 @@ PINNED = {
     "status_instruction": "80eb31bb1a485cdb5bcdfb9a03451ef739d6e3449cdda60fe89335b1c85d4752",
 }
 # Two of them changed on November 5, 2026 (C6-D2 follow-up): both carry `prompts._act_conventions()`, which
-# gained two rules (an event's honoree is an act; a lone title is one act). The first-attempt tests below
-# compare against these current literals instead; the hashes are of the texts the `c6-prompt-v2` run sent.
+# gained rules (an event's honoree is an act; a bare name is one act; live-visual artists are acts). The
+# first-attempt tests below compare against these current literals instead; the hashes are of the texts the
+# `c6-prompt-v4` run sent.
 CURRENT = {
     **PINNED,
-    "splitter_instruction": "aaed46e074828f049b2679089389bbba3ba87b449fd429e55533276fafca66f5",
-    "image_instruction": "1ff70d6d73839d49b11827f51de81e5a7ad9ead4029d1067b94af7286a0e6fc8",
+    "splitter_instruction": "f7c8c2b15e0afade37342bf23876c5f3d4a03c9f07865a6ef69e6909b77f2f6f",
+    "image_instruction": "d3cf5b9a37cfc728df49926509195fc242b7c655c1725ad719205052436daf0e",
 }
 
 

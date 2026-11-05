@@ -319,9 +319,9 @@ PAGE_LABELS: dict[str, PageLabel] = {
     # (deferred: build plan §8), the times become labellable.
     "mortimers-2026-10-10.html": PageLabel(
         venue="mortimers", gated=True, captured_on=OCTOBER_CAPTURE, shows=(
-            S(D(2026, 10, 10), ("Flange August Back to Back",), "Flange August Back to Back / Sat, Oct 10",
-              convention="Ari decided (Oct 10): one act. 'Flange August' without 'Back to Back' is accepted too; so is 'Flange' alone (Ari, Nov 5: Flange and August are two different EDM artists, so the split is unknowable from the page; a review flag would be the right answer, C6 log round 7)",
-              alternatives=(("Flange August",), ("Flange",), ("August",), ("Flange", "August"))),
+            S(D(2026, 10, 10), ("Flange", "August"), "Flange August Back to Back / Sat, Oct 10",
+              convention="Ari corrected (Nov 5): Flange and August are two different EDM artists performing back to back, so two acts. Not derivable from the page text as a rule ('back to back' is rare phrasing), so the forms a model can realistically return are accepted and the real answer is a low-confidence review flag (arch-initial.md section 10, C6 log round 7)",
+              alternatives=(("Flange August Back to Back",), ("Flange August",), ("Flange",), ("August",))),
             S(D(2026, 10, 11), ("KENNY D", "MINI BLANCO"), "KENNY D + MINI BLANCO / Sun, Oct 11",
               convention="'+' separates acts"),
             S(D(2026, 10, 13), ("SAM WOODMAN",), "POPUP! W/ SAM WOODMAN / Tue, Oct 13",

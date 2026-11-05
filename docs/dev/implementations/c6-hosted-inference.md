@@ -332,9 +332,21 @@ Ari approved fixing the prompt and the Flange case on the 26B model before any f
   - Seventh St Oct 31, 5 of 5: the model keeps `Wizard.Imma` and drops `Visa_Card` from the visual credits. Ari's rule is all or none; the prompt already says visual credits are not acts, and the model does not follow it for this listing.
   - Mortimers Flange, 3 of 5 on the full-page route: the model returns `Flange`, which the label does not accept (`Flange August` and the full title are). Whether `Flange` should be accepted is Ari's call.
 
-### Round 7 — Flange label and the review-flag deferral, Claude Sonnet 5.5, November 5, 2026
+### Round 7 — the gated set passes on the 26B model, Claude Sonnet 5.5 (run for Ari), November 5, 2026
 
-Ari checked: Flange and August are two different EDM artists, so `Flange August Back to Back` cannot be split reliably from the page. Decisions (Ari): the label now also accepts `Flange` alone (`labels.py`), since the page route returns it; and the right long-term answer, a low-confidence flag that sends such shows to a human, is deferred and recorded in `arch-initial.md` §10 ("Review flag for uncertain act splits"). With the label change, the only remaining gated miss in `c6-prompt-v2` is the Seventh St visual-credit case (Wizard.Imma without Visa_Card), which Ari had called an acceptable outlier. Changing the label changes `labels_sha`, so earlier runs need `--rescore` before comparing.
+**Result: `c6-prompt-v4` (26B on every role, gated set, 5 runs) passes the A2.1-D1 gate on every run, on both routes.** Mean 35 s a run, 0 parse failures, 1.0 attempts. It was reached by three prompt edits and one label correction, each from a decision of Ari's. The gated pages were used to find the fixes, so this is an in-sample pass; the held-out capture (Step 8) is the real test.
+
+| Label | Gate failures | What changed |
+|---|---|---|
+| `c6-hosted-first` (rescored) | 14 | Starting point, after Ari's two label corrections |
+| `c6-prompt-v2` | 5 (Seventh St Oct 31, 5 of 5) | Rules: an event's honoree is an act; a title with no other performers is one act. Flange fixed on the splitter |
+| `c6-prompt-v3` | 5 (`The Dan's`, JSON-LD route, 5 of 5) | Live-visual artists are acts, all of them (Ari: lean toward all). Model route passes |
+| `c6-prompt-v4` | **0** | A bare name that could be a band is one act; a title has no acts only when clearly not music (karaoke, trivia, comedy, open mic) |
+
+- **Where the empties came from:** the splitter. Called alone, it returned no acts for `Flange August Back to Back`, `The Dan's` and `The Suburbs`; after v4 it returns them as acts, and `Karaoke Night`, `Comedy Open Mic (Early)` and `Trivia Tuesday` still return none.
+- **Flange August:** Ari corrected the label: Flange and August are two different EDM artists performing "back to back", so two acts. That cannot be written as a rule (the phrase is rare; many shows have acts playing in turn), so the label accepts the forms a model can return (the full title, `Flange August`, `Flange`, `August`) and the real answer is a low-confidence flag for human review, deferred in `arch-initial.md` §10 ("Review flag for uncertain act splits"), with a web-search identity check noted there as a project in itself.
+- **Prompt rules changed** (`prompts._act_conventions`, shared by both routes; invented examples only). `splitter_instruction` and `image_instruction` are re-pinned in `test_retry_plumbing.py` (`CURRENT`); the historical 56/60 pins stay as the record.
+- **Rungs on hold:** the 31B and Qwen splitter candidates were measured under the old prompt rules, so their numbers are not comparable. With the gate passing on the 26B model, no further rung is run (D3's exit rule (a) now needs only the 5-run confirmation on both sets).
 
 ## Code review
 
