@@ -50,12 +50,21 @@ from agent_worker.tests.fakes import (
 FETCHED = datetime.date(2026, 10, 12)
 CHICAGO = "America/Chicago"
 
-# SHA-256 of today's request texts (see the module docstring for where they come from).
+# SHA-256 of the request texts that scored 56 of 60 (see the module docstring for where they come from).
+# test_validation_on_real_pages.py ties these to a21-review2.json, so they stay as the historical record.
 PINNED = {
     "instruction": "1c13629a64b055427496f1c6fe709ae1a5dc39c1d9455b2ff4742345e64228d7",
     "splitter_instruction": "31bbe13056781917a9473e985339b374506e20c18788cdf79d542b1dae3dc75b",
     "image_instruction": "1ebdb600f25e59257bdbfecd503f4ffea700d5b1d1009c9b3f56b073ffded58a",
     "status_instruction": "80eb31bb1a485cdb5bcdfb9a03451ef739d6e3449cdda60fe89335b1c85d4752",
+}
+# Two of them changed on November 5, 2026 (C6-D2 follow-up): both carry `prompts._act_conventions()`, which
+# gained two rules (an event's honoree is an act; a lone title is one act). The first-attempt tests below
+# compare against these current literals instead; the hashes are of the texts the `c6-prompt-v2` run sent.
+CURRENT = {
+    **PINNED,
+    "splitter_instruction": "aaed46e074828f049b2679089389bbba3ba87b449fd429e55533276fafca66f5",
+    "image_instruction": "1ff70d6d73839d49b11827f51de81e5a7ad9ead4029d1067b94af7286a0e6fc8",
 }
 
 
@@ -94,7 +103,7 @@ def test_the_first_attempts_splitter_request_is_byte_identical_to_the_measured_o
     client = scripted_client({SPLITTER: [split_answer(("Nona", ["Nona"]))]})
     run(html, client)
     sent = message_text(completions(client).calls_for(SPLITTER)[0])
-    assert sha(sent[: sent.index("\n0: ")]) == PINNED["splitter_instruction"]
+    assert sha(sent[: sent.index("\n0: ")]) == CURRENT["splitter_instruction"]
 
 
 def test_the_first_attempts_image_and_status_requests_are_byte_identical_to_the_measured_ones() -> None:
@@ -111,7 +120,7 @@ def test_the_first_attempts_image_and_status_requests_are_byte_identical_to_the_
         config=extraction.PIPELINE_CONFIG,
     )
     content = completions(client).calls[0]["messages"][0]["content"]
-    assert sha(content[0]["text"]) == PINNED["image_instruction"]
+    assert sha(content[0]["text"]) == CURRENT["image_instruction"]
     status_check.ask("Some page text", client=client, options=extraction.PIPELINE_OPTIONS)
     sent = message_text(completions(client).calls_for(STATUS)[0])
     assert sha(sent[: -len("Some page text")]) == PINNED["status_instruction"]

@@ -332,6 +332,10 @@ Ari approved fixing the prompt and the Flange case on the 26B model before any f
   - Seventh St Oct 31, 5 of 5: the model keeps `Wizard.Imma` and drops `Visa_Card` from the visual credits. Ari's rule is all or none; the prompt already says visual credits are not acts, and the model does not follow it for this listing.
   - Mortimers Flange, 3 of 5 on the full-page route: the model returns `Flange`, which the label does not accept (`Flange August` and the full title are). Whether `Flange` should be accepted is Ari's call.
 
+### Round 7 — Flange label and the review-flag deferral, Claude Sonnet 5.5, November 5, 2026
+
+Ari checked: Flange and August are two different EDM artists, so `Flange August Back to Back` cannot be split reliably from the page. Decisions (Ari): the label now also accepts `Flange` alone (`labels.py`), since the page route returns it; and the right long-term answer, a low-confidence flag that sends such shows to a human, is deferred and recorded in `arch-initial.md` §10 ("Review flag for uncertain act splits"). With the label change, the only remaining gated miss in `c6-prompt-v2` is the Seventh St visual-credit case (Wizard.Imma without Visa_Card), which Ari had called an acceptable outlier. Changing the label changes `labels_sha`, so earlier runs need `--rescore` before comparing.
+
 ## Code review
 
 ### Round 1 — Claude Opus 5.5, October 28, 2026
