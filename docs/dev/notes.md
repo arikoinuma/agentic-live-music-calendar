@@ -227,7 +227,7 @@ the format the model was asked for; only the field description can make the mode
 ## Ollama's `/v1` endpoint ignores `options` — `num_ctx` and `seed` placed there do nothing
 
 Found measuring A2's baseline (Oct 9 2026, Ollama 0.35.0, `gemma4:e4b`). `extract_node` and
-`eval/run_eval.py` both send `extra_body={"options": {"num_ctx": 32768}}`, which Phase 5 recorded
+`model_eval/run_eval.py` both send `extra_body={"options": {"num_ctx": 32768}}`, which Phase 5 recorded
 as a load-bearing fix for Ollama's 4096-token default. Through the OpenAI-compatible `/v1`
 endpoint it is **silently ignored**:
 
@@ -305,7 +305,7 @@ JavaScript. One plain GET per venue showed the difference decides everything:
   schema.org JSON-LD is server-rendered, so it survives the plain fetch).
 
 So an eval built on browser captures measured two pages production never sees. A2.1's fixtures
-are captured with the pipeline's own fetch (`agent_worker/eval/capture.py`, which calls
+are captured with the pipeline's own fetch (`agent_worker/model_eval/capture.py`, which calls
 `nodes.fetch_html`). Rule of thumb: **capture fixtures with the same code that fetches in
 production**, and when a page is thin (`capture.py` warns under 500 visible characters), the
 listings are being drawn by a script.
@@ -387,7 +387,7 @@ attempt 2's: on a machine with no larger model to swap in, attempt 3 was byte-id
 attempt therefore adds a sentence of its own (`policy._FINAL_PAGE_ADVICE`). Anything that builds retry requests
 from history needs a test that asserts *consecutive attempts differ*, not just that "a hint is present".
 
-## A fixture-based test can't run in CI: `eval/fixtures/` and `eval/results/` are gitignored
+## A fixture-based test can't run in CI: `model_eval/captured_pages/` and `model_eval/results/` are gitignored
 
 The venue pages and the stored eval results are not in the repo, so CI and a fresh clone have neither, and the
 existing tests never read them (`test_extraction.py` says so). Tests that need real pages are therefore a separate,

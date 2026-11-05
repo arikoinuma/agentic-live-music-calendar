@@ -7,7 +7,7 @@ the audit trail to Postgres and staging each extraction in MongoDB.
 Needs (A4): Postgres seeded (`make db-up && make migrate && make seed`), MongoDB up (`make db-up`),
 `MONGODB_URI` set in `.env`, and Ollama serving the model. Run from `apps/api`:
 `uv run python -m agent_worker.local_test`, optionally with `--fixture PATH --fetched-on YYYY-MM-DD` to replay another capture
-(C2-D10: the White Squirrel has an August and an October one, `eval/labels.py`). (Not collected by pytest: its name does not match `python_files = ["test_*.py"]` in `pyproject.toml`, A7.)
+(C2-D10: the White Squirrel has an August and an October one, `model_eval/labels.py`). (Not collected by pytest: its name does not match `python_files = ["test_*.py"]` in `pyproject.toml`, A7.)
 """
 
 import argparse
@@ -30,7 +30,7 @@ from app.db.session import SessionFactory, engine
 from app.enums import RunTrigger
 from app.log_config import configure_logging
 
-FIXTURE = "agent_worker/eval/fixtures/Archives_ Events - The White Squirrel Bar.html"
+FIXTURE = "agent_worker/model_eval/captured_pages/Archives_ Events - The White Squirrel Bar.html"
 # The fixture was saved on August 17, 2026; the year rule (A2.1-D13) reads this date, and today's would put
 # its August shows a year ahead.
 FETCHED_ON = datetime.date(2026, 8, 17)

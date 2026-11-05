@@ -1,6 +1,6 @@
 """The extraction instruction sent to the model — one copy, shared.
 
-`extract_node` (the pipeline) and `eval/run_eval.py` (the measurement harness) both
+`extract_node` (the pipeline) and `model_eval/run_eval.py` (the measurement harness) both
 need the same instruction text. They used to each carry their own copy, and the copies
 drifted (the eval's lacked the `page_readable` paragraph), which made eval results
 unrepresentative of the pipeline. Both now call `extraction_instruction()`, so a change

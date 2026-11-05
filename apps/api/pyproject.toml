@@ -84,7 +84,7 @@ asyncio_default_test_loop_scope = "session"
 # the experiment harness and local_test.py a manual script, neither run by the suite.
 branch = true
 source = ["app", "agent_worker"]
-omit = ["*/tests/*", "agent_worker/eval/*", "agent_worker/local_test.py"]
+omit = ["*/tests/*", "agent_worker/model_eval/*", "agent_worker/local_test.py"]
 
 [tool.coverage.report]
 # Read the "Missing" column, not the percentage: there is deliberately no threshold or CI gate, because a percentage
@@ -96,4 +96,4 @@ skip_empty = true
 # Broad except is deliberate here: one fixture/model failing outright
 # shouldn't stop the eval loop, and the failure itself is a result worth
 # recording. See the comment above the try/except in run_eval.py.
-"agent_worker/eval/run_eval.py" = ["BLE001"]
+"agent_worker/model_eval/run_eval.py" = ["BLE001"]

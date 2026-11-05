@@ -100,21 +100,21 @@ worker: ## Run the agent worker once: all venues, or VENUE=<id> (needs make db-u
 # the server DATABASE_URL names (or EVAL_DATABASE_URL, if set); it must be local.
 eval-graph: ## Score the whole pipeline on labelled pages (local only: needs make db-up, Ollama, the fixtures)
 	@test -n "$(LABEL)" || { echo "usage: make eval-graph LABEL=<name> [SET=...] [ONLY=...] [RUNS=n] [SCENARIO=...] [THRESHOLD=x] [MAX_ATTEMPTS=n] [KEEP_DB=1]"; exit 2; }
-	cd $(API_DIR) && uv run python -m agent_worker.eval.graph_eval --label $(LABEL) $(if $(SET),--set $(SET)) $(if $(ONLY),--only "$(ONLY)") $(if $(RUNS),--runs $(RUNS)) $(if $(SCENARIO),--scenario $(SCENARIO)) $(if $(THRESHOLD),--threshold $(THRESHOLD)) $(if $(MAX_ATTEMPTS),--max-attempts $(MAX_ATTEMPTS)) $(if $(KEEP_DB),--keep-db)
+	cd $(API_DIR) && uv run python -m agent_worker.model_eval.labelled_page_runs --label $(LABEL) $(if $(SET),--set $(SET)) $(if $(ONLY),--only "$(ONLY)") $(if $(RUNS),--runs $(RUNS)) $(if $(SCENARIO),--scenario $(SCENARIO)) $(if $(THRESHOLD),--threshold $(THRESHOLD)) $(if $(MAX_ATTEMPTS),--max-attempts $(MAX_ATTEMPTS)) $(if $(KEEP_DB),--keep-db)
 
 # docs/dev/evaluating-model-performance.md: the sequence of checks. The report reads a saved results file only (no model, database or
 # fixtures needed); OUT is relative to apps/api.
 eval-report: ## Print a readable Markdown report of a saved graph run (LABEL=<name> [ERRORS=1] [OUT=file.md])
 	@test -n "$(LABEL)" || { echo "usage: make eval-report LABEL=<name> [ERRORS=1] [OUT=file.md]"; exit 2; }
-	cd $(API_DIR) && uv run python -m agent_worker.eval.graph_eval --report $(LABEL) $(if $(ERRORS),--errors) $(if $(OUT),--out $(OUT))
+	cd $(API_DIR) && uv run python -m agent_worker.model_eval.labelled_page_runs --report $(LABEL) $(if $(ERRORS),--errors) $(if $(OUT),--out $(OUT))
 
 eval-snapshot: ## Write a slim, committable summary of a saved run to docs/dev/eval-baselines/ (LABEL=<name>)
 	@test -n "$(LABEL)" || { echo "usage: make eval-snapshot LABEL=<name>"; exit 2; }
-	cd $(API_DIR) && uv run python -m agent_worker.eval.graph_eval --snapshot $(LABEL)
+	cd $(API_DIR) && uv run python -m agent_worker.model_eval.labelled_page_runs --snapshot $(LABEL)
 
 eval-compare: ## Compare saved graph runs side by side (LABELS="a b")
 	@test -n "$(LABELS)" || { echo "usage: make eval-compare LABELS=\"label-a label-b\""; exit 2; }
-	cd $(API_DIR) && uv run python -m agent_worker.eval.graph_eval --compare $(LABELS)
+	cd $(API_DIR) && uv run python -m agent_worker.model_eval.labelled_page_runs --compare $(LABELS)
 
 db-wait: ## Block until Postgres and MongoDB accept connections
 	@echo -n "Waiting for Postgres and MongoDB"

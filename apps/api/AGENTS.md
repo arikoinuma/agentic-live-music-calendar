@@ -133,24 +133,37 @@ Validation and retry (A3) live in two modules that nodes and graph only wire tog
 the router's decision, what each retry changes). Import order is `validation` ← `policy` ←
 `state` ← `nodes`/`graph`; keep it a DAG. The tests for them need no model: `tests/fakes.py`'s
 `scripted_client()` (a `ScriptedCompletions`) stands in for the model. `tests/test_validation_on_real_pages.py` replays stored
-real extractions and **skips where `eval/fixtures/` and `eval/results/` are absent** — they are
+real extractions and **skips where `model_eval/captured_pages/` and `model_eval/results/` are absent** — they are
 gitignored, so CI never runs it.
 
-The graph-level evaluation harness (C5, `docs/dev/implementations/c5-pipeline-eval-harness.md`) runs labelled pages through
-the real graph and scores the model's raw answer, the validated extraction and the rows left in the database with the same
-scorer and labels (`eval/scoring.py`). `make eval-graph LABEL=<name>` (see `make help` for its options) is **local only and not
-in `make check` or CI**: it calls the model, needs the gitignored fixtures, and creates a scratch Postgres database
-`calendar_eval` (`eval/scratch_db.py`, which refuses any other name or a non-local host) that it drops at the end (it derives the server from `DATABASE_URL`; `EVAL_DATABASE_URL` overrides it, and the guard still demands the name `calendar_eval` on a local host). Its pieces:
-`graph_run.py` (one page through `main.run_venue`, and the one place a run's columns are scored), `graph_eval.py` (the runner and the CLI:
-flags, `run_pages`, `run_scenarios`, `--rescore`), `graph_aggregate.py` (the numbers computed from the run records), `graph_results.py` (the
-results file: its shape, paths, loading and the committable snapshot), `scratch_rows.py` (reading and clearing the scratch calendar),
-`db_score.py` (the two-run scenarios and what they should leave), `validation_recall.py` (which errors validation caught), `label_draft.py`
-(candidate lines for a hand-written label). `graph_report.py` reads a saved run as Markdown, a comparison table and the closing summary (`make eval-report LABEL=<name>`, `make eval-compare`); the sequence of checks is `docs/dev/evaluating-model-performance.md`. Import order is
-`labels` ← `scoring` ← `validation_recall` ← `graph_run` ← `db_score` ← `graph_eval`, with `graph_aggregate` (needs `scoring`, `validation_recall`),
-`graph_results` (needs no database or graph) and `scratch_rows` beside it; a test module that redirects the results folders patches
-`graph_results.RESULTS_DIR` / `SNAPSHOT_DIR`, which every reader must look up as an attribute at call time. `run_eval.py` stays the extraction-level tool. `eval/`
-must not import `app.testing` (`test_no_testing_imports.py` scans it). A page flagged `held_out` in `labels.py` is in no
-default set: its first scoring is C6's.
+**`agent_worker/model_eval/` is the measurement of a model, not part of the pipeline.** Nothing that runs on a scheduled fetch
+imports it (`tests/model_eval/test_layering.py` enforces that); a person runs it, with the model available, to see whether the
+extraction process works with a given model (C5, `docs/dev/implementations/c5-pipeline-eval-harness.md`; the layout is C5.1,
+`docs/dev/implementations/c5.1-model-eval-layout.md`). It runs labelled pages through the real graph and scores the model's raw
+answer, the validated extraction and the rows left in the database with the same scorer and labels (`model_eval/scoring.py`).
+`make eval-graph LABEL=<name>` (see `make help` for its options) is **local only and not in `make check` or CI**: it calls the
+model, needs the gitignored captured pages, and creates a scratch Postgres database `calendar_eval`
+(`labelled_page_runs/scratch_database.py`, which refuses any other name or a non-local host) that it drops at the end (it derives
+the server from `DATABASE_URL`; `EVAL_DATABASE_URL` overrides it, and the guard still demands the name `calendar_eval` on a local host).
+The folder says what each file is for:
+- `model_eval/` (shared): `labels.py` (the hand-written answer key; a page flagged `held_out` is in no default set, its first
+  scoring is C6's), `scoring.py` (how one page is counted), `validation_recall.py` (which errors validation caught), `capture.py`
+  and `label_draft.py` (saving a venue page and writing its label), `captured_pages/` and `results/` (gitignored data), and the
+  older extraction-level tool `run_eval.py` with `legacy.py` and `reference.py`.
+- `model_eval/labelled_page_runs/` (does things; needs the model and Postgres): `run_one_page.py` (one page through
+  `main.run_venue`, and the one place a run's columns are scored), `two_run_scenarios.py` (repeat, sequence, overlap, perturbed, and
+  what the database should hold after them), `scratch_database.py` and `scratch_calendar_rows.py` (the throwaway database and its
+  rows), `run_labelled_pages.py` (the runners, `--rescore` and the command line; `python -m agent_worker.model_eval.labelled_page_runs`).
+- `model_eval/saved_run_reports/` (only reads; needs a saved file): `aggregate_scores.py` (the numbers from the run records),
+  `results_file.py` (the file's shape, loading, the committable snapshot), `markdown_report.py` (`make eval-report LABEL=<name>`,
+  `make eval-compare`).
+
+The sequence of checks is `docs/dev/evaluating-model-performance.md`. Import order inside is `labels` ← `scoring` ←
+`validation_recall` ← `run_one_page` ← `two_run_scenarios` ← `run_labelled_pages`, with `aggregate_scores` (needs `scoring` and
+`validation_recall`) and `scratch_calendar_rows` beside it. **`saved_run_reports/` never imports `labelled_page_runs/`** (a test
+enforces it), so a report reads on a machine with no model or database. A test that redirects the results folders patches
+`results_file.RESULTS_DIR` / `SNAPSHOT_DIR`, which every reader must look up as an attribute at call time, never copy with
+`from ... import RESULTS_DIR`. `model_eval/` must not import `app.testing` (`test_no_testing_imports.py` scans it).
 
 Reconcile (A5) is two pure modules plus a reader: `reconcile.py` (pairing, changes, the soft delete and its guard,
 `build_plan`), `artist_match.py` (names, and the one model question about an ambiguous artist) and `calendar_reader.py`

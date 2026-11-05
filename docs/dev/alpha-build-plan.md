@@ -42,7 +42,7 @@ Reading the actual code turns up more than the runbook's checkboxes suggest. The
 
 | # | Finding | Where | Lands in |
 |---|---|---|---|
-| G1 | `FIXTURES_DIR = ...` is a literal `Ellipsis` — dead placeholder, nothing reads it | `agent_worker/nodes.py` | A1 |
+| G1 | `CAPTURED_PAGES_DIR = ...` is a literal `Ellipsis` — dead placeholder, nothing reads it | `agent_worker/nodes.py` | A1 |
 | G2 | `extract_node` has no error handling. The exact failure Phase 5 documented (a thinking model exhausting its budget on an interpretive judgment call) raises out of the node, crashes the graph, and never increments `attempt_count` — so the retry loop built to handle it can never fire | `agent_worker/nodes.py` | A3 |
 | G3 | `validate_node` sets `confidence = 0` for an empty `shows` list, so a venue with a legitimately empty calendar burns all 3 retries and escalates. `page_readable` — the field added specifically to tell "confirmed empty" from "broken" apart — is never read by anything | `agent_worker/nodes.py` | A3 |
 | G4 | Validation checks only confidence. The three checks `requirements-initial.md` names — completeness, plausibility, internal consistency — aren't implemented | `agent_worker/nodes.py` | A3 |
@@ -146,7 +146,7 @@ Foundation for everything else in this track. Scope per the decision above: core
 - [x] **[written]** SQLAlchemy models: `agent_run` and `audit_log`, per `data-model-initial.md` Section 3
 - [x] **[fill-in]** Point Alembic's `env.py` at the models' metadata so autogenerate works, then generate the migration and read what it produced before applying it. Autogenerate is reliable for tables and columns and unreliable for enum types and constraint changes — knowing which parts to check by hand is the actual skill here, and the hand-written first migration is a good comparison point
 - [x] **[written]** A seed script creating the Minneapolis/St. Paul metro row and the four venues the Phase 5 fixtures came from, with their real calendar URLs and `fetch_strategy` set appropriately (G13)
-- [x] **[fill-in]** Delete the dead `FIXTURES_DIR = ...` (G1)
+- [x] **[fill-in]** Delete the dead `CAPTURED_PAGES_DIR = ...` (G1)
 
 Implemented per `docs/dev/implementations/a1-data-layer.md`, which records the two review rounds and every departure from `data-model-initial.md` (omitted `contributor` FK columns, `Numeric` precisions, extra indexes, no timestamps on `agent_run`). The DB tests run against a real `calendar_test` database; `make check` requires one (`REQUIRE_DB=1`).
 
@@ -162,7 +162,7 @@ Plan and review: `docs/dev/implementations/a2-extraction-schema.md`. **Done — 
 - [x] **[fill-in]** Make `time` optional, and say so in its `description` — the description text is part of what `instructor` sends the model, so "leave null if the page doesn't state a start time" is an instruction, not a comment (G8)
 - [x] **[fill-in]** Add the non-music-entry exclusion rule to the extraction prompt (G9)
 - [x] **[fill-in]** Add the one-show-vs-several rule from the requirements ("listings under one time/ticket link are a single multi-artist Show") to the prompt
-- [x] **[written]** Re-run `eval/run_eval.py` against all four fixtures with the revised schema and prompt, and record whether the added fields made extraction more or less reliable. A richer schema is more for the model to get right — this is worth measuring rather than assuming
+- [x] **[written]** Re-run `model_eval/run_eval.py` against all four fixtures with the revised schema and prompt, and record whether the added fields made extraction more or less reliable. A richer schema is more for the model to get right — this is worth measuring rather than assuming
 
 ### A2.1. Extraction reliability — meeting the accuracy standard
 
@@ -171,8 +171,8 @@ Plan: `docs/dev/implementations/a2.1-extraction-reliability.md` (approved by Ari
 **Done — signed off by Ari October 12, 2026, with the gate unmet.** The pipeline's adopted configuration (temperature 0, the year rule, the JSON-LD route, the separate status question, the act conventions, line-break cleaning, title split on the model route) scores **56 of 60** on the gated pages. That holds both in the 5-run confirmation (`a21-confirm`, deterministic) and in `a21-review2`, re-run after code review round 2 took every labelled answer out of the prompt. No show is invented and no stated field is wrong; the gate fails on four act names. Accepted for the alpha: the title-split route doesn't return per-act start times (A2.1-CR2-9). **The remaining work — a larger hosted model for the act splitter, a held-out test set, per-act start times — is milestone C6 (formerly H1) of `alpha-deployment-plan.md`.**
 
 - [x] **[written]** One extraction entry point (`extraction.py`, `llm.py`) shared by `extract_node` and the eval harness; the experiment switches (`ExtractionConfig`)
-- [x] **[written]** Fixtures captured with the pipeline's own fetch (`eval/capture.py`) — the A2 fixtures were browser captures
-- [x] **[written]** Labels for the gated and informational pages (`eval/labels.py`), each row with the page text it was read from
+- [x] **[written]** Fixtures captured with the pipeline's own fetch (`model_eval/capture.py`) — the A2 fixtures were browser captures
+- [x] **[written]** Labels for the gated and informational pages (`model_eval/labels.py`), each row with the page text it was read from
 - [x] **[fill-in]** Ari labels the Mortimer's page — the ground-truth key point (A2.1-D11; A8's labelling item, pulled forward)
 - [x] **[fill-in]** What counts as correct: `scoring.match_shows` (date is identity, time a field) — A2.1-K2
 - [x] **[fill-in]** Convert, don't drop: `jsonld.local_wall_clock` — A2.1-K1
@@ -252,7 +252,7 @@ Plan and reviews: `docs/dev/implementations/a6-commit.md` (plan approved by Ari 
 
 ### A7. Testing
 
-Plan and review: `docs/dev/implementations/a7-testing.md` (plan approved by Ari October 20, 2026 with decisions A7-D1 to A7-D3 as recommended, A7-D2 as revised in review; one plan-review round, 11 of 11 resolved). **Done — signed off by Ari October 21, 2026.** Built October 20, 2026; code review round 1 (5 nits) resolved. Most of A7 had been done by A3 and A5 as a side effect of building them tests-first, so the plan measured before it built: 883 tests collected (868 passed, 15 skipped), 583 test functions, 98% branch coverage, and mypy on `agent_worker/` at **75 errors, not "~11"** (57 of them one wrong annotation in `eval/run_eval.py`). What was left was small: make test collection safe to widen (G14), put the worker under the mypy gate (G15), pin six unpinned rules (eight tests), and tick the rest with evidence. There are no `TODO(Ari)` gaps: every remaining item was [written]. The suite is now 881 passed and 15 skipped (896 items, 13 new); mypy is clean on 104 files; `make coverage` reports 99% (17 missed statements, from 27).
+Plan and review: `docs/dev/implementations/a7-testing.md` (plan approved by Ari October 20, 2026 with decisions A7-D1 to A7-D3 as recommended, A7-D2 as revised in review; one plan-review round, 11 of 11 resolved). **Done — signed off by Ari October 21, 2026.** Built October 20, 2026; code review round 1 (5 nits) resolved. Most of A7 had been done by A3 and A5 as a side effect of building them tests-first, so the plan measured before it built: 883 tests collected (868 passed, 15 skipped), 583 test functions, 98% branch coverage, and mypy on `agent_worker/` at **75 errors, not "~11"** (57 of them one wrong annotation in `model_eval/run_eval.py`). What was left was small: make test collection safe to widen (G14), put the worker under the mypy gate (G15), pin six unpinned rules (eight tests), and tick the rest with evidence. There are no `TODO(Ari)` gaps: every remaining item was [written]. The suite is now 881 passed and 15 skipped (896 items, 13 new); mypy is clean on 104 files; `make coverage` reports 99% (17 missed statements, from 27).
 
 - [x] **[written]** *(done: `testpaths = ["app", "agent_worker"]`, `python_files = ["test_*.py"]`; guard `app/tests/test_pytest_config.py`)* Fix `testpaths` so `agent_worker/` tests are collected, without re-collecting `local_test.py` (G14). *A2 had already added `agent_worker/tests`; what was left was that widening `testpaths` alone makes pytest import `local_test.py` on every run (pytest's default `*_test.py` glob matches it; measured with an import probe, see `notes.md`), so `python_files` is narrowed in the same change, and the guard fails if either setting regresses (A7-M8)*
 - [x] **[fill-in]** *(done in A3, tests first: `tests/test_validation.py`)* Unit tests for the validation check functions from A3 — the highest-value tests in the codebase, because they're pure functions encoding real business rules with no model or database involved
