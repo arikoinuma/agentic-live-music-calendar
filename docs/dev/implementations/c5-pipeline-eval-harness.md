@@ -1,6 +1,6 @@
 # C5 — pipeline evaluation harness
 
-**Status:** Awaiting sign-off
+**Status:** Done — signed off by Ari, November 5, 2026
 **Date:** October 29, 2026
 **Author model:** Claude Sonnet 5.5 (plan, October 29, 2026; written in a cloud session)
 **Approval:** Ari, October 29, 2026: accepted the recommendations on D1 to D7 and invoked `/build-milestone` (so Status went from `Awaiting approval` to `Approved` to `Code review` in one session; recorded here at code review, C5-CR1-10).
@@ -742,6 +742,26 @@ Two additions to the reporting tools, both asked for by Ari after Round 5:
 **Snapshots committed by Ari:** `docs/dev/eval-baselines/c5-baseline.json`, `c5-baseline-seq.json`, `c5-perturbed.json`, `c5-baseline-retry.json` (86, 66, 26 and 66 KB of JSON; checked here for page text, extractions and key-like fields: none). Round 4's provenance blanks are filled.
 
 **Verification.** `make check` exit 0 (ruff, mypy, 1146 pytest passed, vitest, contract-check, designation-check, e2e 107 passed).
+
+### Round 7 — Claude Sonnet 5.5, November 5, 2026 (handoff to C6, written at sign-off)
+
+C6 (hosted inference and the accuracy gate) reuses this harness on a hosted model. Everything it needs is in this file and in `docs/dev/evaluating-model-performance.md`; this round collects the parts that are easy to miss. C6 should have its own branch and plan file (`c6-…`); this branch is C5's.
+
+**The "before" to compare against.** Four committed snapshots in `docs/dev/eval-baselines/`: `c5-baseline` (all gated and informational pages), `c5-baseline-seq`, `c5-perturbed`, `c5-baseline-retry`; model `gemma4-e4b-32k` through Ollama, pipeline defaults (threshold 0.8, cap 3), temperature 0. Run the same sequence with the same `SET` and compare with `make eval-compare LABELS="c5-baseline <new>"`. Runs are comparable only when `labels_sha` matches (the report header and `eval-compare` print it); the prompt hashes are in the header too.
+
+**The numbers to beat (gated pages):** 8 wrong-acts errors in 77 labelled shows: Mortimer's 1 (`Flange` for `Flange August Back to Back`), 7th St Entry 1 (the event name `INTERNET KIDS` added, `Wizard.Imma` added though not a performer, `Evilsoundguy` respelled `Devilsoundguy`), Turf Club 6 (the first-billed act dropped each time: Fruition, The Suburbs twice, Tropical Depression, World's Forgotten Boys, The Melismatics). White Squirrel was clean in the main run but misses Whiskey Wednesdays in about three runs of five (F5), so treat it as a coin flip, not a pass. The A2.1-E1 list in the deployment plan ("the four known misses") is out of date; this is the current one. Informational pages (Terminal Bar, Zhora, the posters) have 13 more errors and never gate. Validation caught 0 of 24 errors (F1); field accuracy is perfect but lightly exercised (F15); the model-route pages are Mortimer's, 7th St Entry, Turf Club and Terminal Bar.
+
+**What the harness does that bears on hosted inference.**
+- **Keep secrets out of `RequestOptions`.** The harness writes `dataclasses.asdict(options)` into every results file as `request_options`, and `slim()` **keeps it in the committed snapshots**. C6's plan puts the base URL, API key and model per call site in `Settings`, which is fine; but if a key or a key-bearing URL ever becomes a field of `RequestOptions`, it lands in a gitignored results file and then in a file Ari commits. Either keep those fields out of `RequestOptions`, or redact them where `evaluate` builds the file, and add a test that scans a results file and a snapshot for the configured key.
+- **`model_provenance` asks the local Ollama** (`run_eval.model_provenance`, `OLLAMA_URL`), so it is wrong for a hosted model: with Ollama running it would report Ollama's data for an unrelated name, and without it the harness stores `provenance: null`. C6 should skip it when the endpoint is not Ollama and record the provider, model name and version some other way (the report header prints whatever is in `provenance`).
+- **Cost is not recorded**, only duration per page. Tokens in and out per page belong in the results file for C6's "duration and cost per page" item.
+- **The harness needs no change to follow a configurable endpoint**: it runs the pipeline's own graph and client (`nodes.instructor_client`, `extraction.PIPELINE_OPTIONS`), so once C6 makes those configurable, `make eval-graph` measures the hosted model.
+- **Tier 3 ran the same model** in the retry run (F12): `RetryPolicy.escalation_model` comes from `ESCALATION_MODEL_NAME` and was unset. For C6's larger-model tier it must name a hosted model, and the report's tier table (`larger_model_used`) is how to confirm it ran.
+- **`.env` rejects unknown keys** (`Settings` forbids them; Ari's `MODEL_API_KEY` stopped `capture`). C6 adds the Settings fields; until then, no such line in `apps/api/.env`.
+
+**Where the baseline suggests C6 should look.** The act splitter (F3: first-billed act dropped; F4: no check asks whether the title is explained by the acts); retry did not help (F10) and confidence did not track correctness (F11), so a larger model matters more than more attempts; a warning cannot tell a right exclusion from a wrong one (F6).
+
+**Run discipline.** One harness run at a time (it drops `calendar_eval`); `RUNS=5` for the confirmation runs (the gate is applied per run index, so every run must pass); temperature 0 does not make a model repeatable (F5), so hosted repeatability is unknown until measured; the held-out pages (Ginkgo Coffee, Hook & Ladder) are untouched and their first scoring is C6's, after its changes are frozen (`SET=held_out`, once).
 
 ## Code review
 
