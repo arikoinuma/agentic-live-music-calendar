@@ -139,7 +139,8 @@ gitignored, so CI never runs it.
 **`agent_worker/model_eval/` is the measurement of a model, not part of the pipeline.** Nothing that runs on a scheduled fetch
 imports it (`tests/model_eval/test_layering.py` enforces that); a person runs it, with the model available, to see whether the
 extraction process works with a given model (C5, `docs/dev/implementations/c5-pipeline-eval-harness.md`; the layout is C5.1,
-`docs/dev/implementations/c5.1-model-eval-layout.md`). It runs labelled pages through the real graph and scores the model's raw
+`docs/dev/implementations/c5.1-model-eval-layout.md`). **`agent_worker/model_eval/README.md` maps every file to its group** and says where the
+checks that do run every time live. It runs labelled pages through the real graph and scores the model's raw
 answer, the validated extraction and the rows left in the database with the same scorer and labels (`model_eval/scoring.py`).
 `make eval-graph LABEL=<name>` (see `make help` for its options) is **local only and not in `make check` or CI**: it calls the
 model, needs the gitignored captured pages, and creates a scratch Postgres database `calendar_eval`
