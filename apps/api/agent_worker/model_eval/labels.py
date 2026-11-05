@@ -424,7 +424,7 @@ PAGE_LABELS: dict[str, PageLabel] = {
         shows = (
             S(D(2026, 11, 6), ("David Singley",), "David Singley / November 6 @ 6:00 pm", T(18, 0)),
             S(D(2026, 11, 13), ("JOAN",), "JOAN / November 13 @ 6:00 pm", T(18, 0)),
-            S(D(2026, 11, 14), ("Chuck Suchy",), "Chuck Suchy / November 14 @ 7:30 pm", T(19, 30), admission_advance=20.0, admission_day=20.0, free_admission=False,
+            S(D(2026, 11, 14), ("Chuck Suchy",), "Chuck Suchy / November 14 @ 7:30 pm", T(19, 30), admission_advance=20.0, admission_day=20.0,
               convention="Tickets: $20 with an ORDER TICKETS link, when the ticket price doesn't specify advance or door, assume it applies to both"),
             S(D(2026, 11, 20), ("Mac Hoffman",), "Mac Hoffman / November 20 @ 6:00 pm", T(18, 0)),
             S(D(2026, 11, 27), ("Nicholas Soden",), "Nicholas Soden / November 27 @ 6:00 pm", T(18, 0)),
@@ -572,7 +572,7 @@ PAGE_LABELS: dict[str, PageLabel] = {
     # Dakota — held out. Captured November 5, 2026 (month view, Nov 1 - Dec 5; "35 shows found" counts
     # events, this page lists 51 dated entries because many run several nights or two sets).
     # STUB: acts, times and non-shows were read from the page text by script (label_draft lines);
-    # rows marked [ARI] are judgement calls for Ari to confirm before the first held-out run (D8).
+    # rows marked [ARI] are judgement calls for Ari to confirm before the first held-out run (C6-D8).
     # -------------------------------------------------------------------------------------
     "dakota-2026-11-05.html": PageLabel(
         venue="dakota",
