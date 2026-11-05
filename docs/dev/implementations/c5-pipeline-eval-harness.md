@@ -1,6 +1,6 @@
 # C5 — pipeline evaluation harness
 
-**Status:** Done — signed off by Ari, November 5, 2026
+**Status:** Code review (round 2, requested by Ari after sign-off: separation of concerns), November 5, 2026
 **Date:** October 29, 2026
 **Author model:** Claude Sonnet 5.5 (plan, October 29, 2026; written in a cloud session)
 **Approval:** Ari, October 29, 2026: accepted the recommendations on D1 to D7 and invoked `/build-milestone` (so Status went from `Awaiting approval` to `Approved` to `Code review` in one session; recorded here at code review, C5-CR1-10).
@@ -762,6 +762,20 @@ C6 (hosted inference and the accuracy gate) reuses this harness on a hosted mode
 **Where the baseline suggests C6 should look.** The act splitter (F3: first-billed act dropped; F4: no check asks whether the title is explained by the acts); retry did not help (F10) and confidence did not track correctness (F11), so a larger model matters more than more attempts; a warning cannot tell a right exclusion from a wrong one (F6).
 
 **Run discipline.** One harness run at a time (it drops `calendar_eval`); `RUNS=5` for the confirmation runs (the gate is applied per run index, so every run must pass); temperature 0 does not make a model repeatable (F5), so hosted repeatability is unknown until measured; the held-out pages (Ginkgo Coffee, Hook & Ladder) are untouched and their first scoring is C6's, after its changes are frozen (`SET=held_out`, once).
+
+### Round 8 — Claude Sonnet 5.5, November 5, 2026 (handoff for a separation-of-concerns code review, requested by Ari while reviewing PR #78)
+
+Ari, reading the PR file by file, found `db_score.py` and `graph_eval.py` hard to follow: utility, report-building and result-file functions sit beside the code that runs and tests the pipeline. He asked for a second Opus code review focused on that. **No code changed in this round**; it is the scope statement for the reviewer.
+
+**Scope.** Diff base `cd86e4db367d1a5904828c09f4edb07bc6277c02` (merge-base with `origin/main`) to the branch head; the C5 files under `apps/api/agent_worker/eval/` and their tests. Sizes: `graph_eval.py` 581 lines, `db_score.py` 330, `graph_report.py` 278, `graph_run.py` 190, `validation_recall.py` 120, `scratch_db.py` 119, `scoring.py` 443 (C5 added to it), `label_draft.py` 60.
+
+**What each of the two flagged files holds today** (author's own inventory, to be checked, not trusted):
+- `graph_eval.py`: label and policy helpers (`labels_sha`, `held_out_scored`, `build_policy`, `scenario_pairs`); the aggregate (`_summed`, `_column`, `_scored_in`, `_gate`, `_retry`, `_validation`, `_per_fixture`, `aggregate`); `--rescore`; results-file IO (`load_results`, `slim`, `snapshot`, paths); `compare` (prints a table); the runners (`run_pages`, `run_scenarios`, with console printing); and the CLI (`parse_args`, `evaluate`, `main`, including the `--report` / `--compare` / `--snapshot` / `--rescore` dispatch).
+- `db_score.py`: reading and clearing the scratch database (`committed_extraction`, `reset`, `ensure_venue`); scenario orchestration (`Scenario`, `ScenarioResult`, `_perturb`, `_expected_counts`, `_compare_counts`, `run_scenario`); and the scoring half (`expected_rows`, `score_database`).
+
+**Question for the reviewer.** Which of these belong together and which do not, judged by who changes them and why (the harness runner, the stored result's shape, the aggregate, the report, the database access, the scenario logic)? Name concrete moves (function to module, with the import direction that results), say which groupings are justified as they are, and flag anything a move would make worse (cycles, the `app.testing` import ban in `eval/`, tests that patch module attributes, public names the Makefile, docs and `run_eval.py` rely on). Behaviour must stay identical: this is a pure restructuring.
+
+**Departures from the plan:** none in this round. **`TODO(Ari)` gaps:** all closed (round 3). **Verification at this point:** working tree clean, `make check` exit 0 at the last push (CI 9 of 9 green on PR #78). **Where to look hardest:** `graph_eval.py` and `db_score.py`, then whether `graph_report.py` / `graph_run.py` / `validation_recall.py` have the same kind of mixing.
 
 ## Code review
 
