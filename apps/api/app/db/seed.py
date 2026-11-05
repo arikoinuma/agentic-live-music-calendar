@@ -51,8 +51,8 @@ METRO_SLUG = "msp"
 # today. Add a venue by adding a row here and running `make seed` against each database.
 #
 # URLs are each saved fixture's `saved from url` / canonical tag
-# (agent_worker/eval/fixtures/), except 7th St Entry's and Mortimer's, which are
-# agent_worker/eval/labels.py's.
+# (agent_worker/model_eval/captured_pages/), except 7th St Entry's and Mortimer's, which are
+# agent_worker/model_eval/labels.py's.
 #
 # fetch_strategy: only the HTTP path exists this phase (build plan section 8). The
 # two new rows are `http` as an ASSUMPTION, not a check (C2-D8): nobody has made a

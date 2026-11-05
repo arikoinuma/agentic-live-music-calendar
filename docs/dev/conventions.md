@@ -35,6 +35,7 @@ carries that defining document's scope.
 | `C3` | `docs/dev/implementations/c3-environments-and-deploy.md` |
 | `C4` | `docs/dev/implementations/c4-metro-hosts.md` |
 | `C5` | `docs/dev/implementations/c5-pipeline-eval-harness.md` |
+| `C5.1` | `docs/dev/implementations/c5.1-model-eval-layout.md` |
 
 Future milestones use their own IDs (`B6`, `C2`, …) the same way.
 
@@ -127,6 +128,6 @@ that needs its scope. The exceptions below are the only expected hits.
   earlier scheme until they are converted.
 - **Quoted history.** Where a document quotes old scaffold text (for example
   `(Ari) — Gap X. Lesson:`), the quote stays as written.
-- **String literals.** The label notes in `apps/api/agent_worker/eval/labels.py` and two
-  `argparse` help strings in `eval/run_eval.py` still use bare IDs. They are data and
+- **String literals.** The label notes in `apps/api/agent_worker/model_eval/labels.py` and two
+  `argparse` help strings in `model_eval/run_eval.py` still use bare IDs. They are data and
   user-facing text, so they're converted separately from the comment-only passes.

@@ -20,7 +20,7 @@ from openai import OpenAI, OpenAIError
 
 # Ollama's OpenAI-compatible endpoint. Mode.JSON, not Mode.TOOLS: Phase 5 found this model
 # never reliably completed a tool call but does emit valid JSON (docs/dev/env-setup.md,
-# Phase 5; eval/run_eval.py keeps the longer note). Constructing the clients makes no
+# Phase 5; model_eval/run_eval.py keeps the longer note). Constructing the clients makes no
 # network call, so importing this module is safe in CI.
 client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
 instructor_client = instructor.from_openai(client, mode=Mode.JSON)

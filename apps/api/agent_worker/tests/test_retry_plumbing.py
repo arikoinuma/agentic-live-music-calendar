@@ -8,7 +8,7 @@ request exactly what scored 56 of 60.
 How to read it, in order:
 1. The pinned requests. Today's four request texts, as SHA-256 literals computed BEFORE any A3 code
    change and confirmed equal to the `instruction`, `splitter_instruction`, `image_instruction` and
-   `status_instruction` stored in eval/results/a21-review2.json (the run that scored 56/60). A first
+   `status_instruction` stored in model_eval/results/a21-review2.json (the run that scored 56/60). A first
    attempt, with no hint, must still send exactly these. The expectation is a literal on purpose: a test
    that rebuilt it from `prompts.py` would follow a refactor of `prompts.py` instead of catching it.
 2. The retry hints: each reaches the call that produces the field, and no other.
@@ -29,8 +29,8 @@ import pytest
 from tenacity import wait_none
 
 from agent_worker import act_split, extraction, nodes, status_check
-from agent_worker.eval import run_eval
-from agent_worker.eval.reference import FixtureReference
+from agent_worker.model_eval import run_eval
+from agent_worker.model_eval.reference import FixtureReference
 from agent_worker.state import VenueGraphState
 from agent_worker.tests.fakes import (
     PAGE,
@@ -366,7 +366,7 @@ def test_a_good_fetch_clears_an_earlier_error(monkeypatch: pytest.MonkeyPatch) -
 
 
 def test_the_capture_script_still_gets_an_empty_page_it_asked_for(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Proves: `reject_empty` is off by default, so eval/capture.py (which saves what a venue serves)
+    # Proves: `reject_empty` is off by default, so model_eval/capture.py (which saves what a venue serves)
     # isn't turned into a different tool by the pipeline's empty-page rule.
     monkeypatch.setattr(nodes.httpx, "get", FakeGet((200, "<html></html>")))
     assert nodes.fetch_html(URL) == "<html></html>"

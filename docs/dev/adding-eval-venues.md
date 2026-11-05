@@ -1,6 +1,6 @@
 # Adding a venue (or a new capture) to the evaluation pool
 
-How to put a venue's calendar page into the hand-labelled pool that the evaluation harness scores (`make eval-graph`, `agent_worker/eval/run_eval.py`). This is the procedure behind the `C5-K1` gap in `docs/dev/implementations/c5-pipeline-eval-harness.md`, and the labelling half of C6's held-out set (`docs/dev/alpha-deployment-plan.md`, C5 and C6). Everything below runs on a machine that can reach the venue's website (a laptop; the cloud sandbox cannot), from `apps/api`.
+How to put a venue's calendar page into the hand-labelled pool that the evaluation harness scores (`make eval-graph`, `agent_worker/model_eval/run_eval.py`). This is the procedure behind the `C5-K1` gap in `docs/dev/implementations/c5-pipeline-eval-harness.md`, and the labelling half of C6's held-out set (`docs/dev/alpha-deployment-plan.md`, C5 and C6). Everything below runs on a machine that can reach the venue's website (a laptop; the cloud sandbox cannot), from `apps/api`.
 
 **Two cases, one procedure.** A *new venue* needs steps 1 to 7. A *new capture of a venue we already have* (say, Mortimer's again, a month later) skips steps 1 and 2: it is a new page and gets its own label entry. Re-capturing a venue is useful twice over: it is a fresh page to score, and two captures of one venue are what the `sequence` and `overlap` scenarios need.
 
@@ -9,11 +9,11 @@ How to put a venue's calendar page into the hand-labelled pool that the evaluati
 | # | Step | Where | What it is |
 |---|---|---|---|
 | 1 | **Pick the venue and its calendar URL** | the venue's website | A page that lists *many dated shows*, not one event. Then check that a plain fetch can read it (below). |
-| 2 | **Register the venue** | `agent_worker/eval/labels.py`, `VENUE_FACTS` | One entry: a short key, the venue's name, the URL. |
-| 3 | **Capture the page** | `uv run python -m agent_worker.eval.capture <key>` | Saves `agent_worker/eval/fixtures/<key>-<YYYY-MM-DD>.html` (gitignored). |
-| 4 | **Read the page** | `uv run python -m agent_worker.eval.label_draft agent_worker/eval/fixtures/<file> --all` | Prints the page's visible lines, numbered. It does **not** write labels. |
-| 5 | **Write the label** | `agent_worker/eval/labels.py`, `PAGE_LABELS` | One `PageLabel` for the whole page, by hand. Decide `gated` and `held_out` here. |
-| 6 | **Run the label tests** | `uv run pytest agent_worker/tests/test_labels.py` | And, for a *gated* venue, add its key to `GATED_VENUES` in that test file first. |
+| 2 | **Register the venue** | `agent_worker/model_eval/labels.py`, `VENUE_FACTS` | One entry: a short key, the venue's name, the URL. |
+| 3 | **Capture the page** | `uv run python -m agent_worker.model_eval.capture <key>` | Saves `agent_worker/model_eval/captured_pages/<key>-<YYYY-MM-DD>.html` (gitignored). |
+| 4 | **Read the page** | `uv run python -m agent_worker.model_eval.label_draft agent_worker/model_eval/captured_pages/<file> --all` | Prints the page's visible lines, numbered. It does **not** write labels. |
+| 5 | **Write the label** | `agent_worker/model_eval/labels.py`, `PAGE_LABELS` | One `PageLabel` for the whole page, by hand. Decide `gated` and `held_out` here. |
+| 6 | **Run the label tests** | `uv run pytest agent_worker/tests/model_eval/test_labels.py` | And, for a *gated* venue, add its key to `GATED_VENUES` in that test file first. |
 | 7 | **(Separate) add it to the production venue list** | `app/db/seed.py` | Only if the worker should fetch it for real. The eval does not need it. |
 
 ### 1. Pick the venue, and check the page can be fetched
@@ -35,13 +35,13 @@ Add one entry to `VENUE_FACTS` in `labels.py`:
 - The **key** (`new_venue`) is what you type after `capture`, what a `PageLabel` points at (`venue="new_venue"`), and the start of the fixture's file name. Short, lower-case, underscores.
 - The **name** should match how the venue will be named in the database (`app/db/seed.py`), so the eval and the worker agree.
 - The metro zone defaults to `America/Chicago`; the label tests currently require that, since the alpha serves one metro.
-- Adding the entry does **not** touch `tests/test_labels.py`. That file changes only for a gated venue (step 6).
+- Adding the entry does **not** touch `tests/model_eval/test_labels.py`. That file changes only for a gated venue (step 6).
 
 ### 3. Capture the page
 
 ```
-uv run python -m agent_worker.eval.capture new_venue      # one venue
-uv run python -m agent_worker.eval.capture                # every venue that is not blocked
+uv run python -m agent_worker.model_eval.capture new_venue      # one venue
+uv run python -m agent_worker.model_eval.capture                # every venue that is not blocked
 ```
 
 - It uses the pipeline's own fetch, so the file is exactly what production would see.
@@ -90,14 +90,14 @@ How to decide each row:
 ### 6. Run the label tests
 
 ```
-uv run pytest agent_worker/tests/test_labels.py
+uv run pytest agent_worker/tests/model_eval/test_labels.py
 ```
 
 It checks the shape: every page has shows, every show names a source line and an act, no show appears twice on a page, every labelled venue has its facts, and every non-show can match something. It checks the *form* of a label, not whether it is true; that is why `source_line` exists.
 
 For a **gated** venue, add its key to `GATED_VENUES` at the top of that test file. `test_gated_pages_are_the_reachable_venues` asserts the gated set equals that list exactly, so a new gated page fails it until you do. (`gated=False` pages need no change.)
 
-The local guard `test_every_captured_fixture_is_labelled` fails if a file in `eval/fixtures/` has no label. A capture deliberately not scored goes in `UNLABELLED_ON_PURPOSE` in the same file, with the reason.
+The local guard `test_every_captured_fixture_is_labelled` fails if a file in `model_eval/captured_pages/` has no label. A capture deliberately not scored goes in `UNLABELLED_ON_PURPOSE` in the same file, with the reason.
 
 ### 7. The production venue list (optional, separate)
 
@@ -111,7 +111,7 @@ Run the harness over the new pages (`make eval-graph LABEL=<name> ONLY=<key>`). 
 
 - [ ] The calendar page lists many dated shows, and a plain fetch can read it (no thin-page warning, no challenge).
 - [ ] `VENUE_FACTS` has the entry (key, name, URL), with `blocked=` only if it genuinely cannot be fetched.
-- [ ] The capture is in `eval/fixtures/` and its date is today's.
+- [ ] The capture is in `model_eval/captured_pages/` and its date is today's.
 - [ ] The `PageLabel` is keyed by the exact file name, holds **every** show on the page, and `captured_on` is the capture date.
 - [ ] Rows are read from the page text; judgement calls are noted in `convention=` / `alternatives=`.
 - [ ] `gated` and `held_out` are set on purpose, before any results have been seen.

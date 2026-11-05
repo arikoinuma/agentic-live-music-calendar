@@ -102,7 +102,7 @@ def fetch_html(url: str, *, reject_empty: bool = False) -> str:
     transient failures retried with backoff — three attempts, as arch-initial.md §7 says a fetch
     failure should be (retry Fetch directly, with backoff).
 
-    Shared with eval/capture.py, so a captured fixture is exactly what production fetches —
+    Shared with model_eval/capture.py, so a captured fixture is exactly what production fetches —
     A2's fixtures were browser "Save As" captures, which run JavaScript and so showed the
     model pages the pipeline never sees (A2.1 plan, Context). `reject_empty` makes a body with
     nothing to read an `EmptyResponse` (the pipeline's fetch node asks for it; the capture

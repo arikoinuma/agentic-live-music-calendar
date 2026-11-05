@@ -23,7 +23,7 @@ from typing import Any
 import pytest
 
 from agent_worker import act_split, extraction, nodes, prompts, schemas, status_check
-from agent_worker.eval import run_eval
+from agent_worker.model_eval import run_eval
 from agent_worker.state import VenueGraphState
 
 CHICAGO = "America/Chicago"
