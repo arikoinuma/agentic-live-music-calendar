@@ -279,6 +279,30 @@ No code changed in this round. **Sequencing (Ari, October 30, 2026):** the full 
 
 **Verification.** `ruff` clean, `mypy` clean (152 files), `pytest` 1216 passed locally. Hosted parity run (Step 6) and Part 2 remain open.
 
+### Round 4 — the first hosted run, Claude Sonnet 5.5 (run for Ari), November 5, 2026
+
+**Decision (Ari, November 5):** Step 6 became option (a): the first hosted run, `google/gemma-4-26B-A4B-it` on every role, compared with the local model. `MODEL_BASE_URL=https://api.deepinfra.com/v1/openai MODEL_PROVIDER=openai_compatible MODEL_NAME=google/gemma-4-26B-A4B-it`, key from `apps/api/.env`, harness commit `28c7d91a2d`, `labels_sha` `68539c301c` (the same as `c5-baseline`, so the scores are comparable). Spend: a few cents. Provider, model and digest are not recorded in the report header (a hosted model has no digest); the model id is.
+
+**Run 1, the A2.1 extraction gate** (`run_eval --label c6-hosted-first --set gated --runs 5`, 25 runs, gitignored file). All 25 completed, 0 parse failures, mean 24.3 s per run (local `a3-confirm`: 221 s), show counts as expected on every page. The gate FAILS (24 failures: 10 on the JSON-LD page, 14 on model-route pages), the same pages in nearly every run. Caveat: `a3-confirm` holds only 4 runs, so it is a weak comparison; the full local numbers are `c5-baseline`.
+
+**Run 2, the C5 sequence** (`docs/dev/evaluating-model-performance.md` steps 1–5; snapshots `docs/dev/eval-baselines/c6-hosted-{baseline,seq,perturbed,repeat,repeat-model}.json`):
+
+| | `c5-baseline` (local e4b) | `c6-hosted-baseline` (26B, hosted) |
+|---|---|---|
+| raw recall / precision | 0.817 / 0.810 | 0.933 / 0.957 |
+| committed recall / precision | 0.812 / 0.805 | 0.932 / 0.956 |
+| gate | FAIL | FAIL |
+| retries / escalations | 0 / 0 | 0 / 0 |
+| validation recall | 0.0 | 0.0 (8 errors: 0 caught, 3 flagged, 5 silent) |
+
+- **Field accuracy** is clean: no wrong value and no missing rate over 10% on any field.
+- **Gate failures (run 0, gated pages):** `mortimers` 2 missed (two `/ Sat, Oct 10`-style titles with a date suffix), `seventh_st_entry` 1 wrong act (an extra act on 2026-10-31), `white_squirrel` 1 missed (`The Dan's`) and 1 wrong act (an extra act `Steve McPherson`). `turf_club` passed in run 0 but failed in the 5-run gate. Informational pages: two wrong acts on Zhora, one on a poster.
+- **Sequence scenario:** inserts 12 then 10, no removals, 0 invented; the database ends with 1 missed and 1 wrong act (the same two white_squirrel errors). **Perturbed:** update 1, remove 1, insert 1 as designed.
+- **Repeatability:** `white_squirrel` identical across 3 runs (recall 0.818); `mortimers` DIFFERENT across 3 runs (recall 0.857), as expected from the probe finding that seed is not honoured.
+- **Speed:** 4–6 s per run on JSON-LD pages, 10 s on small model-route pages, 40–70 s on the large ones (`seventh_st`, `turf_club`).
+
+**Reading it.** Hosting a larger model raises accuracy by about 12 points of recall and 15 of precision but does not pass the gate; what is left are stable, repeating act-split and missed-show errors, and validation catches none of them. That is the case for Part 2 (the splitter rungs), and for treating `ACT_NOT_IN_TITLE` (C6-D6) as worth measuring: the extra acts (`Steve McPherson`, `Wizard.Imma`) are not in the title text. Not done: thinking-off and `--concurrency` throughput (Step 11), the rungs (Step 9) and the held-out set (Step 8).
+
 ## Code review
 
 ### Round 1 — Claude Opus 5.5, October 28, 2026

@@ -1,0 +1,1320 @@
+{
+  "label": "c6-hosted-repeat-model",
+  "started_at": "2026-11-05T06:54:12+00:00",
+  "set": "all",
+  "scenario": null,
+  "labels_sha": "68539c301c123c7ab65cf83bdf8a27928d567bd79d0f4e42261d40c91b2ce164",
+  "held_out_scored": false,
+  "harness_commit": "28c7d91a2d29da610763d1b4a1b424cdf8983740",
+  "config": {
+    "route": "auto",
+    "keep_line_breaks": true,
+    "include_new_rules": true,
+    "status_field": false,
+    "year_rule": true,
+    "act_conventions": true,
+    "acts_split_description": false,
+    "status_pass": true,
+    "title_split": true,
+    "keep_image_urls": false,
+    "retry_hint": "",
+    "splitter_hint": ""
+  },
+  "request_options": {
+    "model": "google/gemma-4-26B-A4B-it",
+    "temperature": 0.0,
+    "max_tokens": 16000,
+    "max_retries": 1,
+    "num_ctx": 32768,
+    "provider": "openai_compatible"
+  },
+  "policy": {
+    "confidence_threshold": 0.8,
+    "max_attempts": 3,
+    "escalation_model": null
+  },
+  "provenance": {
+    "google/gemma-4-26B-A4B-it": {
+      "provider": "openai_compatible",
+      "base_url_host": "api.deepinfra.com",
+      "model": "google/gemma-4-26B-A4B-it"
+    }
+  },
+  "aggregate": {
+    "runs": 3,
+    "columns": {
+      "raw": {
+        "labelled": 21,
+        "returned": 18,
+        "dropped_empty": 3,
+        "missed": 3,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "found": 18,
+        "rates": {
+          "found": 18,
+          "labelled": 21,
+          "returned": 18,
+          "recall": 0.8571428571428571,
+          "precision": 1.0,
+          "precision_lenient": 1.0
+        },
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          },
+          "status": {
+            "stated": 18,
+            "correct": 18,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": 0.0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          }
+        }
+      },
+      "validated": {
+        "labelled": 21,
+        "returned": 18,
+        "dropped_empty": 0,
+        "missed": 3,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "found": 18,
+        "rates": {
+          "found": 18,
+          "labelled": 21,
+          "returned": 18,
+          "recall": 0.8571428571428571,
+          "precision": 1.0,
+          "precision_lenient": 1.0
+        },
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          },
+          "status": {
+            "stated": 18,
+            "correct": 18,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": 0.0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          }
+        }
+      },
+      "committed": {
+        "labelled": 21,
+        "returned": 18,
+        "dropped_empty": 0,
+        "missed": 3,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "found": 18,
+        "rates": {
+          "found": 18,
+          "labelled": 21,
+          "returned": 18,
+          "recall": 0.8571428571428571,
+          "precision": 1.0,
+          "precision_lenient": 1.0
+        },
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          },
+          "status": {
+            "stated": 18,
+            "correct": 18,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": 0.0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0,
+            "missing_rate": null
+          }
+        }
+      }
+    },
+    "gate": {
+      "raw": {
+        "passed": false,
+        "failures": [
+          "run 0: mortimers-2026-10-10.html: 1 missed",
+          "run 1: mortimers-2026-10-10.html: 1 missed",
+          "run 2: mortimers-2026-10-10.html: 1 missed"
+        ],
+        "pages": 3
+      },
+      "validated": {
+        "passed": false,
+        "failures": [
+          "run 0: mortimers-2026-10-10.html: 1 missed",
+          "run 1: mortimers-2026-10-10.html: 1 missed",
+          "run 2: mortimers-2026-10-10.html: 1 missed"
+        ],
+        "pages": 3
+      },
+      "committed": {
+        "passed": false,
+        "failures": [
+          "run 0: mortimers-2026-10-10.html: 1 missed",
+          "run 1: mortimers-2026-10-10.html: 1 missed",
+          "run 2: mortimers-2026-10-10.html: 1 missed"
+        ],
+        "pages": 3
+      }
+    },
+    "retry": {
+      "runs": 3,
+      "retried": 0,
+      "retry_rate": 0.0,
+      "mean_attempts": 1.0,
+      "escalated": 0,
+      "recovered": 0,
+      "attempts_by_tier": {
+        "initial": 3
+      },
+      "reasons": {},
+      "errors_first_attempt": 0,
+      "errors_final_attempt": 0
+    },
+    "validation": {
+      "total": 3,
+      "caught": 0,
+      "flagged": 3,
+      "silent": 0,
+      "recall": 0.0,
+      "by_kind": {
+        "missed": {
+          "caught": 0,
+          "flagged": 3,
+          "silent": 0
+        }
+      },
+      "findings_fired": {
+        "excluded_no_acts": 3
+      },
+      "findings_disagree": 0,
+      "route_mismatches": 0
+    },
+    "per_fixture": {
+      "mortimers-2026-10-10.html": {
+        "runs": 3,
+        "seconds": [
+          14.3,
+          11.9,
+          12.3
+        ],
+        "runs_identical": false
+      }
+    },
+    "cost": {
+      "mean_seconds": 12.8,
+      "mean_seconds_by_route": {
+        "model": 12.8
+      }
+    }
+  },
+  "request": {
+    "instruction_sha": "1c13629a64",
+    "response_schema_chars": 3335,
+    "response_schema_sha": "186eb8c3e9"
+  },
+  "runs": [
+    {
+      "fixture": "mortimers-2026-10-10.html",
+      "venue_id": 1,
+      "run_id": 1,
+      "seconds": 14.3,
+      "source": "model",
+      "attempt_count": 1,
+      "retried": false,
+      "recovered": false,
+      "escalated": false,
+      "escalation_reason": null,
+      "final_verdict": "passed",
+      "policy": {
+        "confidence_threshold": 0.8,
+        "max_attempts": 3,
+        "escalation_model": null
+      },
+      "reconcile_counts": {
+        "insert": 6,
+        "update": 0,
+        "no_op": 0,
+        "remove": 0,
+        "skip": 0
+      },
+      "commit_written": {
+        "inserted": 6,
+        "updated": 0,
+        "removed": 0
+      },
+      "raw_score": {
+        "fixture": "mortimers-2026-10-10.html",
+        "route": "model",
+        "labelled": 7,
+        "returned": 6,
+        "dropped_empty": 1,
+        "missed": 1,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 6,
+            "correct": 6,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "missed 2026-10-10 'Flange August Back to Back / Sat, Oct 10'"
+        ],
+        "items": [
+          {
+            "kind": "missed",
+            "date": "2026-10-10",
+            "index": 0,
+            "field": null
+          }
+        ]
+      },
+      "validated_score": {
+        "fixture": "mortimers-2026-10-10.html",
+        "route": "model",
+        "labelled": 7,
+        "returned": 6,
+        "dropped_empty": 0,
+        "missed": 1,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 6,
+            "correct": 6,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "missed 2026-10-10 'Flange August Back to Back / Sat, Oct 10'"
+        ],
+        "items": [
+          {
+            "kind": "missed",
+            "date": "2026-10-10",
+            "index": null,
+            "field": null
+          }
+        ]
+      },
+      "committed_score": {
+        "fixture": "mortimers-2026-10-10.html",
+        "route": "model",
+        "labelled": 7,
+        "returned": 6,
+        "dropped_empty": 0,
+        "missed": 1,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 6,
+            "correct": 6,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "missed 2026-10-10 'Flange August Back to Back / Sat, Oct 10'"
+        ],
+        "items": [
+          {
+            "kind": "missed",
+            "date": "2026-10-10",
+            "index": null,
+            "field": null
+          }
+        ]
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "tier": "initial",
+          "route": "model",
+          "model": "google/gemma-4-26B-A4B-it",
+          "larger_model_used": false,
+          "error": null,
+          "verdict": "passed",
+          "reasons": [],
+          "score": {
+            "fixture": "mortimers-2026-10-10.html",
+            "route": "model",
+            "labelled": 7,
+            "returned": 6,
+            "dropped_empty": 1,
+            "missed": 1,
+            "acts_wrong": 0,
+            "fabricated": 0,
+            "leaks": 0,
+            "unsplit": 0,
+            "order_differs": 0,
+            "fields": {
+              "time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "end_time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_advance": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_day": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "free_admission": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "status": {
+                "stated": 6,
+                "correct": 6,
+                "missing": 0,
+                "wrong": 0
+              },
+              "image_url": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              }
+            },
+            "errors": [
+              "missed 2026-10-10 'Flange August Back to Back / Sat, Oct 10'"
+            ],
+            "items": [
+              {
+                "kind": "missed",
+                "date": "2026-10-10",
+                "index": 0,
+                "field": null
+              }
+            ]
+          },
+          "errors": [],
+          "warnings": [
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 0 'Flange August Back to Back' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 0
+            }
+          ],
+          "recorded_errors": []
+        }
+      ],
+      "route_mismatch": false,
+      "run": 0
+    },
+    {
+      "fixture": "mortimers-2026-10-10.html",
+      "venue_id": 1,
+      "run_id": 1,
+      "seconds": 11.9,
+      "source": "model",
+      "attempt_count": 1,
+      "retried": false,
+      "recovered": false,
+      "escalated": false,
+      "escalation_reason": null,
+      "final_verdict": "passed",
+      "policy": {
+        "confidence_threshold": 0.8,
+        "max_attempts": 3,
+        "escalation_model": null
+      },
+      "reconcile_counts": {
+        "insert": 6,
+        "update": 0,
+        "no_op": 0,
+        "remove": 0,
+        "skip": 0
+      },
+      "commit_written": {
+        "inserted": 6,
+        "updated": 0,
+        "removed": 0
+      },
+      "raw_score": {
+        "fixture": "mortimers-2026-10-10.html",
+        "route": "model",
+        "labelled": 7,
+        "returned": 6,
+        "dropped_empty": 1,
+        "missed": 1,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 6,
+            "correct": 6,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "missed 2026-10-10 'Flange August Back to Back / Sat, Oct 10'"
+        ],
+        "items": [
+          {
+            "kind": "missed",
+            "date": "2026-10-10",
+            "index": 0,
+            "field": null
+          }
+        ]
+      },
+      "validated_score": {
+        "fixture": "mortimers-2026-10-10.html",
+        "route": "model",
+        "labelled": 7,
+        "returned": 6,
+        "dropped_empty": 0,
+        "missed": 1,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 6,
+            "correct": 6,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "missed 2026-10-10 'Flange August Back to Back / Sat, Oct 10'"
+        ],
+        "items": [
+          {
+            "kind": "missed",
+            "date": "2026-10-10",
+            "index": null,
+            "field": null
+          }
+        ]
+      },
+      "committed_score": {
+        "fixture": "mortimers-2026-10-10.html",
+        "route": "model",
+        "labelled": 7,
+        "returned": 6,
+        "dropped_empty": 0,
+        "missed": 1,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 6,
+            "correct": 6,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "missed 2026-10-10 'Flange August Back to Back / Sat, Oct 10'"
+        ],
+        "items": [
+          {
+            "kind": "missed",
+            "date": "2026-10-10",
+            "index": null,
+            "field": null
+          }
+        ]
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "tier": "initial",
+          "route": "model",
+          "model": "google/gemma-4-26B-A4B-it",
+          "larger_model_used": false,
+          "error": null,
+          "verdict": "passed",
+          "reasons": [],
+          "score": {
+            "fixture": "mortimers-2026-10-10.html",
+            "route": "model",
+            "labelled": 7,
+            "returned": 6,
+            "dropped_empty": 1,
+            "missed": 1,
+            "acts_wrong": 0,
+            "fabricated": 0,
+            "leaks": 0,
+            "unsplit": 0,
+            "order_differs": 0,
+            "fields": {
+              "time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "end_time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_advance": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_day": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "free_admission": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "status": {
+                "stated": 6,
+                "correct": 6,
+                "missing": 0,
+                "wrong": 0
+              },
+              "image_url": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              }
+            },
+            "errors": [
+              "missed 2026-10-10 'Flange August Back to Back / Sat, Oct 10'"
+            ],
+            "items": [
+              {
+                "kind": "missed",
+                "date": "2026-10-10",
+                "index": 0,
+                "field": null
+              }
+            ]
+          },
+          "errors": [],
+          "warnings": [
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 0 'Flange August Back to Back' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 0
+            }
+          ],
+          "recorded_errors": []
+        }
+      ],
+      "route_mismatch": false,
+      "run": 1
+    },
+    {
+      "fixture": "mortimers-2026-10-10.html",
+      "venue_id": 1,
+      "run_id": 1,
+      "seconds": 12.3,
+      "source": "model",
+      "attempt_count": 1,
+      "retried": false,
+      "recovered": false,
+      "escalated": false,
+      "escalation_reason": null,
+      "final_verdict": "passed",
+      "policy": {
+        "confidence_threshold": 0.8,
+        "max_attempts": 3,
+        "escalation_model": null
+      },
+      "reconcile_counts": {
+        "insert": 6,
+        "update": 0,
+        "no_op": 0,
+        "remove": 0,
+        "skip": 0
+      },
+      "commit_written": {
+        "inserted": 6,
+        "updated": 0,
+        "removed": 0
+      },
+      "raw_score": {
+        "fixture": "mortimers-2026-10-10.html",
+        "route": "model",
+        "labelled": 7,
+        "returned": 6,
+        "dropped_empty": 1,
+        "missed": 1,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 6,
+            "correct": 6,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "missed 2026-10-10 'Flange August Back to Back / Sat, Oct 10'"
+        ],
+        "items": [
+          {
+            "kind": "missed",
+            "date": "2026-10-10",
+            "index": 0,
+            "field": null
+          }
+        ]
+      },
+      "validated_score": {
+        "fixture": "mortimers-2026-10-10.html",
+        "route": "model",
+        "labelled": 7,
+        "returned": 6,
+        "dropped_empty": 0,
+        "missed": 1,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 6,
+            "correct": 6,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "missed 2026-10-10 'Flange August Back to Back / Sat, Oct 10'"
+        ],
+        "items": [
+          {
+            "kind": "missed",
+            "date": "2026-10-10",
+            "index": null,
+            "field": null
+          }
+        ]
+      },
+      "committed_score": {
+        "fixture": "mortimers-2026-10-10.html",
+        "route": "model",
+        "labelled": 7,
+        "returned": 6,
+        "dropped_empty": 0,
+        "missed": 1,
+        "acts_wrong": 0,
+        "fabricated": 0,
+        "leaks": 0,
+        "unsplit": 0,
+        "order_differs": 0,
+        "fields": {
+          "time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "end_time": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_advance": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "admission_day": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "free_admission": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          },
+          "status": {
+            "stated": 6,
+            "correct": 6,
+            "missing": 0,
+            "wrong": 0
+          },
+          "image_url": {
+            "stated": 0,
+            "correct": 0,
+            "missing": 0,
+            "wrong": 0
+          }
+        },
+        "errors": [
+          "missed 2026-10-10 'Flange August Back to Back / Sat, Oct 10'"
+        ],
+        "items": [
+          {
+            "kind": "missed",
+            "date": "2026-10-10",
+            "index": null,
+            "field": null
+          }
+        ]
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "tier": "initial",
+          "route": "model",
+          "model": "google/gemma-4-26B-A4B-it",
+          "larger_model_used": false,
+          "error": null,
+          "verdict": "passed",
+          "reasons": [],
+          "score": {
+            "fixture": "mortimers-2026-10-10.html",
+            "route": "model",
+            "labelled": 7,
+            "returned": 6,
+            "dropped_empty": 1,
+            "missed": 1,
+            "acts_wrong": 0,
+            "fabricated": 0,
+            "leaks": 0,
+            "unsplit": 0,
+            "order_differs": 0,
+            "fields": {
+              "time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "end_time": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_advance": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "admission_day": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "free_admission": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              },
+              "status": {
+                "stated": 6,
+                "correct": 6,
+                "missing": 0,
+                "wrong": 0
+              },
+              "image_url": {
+                "stated": 0,
+                "correct": 0,
+                "missing": 0,
+                "wrong": 0
+              }
+            },
+            "errors": [
+              "missed 2026-10-10 'Flange August Back to Back / Sat, Oct 10'"
+            ],
+            "items": [
+              {
+                "kind": "missed",
+                "date": "2026-10-10",
+                "index": 0,
+                "field": null
+              }
+            ]
+          },
+          "errors": [],
+          "warnings": [
+            {
+              "code": "excluded_no_acts",
+              "severity": "warning",
+              "message": "show 0 'Flange August Back to Back' names no act and was left out; it may be a real show the act splitter missed",
+              "show_index": 0
+            }
+          ],
+          "recorded_errors": []
+        }
+      ],
+      "route_mismatch": false,
+      "run": 2
+    }
+  ],
+  "scenarios": []
+}
