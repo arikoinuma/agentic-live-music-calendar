@@ -13,7 +13,7 @@ How to read it: the paths, then `build_record` and `write_results` (writing a ru
 (`results_file.RESULTS_DIR`), never copy them with `from results_file import RESULTS_DIR`: the tests redirect them with
 `monkeypatch.setattr(results_file, ...)`, and a copied name would escape the patch and touch the developer's real folders.
 
-docs/dev/implementations/c5-pipeline-eval-harness.md, Steps 3 and 8 (C5-D1, C5-D2); moved out of `run_labelled_pages.py` in code review
+docs/dev/implementations/c5-pipeline-eval-harness.md, Steps 3 and 8 (C5-D1, C5-D2); moved out of `run_labeled_pages.py` in code review
 round 2 (C5-CR2-2).
 """
 

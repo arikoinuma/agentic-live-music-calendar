@@ -3,7 +3,7 @@
 What this is: the three database helpers the C5 harness uses around a graph run, in its own database (`scratch_database.py`).
 `committed_extraction` reads the ACTIVE shows back as an extraction-shaped dict (so `scoring.score_page` scores the rows with the
 same tiers as the model's answer), `reset` empties what a run writes between independent pages, and `ensure_venue` creates the
-metro and venue rows a labelled page needs. `run_pages` (run_labelled_pages) and the scenarios (two_run_scenarios) both use them.
+metro and venue rows a labelled page needs. `run_pages` (run_labeled_pages) and the scenarios (two_run_scenarios) both use them.
 
 Why a module of its own: these change when the SCHEMA changes (Round 4: `ensure_venue` missed the `slug` column C4 made required),
 which is unrelated to what a scenario does or what it should leave. It is not part of `scratch_database.py` on purpose: that module holds

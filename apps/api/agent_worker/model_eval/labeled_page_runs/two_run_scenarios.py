@@ -3,7 +3,7 @@
 What this is: a page run through the graph ends with rows in Postgres. This module runs the two-run SCENARIOS the plan asks for,
 states what the database SHOULD hold after each (`expected_rows`, C5-K3), and scores the rows actually left against that
 (`score_database`). Reading and clearing those rows is `scratch_calendar_rows.py` (the helpers here call it); the runners that drive many
-pages are `run_labelled_pages.py`.
+pages are `run_labeled_pages.py`.
 
 How to read it, top to bottom:
 1. `Scenario` and `run_scenario`: repeat (the same page twice), sequence (two captures of one venue), overlap (a second capture
@@ -30,8 +30,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from agent_worker.context import WorkerContext
 from agent_worker.main import VenueFacts
 from agent_worker.model_eval import scoring
-from agent_worker.model_eval.labelled_page_runs import scratch_calendar_rows
-from agent_worker.model_eval.labelled_page_runs.run_one_page import PageRun, run_page
+from agent_worker.model_eval.labeled_page_runs import scratch_calendar_rows
+from agent_worker.model_eval.labeled_page_runs.run_one_page import PageRun, run_page
 from agent_worker.model_eval.labels import LabelledShow, PageLabel
 from agent_worker.policy import RetryPolicy
 from app.db.models import Show, ShowArtist

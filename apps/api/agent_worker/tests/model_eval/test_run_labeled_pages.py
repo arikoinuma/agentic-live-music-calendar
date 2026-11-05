@@ -1,8 +1,8 @@
-"""Tests for the graph-level harness's runner and command line (`model_eval/labelled_page_runs/run_labelled_pages.py`): flags, scenarios, rescore, running pages.
+"""Tests for the graph-level harness's runner and command line (`model_eval/labeled_page_runs/run_labeled_pages.py`): flags, scenarios, rescore, running pages.
 
 Milestone C5 (docs/dev/implementations/c5-pipeline-eval-harness.md, Test approach §3). The numbers themselves are tested in
 `test_aggregate_scores.py`, the results file in `test_results_file.py`, the report in `test_markdown_report.py`. This module covers
-what is left in `run_labelled_pages`: how flags become a policy and a list of scenario pairs, how a saved run is rescored with no model, and
+what is left in `run_labeled_pages`: how flags become a policy and a list of scenario pairs, how a saved run is rescored with no model, and
 one test that runs real pages end to end through a real database with a scripted model.
 
 How to read it: run records come from `test_aggregate_scores.record`. Tests that rescore redirect `results_file.RESULTS_DIR` to a
@@ -20,8 +20,8 @@ from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession, async_sessionm
 
 from agent_worker import nodes
 from agent_worker.model_eval import labels
-from agent_worker.model_eval.labelled_page_runs import (
-    run_labelled_pages,
+from agent_worker.model_eval.labeled_page_runs import (
+    run_labeled_pages,
     two_run_scenarios,
 )
 from agent_worker.model_eval.labels import LabelledShow, PageLabel
@@ -44,10 +44,10 @@ def test_the_policy_flags_build_on_the_default_policy_so_the_escalation_model_su
     # `RetryPolicy(...)` would drop the configured `escalation_model`. No flags means no policy (the default is used).
     from agent_worker.policy import DEFAULT_POLICY
 
-    assert run_labelled_pages.build_policy(None, None) is None
-    policy = run_labelled_pages.build_policy(0.99, 1)
+    assert run_labeled_pages.build_policy(None, None) is None
+    policy = run_labeled_pages.build_policy(0.99, 1)
     assert policy == dataclasses.replace(DEFAULT_POLICY, confidence_threshold=0.99, max_attempts=1)
-    assert run_labelled_pages.build_policy(None, 2) == dataclasses.replace(DEFAULT_POLICY, max_attempts=2)
+    assert run_labeled_pages.build_policy(None, 2) == dataclasses.replace(DEFAULT_POLICY, max_attempts=2)
 
 
 # ---------------------------------------------------------------------------
@@ -58,7 +58,7 @@ def test_the_policy_flags_build_on_the_default_policy_so_the_escalation_model_su
 def test_scenario_pairs_are_consecutive_captures_of_one_venue_in_date_order() -> None:
     # Proves: the sequence and overlap scenarios need two captures of ONE venue, oldest first. A venue with one capture
     # yields no pair; two venues are paired separately. Expected: White Squirrel's August then October capture.
-    pairs = run_labelled_pages.scenario_pairs(sorted(labels.PAGE_LABELS))
+    pairs = run_labeled_pages.scenario_pairs(sorted(labels.PAGE_LABELS))
     assert ("Archives_ Events - The White Squirrel Bar.html", "white_squirrel-2026-10-10.html") in pairs
     assert ("Terminal Bar – The Terminal Bar.html", "terminal-2026-10-10.html") in pairs
     assert all(labels.PAGE_LABELS[a].venue == labels.PAGE_LABELS[b].venue for a, b in pairs)
@@ -77,7 +77,7 @@ def test_scenario_pairs_are_consecutive_captures_of_one_venue_in_date_order() ->
 def test_the_command_line(argv: list[str], expected: dict[str, Any]) -> None:
     # Proves: the flags the plan names (--label, --set, --runs, --scenario, --threshold, --max-attempts, --keep-db, --rescore,
     # --compare) parse to the values the run reads, with the plan's defaults (all pages, one run, no scenario, default policy).
-    args = vars(run_labelled_pages.parse_args(argv))
+    args = vars(run_labeled_pages.parse_args(argv))
     for key, value in expected.items():
         assert args[key] == value
 
@@ -95,7 +95,7 @@ def test_rescore_rebuilds_scores_from_the_stored_extractions_and_leaves_the_orig
     page = tmp_path / "page.html"
     page.write_text("<html></html>")
     monkeypatch.setattr(results_file, "RESULTS_DIR", tmp_path)
-    monkeypatch.setattr(run_labelled_pages.run_eval, "CAPTURED_PAGES_DIR", tmp_path)
+    monkeypatch.setattr(run_labeled_pages.run_eval, "CAPTURED_PAGES_DIR", tmp_path)
     extraction = {"page_readable": True, "shows": [{
         "venue": "V", "date": "2026-10-20", "time": None, "end_time": None, "acts": [{"name": "A"}],
         "admission_advance": None, "admission_day": None, "free_admission": None, "image_url": None,
@@ -109,7 +109,7 @@ def test_rescore_rebuilds_scores_from_the_stored_extractions_and_leaves_the_orig
     before = source.read_bytes()
     corrected = dataclasses.replace(original_label, shows=(*original_label.shows, LabelledShow(D(2026, 10, 21), ("B",), "B")))
     monkeypatch.setitem(labels.PAGE_LABELS, "page.html", corrected)
-    out = run_labelled_pages.rescore("old")
+    out = run_labeled_pages.rescore("old")
     assert source.read_bytes() == before
     rescored = json.loads(out.read_text())
     assert rescored["rescored_from"] == "old"
@@ -140,7 +140,7 @@ async def test_run_pages_runs_each_page_alone_on_an_empty_calendar(
     label_one = PageLabel(venue="v", gated=True, captured_on=D(2026, 10, 12), shows=(LabelledShow(D(2026, 10, 20), ("Nona",), "Nona", T(21, 0)),))
     label_two = dataclasses.replace(label_one, shows=(LabelledShow(D(2026, 10, 21), ("Lent",), "Lent", T(21, 0)),))
     monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [split_answer(("Nona", ["Nona"])), split_answer(("Lent", ["Lent"]))]}))
-    records = await run_labelled_pages.run_pages([(first, label_one, facts), (second, label_two, facts)], factory=factory, runs=1, policy=None)
+    records = await run_labeled_pages.run_pages([(first, label_one, facts), (second, label_two, facts)], factory=factory, runs=1, policy=None)
     assert [(r["fixture"], r["run"]) for r in records] == [("one.html", 0), ("two.html", 0)]
     assert [len(r["committed"]["shows"]) for r in records] == [1, 1]
     assert records[1]["committed"]["shows"][0]["acts"] == [{"name": "Lent"}]
@@ -153,7 +153,7 @@ def test_two_run_scenarios_are_the_ones_the_command_line_offers() -> None:
     # and forgotten in the other.
     parser_choices = {s.value for s in two_run_scenarios.Scenario}
     assert parser_choices == {"repeat", "sequence", "overlap", "perturbed"}
-    assert set(run_labelled_pages.SCENARIO_CHOICES) == parser_choices
+    assert set(run_labeled_pages.SCENARIO_CHOICES) == parser_choices
 
 
 def test_rescore_also_rescores_the_scenarios_database_score(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -161,7 +161,7 @@ def test_rescore_also_rescores_the_scenarios_database_score(tmp_path: Path, monk
     # database score is recomputed from the last run's stored rows and the scenario's page labels. Here a corrected label adds
     # a show the stored rows never held, so the scenario's database score gains a miss (0 before, 1 after).
     monkeypatch.setattr(results_file, "RESULTS_DIR", tmp_path)
-    monkeypatch.setattr(run_labelled_pages.run_eval, "CAPTURED_PAGES_DIR", tmp_path)
+    monkeypatch.setattr(run_labeled_pages.run_eval, "CAPTURED_PAGES_DIR", tmp_path)
     (tmp_path / "page.html").write_text("<html></html>")
     rows = {"page_readable": True, "shows": [{
         "date": "2026-10-20", "time": None, "end_time": None, "acts": [{"name": "A"}], "admission_advance": None,
@@ -178,14 +178,14 @@ def test_rescore_also_rescores_the_scenarios_database_score(tmp_path: Path, monk
     monkeypatch.setattr(two_run_scenarios, "expected_rows", lambda sc, first, second: list(first.shows))
     corrected = dataclasses.replace(label, shows=(*label.shows, LabelledShow(D(2026, 10, 21), ("B",), "B")))
     monkeypatch.setitem(labels.PAGE_LABELS, "page.html", corrected)
-    out = json.loads(run_labelled_pages.rescore("old").read_text())
+    out = json.loads(run_labeled_pages.rescore("old").read_text())
     assert out["scenarios"][0]["database_score"]["missed"] == 1
     assert out["scenarios"][0]["result"]["runs"][1]["raw_score"]["missed"] == 1
 
 
 def test_the_snapshot_flag() -> None:
     # Proves: `--snapshot LABEL` parses (and sits beside --report and --compare).
-    assert run_labelled_pages.parse_args(["--snapshot", "x"]).snapshot == "x"
+    assert run_labeled_pages.parse_args(["--snapshot", "x"]).snapshot == "x"
 
 
 def test_only_the_second_run_of_a_sequence_or_overlap_is_left_out_of_the_committed_column() -> None:
@@ -195,8 +195,8 @@ def test_only_the_second_run_of_a_sequence_or_overlap_is_left_out_of_the_committ
     def scenario(kind: str) -> dict[str, Any]:
         return {"result": {"scenario": kind, "runs": [record("a.html"), record("b.html")]}}
 
-    flags = {kind: [r["committed_scored"] for r in run_labelled_pages.scenario_records([scenario(kind)])] for kind in
+    flags = {kind: [r["committed_scored"] for r in run_labeled_pages.scenario_records([scenario(kind)])] for kind in
              ("repeat", "sequence", "overlap", "perturbed")}
     assert flags == {"repeat": [True, True], "sequence": [True, False], "overlap": [True, False], "perturbed": [True, True]}
-    tagged = run_labelled_pages.scenario_records([scenario("sequence")])
+    tagged = run_labeled_pages.scenario_records([scenario("sequence")])
     assert [(r["run"], r["scenario"]) for r in tagged] == [(0, "sequence"), (1, "sequence")]

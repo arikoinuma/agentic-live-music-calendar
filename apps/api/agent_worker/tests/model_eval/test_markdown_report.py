@@ -1,11 +1,11 @@
-"""Tests for the reusable results report (`model_eval/saved_run_reports/markdown_report.py`, `run_labelled_pages --report`).
+"""Tests for the reusable results report (`model_eval/saved_run_reports/markdown_report.py`, `run_labeled_pages --report`).
 
 Milestone C5 follow-up (docs/dev/evaluating-model-performance.md). Reading a results file used to mean writing a throwaway script
 each time; the report is that script, written once and run on any label, so the same questions get asked of the local model, of the
 hosted model in C6, and of every later run (`--compare` then lines the labels up). It is a pure function from the stored file to
 Markdown, so it is tested on small hand-built files.
 
-How to read it: `make_results` builds a results dict the way `run_labelled_pages.evaluate` stores one (reusing the record helpers of
+How to read it: `make_results` builds a results dict the way `run_labeled_pages.evaluate` stores one (reusing the record helpers of
 test_aggregate_scores.py); each test then pins one section of the report. Expected text is what the section is specified to show, worked
 from the hand-built counts, never from the report's own output.
 """
@@ -18,7 +18,7 @@ from typing import Any
 import pytest
 
 from agent_worker.model_eval import labels
-from agent_worker.model_eval.labelled_page_runs import run_labelled_pages
+from agent_worker.model_eval.labeled_page_runs import run_labeled_pages
 from agent_worker.model_eval.labels import LabelledShow, PageLabel
 from agent_worker.model_eval.saved_run_reports import (
     aggregate_scores,
@@ -165,12 +165,12 @@ def test_the_command_line_prints_or_writes_the_report(tmp_path: Path, monkeypatc
     # into the plan's log without a terminal in between.
     monkeypatch.setattr(results_file, "RESULTS_DIR", tmp_path)
     monkeypatch.setattr(labels, "PAGE_LABELS", LABELS)
-    monkeypatch.setattr(run_labelled_pages, "PAGE_LABELS", LABELS)
+    monkeypatch.setattr(run_labeled_pages, "PAGE_LABELS", LABELS)
     (tmp_path / "graph-demo.json").write_text(json.dumps(make_results(clean_and_bad())))
-    assert run_labelled_pages.main(["--report", "demo"]) == 0
+    assert run_labeled_pages.main(["--report", "demo"]) == 0
     assert "# Report: demo" in capsys.readouterr().out
     target = tmp_path / "out.md"
-    assert run_labelled_pages.main(["--report", "demo", "--out", str(target)]) == 0
+    assert run_labeled_pages.main(["--report", "demo", "--out", str(target)]) == 0
     assert "# Report: demo" in target.read_text()
 
 
@@ -180,7 +180,7 @@ def test_the_command_line_prints_or_writes_the_report(tmp_path: Path, monkeypatc
 ])
 def test_the_report_flags(argv: list[str], expected: dict[str, Any]) -> None:
     # Proves: the flags parse to the values the report reads.
-    args = vars(run_labelled_pages.parse_args(argv))
+    args = vars(run_labeled_pages.parse_args(argv))
     for key, value in expected.items():
         assert args[key] == value
 

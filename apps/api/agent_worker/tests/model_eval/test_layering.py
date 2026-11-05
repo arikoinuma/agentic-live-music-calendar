@@ -2,7 +2,7 @@
 
 Milestone C5.1 (docs/dev/implementations/c5.1-model-eval-layout.md). The model evaluation lives inside `agent_worker/` but must stay
 apart from the code that runs on every scheduled fetch, and its two halves must stay apart from each other: `saved_run_reports/` only
-reads saved results, so it must work without the model or the database that `labelled_page_runs/` needs. Both rules are checked by
+reads saved results, so it must work without the model or the database that `labeled_page_runs/` needs. Both rules are checked by
 reading the imports of every source file with `ast` (the way `app/tests/test_no_testing_imports.py` does), so a violation fails here
 instead of surfacing as a missing dependency on a machine that has neither.
 
@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 from agent_worker.model_eval import capture, run_eval
-from agent_worker.model_eval.labelled_page_runs import scratch_database
+from agent_worker.model_eval.labeled_page_runs import scratch_database
 from agent_worker.model_eval.saved_run_reports import results_file
 
 API_DIR = Path(__file__).resolve().parents[3]
@@ -58,31 +58,31 @@ def test_nothing_that_runs_on_a_scheduled_fetch_imports_the_model_evaluation() -
     assert offenders == []
 
 
-def test_saved_run_reports_never_import_labelled_page_runs() -> None:
+def test_saved_run_reports_never_import_labeled_page_runs() -> None:
     # Proves: C5.1-D6. `saved_run_reports/` is the half that needs only a saved file, so it must run on a machine with no model and
-    # no database (a reviewer's laptop reading a committed snapshot). Importing `labelled_page_runs` would drag in the graph, the
+    # no database (a reviewer's laptop reading a committed snapshot). Importing `labeled_page_runs` would drag in the graph, the
     # database driver and the scratch database code. The other direction is allowed: a run prints its summary with the reports.
     reports = MODEL_EVAL_DIR / "saved_run_reports"
     sources = sorted(reports.glob("*.py"))
     assert sources, "no report modules found; the folder moved?"
     offenders = [
         f"{p.name} imports {m}" for p in sources for m in imported_modules(p)
-        if m == "agent_worker.model_eval.labelled_page_runs" or m.startswith("agent_worker.model_eval.labelled_page_runs.")
+        if m == "agent_worker.model_eval.labeled_page_runs" or m.startswith("agent_worker.model_eval.labeled_page_runs.")
     ]
     assert offenders == []
 
 
-def test_importing_the_reports_loads_nothing_from_labelled_page_runs() -> None:
+def test_importing_the_reports_loads_nothing_from_labeled_page_runs() -> None:
     # Proves: C5.1-D6 in the form that matters, "a report reads on a machine with no model or database". The check above sees only a
     # report module's OWN imports; a shared module (`run_eval`, `labels`, `scoring`, `legacy`) that a report imports could pull the
     # runners in one hop away and that check would still pass. A fresh interpreter imports the three report modules and lists what
-    # got loaded, so the whole chain is judged. Expected: no `labelled_page_runs` module in `sys.modules`.
+    # got loaded, so the whole chain is judged. Expected: no `labeled_page_runs` module in `sys.modules`.
     code = (
         "import sys\n"
         "import agent_worker.model_eval.saved_run_reports.aggregate_scores\n"
         "import agent_worker.model_eval.saved_run_reports.results_file\n"
         "import agent_worker.model_eval.saved_run_reports.markdown_report\n"
-        "print('\\n'.join(sorted(m for m in sys.modules if m.startswith('agent_worker.model_eval.labelled_page_runs'))))\n"
+        "print('\\n'.join(sorted(m for m in sys.modules if m.startswith('agent_worker.model_eval.labeled_page_runs'))))\n"
     )
     done = subprocess.run(
         [sys.executable, "-c", code], cwd=API_DIR, capture_output=True, text=True, check=False, timeout=120,

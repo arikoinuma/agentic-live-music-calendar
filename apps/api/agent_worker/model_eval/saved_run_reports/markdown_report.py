@@ -1,8 +1,8 @@
 """Turn a graph-level results file into a readable Markdown report: the questions that used to need a throwaway script each time.
 
-What this is: `run_labelled_pages` writes everything a run produced to `model_eval/results/graph-<label>.json`. Reading it meant writing a small
+What this is: `run_labeled_pages` writes everything a run produced to `model_eval/results/graph-<label>.json`. Reading it meant writing a small
 Python script per question (per-page counts, validation by error kind, what each retry attempt did, what a scenario left in the
-database). This is that script, written once: `render(data, labels)` returns Markdown, and `run_labelled_pages --report <label>` prints it
+database). This is that script, written once: `render(data, labels)` returns Markdown, and `run_labeled_pages --report <label>` prints it
 (or writes it with `--out`, so a long report reaches a file or the plan's log without a terminal's line wrapping in between). The
 same report reads a local run today and a hosted-model run in C6, which is what makes them comparable (`--compare` lines labels up).
 

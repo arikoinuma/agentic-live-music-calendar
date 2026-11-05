@@ -112,7 +112,7 @@ class PageRun:
 def score_dict(label: PageLabel, extraction: dict[str, Any] | None, page_html: str, fixture: str) -> dict[str, Any]:
     """`score_page` as a plain dict; a missing extraction is scored as nothing returned (every labelled show missed).
 
-    Public because `--rescore` (`run_labelled_pages`) rebuilds a saved run's scores with the very same function: a rule for how a column
+    Public because `--rescore` (`run_labeled_pages`) rebuilds a saved run's scores with the very same function: a rule for how a column
     is scored then lives in one place, and a rescore cannot disagree with a fresh run (C5-CR2-3)."""
     return dataclasses.asdict(scoring.score_page(label, extraction or NOTHING, page_html, fixture))
 

@@ -143,24 +143,24 @@ extraction process works with a given model (C5, `docs/dev/implementations/c5-pi
 answer, the validated extraction and the rows left in the database with the same scorer and labels (`model_eval/scoring.py`).
 `make eval-graph LABEL=<name>` (see `make help` for its options) is **local only and not in `make check` or CI**: it calls the
 model, needs the gitignored captured pages, and creates a scratch Postgres database `calendar_eval`
-(`labelled_page_runs/scratch_database.py`, which refuses any other name or a non-local host) that it drops at the end (it derives
+(`labeled_page_runs/scratch_database.py`, which refuses any other name or a non-local host) that it drops at the end (it derives
 the server from `DATABASE_URL`; `EVAL_DATABASE_URL` overrides it, and the guard still demands the name `calendar_eval` on a local host).
 The folder says what each file is for:
 - `model_eval/` (shared): `labels.py` (the hand-written answer key; a page flagged `held_out` is in no default set, its first
   scoring is C6's), `scoring.py` (how one page is counted), `validation_recall.py` (which errors validation caught), `capture.py`
   and `label_draft.py` (saving a venue page and writing its label), `captured_pages/` and `results/` (gitignored data), and the
   older extraction-level tool `run_eval.py` with `legacy.py` and `reference.py`.
-- `model_eval/labelled_page_runs/` (does things; needs the model and Postgres): `run_one_page.py` (one page through
+- `model_eval/labeled_page_runs/` (does things; needs the model and Postgres): `run_one_page.py` (one page through
   `main.run_venue`, and the one place a run's columns are scored), `two_run_scenarios.py` (repeat, sequence, overlap, perturbed, and
   what the database should hold after them), `scratch_database.py` and `scratch_calendar_rows.py` (the throwaway database and its
-  rows), `run_labelled_pages.py` (the runners, `--rescore` and the command line; `python -m agent_worker.model_eval.labelled_page_runs`).
+  rows), `run_labeled_pages.py` (the runners, `--rescore` and the command line; `python -m agent_worker.model_eval.labeled_page_runs`).
 - `model_eval/saved_run_reports/` (only reads; needs a saved file): `aggregate_scores.py` (the numbers from the run records),
   `results_file.py` (the file's shape, loading, the committable snapshot), `markdown_report.py` (`make eval-report LABEL=<name>`,
   `make eval-compare`).
 
 The sequence of checks is `docs/dev/evaluating-model-performance.md`. Import order inside is `labels` ← `scoring` ←
-`validation_recall` ← `run_one_page` ← `two_run_scenarios` ← `run_labelled_pages`, with `aggregate_scores` (needs `scoring` and
-`validation_recall`) and `scratch_calendar_rows` beside it. **`saved_run_reports/` never imports `labelled_page_runs/`** (a test
+`validation_recall` ← `run_one_page` ← `two_run_scenarios` ← `run_labeled_pages`, with `aggregate_scores` (needs `scoring` and
+`validation_recall`) and `scratch_calendar_rows` beside it. **`saved_run_reports/` never imports `labeled_page_runs/`** (a test
 enforces it), so a report reads on a machine with no model or database. A test that redirects the results folders patches
 `results_file.RESULTS_DIR` / `SNAPSHOT_DIR`, which every reader must look up as an attribute at call time, never copy with
 `from ... import RESULTS_DIR`. `model_eval/` must not import `app.testing` (`test_no_testing_imports.py` scans it).

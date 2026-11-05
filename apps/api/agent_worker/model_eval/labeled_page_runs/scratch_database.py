@@ -1,6 +1,6 @@
 """The scratch Postgres database the graph-level harness scores in, and the guard in front of it.
 
-What this is: `model_eval/labelled_page_runs/run_labelled_pages.py` runs the real graph, whose reconcile and commit steps read and write Postgres, and scores the
+What this is: `model_eval/labeled_page_runs/run_labeled_pages.py` runs the real graph, whose reconcile and commit steps read and write Postgres, and scores the
 rows left behind (C5-D2). Those rows must not land in the developer's own database, so the harness creates a database of its own,
 `calendar_eval`, migrates it, runs in it, and drops it. This module is the create/migrate/drop trio and the guard that makes
 them safe to run.
@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import NullPool
 
-# apps/api/ — three levels up from agent_worker/model_eval/labelled_page_runs/scratch_database.py. Used to find alembic.ini and migrations/ from any cwd.
+# apps/api/ — three levels up from agent_worker/model_eval/labeled_page_runs/scratch_database.py. Used to find alembic.ini and migrations/ from any cwd.
 API_DIR = Path(__file__).resolve().parents[3]
 
 # The ONLY database name this module will ever create, migrate, truncate or drop. A constant, not configurable.

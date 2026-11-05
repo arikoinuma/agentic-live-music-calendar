@@ -1,4 +1,4 @@
-"""Tests for the database scenarios and scoring the rows they leave (`model_eval/labelled_page_runs/two_run_scenarios.py`, with the `model_eval/labelled_page_runs/scratch_calendar_rows.py` helpers they
+"""Tests for the database scenarios and scoring the rows they leave (`model_eval/labeled_page_runs/two_run_scenarios.py`, with the `model_eval/labeled_page_runs/scratch_calendar_rows.py` helpers they
 rely on), against a real Postgres.
 
 Milestone C5 (docs/dev/implementations/c5-pipeline-eval-harness.md, Test approach §5). The harness runs the graph on a page, then
@@ -36,12 +36,12 @@ from agent_worker.calendar_reader import PostgresCalendarReader
 from agent_worker.calendar_writer import PostgresCalendarWriter
 from agent_worker.context import WorkerContext
 from agent_worker.main import VenueFacts
-from agent_worker.model_eval.labelled_page_runs import (
+from agent_worker.model_eval.labeled_page_runs import (
     scratch_calendar_rows,
     two_run_scenarios,
 )
-from agent_worker.model_eval.labelled_page_runs.run_one_page import InMemoryStager
-from agent_worker.model_eval.labelled_page_runs.two_run_scenarios import (
+from agent_worker.model_eval.labeled_page_runs.run_one_page import InMemoryStager
+from agent_worker.model_eval.labeled_page_runs.two_run_scenarios import (
     Scenario,
     ScenarioPage,
 )
@@ -344,16 +344,16 @@ async def test_a_perturbed_scenario_whose_first_run_left_nothing_to_perturb_is_r
 async def test_the_runner_skips_the_database_score_of_a_scenario_that_was_not_run(
     factory: async_sessionmaker[AsyncSession], tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Proves: C5-CR1-2 through `run_labelled_pages.run_scenarios`: the instance is recorded with its reason, has no database score
+    # Proves: C5-CR1-2 through `run_labeled_pages.run_scenarios`: the instance is recorded with its reason, has no database score
     # (there is nothing to score against an expectation), and the loop goes on to the next page.
-    from agent_worker.model_eval.labelled_page_runs import run_labelled_pages
+    from agent_worker.model_eval.labeled_page_runs import run_labeled_pages
 
     page_a = page(tmp_path, "a", [("2026-10-20", "Nona"), ("2026-10-21", "Lent")], D(2026, 10, 12))
-    monkeypatch.setattr(run_labelled_pages, "PAGE_LABELS", {"a.html": page_a.label})
-    monkeypatch.setattr(run_labelled_pages.run_eval, "CAPTURED_PAGES_DIR", tmp_path)
-    monkeypatch.setattr(run_labelled_pages, "VENUE_FACTS", {"test_venue": LabelVenueFacts("The Test Venue", "https://example.test/calendar")})
+    monkeypatch.setattr(run_labeled_pages, "PAGE_LABELS", {"a.html": page_a.label})
+    monkeypatch.setattr(run_labeled_pages.run_eval, "CAPTURED_PAGES_DIR", tmp_path)
+    monkeypatch.setattr(run_labeled_pages, "VENUE_FACTS", {"test_venue": LabelVenueFacts("The Test Venue", "https://example.test/calendar")})
     monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [split_answer(("Nona", ["Nona"]))]}))
-    out = await run_labelled_pages.run_scenarios(Scenario.PERTURBED, ["a.html"], factory=factory, policy=None)
+    out = await run_labeled_pages.run_scenarios(Scenario.PERTURBED, ["a.html"], factory=factory, policy=None)
     assert out[0]["database_score"] is None
     assert out[0]["result"]["not_run"] is not None
 
@@ -387,14 +387,14 @@ async def test_the_runner_prints_each_scenarios_database_score(
     # perfect pipeline would leave (labelled, returned, missed, wrong acts, invented), because the aggregate lines at the end of
     # a scenario run mix first and second runs and say nothing about the rows left. Expected: a repeat of a two-show page that
     # the scripted model reads correctly prints 2 labelled, 2 returned and no errors.
-    from agent_worker.model_eval.labelled_page_runs import run_labelled_pages
+    from agent_worker.model_eval.labeled_page_runs import run_labeled_pages
 
     page_a = page(tmp_path, "a", [("2026-10-20", "Nona"), ("2026-10-21", "Lent")], D(2026, 10, 12))
-    monkeypatch.setattr(run_labelled_pages, "PAGE_LABELS", {"a.html": page_a.label})
-    monkeypatch.setattr(run_labelled_pages.run_eval, "CAPTURED_PAGES_DIR", tmp_path)
-    monkeypatch.setattr(run_labelled_pages, "VENUE_FACTS", {"test_venue": LabelVenueFacts("The Test Venue", "https://example.test/calendar")})
+    monkeypatch.setattr(run_labeled_pages, "PAGE_LABELS", {"a.html": page_a.label})
+    monkeypatch.setattr(run_labeled_pages.run_eval, "CAPTURED_PAGES_DIR", tmp_path)
+    monkeypatch.setattr(run_labeled_pages, "VENUE_FACTS", {"test_venue": LabelVenueFacts("The Test Venue", "https://example.test/calendar")})
     monkeypatch.setattr(nodes, "instructor_client", scripted_client(script_for(page_a)))
-    await run_labelled_pages.run_scenarios(Scenario.REPEAT, ["a.html"], factory=factory, policy=None)
+    await run_labeled_pages.run_scenarios(Scenario.REPEAT, ["a.html"], factory=factory, policy=None)
     assert "database vs expected: labelled 2, returned 2, missed 0, wrong acts 0, invented 0" in capsys.readouterr().out
 
 

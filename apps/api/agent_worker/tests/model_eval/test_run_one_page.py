@@ -1,4 +1,4 @@
-"""Tests for running one labelled page through the real graph and reading what came out (`model_eval/labelled_page_runs/run_one_page.py`).
+"""Tests for running one labelled page through the real graph and reading what came out (`model_eval/labeled_page_runs/run_one_page.py`).
 
 Milestone C5 (docs/dev/implementations/c5-pipeline-eval-harness.md, Test approach §2). The graph is the real compiled graph,
 the model is `fakes.scripted_client` (the test decides what the splitter says, so each failure is exact), and the stores are the
@@ -21,7 +21,7 @@ import pytest
 from agent_worker import nodes
 from agent_worker.context import WorkerContext
 from agent_worker.main import VenueFacts
-from agent_worker.model_eval.labelled_page_runs.run_one_page import (
+from agent_worker.model_eval.labeled_page_runs.run_one_page import (
     InMemoryStager,
     PageRun,
     column_scores,

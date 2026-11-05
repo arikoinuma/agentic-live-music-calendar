@@ -31,7 +31,7 @@ def record(
     fixture: str = "page.html", *, run: int = 0, attempts: list[dict[str, Any]] | None = None, escalated: bool = False,
     raw: dict[str, Any] | None = None, seconds: float = 1.0, source: str = "jsonld", **scores: dict[str, Any],
 ) -> dict[str, Any]:
-    """A run record as `run_labelled_pages` stores it: `asdict(PageRun)` plus the run index. Only what a test pins is filled in."""
+    """A run record as `run_labeled_pages` stores it: `asdict(PageRun)` plus the run index. Only what a test pins is filled in."""
     attempts = attempts if attempts is not None else [{
         "attempt": 1, "tier": "initial", "route": source, "model": "m", "larger_model_used": False, "error": None,
         "verdict": "passed", "reasons": [], "score": score_dict(), "errors": [], "warnings": [], "recorded_errors": [],

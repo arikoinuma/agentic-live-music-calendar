@@ -10,8 +10,8 @@ it is not part of `make check`.
     make eval-graph LABEL=c5-baseline SET=all
     make eval-graph LABEL=c5-seq SCENARIO=sequence
     make eval-graph LABEL=c5-retry THRESHOLD=0.99          # provoke the retry loop (model-route and image pages only)
-    uv run python -m agent_worker.model_eval.labelled_page_runs --rescore c5-baseline
-    uv run python -m agent_worker.model_eval.labelled_page_runs --compare c5-baseline c5-retry
+    uv run python -m agent_worker.model_eval.labeled_page_runs --rescore c5-baseline
+    uv run python -m agent_worker.model_eval.labeled_page_runs --compare c5-baseline c5-retry
 
 Where the rest lives (this file is only the part that RUNS things): `aggregate_scores` (the numbers computed from the run
 records), `results_file` (the results file: its shape, its paths, loading and the committable snapshot), `markdown_report` (Markdown
@@ -48,12 +48,12 @@ from agent_worker.calendar_reader import PostgresCalendarReader
 from agent_worker.calendar_writer import PostgresCalendarWriter
 from agent_worker.context import WorkerContext
 from agent_worker.model_eval import run_eval
-from agent_worker.model_eval.labelled_page_runs import (
+from agent_worker.model_eval.labeled_page_runs import (
     scratch_calendar_rows,
     scratch_database,
     two_run_scenarios,
 )
-from agent_worker.model_eval.labelled_page_runs.run_one_page import (
+from agent_worker.model_eval.labeled_page_runs.run_one_page import (
     InMemoryStager,
     PageRun,
     column_scores,

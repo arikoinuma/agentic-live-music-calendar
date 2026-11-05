@@ -9,7 +9,7 @@ How to read the folder:
   `validation_recall.py` (which errors validation caught), `capture.py` and `label_draft.py` (saving a venue page and writing its
   label), `captured_pages/` (the saved venue pages, gitignored), `results/` (raw run output, gitignored), and the older
   extraction-only tool (`run_eval.py`, `legacy.py`, `reference.py`).
-- `labelled_page_runs/` runs the real extraction pipeline on the labelled pages against a scratch database. Needs the model and Postgres.
+- `labeled_page_runs/` runs the real extraction pipeline on the labelled pages against a scratch database. Needs the model and Postgres.
 - `saved_run_reports/` reads what a run saved: totals, a Markdown report, a comparison, a committable snapshot. Needs only a file.
 
 docs/dev/evaluating-model-performance.md says when to run it and how to read it. docs/dev/implementations/c5.1-model-eval-layout.md

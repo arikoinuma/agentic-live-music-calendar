@@ -9,7 +9,7 @@ added for a later milestone (C6's cost, C7's "attempt failed for any reason") is
 How to read it: `aggregate` at the bottom shows the shape; the helpers above it are one block each (`_column`, `_gate`, `_retry`,
 `_validation`, `_per_fixture`). Page arithmetic (`scoring.summed`, `scoring.headline_rates`) stays in `scoring.py`.
 
-docs/dev/implementations/c5-pipeline-eval-harness.md, Step 3 (C5-D1, C5-D7); moved out of `run_labelled_pages.py` in code review round 2
+docs/dev/implementations/c5-pipeline-eval-harness.md, Step 3 (C5-D1, C5-D7); moved out of `run_labeled_pages.py` in code review round 2
 (C5-CR2-1).
 """
 

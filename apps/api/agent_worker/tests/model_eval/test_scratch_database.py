@@ -1,4 +1,4 @@
-"""Tests for the guard in front of the evaluation harness's scratch database (`model_eval/labelled_page_runs/scratch_database.py`).
+"""Tests for the guard in front of the evaluation harness's scratch database (`model_eval/labeled_page_runs/scratch_database.py`).
 
 Milestone C5 (docs/dev/implementations/c5-pipeline-eval-harness.md, C5-D2). The harness creates and drops a database called
 `calendar_eval` and truncates tables in it, so, like the test fixtures (`app/testing/db.py`), it refuses to touch anything else. It
@@ -11,7 +11,7 @@ Expected values are the rules in the plan: the name is the constant `calendar_ev
 import pytest
 from sqlalchemy.engine import make_url
 
-from agent_worker.model_eval.labelled_page_runs import scratch_database
+from agent_worker.model_eval.labeled_page_runs import scratch_database
 
 
 def test_the_eval_database_url_is_the_configured_server_with_the_eval_name() -> None:
