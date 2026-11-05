@@ -59,6 +59,9 @@ from agent_worker.policy import DEFAULT_POLICY, RetryPolicy
 from app.config import settings
 
 RESULTS_DIR = run_eval.RESULTS_DIR
+# Committable summaries of runs (`--snapshot`): the raw results above are gitignored, because they hold the venues' page text and
+# every extraction. A snapshot keeps the scores, the aggregate, the model and the prompt's hashes, which is what comparing needs.
+SNAPSHOT_DIR = Path(__file__).resolve().parents[4] / "docs" / "dev" / "eval-baselines"
 LABELS_FILE = Path(run_eval.__file__).parent / "labels.py"
 COLUMNS = ("raw", "validated", "committed")
 SCENARIO_CHOICES = tuple(s.value for s in db_score.Scenario)
@@ -308,9 +311,51 @@ def _rescore_run(run: dict[str, Any]) -> None:
             attempt["score"] = _score_dict(page_label, document["raw_extraction"], page_html, run["fixture"])
 
 
+def load_results(label: str) -> dict[str, Any]:
+    """A saved run: the full raw file if it is still on this machine, else the committed snapshot of the same label."""
+    raw, snap = RESULTS_DIR / f"graph-{label}.json", SNAPSHOT_DIR / f"{label}.json"
+    for path in (raw, snap):
+        if path.is_file():
+            loaded: dict[str, Any] = json.loads(path.read_text())
+            return loaded
+    raise FileNotFoundError(f"no saved run {label!r}: looked for {raw} and {snap}")
+
+
+_HEAVY_RUN_KEYS = ("raw", "validated", "committed", "staged_documents")
+_PROMPT_HASHES = ("instruction_sha", "response_schema_sha", "response_schema_chars")
+
+
+def _slim_run(run: dict[str, Any]) -> dict[str, Any]:
+    """A run record without the extractions and staged documents (the venue's page text lives in the latter)."""
+    return {k: v for k, v in run.items() if k not in _HEAVY_RUN_KEYS}
+
+
+def slim(data: dict[str, Any]) -> dict[str, Any]:
+    """The part of a results file worth committing: scores, aggregate, scenarios, model and policy, and the prompt's hashes.
+
+    Left out, and why: each run's extractions and staged documents (they carry the venues' page text and are why the raw files are
+    gitignored), and the full prompt and schema text (their hashes say which prompt produced the numbers). Everything `--report` and
+    `--compare` read is kept, so a snapshot renders the same report as the raw file."""
+    out = {k: v for k, v in data.items() if k not in ("runs", "scenarios", "request")}
+    out["request"] = {k: v for k, v in (data.get("request") or {}).items() if k in _PROMPT_HASHES}
+    out["runs"] = [_slim_run(r) for r in data["runs"]]
+    out["scenarios"] = [
+        {**s, "result": {**s["result"], "runs": [_slim_run(r) for r in s["result"]["runs"]]}} for s in data.get("scenarios", [])
+    ]
+    return out
+
+
+def snapshot(label: str) -> Path:
+    """Write the slim summary of a saved run to `SNAPSHOT_DIR/<label>.json`, ready to commit."""
+    SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
+    out = SNAPSHOT_DIR / f"{label}.json"
+    out.write_text(json.dumps(slim(load_results(label)), indent=2, ensure_ascii=False))
+    return out
+
+
 def compare(labels: list[str]) -> None:
     """Print the headline numbers of saved runs side by side."""
-    files = {name: json.loads((RESULTS_DIR / f"graph-{name}.json").read_text()) for name in labels}
+    files = {name: load_results(name) for name in labels}
     width = 26
     print("".ljust(width) + "".join(name.ljust(22) for name in labels))
     rows: list[tuple[str, Any]] = [("labels_sha", lambda f: str(f.get("labels_sha"))[:10]), ("started_at", lambda f: f.get("started_at"))]
@@ -429,6 +474,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--keep-db", action="store_true", help="leave the scratch database in place afterwards, to read the rows")
     parser.add_argument("--rescore", metavar="LABEL", help="rescore a saved run into graph-rescore-<LABEL>.json (no model)")
     parser.add_argument("--compare", nargs="+", metavar="LABEL", help="print saved runs side by side")
+    parser.add_argument("--snapshot", metavar="LABEL", help="write a slim, committable summary of a saved run to docs/dev/eval-baselines/")
     parser.add_argument("--report", metavar="LABEL", help="print a readable Markdown report of a saved run (graph_report.py)")
     parser.add_argument("--errors", action="store_true", help="with --report: also list every error string in full")
     parser.add_argument("--out", metavar="FILE", help="with --report: write the report to this file instead of printing it")
@@ -511,9 +557,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.compare:
         compare(args.compare)
         return 0
+    if args.snapshot:
+        print(f"wrote {snapshot(args.snapshot)}")
+        return 0
     if args.report:
-        data = json.loads((RESULTS_DIR / f"graph-{args.report}.json").read_text())
-        text = graph_report.render(data, PAGE_LABELS, show_errors=args.errors)
+        text = graph_report.render(load_results(args.report), PAGE_LABELS, show_errors=args.errors)
         if args.out:
             Path(args.out).write_text(text)
             print(f"wrote {args.out}")

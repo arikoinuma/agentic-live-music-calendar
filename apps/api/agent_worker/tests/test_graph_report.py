@@ -39,6 +39,7 @@ def results_file(runs: list[dict[str, Any]], **extra: Any) -> dict[str, Any]:
         "held_out_scored": False, "harness_commit": "0123456789abcdef", "request_options": {"model": "gemma-test"},
         "policy": {"confidence_threshold": 0.8, "max_attempts": 3},
         "provenance": {"gemma-test": {"model_digest": "deadbeefcafe", "ollama_version": "0.99"}},
+        "request": {"instruction": "long prompt text", "instruction_sha": "1234abcd56", "response_schema_sha": "9999aaaa00", "response_schema_chars": 4000},
         "aggregate": graph_eval.aggregate(runs, LABELS), "scenarios": [], "runs": runs, **extra,
     }
 
@@ -64,7 +65,7 @@ def test_the_header_names_what_produced_the_numbers() -> None:
     # Proves: a report says which labels, policy and model it came from, because a number without them cannot be compared with
     # another run's (the local baseline against the hosted one, C6). Expected: the values written into the hand-built file.
     text = graph_report.render(results_file(clean_and_bad()), LABELS)
-    for needle in ("demo", "abcdef0123", "0123456789", "gemma-test", "deadbeefcafe", "0.8", "held-out scored: no"):
+    for needle in ("demo", "abcdef0123", "0123456789", "gemma-test", "deadbeefcafe", "0.8", "held-out scored: no", "prompt sha: 1234abcd"):
         assert needle in text, needle
 
 
@@ -201,6 +202,37 @@ def test_repeatability_is_reported_when_a_page_was_run_more_than_once() -> None:
     assert "gated.html: DIFFERENT across 2 runs" in text
     assert "info.html: identical across 2 runs" in text
     assert "Repeatability" not in graph_report.render(results_file([record("gated.html")]), LABELS)
+
+
+def fields_file() -> dict[str, Any]:
+    """A results file whose raw column has one field inside the standard, one over the missing limit and one with a wrong value."""
+    score = score_dict(labelled=10, returned=10)
+    score["fields"]["time"] = {"stated": 80, "correct": 78, "missing": 2, "wrong": 0}
+    score["fields"]["end_time"] = {"stated": 25, "correct": 20, "missing": 5, "wrong": 0}
+    score["fields"]["admission_day"] = {"stated": 12, "correct": 11, "missing": 0, "wrong": 1}
+    score["fields"]["image_url"] = {"stated": 0, "correct": 40, "missing": 0, "wrong": 0}
+    return results_file([record("gated.html", raw_score=score, validated_score=score, committed_score=score)])
+
+
+def test_the_fields_table_applies_the_standard_to_every_field() -> None:
+    # Proves: field-level accuracy, the last "done when" item of C5, is printed and judged by Ari's standard (A2.1-D1): other fields
+    # may be missing at most 10% of the values the page states, and a wrong value is never allowed. Expected, worked from the
+    # hand-built tallies: time 2 of 80 missing = 2.5% (ok); end_time 5 of 25 = 20% (over the limit); admission_day has one wrong
+    # value (WRONG, whatever the missing rate); image_url states nothing to be missing, 40 correct (ok).
+    text = graph_report.render(fields_file(), LABELS)
+    rows = {line.split("|")[1].strip(): line for line in text.splitlines() if line.startswith("| ") and "|" in line}
+    assert "2.5%" in rows["time"] and rows["time"].rstrip().endswith("ok |")
+    assert "20.0%" in rows["end_time"] and "over 10% missing" in rows["end_time"]
+    assert "WRONG" in rows["admission_day"]
+    assert rows["image_url"].rstrip().endswith("ok |")
+
+
+def test_the_fields_table_says_what_it_sums_over() -> None:
+    # Proves: the tallies are summed over every run in the file (a RUNS=3 file counts each page three times), and the table says so,
+    # so a reader does not mistake the counts for a single run's.
+    assert "summed over all 3 runs" in graph_report.render(
+        results_file([record("gated.html", run=i) for i in range(3)]), LABELS,
+    )
 
 
 # keep names imported for the helper signatures above

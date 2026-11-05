@@ -20,6 +20,10 @@ from typing import Any
 from agent_worker.eval.labels import PageLabel
 
 COLUMNS = ("raw", "validated", "committed")
+# The fields the standard judges besides date and acts, in the order the labels and the schema list them (A2.1-D1): missing is
+# tolerated up to a tenth of the values the page states, a wrong value never.
+FIELD_ORDER = ("time", "end_time", "admission_advance", "admission_day", "free_admission", "status", "image_url")
+MISSING_LIMIT = 0.10
 
 
 def _counts(score: Mapping[str, Any]) -> str:
@@ -46,6 +50,7 @@ def _header(data: Mapping[str, Any]) -> list[str]:
     provenance = data.get("provenance") or {}
     first_provenance = next(iter(provenance.values()), None) or {}
     policy = data.get("policy") or {}
+    request = data.get("request") or {}
     return [
         f"# Report: {data.get('label')}",
         "",
@@ -62,6 +67,7 @@ def _header(data: Mapping[str, Any]) -> list[str]:
             f"policy: threshold {policy.get('confidence_threshold')}, cap {policy.get('max_attempts')}, "
             f"escalation model {policy.get('escalation_model') or 'none'}"
         ),
+        *([f"- prompt sha: {str(request.get('instruction_sha'))[:10]}; response schema sha: {str(request.get('response_schema_sha'))[:10]}"] if request else []),
         "",
     ]
 
@@ -123,6 +129,42 @@ def _validation(aggregate: Mapping[str, Any]) -> list[str]:
             "(low confidence is a verdict reason, not a finding), so 'silent' can include errors a retry did stop."
         )
     return [*lines, ""]
+
+
+def _fields(data: Mapping[str, Any]) -> list[str]:
+    """Field-level accuracy: the standard's rule for every field besides date and acts, applied to the raw column's tallies."""
+    columns = data["aggregate"]["columns"]
+    tallies: Mapping[str, Mapping[str, int]] = columns["raw"]["fields"]
+    rows = []
+    for name in [*FIELD_ORDER, *sorted(set(tallies) - set(FIELD_ORDER))]:
+        if name not in tallies:
+            continue
+        stated, correct, missing, wrong = (tallies[name][k] for k in ("stated", "correct", "missing", "wrong"))
+        rate = missing / stated if stated else None
+        if wrong:
+            verdict = "WRONG"
+        elif rate is not None and rate > MISSING_LIMIT:
+            verdict = "over 10% missing"
+        elif not stated and not correct:
+            verdict = "n/a"
+        else:
+            verdict = "ok"
+        rows.append([name, str(stated), str(correct), str(missing), str(wrong), "-" if rate is None else f"{rate:.1%}", verdict])
+    runs = len(data["runs"])
+    by_column = ", ".join(f"{c} {sum(t['wrong'] for t in columns[c]['fields'].values())}" for c in COLUMNS)
+    return [
+        "## Field accuracy", "",
+        (
+            "The standard (A2.1-D1): a value the page states may be missing at most 10% of the time, and a wrong value never. "
+            f"Raw column, summed over all {runs} {'run' if runs == 1 else 'runs'} in the file; image links are checked against the "
+            "page, so they have no 'stated' count."
+        ),
+        "",
+        *_table(["field", "stated", "correct", "missing", "wrong", "missing rate", "verdict"], rows),
+        "",
+        f"Wrong values by column: {by_column}.",
+        "",
+    ]
 
 
 def aggregate_per_fixture(data: Mapping[str, Any]) -> Mapping[str, Mapping[str, Any]]:
@@ -228,7 +270,7 @@ def render(data: Mapping[str, Any], labels: Mapping[str, PageLabel], *, show_err
     """The Markdown report for one results file. `labels` says which pages are gated (a page missing from it prints as '?')."""
     aggregate = data["aggregate"]
     lines = [
-        *_header(data), *_headline(aggregate), *_retry(aggregate), *_validation(aggregate), *_pages(data, labels),
+        *_header(data), *_headline(aggregate), *_retry(aggregate), *_validation(aggregate), *_fields(data), *_pages(data, labels),
         *_attempts(data), *_scenarios(data, show_errors), *_gate_failures(aggregate),
     ]
     if show_errors:
