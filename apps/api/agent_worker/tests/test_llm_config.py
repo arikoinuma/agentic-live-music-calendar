@@ -236,17 +236,35 @@ ENDPOINT_CASES = [
     ("dev", "openai_compatible", "http://[::1]:11434/v1", "real-key", True, "IPv6 loopback"),
     ("prod", "openai_compatible", "https://api.deepinfra.com/v1/openai", "ollama", True, "the placeholder key would 401"),
     ("local", "openai_compatible", "https://api.deepinfra.com/v1/openai", "ollama", True, "a hosted URL with no key either"),
+    ("local", "ollama", None, "ollama", True, "no endpoint is configured anywhere: there is no built-in default"),
+    ("prod", "openai_compatible", "", "real-key", True, "an empty MODEL_BASE_URL counts as unset"),
 ]
 
 
 @pytest.mark.parametrize(("app_env", "provider", "base_url", "api_key", "problem", "why"), ENDPOINT_CASES)
 def test_the_workers_model_endpoint_rule(
-    app_env: str, provider: str, base_url: str, api_key: str, problem: bool, why: str
+    app_env: str, provider: str, base_url: str | None, api_key: str, problem: bool, why: str
 ) -> None:
     # Proves (C6-PR1-1): the rule that stops a hosted worker pointing at localhost, or a hosted endpoint with the
     # placeholder key, before the first model call fails with a connection error or a 401. `why` names each row.
     result = model_endpoint_problem(app_env, provider, base_url, api_key)  # type: ignore[arg-type]
     assert (result is not None) == problem, why
+
+
+def test_no_endpoint_url_is_built_into_the_code() -> None:
+    # Proves (Ari's comment on PR 80): the model endpoint comes only from the environment (`MODEL_BASE_URL`), never from a URL
+    # written in `Settings`. With nothing set the field is None, and the worker's start-up rule is what refuses to run;
+    # the hosted API, which never sets it, still builds `Settings` (C6-PR1-1). Fails if a default URL is put back.
+    assert make_settings().model_base_url is None
+    assert make_settings(model_base_url="https://api.example.test/v1").model_base_url == "https://api.example.test/v1"
+
+
+def test_a_client_built_with_no_endpoint_never_reaches_a_real_provider() -> None:
+    # Proves (Ari's comment on PR 80): the OpenAI client treats `base_url=None` as api.openai.com. `build_clients` is called at
+    # import by every process, the API included, so with no endpoint it must point somewhere that cannot answer
+    # (the reserved `.invalid` TLD) rather than silently at OpenAI.
+    raw, _ = build_clients(make_settings())
+    assert "api.openai.com" not in str(raw.base_url) and ".invalid" in str(raw.base_url)
 
 
 # ---------------------------------------------------------------------------
