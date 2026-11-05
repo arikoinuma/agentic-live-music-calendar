@@ -31,6 +31,10 @@ from app.config import Settings, settings
 Provider = Literal["ollama", "openai_compatible"]
 
 
+# Where a client points when `MODEL_BASE_URL` is unset: a reserved name that never resolves (see `build_clients`).
+_NO_ENDPOINT = "http://model-endpoint-not-set.invalid/v1"
+
+
 def build_clients(config: Settings) -> tuple[OpenAI, Any]:
     """The OpenAI client for the configured endpoint, and the instructor client wrapped around it.
 
@@ -40,7 +44,12 @@ def build_clients(config: Settings) -> tuple[OpenAI, Any]:
     call, so importing this module is safe in CI. The pipeline and the eval harness both call this, which is
     what keeps them on the same endpoint.
     """
-    raw = OpenAI(base_url=config.model_base_url, api_key=config.model_api_key.get_secret_value())
+    # With no `MODEL_BASE_URL` (the hosted API, which never calls a model) the OpenAI client would otherwise default to
+    # api.openai.com. Point it at a name that cannot resolve (`.invalid` is reserved), so an unconfigured call fails
+    # loudly instead of reaching a real provider; the worker's start-up rule stops before any call (Ari's comment on PR 80).
+    raw = OpenAI(
+        base_url=config.model_base_url or _NO_ENDPOINT, api_key=config.model_api_key.get_secret_value()
+    )
     return raw, instructor.from_openai(raw, mode=Mode.JSON)
 
 

@@ -280,3 +280,15 @@ def test_the_missing_value_limit_is_the_standards_not_a_second_copy() -> None:
     from agent_worker.model_eval import scoring
 
     assert markdown_report.MISSING_LIMIT == scoring.MISSING_TOLERANCE
+
+
+def test_a_graph_eval_with_no_model_endpoint_stops_before_running(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Proves: `make eval-graph` applies the same start-up rule as the worker and `run_eval` (`model_endpoint_problem`):
+    # with no `MODEL_BASE_URL` it exits 2 at once instead of building the scratch database and failing every
+    # page on a connection error. Before this, only the worker and `run_eval` had the check.
+    async def must_not_run(args: Any) -> int:
+        raise AssertionError("evaluate() ran with no model endpoint")
+
+    monkeypatch.setattr(run_labeled_pages.settings, "model_base_url", None)
+    monkeypatch.setattr(run_labeled_pages, "evaluate", must_not_run)
+    assert run_labeled_pages.main(["--label", "x"]) == 2

@@ -397,6 +397,15 @@ Ari approved fixing the prompt and the Flange case on the 26B model before any f
 
 **Deferred, same day** (`arch-initial.md` §10): the browser-based fetch in the metro timezone, the comparison with the rendered page, and a screenshot audit.
 
+### Review of PR 80 — Ari's three comments, Claude Sonnet 5.5, November 5, 2026
+
+Ari's comments on the draft PR (`run_eval.py:136`, `config.py:114`). **Fixed, all three:**
+
+1. **`_record_parse_error` had no comment, "nor do the rest of the functions in this file".** Every function and class in `model_eval/run_eval.py` without a docstring now has one (eight: the two counting hooks, `load_text_fixture`, `load_image_fixture`, `_act_name`, `_generalize_loc`, `_same_model`, `main`); three were comments above the body and became docstrings. Verified as a comment-only pass: the syntax trees before and after, with docstrings removed, are equal.
+2. **`model_base_url` was a URL written in `config.py`; it should come from an environment variable.** It now has no default (`str | None = None`), so `MODEL_BASE_URL` is the only source. `.env.example` carries the local Ollama's line; `apps/api/.env` (git-ignored) got the same line so the laptop still works. The hosted API, which never sets it, still builds `Settings` (C6-PR1-1). `main.model_endpoint_problem` now also refuses a worker with no endpoint, and `llm.build_clients` points an unconfigured client at a reserved `.invalid` name, because the OpenAI client would otherwise default to api.openai.com. The same hard-code existed in `run_eval.py` (`OLLAMA_URL`, used for Ollama's `/api/ps`, `/api/version`, `/api/tags`); it is now derived from the configured URL (`ollama_root`). Tests: no default in `Settings`; no endpoint refused (None and empty); the unconfigured client avoids api.openai.com; the Ollama provenance asks the configured host. `environments.md` row updated.
+
+**Verification:** `uv run pytest agent_worker app` 1168 passed, ruff and mypy clean; `make check` is run before the push.
+
 ## Code review
 
 ### Round 1 — Claude Opus 5.5, October 28, 2026
