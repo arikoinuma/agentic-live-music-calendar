@@ -35,7 +35,9 @@ Run from the repo root. Times are from the first local baseline (November 4, 202
 | 5 | **Repeatability** | `make eval-graph LABEL=<m>-repeat ONLY=white_squirrel-2026-10-10 RUNS=3`, and the same for one model-route page (`ONLY=mortimers`) | ~5 to 20 min | The report's Repeatability lines: identical, or DIFFERENT. Differences mean a single run is a weak sample. |
 | 6 | **Retry loop (optional)** | `make eval-graph LABEL=<m>-retry THRESHOLD=0.99` | ~60 min (local) | The report's Retried pages table: do later attempts have fewer errors than the first? |
 | 7 | **Compare** | `make eval-compare LABELS="<old> <new>"` | seconds | The same rows for both: recall, precision, gate, retry rate, validation recall. |
-| 8 | **Record** | `make eval-report LABEL=<m>-baseline OUT=<m>-baseline.md ERRORS=1` for each label that matters | seconds | Paste the report into the milestone's Implementation log (the results files are gitignored), with the model and digest. |
+| 8 | **Record** | `make eval-report LABEL=<m>-baseline OUT=<m>-baseline.md ERRORS=1` for each label that matters, and `make eval-snapshot LABEL=<m>-baseline` | seconds | Paste the report into the milestone's Implementation log, with the model and digest, and commit the snapshot (below). |
+
+**Snapshots.** The raw results files are gitignored (they hold the venues' page text and every extraction, and a hosted run's request options must never reach git). `make eval-snapshot` writes a slim summary to `docs/dev/eval-baselines/<label>.json` that is safe to commit: scores, aggregate, scenarios, model, policy and the prompt's hashes, without extractions or page text. `eval-report` and `eval-compare` fall back to it when the raw file is gone, so a baseline survives a new laptop. Commit one for a run that matters and name it in the milestone's log. `--rescore` needs the raw file.
 
 `make eval-graph` also takes `SET=gated|informational|held_out|all`, `ONLY=<text>`, `RUNS=<n>`, `THRESHOLD=<x>`, `MAX_ATTEMPTS=<n>` and `KEEP_DB=1`; `make help` lists them. `OUT` is relative to `apps/api`.
 
@@ -45,10 +47,11 @@ Run from the repo root. Times are from the first local baseline (November 4, 202
 
 | Section | The question it answers | Watch for |
 |---|---|---|
-| **Header** | What produced these numbers? | A different `labels_sha`, model or policy than the run you are comparing with. |
+| **Header** | What produced these numbers? | A different `labels_sha`, model, policy or prompt sha than the run you are comparing with. |
 | **Headline** | Raw (the model), validated (what reconcile receives), committed (the rows in the database): where does accuracy move? | Raw, validated and committed equal means nothing downstream helps or hurts. Committed lower than validated means escalated runs, which commit nothing. |
 | **The retry loop** | Did it fire, and did it help? | `errors first attempt` equal to `final attempt` means the retries changed nothing on net. |
 | **Validation recall** | Of the model's errors, how many did a check notice? | `silent` is the dangerous column: nothing noticed. Flagged means only a warning, which never changes the verdict. Read the note under it when pages were retried. |
+| **Field accuracy** | Are start times, end times, prices and the rest within the standard? | `WRONG` (never allowed) or `over 10% missing`. |
 | **Pages** | Which pages carry the errors? | Counts are missed/wrong acts/invented/leaks. Gated pages (G) decide the gate; informational ones (i) never do. |
 | **Retried pages** | What did each attempt do? | A later attempt with more errors than the first, or a correct page escalated. |
 | **Scenarios** | What does the database hold after two runs? | `invented` above 0; a removal that should not have happened. |

@@ -13,7 +13,7 @@ API_DIR := apps/api
 WEB := calendar
 
 .DEFAULT_GOAL := help
-.PHONY: help setup dev api web db db-up db-down db-reset db-shell db-wait worker eval-graph eval-report eval-compare \
+.PHONY: help setup dev api web db db-up db-down db-reset db-shell db-wait worker eval-graph eval-report eval-compare eval-snapshot \
         migrate migration rehearse-migration seed fixtures types contract-check designation-check test coverage lint typecheck \
         e2e check clean
 
@@ -107,6 +107,10 @@ eval-graph: ## Score the whole pipeline on labelled pages (local only: needs mak
 eval-report: ## Print a readable Markdown report of a saved graph run (LABEL=<name> [ERRORS=1] [OUT=file.md])
 	@test -n "$(LABEL)" || { echo "usage: make eval-report LABEL=<name> [ERRORS=1] [OUT=file.md]"; exit 2; }
 	cd $(API_DIR) && uv run python -m agent_worker.eval.graph_eval --report $(LABEL) $(if $(ERRORS),--errors) $(if $(OUT),--out $(OUT))
+
+eval-snapshot: ## Write a slim, committable summary of a saved run to docs/dev/eval-baselines/ (LABEL=<name>)
+	@test -n "$(LABEL)" || { echo "usage: make eval-snapshot LABEL=<name>"; exit 2; }
+	cd $(API_DIR) && uv run python -m agent_worker.eval.graph_eval --snapshot $(LABEL)
 
 eval-compare: ## Compare saved graph runs side by side (LABELS="a b")
 	@test -n "$(LABELS)" || { echo "usage: make eval-compare LABELS=\"label-a label-b\""; exit 2; }

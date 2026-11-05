@@ -377,3 +377,80 @@ def test_rescore_also_rescores_the_scenarios_database_score(tmp_path: Path, monk
     out = json.loads(graph_eval.rescore("old").read_text())
     assert out["scenarios"][0]["database_score"]["missed"] == 1
     assert out["scenarios"][0]["result"]["runs"][1]["raw_score"]["missed"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Snapshots: a slim, committable summary of a run (raw results stay gitignored)
+# ---------------------------------------------------------------------------
+
+
+def heavy_results() -> dict[str, Any]:
+    """A results dict carrying the heavy parts a snapshot must leave out: extractions, staged documents (page text) and the prompt."""
+    run = record("page.html", raw={"shows": [{"date": "2026-10-20"}]})
+    run["validated"] = run["committed"] = run["raw"]
+    run["staged_documents"] = [{"attempt": 1, "page_text": "THE VENUE PAGE TEXT " * 500, "raw_extraction": run["raw"]}]
+    return {
+        "label": "demo", "started_at": "2026-11-04T17:00:00+00:00", "set": "all", "scenario": None, "labels_sha": "abc",
+        "held_out_scored": False, "harness_commit": "def", "config": {"route": "auto"}, "request_options": {"model": "m"},
+        "request": {"instruction": "A LONG PROMPT " * 500, "instruction_sha": "1234abcd56", "response_schema": {"big": "schema"},
+                    "response_schema_sha": "9999aaaa00", "response_schema_chars": 4000},
+        "policy": {"confidence_threshold": 0.8}, "provenance": {"m": {"model_digest": "d"}},
+        "aggregate": graph_eval.aggregate([run], {"page.html": GATED}), "scenarios": [], "runs": [run],
+    }
+
+
+def test_a_snapshot_drops_the_page_text_extractions_and_prompt_but_keeps_the_scores() -> None:
+    # Proves: a snapshot is safe and small enough to commit. It must NOT carry the venue pages' text (staged documents), the raw
+    # extractions, or the full prompt (the raw results are gitignored for exactly these reasons), and must keep everything the
+    # report and --compare read: the aggregate, each run's scores and attempts, the policy, the model and the prompt's hashes
+    # (they identify which prompt produced the numbers).
+    data = heavy_results()
+    snap = graph_eval.slim(data)
+    text = json.dumps(snap)
+    assert "THE VENUE PAGE TEXT" not in text and "A LONG PROMPT" not in text and "raw_extraction" not in text
+    assert len(text) < len(json.dumps(data)) / 2  # the real guarantees are the absences above; this only catches a bulky regression
+    assert snap["aggregate"] == data["aggregate"] and snap["labels_sha"] == "abc"
+    assert snap["request"] == {"instruction_sha": "1234abcd56", "response_schema_sha": "9999aaaa00", "response_schema_chars": 4000}
+    assert snap["runs"][0]["raw_score"] == data["runs"][0]["raw_score"] and "raw" not in snap["runs"][0]
+    assert snap["runs"][0]["attempts"] == data["runs"][0]["attempts"]
+
+
+def test_a_snapshot_renders_a_report_and_compares_like_the_full_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Proves: the point of the snapshot. After the raw results are gone (a new laptop, a cleaned folder), the committed snapshot is
+    # enough for `--report` and `--compare`. The report from the snapshot equals the report from the full file.
+    from agent_worker.eval import graph_report
+
+    data = heavy_results()
+    snapshots = tmp_path / "snapshots"
+    monkeypatch.setattr(graph_eval, "RESULTS_DIR", tmp_path / "results")
+    monkeypatch.setattr(graph_eval, "SNAPSHOT_DIR", snapshots)
+    (tmp_path / "results").mkdir()
+    (tmp_path / "results" / "graph-demo.json").write_text(json.dumps(data))
+    out = graph_eval.snapshot("demo")
+    assert out == snapshots / "demo.json" and out.is_file()
+    (tmp_path / "results" / "graph-demo.json").unlink()  # the raw file is gone
+    loaded = graph_eval.load_results("demo")
+    assert graph_report.render(loaded, {"page.html": GATED}) == graph_report.render(graph_eval.slim(data), {"page.html": GATED})
+    graph_eval.compare(["demo"])
+    assert "labels_sha" in capsys.readouterr().out
+
+
+def test_load_results_prefers_the_raw_file_and_says_where_it_looked(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Proves: a missing label gives an error naming both places it looked, instead of a bare FileNotFoundError, and a label present in
+    # both places loads the full raw file (the snapshot is the fallback).
+    monkeypatch.setattr(graph_eval, "RESULTS_DIR", tmp_path / "results")
+    monkeypatch.setattr(graph_eval, "SNAPSHOT_DIR", tmp_path / "snapshots")
+    with pytest.raises(FileNotFoundError, match="snapshots"):
+        graph_eval.load_results("nope")
+    (tmp_path / "results").mkdir()
+    (tmp_path / "snapshots").mkdir()
+    (tmp_path / "results" / "graph-both.json").write_text(json.dumps({"which": "raw"}))
+    (tmp_path / "snapshots" / "both.json").write_text(json.dumps({"which": "snapshot"}))
+    assert graph_eval.load_results("both") == {"which": "raw"}
+
+
+def test_the_snapshot_flag() -> None:
+    # Proves: `--snapshot LABEL` parses (and sits beside --report and --compare).
+    assert graph_eval.parse_args(["--snapshot", "x"]).snapshot == "x"

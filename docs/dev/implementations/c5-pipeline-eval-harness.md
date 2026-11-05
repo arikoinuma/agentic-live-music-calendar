@@ -718,6 +718,17 @@ Retried 5 of 10 runs (rate 0.5), mean attempts 2.0, escalated 3, recovered 2; at
 
 **Verification.** `make check` exit 0 (ruff, mypy on 141 files, 1139 pytest passed, vitest, contract-check, designation-check, e2e 107 passed).
 
+### Round 6 — Claude Sonnet 5.5, November 5, 2026 (field accuracy in the report; committable snapshots)
+
+Two additions to the reporting tools, both asked for by Ari after Round 5:
+
+- **A Field accuracy section in `make eval-report`.** Field-level accuracy was the one "done when" item whose numbers sat in the results file (`aggregate.columns.*.fields`) unread. The report now prints, for the raw column and summed over every run in the file, each field's stated, correct, missing and wrong counts and its missing rate, with the standard's verdict (A2.1-D1: a wrong value never; missing at most 10%): `ok`, `over 10% missing`, `WRONG` or `n/a`. A line under it gives the wrong-value total per column. The header now also prints the prompt and response-schema hashes, so a report says which prompt produced it.
+- **Snapshots.** The raw results files stay gitignored (they hold the venues' page text and every extraction, and C6 must not let a hosted run's request options reach git). `make eval-snapshot LABEL=<name>` writes `docs/dev/eval-baselines/<label>.json`: the aggregate, every run's scores and attempts, the scenarios, the model and provenance, the policy, `labels_sha`, the harness commit and the prompt's hashes, without extractions, staged documents or the prompt text. `--report` and `--compare` use the raw file when present and fall back to the snapshot, so a baseline survives a new laptop; `--rescore` needs the raw file. `docs/dev/eval-baselines/README.md` says what a snapshot holds.
+
+**Still for Ari.** Run the field accuracy read (`make eval-report LABEL=c5-baseline`, the Field accuracy section) and write its one-line conclusion here; commit snapshots of the runs worth keeping (`make eval-snapshot LABEL=c5-baseline`, and the sequence, perturbed and retry labels); and fill Round 4's provenance blanks.
+
+**Verification.** `make check` exit 0 (ruff, mypy, 1146 pytest passed, vitest, contract-check, designation-check, e2e 107 passed).
+
 ## Code review
 
 *(Written by `plan-reviewer`.)*
