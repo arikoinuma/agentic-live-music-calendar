@@ -197,8 +197,26 @@ def usable_events(html: str) -> list[dict[str, Any]]:
         {**e, "_source": "json-ld"} for e in jsonld.find_events(html) if e.get("startDate") and e.get("name")
     ]
     if ld:
-        return ld
-    return [e for e in embedded_events.find_events(html) if e.get("startDate") and e.get("name")]
+        return _without_repeats(ld)
+    return _without_repeats([e for e in embedded_events.find_events(html) if e.get("startDate") and e.get("name")])
+
+
+def _without_repeats(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep the first of any events that repeat name, start and url (C6.1-D11).
+
+    Dakota's JSON-LD lists 13 of its events twice (the same url and start; one copy has no "@id"), so
+    the pipeline committed 64 shows for 51 real ones and the calendar would show each of those twice.
+    Name AND start AND url, not less: two sets of one act on one night start at different times, and
+    the same act on two nights has two starts, and neither is a repeat. The first copy is kept because
+    the venue's own markup puts the fuller one (with its "@id") first."""
+    seen: set[tuple[Any, Any, Any]] = set()
+    kept = []
+    for event in events:
+        key = (event.get("name"), event.get("startDate"), event.get("url"))
+        if key not in seen:
+            seen.add(key)
+            kept.append(event)
+    return kept
 
 
 def page_model_for(config: ExtractionConfig) -> type[BaseModel]:

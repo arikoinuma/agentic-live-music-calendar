@@ -581,3 +581,30 @@ def test_every_listing_field_carries_over_to_its_show() -> None:
     assert (show.admission_advance, show.admission_day, show.free_admission) == (12.5, 15.0, None)
     assert (show.image_url, show.is_ambiguous, show.confidence) == ("https://x.example/p.png", True, 0.7)
     assert [a.name for a in show.acts] == ["Lent", "Gills"]
+
+
+# ---------------------------------------------------------------------------
+# A page that lists the same event twice (C6.1-D11)
+# ---------------------------------------------------------------------------
+
+
+def test_an_event_a_page_lists_twice_is_one_show() -> None:
+    # Proves (C6.1-D11): Dakota's JSON-LD carries 13 events twice (same url and start, one copy without an
+    # "@id"), which committed 64 shows for 51 real ones and put every one of those on the calendar twice.
+    # The invented page repeats one event with and without an "@id"; `usable_events` keeps the first copy
+    # (the richer one) only.
+    first = ws_event("Ada Fox", "2026-11-05T19:00:00-06:00", url="https://x.example/ada-fox/", **{"@id": "https://x.example/ada-fox/#event"})
+    twin = ws_event("Ada Fox", "2026-11-05T19:00:00-06:00", url="https://x.example/ada-fox/")
+    events = extraction.usable_events(jsonld_page(first, ws_event("Ben Ode", "2026-11-06T19:00:00-06:00"), twin))
+    assert [e["name"] for e in events] == ["Ada Fox", "Ben Ode"]
+    assert events[0].get("@id") == "https://x.example/ada-fox/#event"
+
+
+def test_two_sets_the_same_night_are_not_repeats() -> None:
+    # Proves (C6.1-D11): the limit of the rule. Dakota runs two sets of one act on one date at different times,
+    # and the same act can play two nights; only an event that repeats name AND start AND url is dropped, or a
+    # real second set would vanish from the calendar.
+    early = ws_event("Ada Fox", "2026-11-05T18:00:00-06:00", url="https://x.example/ada-fox/")
+    late = ws_event("Ada Fox", "2026-11-05T20:30:00-06:00", url="https://x.example/ada-fox/")
+    next_night = ws_event("Ada Fox", "2026-11-06T18:00:00-06:00", url="https://x.example/ada-fox/")
+    assert len(extraction.usable_events(jsonld_page(early, late, next_night))) == 3
