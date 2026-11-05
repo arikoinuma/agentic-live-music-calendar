@@ -348,6 +348,34 @@ Ari approved fixing the prompt and the Flange case on the 26B model before any f
 - **Prompt rules changed** (`prompts._act_conventions`, shared by both routes; invented examples only). `splitter_instruction` and `image_instruction` are re-pinned in `test_retry_plumbing.py` (`CURRENT`); the historical 56/60 pins stay as the record.
 - **Rungs on hold:** the 31B and Qwen splitter candidates were measured under the old prompt rules, so their numbers are not comparable. With the gate passing on the 26B model, no further rung is run (D3's exit rule (a) now needs only the 5-run confirmation on both sets).
 
+### Round 8 — Steps 10 and 11 (Part 2 branch `c6-hosted-inference-gate`), Claude Sonnet 5.5 (run for Ari), November 5, 2026
+
+**Step 10 — the act-in-title check (C6-D6).** New `run_eval.act_title_check` and `--act-check LABEL…` replay `validation.check_act_in_title` over saved results (tests: `tests/model_eval/test_act_title_check.py`). Run over the five saved splitter labels, all rescored under the current labels, plus `c6-prompt-v4` (25 JSON-LD-route runs each, none skipped):
+
+| Label | Label errors ("acts wrong" dates) | Flagged by the check | Caught | False alarms |
+|---|---|---|---|---|
+| `c6-hosted-first` (26B) | 10 | 0 | 0 | 0 |
+| `c6-prompt-v2` (26B) | 5 | 0 | 0 | 0 |
+| `c6-prompt-v3` (26B) | 0 | 0 | 0 | 0 |
+| `c6-split-gemma-4-31B-it` | 10 | 0 | 0 | 0 |
+| `c6-split-qwen3-235b` | 15 | 1 | 1 | 0 |
+| `c6-prompt-v4` (26B) | 0 | 0 | 0 | 0 |
+
+- **Decision: leave it a warning (recommended; Ari may overrule).** The plan's rule is to promote it if it catches a labelled error without a false alarm, and it did once, with no false alarms. But that one catch was on the Qwen candidate, which is not the model being shipped. The 26B model's errors were convention and omission errors whose names are in the title, which the check cannot see (its limit: typos and invented names only), and in `c6-prompt-v4` there is nothing for it to catch. Promoting it would add a retry path that has fired once in about 150 runs. Revisit if the held-out capture shows typos. Matching by date is approximate for two shows on one date.
+
+**Step 11 — throughput and cost.** New `--concurrency N` (`run_eval.map_runs`, a thread pool; per-run counters were already per-thread from Step 4) with two tests (order preserved; one worker uses no threads).
+
+| Measure | Value |
+|---|---|
+| Sequential, `c6-prompt-v4`, 25 runs | mean 35 s a run, about 14.6 minutes in all (25 × 35 s; not timed as one wall clock) |
+| Concurrency 5, `c6-conc5`, 25 runs | **225 s wall clock** (3.9 times faster), mean 44 s a run, gate PASS, 0 parse failures |
+| Slowest pages (model route, many shows) | Seventh St about 73 s and Turf Club about 71 s a run, 3.5 to 4.7 thousand completion tokens each, about 65 tokens per second |
+| Tokens, 25 runs at concurrency 5 | 100,215 prompt + 50,946 completion |
+| Cost, same 25 runs | about **$0.024** at the 26B prices ($0.07 and $0.34 per million tokens), roughly $0.001 a page |
+
+- **Thinking:** no sign of hidden reasoning tokens (PLAUSIBLE, not proven): completion tokens per character of output are steady across pages (about 2.4 characters a token on Seventh St and Turf Club, 2.7 on Mortimers). No thinking switch was found, so no on/off comparison was run.
+- **Not done:** the cost is computed from recorded tokens at the prices Ari read off the DeepInfra pricing page; the plan asks for a cross-check against the account's actual spend for the run, which needs the dashboard and is Ari's to read. Not compared with `arch-initial.md` §10's estimate or the laptop's 1.5 to 7 minutes a page yet; that belongs to Step 13.
+
 ## Code review
 
 ### Round 1 — Claude Opus 5.5, October 28, 2026
