@@ -52,7 +52,7 @@ async def test_stage_returns_the_id_of_the_stored_document(client: AsyncMongoCli
     state = VenueGraphState(
         venue_id=4, calendar_url="https://venue.example/events", venue_name="The Venue",
         metro_timezone="America/Chicago", run_id=9, attempt_count=1, route_attempted="model",
-        last_plan=AttemptPlan(tier="initial", config=extraction.PIPELINE_CONFIG, options=extraction.PIPELINE_OPTIONS),
+        last_plan=AttemptPlan(tier="initial", config=extraction.PIPELINE_CONFIG, roles=extraction.PIPELINE_ROLES),
         extraction_notes={"seen": datetime.date(2026, 10, 12)}, extract_error="ValueError: bad json",
     )
     collection = client[TEST_DATABASE]["extraction_staging"]

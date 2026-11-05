@@ -211,13 +211,13 @@ Provisioning only — nothing gets deployed yet. Capture each credential into `a
 
 ### Railway — agent worker service
 
-**Skipped — this entire section, deliberately descoped from initial scaffolding.** See `arch-initial.md` Section 11 for the full reasoning: `reconcile_node`/`commit_node` are still placeholder stubs, R2/MongoDB writes are stubbed, and the model client's `base_url` is still hardcoded to local Ollama — a real cron run wouldn't do anything meaningful yet regardless of whether this service exists. Revisit as its own scope of work, not part of this runbook. *(Now planned: `docs/dev/alpha-deployment-plan.md`, C8, with DeepInfra in C6.)*
+**Skipped — this entire section, deliberately descoped from initial scaffolding.** See `arch-initial.md` Section 11 for the full reasoning: `reconcile_node`/`commit_node` are still placeholder stubs, R2/MongoDB writes are stubbed, and the model client's `base_url` was hardcoded to local Ollama (configurable since C6 Part 1, October 28, 2026) — a real cron run wouldn't do anything meaningful yet regardless of whether this service exists. Revisit as its own scope of work, not part of this runbook. *(Now planned: `docs/dev/alpha-deployment-plan.md`, C8, with DeepInfra in C6.)*
 
 This one has a real gotcha worth taking seriously when that work resumes: Playwright's Python package installs fine via `uv add`, but the Chromium *binary* it needs is a separate download, and a plain buildpack deploy won't fetch it automatically. The most common way this breaks in production is discovering it the first time the deployed job tries to launch a browser and can't.
 
 - [ ] Give this service its own `Dockerfile` (Railway uses it automatically if present in the service's root) based on Playwright's official image, `mcr.microsoft.com/playwright/python`, which already includes Chromium and the system libraries it depends on — don't build this service the same generic way as the plain-Python FastAPI service
 - [ ] Start command: `python -m agent_worker.main`, configured as **cron-scheduled**, not always-on; set the crontab expression for the daily run
-- [ ] Environment variables: `DATABASE_URL`, `MONGODB_URI`, R2 credentials, and the model provider variables — pointed at **DeepInfra from Phase 7, not Ollama**. `localhost:11434` doesn't exist on Railway, and it's an easy thing to leave pointed at your laptop by accident
+- [ ] Environment variables: `DATABASE_URL`, `MONGODB_URI`, R2 credentials, and the model provider variables — pointed at **DeepInfra from Phase 7, not Ollama**. `localhost:11434` doesn't exist on Railway, and it's an easy thing to leave pointed at your laptop by accident (C6: the variables are `MODEL_BASE_URL`, `MODEL_API_KEY`, `MODEL_PROVIDER` and `MODEL_NAME`, listed in `environments.md`; a hosted worker that keeps the localhost default refuses to start)
 
 ### Wire Vercel and Railway together
 

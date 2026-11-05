@@ -28,6 +28,7 @@ import asyncio
 import datetime
 import sys
 from dataclasses import dataclass
+from urllib.parse import urlparse
 
 import structlog
 from pymongo import AsyncMongoClient
@@ -46,7 +47,7 @@ from agent_worker.graph import (
 from agent_worker.policy import RetryPolicy
 from agent_worker.staging import COLLECTION, MongoStager
 from agent_worker.state import VenueGraphState
-from app.config import settings
+from app.config import AppEnv, settings
 from app.db.models import Metro, Venue
 from app.db.session import SessionFactory, engine
 from app.enums import RunTrigger
@@ -163,6 +164,31 @@ async def run_all(
     return failed
 
 
+def model_endpoint_problem(app_env: AppEnv, provider: str, base_url: str | None, api_key: str) -> str | None:
+    """What is wrong with the worker's model endpoint, as a sentence, or `None` when it can be used (C6-PR1-1).
+
+    Three mistakes this stops before the first model call turns them into a confusing failure:
+      * no endpoint at all: `MODEL_BASE_URL` has no default in code (Ari's comment on PR 80), so a worker started without one
+        would have nowhere to send its calls;
+      * a HOSTED worker pointing at localhost. A laptop's `.env` points at its Ollama, and `localhost:11434` doesn't
+        exist on Railway (`env-setup.md` Phase 8), so a hosted service that copies it would fail every call with a
+        connection error;
+      * a hosted (`openai_compatible`) endpoint with the placeholder key `"ollama"`, which the provider answers
+        with a 401 on the first call.
+    A laptop (`local`) may point at a hosted endpoint: that is how the hosted parity run and the accuracy work
+    are done from the development machine. This is a worker check, not a `Settings` validator, because the
+    hosted API builds `Settings` too and never sets a model endpoint.
+    """
+    if not base_url:
+        return "MODEL_BASE_URL is not set: the model endpoint comes only from the environment (see .env.example)"
+    host = urlparse(base_url).hostname or ""
+    if app_env != "local" and host in ("localhost", "127.0.0.1", "::1"):
+        return f"APP_ENV={app_env} but MODEL_BASE_URL points at {host!r}, which does not exist on a hosted service"
+    if provider == "openai_compatible" and api_key == "ollama":
+        return "MODEL_PROVIDER=openai_compatible but MODEL_API_KEY is unset (still the Ollama placeholder)"
+    return None
+
+
 async def main(argv: list[str] | None = None) -> int:
     """Parse arguments, wire the stores, run, and return the process exit status."""
     parser = argparse.ArgumentParser(description="Run the agent worker over the venue list.")
@@ -174,6 +200,13 @@ async def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     configure_logging()
+    # Fail fast on a model endpoint that cannot work here, before any venue's fetch (C6-PR1-1).
+    endpoint_problem = model_endpoint_problem(
+        settings.app_env, settings.model_provider, settings.model_base_url, settings.model_api_key.get_secret_value()
+    )
+    if endpoint_problem:
+        log.error(endpoint_problem)
+        return 2
     # Fail fast (plan A4-D3): an audit trail that silently skips its raw record isn't auditable.
     if not settings.mongodb_uri:
         log.error("MONGODB_URI is not set; the worker stages every extraction in MongoDB (see .env.example)")

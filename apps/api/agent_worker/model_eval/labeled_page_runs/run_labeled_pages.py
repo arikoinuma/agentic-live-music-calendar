@@ -47,6 +47,8 @@ from agent_worker.audit import PostgresAuditWriter
 from agent_worker.calendar_reader import PostgresCalendarReader
 from agent_worker.calendar_writer import PostgresCalendarWriter
 from agent_worker.context import WorkerContext
+from agent_worker.extraction import PIPELINE_ROLES
+from agent_worker.main import model_endpoint_problem
 from agent_worker.model_eval import run_eval
 from agent_worker.model_eval.labeled_page_runs import (
     scratch_calendar_rows,
@@ -315,9 +317,15 @@ async def evaluate(args: argparse.Namespace) -> int:
             await scratch_database.drop(url)
 
     try:
-        provenance: dict[str, Any] | None = {options.model: run_eval.model_provenance(options.model, options.num_ctx)}
+        # One entry per distinct model the pipeline's roles use (C6-D2), the page model first. A hosted provider makes
+        # no request here (C6 Test 3); a local one that doesn't answer is noted, not fatal.
+        roles = PIPELINE_ROLES
+        provenance: dict[str, Any] | None = {
+            m: run_eval.model_provenance(dataclasses.replace(options, model=m), settings.model_base_url)
+            for m in dict.fromkeys([options.model, roles.splitter.model, roles.status.model, roles.matcher.model])
+        }
     except (httpx.HTTPError, OSError):
-        provenance = None  # a hosted model has none to read here (C6 adds it); a local one that doesn't answer is noted, not fatal
+        provenance = None
     summary = aggregate_scores.aggregate(records, PAGE_LABELS)
     record = results_file.build_record(
         label=args.label, started_at=started_at, set_name=args.set, scenario=args.scenario, fixture_names=names,
@@ -351,6 +359,15 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if not args.label:
         print("--label is required unless --compare or --rescore is given", file=sys.stderr)
+        return 2
+    # The worker's start-up rule applies here too: no endpoint, or a hosted one with the placeholder key, would
+    # otherwise build the scratch database and then fail every page on a connection error or a 401.
+    options, _ = run_eval.configure({})
+    problem = model_endpoint_problem(
+        settings.app_env, options.provider, settings.model_base_url, settings.model_api_key.get_secret_value()
+    )
+    if problem:
+        print(problem, file=sys.stderr)
         return 2
     return asyncio.run(evaluate(args))
 

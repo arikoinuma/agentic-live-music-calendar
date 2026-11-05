@@ -22,7 +22,7 @@ from agent_worker.schemas import VenuePageExtraction
 from agent_worker.staging import MongoStager, document_for
 from agent_worker.state import VenueGraphState
 
-PLAN = AttemptPlan(tier="narrowed", config=extraction.PIPELINE_CONFIG, options=extraction.PIPELINE_OPTIONS)
+PLAN = AttemptPlan(tier="narrowed", config=extraction.PIPELINE_CONFIG, roles=extraction.PIPELINE_ROLES)
 
 
 def state_with(**changes: Any) -> VenueGraphState:
@@ -109,3 +109,12 @@ async def test_mongo_stager_inserts_the_document_and_returns_the_id_as_a_string(
     staging_id = await MongoStager(stub).stage({"run_id": 1})  # type: ignore[arg-type]
     assert staging_id == "65f0c0ffee0123456789abcd"
     assert stub.inserted == [{"run_id": 1}]
+
+
+def test_the_document_names_the_model_of_each_call_the_route_made() -> None:
+    # Proves (C6-PR1-3): beside the page model the document says which model split the acts and which asked
+    # the status question, and a call the route did not make is null. `model` keeps meaning the page model.
+    doc = document_for(state_with(route_attempted="jsonld"))
+    model = extraction.PIPELINE_OPTIONS.model
+    assert doc["models"] == {"page": None, "splitter": model, "status": None}
+    assert doc["model"] == model

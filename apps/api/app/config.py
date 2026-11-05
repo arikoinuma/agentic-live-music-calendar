@@ -15,7 +15,7 @@ docs/dev/implementations/c3-environments-and-deploy.md, C3-D3, C3-D4, C3-K1.
 from typing import Literal, Self
 from urllib.parse import urlparse
 
-from pydantic import model_validator
+from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 
@@ -101,14 +101,35 @@ class Settings(BaseSettings):
     # DATABASE_URL value from .env automatically — no extra config needed.
     database_url: str
 
-    # declare a local model name
-    model_name: str 
+    # The model the page call uses (and the default for every other call). Locally an Ollama tag; hosted, the
+    # provider's model id (C6). The API never calls a model, so a hosted API service carries only a placeholder.
+    model_name: str
+
+    # Where the worker's model calls go (C6-D2). ONE endpoint for every call site, with a model name per role
+    # below: every hosted call goes to the same provider, so one URL and one key per environment is one value
+    # to keep in step, not four. The URL has NO default in code (Ari's comment on PR 80): it comes only from the
+    # `MODEL_BASE_URL` environment variable. A laptop sets it in `.env` (`.env.example` has the local Ollama's
+    # line), a hosted worker sets it in its service variables. It is optional here because the hosted API builds
+    # `Settings` too, never sets it, and must still start (C6-PR1-1); the rule that a WORKER must have one, and
+    # that a hosted one must not point at localhost, lives in the worker's start-up
+    # (`agent_worker.main.model_endpoint_problem`), not in the validator below.
+    model_base_url: str | None = None
+    # A `SecretStr`, so a `Settings` repr, a log line or a validation traceback cannot print the key (C6-PR1-7).
+    # "ollama" is the placeholder the OpenAI client requires and Ollama ignores.
+    model_api_key: SecretStr = SecretStr("ollama")
+    # Decides which provider-specific request options are sent (`agent_worker.llm.request_kwargs`, C6-D5).
+    model_provider: Literal["ollama", "openai_compatible"] = "ollama"
+    # A role's own model, or None to use `model_name`. The act splitter is the one call a larger model is
+    # expected to help (A2.1-E1); the status question and reconcile's artist matcher can follow separately.
+    # An empty string (`SPLITTER_MODEL_NAME=` left blank) means "not configured".
+    splitter_model_name: str | None = None
+    status_model_name: str | None = None
+    matcher_model_name: str | None = None
 
     # The larger model the third retry attempt escalates to (arch-initial.md §7: "larger model
     # second"; agent_worker/policy.py). Optional and unset by default: the development laptop can't
     # run a larger model (A2.1-E1), so tier 3 then reruns the same model with the full retry hint
-    # and the attempt record says no escalation happened. Until C6 (formerly H1) makes model endpoints
-    # configurable, it must be a model name Ollama serves.
+    # and the attempt record says no escalation happened. It must be a model the configured endpoint serves.
     escalation_model_name: str | None = None
 
     # MongoDB, where the worker stages each extraction attempt's raw record before validation judges it

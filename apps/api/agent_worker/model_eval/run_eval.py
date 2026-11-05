@@ -36,25 +36,25 @@ experiment flag overrides exactly one setting (`configure`). `--rescore` writes 
 
 import argparse
 import base64
+import contextvars
 import datetime
 import hashlib
 import json
 import time
 from collections import Counter
-from dataclasses import asdict, replace
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
-import instructor
-from instructor import Mode
-from openai import OpenAI
 from pydantic import ValidationError
 
 from agent_worker import act_split, extraction, status_check, validation
-from agent_worker.llm import RequestOptions, request_kwargs
+from agent_worker.llm import ModelRoles, RequestOptions, build_clients, request_kwargs
+from agent_worker.main import model_endpoint_problem
+from agent_worker.model_eval import labels, scoring
 from agent_worker.model_eval import legacy as legacy_config
-from agent_worker.model_eval import scoring
 from agent_worker.model_eval.labels import (
     PAGE_LABELS,
     VENUE_FACTS,
@@ -63,10 +63,10 @@ from agent_worker.model_eval.labels import (
     informational_fixtures,
 )
 from agent_worker.model_eval.reference import REFERENCE, FixtureReference, fixture_key
+from app.config import settings
 
 CAPTURED_PAGES_DIR = Path(__file__).parent / "captured_pages"
 RESULTS_DIR = Path(__file__).parent / "results"
-OLLAMA_URL = "http://localhost:11434"
 
 # Request options are the pipeline's own (`extraction.PIPELINE_OPTIONS`: model from MODEL_NAME,
 # max_tokens, max_retries, num_ctx), recorded in every results file so a run can be reproduced
@@ -79,18 +79,12 @@ OLLAMA_URL = "http://localhost:11434"
 # doc anticipated; since A2 the model follows MODEL_NAME (apps/api/.env) — currently the derived
 # 32768-token-context model, gemma4-e4b-32k (apps/api/ollama/gemma4-e4b-32k.Modelfile).
 
-# point an OpenAI-SDK client at Ollama's local endpoint rather than
-# OpenAI's own API. Ollama exposes an OpenAI-compatible API at
-# http://localhost:11434/v1 — the api_key argument is required by the SDK's
-# constructor but ignored by Ollama, so any placeholder string works.
-#   client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
-client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
-
-# wrap that client with instructor, so response_model= becomes available
-# on chat completion calls and output gets validated against your
-# Pydantic schema (retrying automatically on a validation failure).
+# The eval's client comes from the same factory as the pipeline's (C6): one OpenAI-SDK client pointed at the
+# configured endpoint (Ollama locally, DeepInfra hosted), wrapped by instructor so `response_model=` is available
+# and output is validated against the Pydantic schema, retrying on a validation failure. Before C6 this module
+# built its own Ollama client, so a "hosted" run would have silently gone to localhost.
 #
-# Mode.JSON, not Mode.TOOLS: confirmed directly against this model —
+# Mode.JSON, not Mode.TOOLS (chosen in `llm.build_clients`): confirmed directly against the local model —
 # qwen3-vl:4b puts its "thinking" output in a separate `reasoning` field
 # distinct from `content` (visible in the raw Ollama response), and in
 # Mode.TOOLS it was never reliably completing an actual tool call even
@@ -99,32 +93,83 @@ client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
 # `content`, which doesn't depend on tool-calling working correctly on
 # top of a model that's already spending a lot of its output on
 # reasoning — much more reliable in practice for this model/backend.
-instructor_client = instructor.from_openai(client, mode=Mode.JSON)
+client, instructor_client = build_clients(settings)
 
-# Retry counting. instructor re-asks the model when its output fails Pydantic
-# validation, and emits "parse:error" on every failed parse — including the final
-# attempt, which is then raised rather than retried. (An IncompleteOutputException, the
-# Phase 5 failure, is re-raised immediately and never emits this hook, so it only shows
-# up as an outcome.) One handler is registered once on this client; the run loop clears
-# the list before each call.
-_parse_errors: list[Exception] = []
+# Per-run counters (C6-PR1-6). instructor re-asks the model when its output fails Pydantic validation and emits
+# "parse:error" on every failed parse, including the final attempt, which is then raised rather than retried. (An
+# IncompleteOutputException, the Phase 5 failure, is re-raised immediately and never emits this hook, so it only
+# shows up as an outcome.) Its completion hook carries the response's token `usage`. Both hooks are registered once
+# and write to the CURRENT run's `RunCounters`, found through a ContextVar: a run on its own thread sees only its
+# own counts, which throughput measurements with parallel requests depend on (module-level lists cleared by each
+# run would have been scrambled by the first overlap).
+
+
+@dataclass
+class RunCounters:
+    """What one run's hooks saw: failed parses, and the token usage summed over every call in the run."""
+
+    parse_errors: list[Exception] = field(default_factory=list)
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    usage_seen: bool = False
+
+    def tokens_record(self) -> dict[str, int] | None:
+        """The run's tokens, or None when no response carried `usage`: a provider that reports nothing is
+        an unknown cost, never 0 tokens."""
+        if not self.usage_seen:
+            return None
+        return {"prompt": self.prompt_tokens, "completion": self.completion_tokens}
+
+
+_counters: contextvars.ContextVar[RunCounters | None] = contextvars.ContextVar("run_eval_counters", default=None)
+
+
+def new_counters() -> RunCounters:
+    """Start counting a new run in the current thread (context) and return its counters."""
+    counters = RunCounters()
+    _counters.set(counters)
+    return counters
 
 
 def _record_parse_error(error: Exception) -> None:
-    _parse_errors.append(error)
+    """Hook for instructor's `parse:error` event: remember a response that failed to parse into the schema, on the
+    current run's counters. Does nothing outside a counted run (`new_counters()` not called in this thread)."""
+    counters = _counters.get()
+    if counters is not None:
+        counters.parse_errors.append(error)
 
 
-instructor_client.on("parse:error", _record_parse_error)
+def _record_completion(response: Any) -> None:
+    """Hook for instructor's `completion:response` event: add the call's token usage to the current run's counters.
+    A response with no usage block (a provider that omits it) adds nothing and leaves `usage_seen` false, so the
+    run's token count reads as unknown, never as zero. Does nothing outside a counted run."""
+    counters = _counters.get()
+    usage = getattr(response, "usage", None)
+    if counters is not None and usage is not None:
+        counters.usage_seen = True
+        counters.prompt_tokens += getattr(usage, "prompt_tokens", 0) or 0
+        counters.completion_tokens += getattr(usage, "completion_tokens", 0) or 0
+
+
+def register_hooks(instructor: Any) -> None:
+    """Attach the counting hooks to an instructor client. A function so a test can check both are registered:
+    forgetting the completion hook would leave every results file with `tokens: null` and nothing failing."""
+    instructor.on("parse:error", _record_parse_error)
+    instructor.on("completion:response", _record_completion)
+
+
+register_hooks(instructor_client)
 
 
 def load_text_fixture(path: Path) -> str:
-    # A fixture's visible text, cleaned exactly as the pipeline cleans a page (flat form, as
-    # A2's metrics were defined on). Confirmed on the White Squirrel fixture: a 93KB "Save
-    # As" dump was 97% <script>/markup around 2.7KB of content.
+    """A captured page's visible text, cleaned exactly as the pipeline cleans a page (flat form, as A2's metrics were
+    defined on). Confirmed on the White Squirrel capture: a 93KB "Save As" dump was 97% <script>/markup around 2.7KB
+    of content."""
     return extraction.clean_text(path.read_text(), keep_line_breaks=False)
 
 
 def load_image_fixture(path: Path) -> str:
+    """A saved poster image, base64-encoded for a multimodal message. The details of how it is embedded follow."""
     # read a saved image fixture (the flyer-image case) and return
     # it base64-encoded. Multimodal chat messages take an image as a
     # data URL: f"data:image/png;base64,{encoded}" (adjust the mime type
@@ -146,6 +191,8 @@ def extract(
     fetch_date: datetime.date | None = None,
     seed: int | None = None,
     legacy: bool = False,
+    splitter_options: RequestOptions | None = None,
+    status_options: RequestOptions | None = None,
 ) -> extraction.PageExtractionResult:
     """Extract one fixture, exactly as the pipeline would (A2.1: through `extract_page` /
     `extract_image`, with this module's hooked client so parse failures are counted).
@@ -185,6 +232,7 @@ def extract(
     return extraction.extract_page(
         fixture_path.read_text(), venue_name=venue_name, metro_timezone=metro_timezone,
         fetch_date=fetch_date, client=instructor_client, options=options, config=config, seed=seed,
+        splitter_options=splitter_options, status_options=status_options,
     )
 
 
@@ -197,6 +245,10 @@ def add_override_flags(parser: argparse.ArgumentParser) -> None:
     """The experiment ladder's flags (a2.1 plan, "Experiment protocol"). Each overrides one
     field of the pipeline's configuration; none given = exactly what the pipeline runs."""
     parser.add_argument("--temperature", type=float, default=None, help="sampling temperature (rung a21-temp0)")
+    # Model overrides (C6): one flag per role, so a rung changes one model and a change is attributable to it.
+    parser.add_argument("--model", dest="model", default=None, help="the page model (default MODEL_NAME)")
+    parser.add_argument("--splitter-model", dest="splitter_model", default=None, help="the act splitter's model (rung c6-split-*)")
+    parser.add_argument("--status-model", dest="status_model", default=None, help="the status question's model")
     parser.add_argument("--route", choices=["auto", "model"], default=None, help="auto = JSON-LD first (rung a21-structured)")
     # Typed as Any-valued so `**flag` is accepted for every add_argument parameter (inferred as dict[str, object],
     # it matches none of them).
@@ -219,7 +271,7 @@ _CONFIG_FIELDS = ("route", "keep_line_breaks", "status_field", "year_rule", "act
 
 def overrides_from(args: argparse.Namespace) -> dict[str, Any]:
     """The flags that were actually given, as {field: value}."""
-    names = ("temperature", *_CONFIG_FIELDS)
+    names = ("temperature", "model", "splitter_model", "status_model", *_CONFIG_FIELDS)
     return {name: getattr(args, name) for name in names if getattr(args, name, None) is not None}
 
 
@@ -236,8 +288,23 @@ def configure(overrides: dict[str, Any]) -> tuple[RequestOptions, extraction.Ext
     options = extraction.PIPELINE_OPTIONS
     if "temperature" in overrides:
         options = replace(options, temperature=overrides["temperature"])
+    if "model" in overrides:
+        options = replace(options, model=overrides["model"])
     config = replace(extraction.PIPELINE_CONFIG, **{k: v for k, v in overrides.items() if k in _CONFIG_FIELDS})
     return options, config
+
+
+def configure_roles(overrides: dict[str, Any]) -> ModelRoles:
+    """The pipeline's per-role options with at most one model override per role (C6). With none, the result IS the
+    pipeline's roles, as `configure` does for the page options. `--temperature` applies to every role, since the
+    pipeline sends one temperature on all its calls."""
+    roles = extraction.PIPELINE_ROLES
+    if "temperature" in overrides:
+        roles = ModelRoles(**{k: replace(v, temperature=overrides["temperature"]) for k, v in vars(roles).items()})
+    for flag, role in (("model", "page"), ("splitter_model", "splitter"), ("status_model", "status")):
+        if flag in overrides:
+            roles = replace(roles, **{role: replace(getattr(roles, role), model=overrides[flag])})
+    return roles
 
 
 # ---------------------------------------------------------------------------
@@ -252,7 +319,8 @@ _PRICE_FIELDS = ("ticket_info", "admission_advance", "admission_day", "free_admi
 
 
 def _act_name(act: Any) -> str:
-    # Baseline acts are plain strings; the new schema's are objects with a `name`.
+    """One act's name, whichever schema produced it: the baseline's acts are plain strings, the new schema's are
+    objects with a `name`."""
     return act if isinstance(act, str) else str(act.get("name", ""))
 
 
@@ -327,8 +395,9 @@ def score_extraction(
 
 
 def _generalize_loc(loc: tuple[Any, ...]) -> str:
-    # ("shows", 3, "acts", 0, "start_time") -> "shows.*.acts.*.start_time", so failures
-    # on different list positions aggregate together.
+    """A validation error's location as a path with list positions replaced by `*`
+    (`("shows", 3, "acts", 0, "start_time")` -> `"shows.*.acts.*.start_time"`), so failures on different list
+    positions aggregate together."""
     return ".".join("*" if isinstance(part, int) else str(part) for part in loc)
 
 
@@ -340,31 +409,58 @@ def classify_parse_error(error: Exception) -> list[str]:
 
 
 def _same_model(listed: str | None, wanted: str) -> bool:
-    # Ollama lists a model created without a tag as "name:latest"; MODEL_NAME may omit it.
+    """True when Ollama's listed model name is the one asked for. Ollama lists a model created without a tag as
+    "name:latest" and `MODEL_NAME` may omit the tag, so both spellings match."""
     return listed in (wanted, f"{wanted}:latest")
 
 
-def loaded_context_length(model: str) -> int | None:
+def ollama_root(base_url: str | None) -> str:
+    """Ollama's own API root, from the OpenAI-compatible URL the worker is configured with: the same host without
+    its `/v1`. No URL is written in the code (Ari's comment on PR 80); the endpoint is `MODEL_BASE_URL` and nothing else."""
+    return (base_url or "").rstrip("/").removesuffix("/v1")
+
+
+def loaded_context_length(model: str, base_url: str | None) -> int | None:
     """The context window Ollama actually loaded the model with (from /api/ps). Called
     right after a label's runs, while the model is still resident. If this isn't num_ctx,
     the request's num_ctx override didn't take effect."""
-    loaded = httpx.get(f"{OLLAMA_URL}/api/ps", timeout=10).json().get("models", [])
+    loaded = httpx.get(f"{ollama_root(base_url)}/api/ps", timeout=10).json().get("models", [])
     return next((m.get("context_length") for m in loaded if _same_model(m.get("name"), model)), None)
 
 
-def model_provenance(model: str, num_ctx: int) -> dict[str, str | int | None]:
-    """Ollama's version and the model's digest, so a later run can be checked against
-    the same model build (`ollama pull` silently changes a tag). The digest comes from
-    /api/tags — /api/show on this Ollama version doesn't carry it."""
-    version = httpx.get(f"{OLLAMA_URL}/api/version", timeout=10).json().get("version")
-    tags = httpx.get(f"{OLLAMA_URL}/api/tags", timeout=10).json().get("models", [])
+def model_provenance(options: RequestOptions, base_url: str | None) -> dict[str, str | int | None]:
+    """Which model build produced a label, so a later run can be checked against it.
+
+    Ollama (`provider` "ollama"): its version and the model's digest (`ollama pull` silently changes a tag), from
+    /api/version and /api/tags (/api/show on this Ollama version doesn't carry the digest), and the context
+    window it actually loaded, which is how a request's ignored `num_ctx` was found out. A hosted provider has no
+    such endpoints, and asking localhost would fail or describe the wrong model, so it makes no request: it
+    records the provider, the endpoint's host and the requested model id (C6 plan, Test 3). A hosted model's
+    weights and quantization are the provider's to change, which is why the parity run (C6 Step 6) compares the
+    numbers instead of trusting the name.
+    """
+    if options.provider != "ollama":
+        return {
+            "provider": options.provider, "base_url_host": urlparse(base_url or "").hostname, "model": options.model,
+        }
+    model, num_ctx = options.model, options.num_ctx
+    root = ollama_root(base_url)
+    version = httpx.get(f"{root}/api/version", timeout=10).json().get("version")
+    tags = httpx.get(f"{root}/api/tags", timeout=10).json().get("models", [])
     digest = next((m.get("digest") for m in tags if _same_model(m.get("name"), model)), None)
     return {
+        "provider": options.provider,
         "ollama_version": version,
         "model_digest": digest,
-        "loaded_context_length": loaded_context_length(model),
+        "loaded_context_length": loaded_context_length(model, base_url),
         "requested_num_ctx": num_ctx,
     }
+
+
+def labels_sha() -> str:
+    """The sha-256 of `labels.py` as it is now, recorded in every results file (C6-D8): a score on a held-out page
+    can then be shown to postdate the labels it was scored against."""
+    return hashlib.sha256(Path(labels.__file__).read_bytes()).hexdigest()
 
 
 # ---------------------------------------------------------------------------
@@ -374,7 +470,7 @@ def model_provenance(model: str, num_ctx: int) -> dict[str, str | int | None]:
 
 def run_once(
     item: Path, run_index: int, options: RequestOptions, config: extraction.ExtractionConfig,
-    legacy: bool = False,
+    legacy: bool = False, roles: ModelRoles | None = None,
 ) -> dict[str, Any]:
     """One extraction of one fixture, recorded as a plain dict (no extraction exception escapes).
 
@@ -388,7 +484,7 @@ def run_once(
     is_image = item.suffix in (".jpg", ".jpeg", ".png", ".webp")
     page_text = "" if is_image else load_text_fixture(item)
 
-    _parse_errors.clear()
+    counters = new_counters()
     started = time.perf_counter()
     record: dict[str, Any] = {"fixture": item.name, "key": key, "run": run_index, "seed": run_index}
     result = None
@@ -397,6 +493,7 @@ def run_once(
     try:
         result = extract(
             item, options=options, config=config, seed=run_index, legacy=legacy,
+            splitter_options=roles.splitter if roles else None, status_options=roles.status if roles else None,
             venue_name=facts.name if facts else "", metro_timezone=facts.metro_timezone if facts else "",
             fetch_date=label.captured_on if label else None,
         )
@@ -423,13 +520,14 @@ def run_once(
             page_score = scoring.score_page(label, dump, "" if is_image else item.read_text(), item.name)
             page_score.route = result.source
             record["label_score"] = asdict(page_score)
-    failures = [c for e in _parse_errors for c in classify_parse_error(e)]
-    record["parse_failures"] = len(_parse_errors)
+    failures = [c for e in counters.parse_errors for c in classify_parse_error(e)]
+    record["parse_failures"] = len(counters.parse_errors)
+    record["tokens"] = counters.tokens_record()
     record["parse_failure_fields"] = failures
     # parse:error fires on every failed parse including the last, so attempts used =
     # failed parses + the one that succeeded. (A call that dies of IncompleteOutputException
     # emits no parse:error, so its aborted attempt isn't counted here — it is the outcome.)
-    record["attempts_used"] = len(_parse_errors) + (1 if record["outcome"] == "ok" else 0)
+    record["attempts_used"] = len(counters.parse_errors) + (1 if record["outcome"] == "ok" else 0)
     return record
 
 
@@ -604,6 +702,11 @@ def compare(labels: list[str]) -> None:
     width = 30
     print("label".ljust(width) + "".join(lab.ljust(34) for lab in labels))
     for name, getter in {
+        "provider": lambda f: (f.get("request_options") or {}).get("provider", "ollama"),
+        "models (page/splitter/status)": lambda f: "/".join(
+            str((f.get("role_options") or {}).get(role, {}).get("model", (f.get("request_options") or {}).get("model")))
+            for role in ("page", "splitter", "status")
+        ),
         "loaded_context_length": lambda f: next(iter(f["provenance"].values())).get("loaded_context_length"),
         "model_digest": lambda f: str(next(iter(f["provenance"].values())).get("model_digest"))[:12],
         "legacy_pre_a2": lambda f: f.get("request", {}).get("legacy_pre_a2"),
@@ -658,6 +761,9 @@ def select_fixtures(which: str, only: str | None) -> list[Path]:
 
 
 def main() -> None:
+    """The command line: parse the flags, then run the labelled pages `--runs` times under a `--label`, or print
+    `--compare` / `--rescore` / `--act-check` results from saved files. Refuses an unusable model endpoint before
+    the first call (`main.model_endpoint_problem`)."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--label", help="name for this run set; results go to results/<label>.json")
     parser.add_argument("--runs", type=int, default=5, help="runs per fixture (default 5, seeds 0..n-1; A2.1 D1)")
@@ -682,14 +788,23 @@ def main() -> None:
     if not args.label:
         parser.error("--label is required unless --compare or --rescore is given")
 
-    options, config = configure(overrides_from(args))
+    overrides = overrides_from(args)
+    options, config = configure(overrides)
+    roles = configure_roles(overrides)
+    # The worker's start-up rule applies here too (C6-CR1-9): a hosted provider with the placeholder key would
+    # otherwise run every fixture and run as a 401 outcome instead of stopping at once.
+    problem = model_endpoint_problem(
+        settings.app_env, options.provider, settings.model_base_url, settings.model_api_key.get_secret_value()
+    )
+    if problem:
+        parser.error(problem)
     fixtures = select_fixtures(args.set, args.only)
     request = request_record(config, args.legacy)
     started_at = datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds")
     runs: list[dict[str, Any]] = []
     for item in fixtures:
         for run_index in range(args.runs):
-            record = run_once(item, run_index, options, config, args.legacy)
+            record = run_once(item, run_index, options, config, args.legacy, roles=roles)
             record["model"] = options.model
             runs.append(record)
             print(
@@ -708,12 +823,19 @@ def main() -> None:
             "set": args.set,
             "config": asdict(config),
             "request_options": asdict(options),
+            "role_options": asdict(roles),
+            "labels_sha": labels_sha(),
             "include_new_rules": config.include_new_rules,
             "request": request,
             "options": {"num_ctx": options.num_ctx, "max_tokens": options.max_tokens, "max_retries": options.max_retries,
                         "seed": "run index, top-level argument",
                         "temperature": "model default" if options.temperature is None else options.temperature},
-            "provenance": {options.model: model_provenance(options.model, options.num_ctx)},
+            # One entry per distinct model any role used, so a local splitter rung's model build is recorded too
+            # (C6-CR1-7); the page model is first.
+            "provenance": {
+                m: model_provenance(replace(options, model=m), settings.model_base_url)
+                for m in dict.fromkeys([options.model, roles.splitter.model, roles.status.model, roles.matcher.model])
+            },
             "aggregate": aggregate_data,
             "runs": runs,
         },

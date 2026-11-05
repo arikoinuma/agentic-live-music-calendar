@@ -19,6 +19,7 @@ from agent_worker import extraction
 from agent_worker.constants import NodeNames, NodeOutcomes
 from agent_worker.policy import (
     DEFAULT_POLICY,
+    AttemptPlan,
     AttemptRecord,
     RetryPolicy,
     combine,
@@ -40,6 +41,7 @@ from app.config import settings
 
 BASE_CONFIG = extraction.PIPELINE_CONFIG
 BASE_OPTIONS = extraction.PIPELINE_OPTIONS
+BASE_ROLES = extraction.PIPELINE_ROLES
 POLICY = RetryPolicy(confidence_threshold=0.8, max_attempts=3, escalation_model="gemma-big")
 
 
@@ -275,7 +277,7 @@ def test_a_failed_model_call_and_low_confidence_get_a_generic_page_hint() -> Non
 
 
 def plan(attempt: int, history: list[AttemptRecord], policy: RetryPolicy = POLICY):  # type: ignore[no-untyped-def]
-    return plan_for_attempt(attempt, policy, history, BASE_CONFIG, BASE_OPTIONS)
+    return plan_for_attempt(attempt, policy, history, BASE_CONFIG, BASE_ROLES)
 
 
 def test_the_first_attempt_is_the_pipeline_exactly() -> None:
@@ -325,8 +327,8 @@ def test_the_last_attempt_differs_from_the_one_before_it_even_when_the_same_chec
     # temperature 0 returns the identical answer. The last attempt adds its own conservative sentence.
     history = [record(1, findings=(DATE,)), record(2, findings=(DATE,))]
     no_larger_model = replace(POLICY, escalation_model=None)
-    second = plan_for_attempt(2, no_larger_model, history[:1], BASE_CONFIG, BASE_OPTIONS)
-    third = plan_for_attempt(3, no_larger_model, history, BASE_CONFIG, BASE_OPTIONS)
+    second = plan_for_attempt(2, no_larger_model, history[:1], BASE_CONFIG, BASE_ROLES)
+    third = plan_for_attempt(3, no_larger_model, history, BASE_CONFIG, BASE_ROLES)
     assert third.config != second.config and third.options == second.options
     assert "last attempt" in third.config.retry_hint and "last attempt" not in second.config.retry_hint
     assert "last attempt" in third.config.splitter_hint  # both calls get it, so a JSON-LD page's splitter does too
@@ -380,3 +382,37 @@ def test_a_retry_always_differs_from_the_first_attempt() -> None:
     ):
         second = plan(2, history)
         assert second.config != BASE_CONFIG, history
+
+
+# ---------------------------------------------------------------------------
+# Roles and the models each attempt used (C6-D4, C6-PR1-2, C6-PR1-3)
+# ---------------------------------------------------------------------------
+
+
+def test_the_larger_model_tier_swaps_every_extraction_role_but_not_the_matcher() -> None:
+    # Proves (C6-D4): tier 3's plan carries the larger model on the page, splitter and status roles, and
+    # leaves reconcile's matcher on its own model, as it was before roles existed (`nodes.reconcile_node`
+    # always used the pipeline's options, never the attempt's).
+    third = plan(3, [record(1, findings=(DATE,)), record(2, findings=(CONSISTENCY,))])
+    assert third.roles.page.model == third.roles.splitter.model == third.roles.status.model == "gemma-big"
+    assert third.roles.matcher == BASE_ROLES.matcher
+
+
+@pytest.mark.parametrize(
+    ("route", "expected"),
+    [
+        ("model", {"page": "m-page", "splitter": "m-split", "status": "m-status"}),
+        ("jsonld", {"page": None, "splitter": "m-split", "status": None}),
+        ("image", {"page": "m-page", "splitter": None, "status": None}),
+    ],
+)
+def test_the_models_an_attempt_used_name_only_the_calls_its_route_made(route: str, expected: dict[str, str]) -> None:
+    # Proves (C6-PR1-3): the audit record says which model produced which part of an attempt. The JSON-LD
+    # route makes no page call and no status call; the poster route makes only the page call. Without this the
+    # record would credit the acts to the page model once the splitter runs a different one.
+    roles = replace(
+        BASE_ROLES, page=replace(BASE_ROLES.page, model="m-page"),
+        splitter=replace(BASE_ROLES.splitter, model="m-split"), status=replace(BASE_ROLES.status, model="m-status"),
+    )
+    attempt = AttemptPlan("initial", BASE_CONFIG, roles)
+    assert attempt.models_used(route) == expected  # type: ignore[arg-type]

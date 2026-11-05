@@ -60,8 +60,14 @@ is right); "n/a" means the environment does not use it. The first table is every
 |---|---|---|---|---|---|
 | `APP_ENV` | unset (`local`) | `dev` | `staging` | `prod` | The claim the startup check verifies (C3-D4). |
 | `DATABASE_URL` | Docker Postgres | `calendar_dev` role, `dev` branch | `calendar_staging` role, `staging` branch | `calendar_prod` role, default branch | `postgresql+asyncpg://`, no `sslmode`/`channel_binding`. The role name is the marker the check reads. |
-| `MODEL_NAME` | `gemma4-e4b-32k` | set | set | set | Until C6/C8 move extraction to DeepInfra it names an Ollama model, so a hosted value is a placeholder. |
-| `ESCALATION_MODEL_NAME` | unset | unset | unset | unset | Optional larger model for the third retry (C6). |
+| `MODEL_NAME` | `gemma4-e4b-32k` | `google/gemma-4-26B-A4B-it` (the C6 candidate, final after Step 13) | same | same | The page model, and the default for every other call. On the API services it is only a placeholder (the API never calls a model); on a worker it is the provider's model id (C6-D2). |
+| `MODEL_BASE_URL` | Ollama's `http://localhost:11434/v1`, set in `apps/api/.env` (no default in code, Ari's comment on PR 80) | worker: `https://api.deepinfra.com/v1/openai` | worker: `https://api.deepinfra.com/v1/openai` | worker: `https://api.deepinfra.com/v1/openai` | One endpoint for every call site (C6-D2). Unset on the API services. A worker with none set refuses to start, and so does a hosted worker pointing at localhost (C6-PR1-1, Ari's comment on PR 80). |
+| `MODEL_API_KEY` | unset (placeholder) | worker: its own key | worker: its own key | worker: its own key | A secret, one DeepInfra key per environment (C6-PR1-7, Dep-D10). Put it in `apps/api/.env` on the laptop for a hosted run; never inline in a command. |
+| `MODEL_PROVIDER` | unset (`ollama`) | worker: `openai_compatible` | worker: `openai_compatible` | worker: `openai_compatible` | Decides which provider-specific request options are sent (C6-D5). |
+| `SPLITTER_MODEL_NAME` | unset | unset | unset | unset | The act splitter's own model, e.g. a larger one (A2.1-E1, C6); unset means `MODEL_NAME`. Production's value is recorded in `arch-initial.md` §7 when C6 chooses it. |
+| `STATUS_MODEL_NAME` | unset | unset | unset | unset | The cancelled/postponed question's own model; unset means `MODEL_NAME`. |
+| `MATCHER_MODEL_NAME` | unset | unset | unset | unset | Reconcile's ambiguous-artist question's own model; unset means `MODEL_NAME`. |
+| `ESCALATION_MODEL_NAME` | unset | unset | unset | unset | Optional larger model for the third retry; replaces the page, splitter and status models (C6-D4). It must exist on the configured endpoint. |
 | `MONGODB_URI` | Docker Mongo | Atlas user limited to `calendar_dev` | Atlas user limited to `calendar_staging` | Atlas user limited to `calendar` | The API does not need it; the worker refuses to start without it (C8). |
 | `MONGODB_DATABASE` | unset (`calendar`) | `calendar_dev` | `calendar_staging` | `calendar` (the default) | The default is production's name, which is why the check requires the others to set it (C3-PR1-7). |
 | `LOG_FORMAT` | unset (`auto`) | unset | unset | unset | `auto` picks JSON off a terminal. |
@@ -79,7 +85,6 @@ Variables the API's `Settings` does not read (the frontend's, and rows reserved 
 | `DEFAULT_METRO_SLUG` | Vercel | unset everywhere; the code default is `msp` | Optional (C4-D2). A set value that is not a valid, non-reserved slug makes the proxy answer 503 (C4-PR1-4). |
 | `FLAG_*` | Railway, Vercel | reserved | Added by C3.1. |
 | `R2_*` | Railway | reserved | One bucket and token per environment (C9). |
-| DeepInfra key | Railway | reserved | One key per environment (C6, C8). |
 | `API_SHARED_SECRET` | Railway, Vercel | reserved | C10. |
 
 ## Previews on Vercel (C3-D11)

@@ -62,8 +62,12 @@ def document_for(state: VenueGraphState) -> dict[str, Any]:
         "tier": plan.tier if plan else None,
         "route": state.route_attempted,
         "model": plan.options.model if plan else None,
+        # The model of each kind of call this route made, null for a call it did not make (C6-PR1-3): `model` is
+        # the page model, which on the JSON-LD route made no call, so this is what says who split the acts.
+        "models": plan.models_used(state.route_attempted) if plan and state.route_attempted else None,
         "larger_model_used": plan.larger_model_used if plan else False,
         "request_options": dataclasses.asdict(plan.options) if plan else None,
+        "role_options": dataclasses.asdict(plan.roles) if plan else None,
         "extraction_config": dataclasses.asdict(plan.config) if plan else None,
         "sent_text": state.extraction_sent_text,
         "page_text": page_text,
