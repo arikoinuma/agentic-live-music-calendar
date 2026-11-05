@@ -41,7 +41,7 @@ def test_a_typo_in_an_act_is_caught_and_counted_against_its_label_error() -> Non
 
 def test_a_convention_error_is_not_caught_because_the_name_is_in_the_title() -> None:
     # Proves: a wrong act that IS a substring of its title (an event name kept as an act) passes the check, so
-    # it counts as a label error the check missed. This is the limit D6 needs a number for: the check sees
+    # it counts as a label error the check missed. This is the limit C6-D6 needs a number for: the check sees
     # typos and inventions, not convention mistakes. Expected: 0 findings, 1 label error, 0 caught.
     results = {"runs": [run(["Spring Bash with The Moths"], [show("Spring Bash", "The Moths")], ["acts wrong 2026-10-10: x vs y"])]}
     out = run_eval.act_title_check(results)
@@ -50,7 +50,7 @@ def test_a_convention_error_is_not_caught_because_the_name_is_in_the_title() -> 
 
 def test_a_finding_on_a_correctly_labelled_show_is_a_false_alarm() -> None:
     # Proves: a finding on a date the labels scored as correct is counted as a false alarm. This is what
-    # stops D6 promoting a check that would retry correct pages. Expected: 1 finding, 0 label errors, 1 false alarm.
+    # stops C6-D6 promoting a check that would retry correct pages. Expected: 1 finding, 0 label errors, 1 false alarm.
     results = {"runs": [run(["Lent w. Gills"], [show("Gills Band")])]}
     out = run_eval.act_title_check(results)
     assert (out["flagged"], out["label_errors"], out["false_alarms"]) == (1, 0, 1)
