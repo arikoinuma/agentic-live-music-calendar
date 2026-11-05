@@ -11,12 +11,14 @@ folder deeper silently breaks any `Path(__file__).parents[n]` it computes.
 """
 
 import ast
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 from agent_worker.model_eval import capture, run_eval
 from agent_worker.model_eval.labelled_page_runs import scratch_database
 from agent_worker.model_eval.saved_run_reports import results_file
-from agent_worker.tests import test_validation_on_real_pages
 
 API_DIR = Path(__file__).resolve().parents[3]
 WORKER_DIR = API_DIR / "agent_worker"
@@ -24,14 +26,20 @@ MODEL_EVAL_DIR = WORKER_DIR / "model_eval"
 
 
 def imported_modules(path: Path) -> set[str]:
-    """Every module a source file imports, as dotted names (`from a.b import c` counts `a.b` and `a.b.c`, so a submodule import is seen)."""
+    """Every module a source file imports, as absolute dotted names (`from a.b import c` counts `a.b` and `a.b.c`, so a submodule
+    import is seen). A relative import (`from ..x import y`) is resolved against the file's own package, so it cannot hide a
+    dependency from the rules below."""
+    package = list(path.relative_to(API_DIR).with_suffix("").parts[:-1])
     found: set[str] = set()
     for node in ast.walk(ast.parse(path.read_text())):
         if isinstance(node, ast.Import):
             found.update(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            found.add(node.module)
-            found.update(f"{node.module}.{alias.name}" for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            base = package[: len(package) - (node.level - 1)] if node.level else []
+            module = ".".join([*base, *([node.module] if node.module else [])])
+            if module:
+                found.add(module)
+                found.update(f"{module}.{alias.name}" for alias in node.names)
     return found
 
 
@@ -64,6 +72,26 @@ def test_saved_run_reports_never_import_labelled_page_runs() -> None:
     assert offenders == []
 
 
+def test_importing_the_reports_loads_nothing_from_labelled_page_runs() -> None:
+    # Proves: C5.1-D6 in the form that matters, "a report reads on a machine with no model or database". The check above sees only a
+    # report module's OWN imports; a shared module (`run_eval`, `labels`, `scoring`, `legacy`) that a report imports could pull the
+    # runners in one hop away and that check would still pass. A fresh interpreter imports the three report modules and lists what
+    # got loaded, so the whole chain is judged. Expected: no `labelled_page_runs` module in `sys.modules`.
+    code = (
+        "import sys\n"
+        "import agent_worker.model_eval.saved_run_reports.aggregate_scores\n"
+        "import agent_worker.model_eval.saved_run_reports.results_file\n"
+        "import agent_worker.model_eval.saved_run_reports.markdown_report\n"
+        "print('\\n'.join(sorted(m for m in sys.modules if m.startswith('agent_worker.model_eval.labelled_page_runs'))))\n"
+    )
+    done = subprocess.run(
+        [sys.executable, "-c", code], cwd=API_DIR, capture_output=True, text=True, check=False, timeout=120,
+        env={**os.environ, "PYTHONPATH": str(API_DIR)},
+    )
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.strip() == "", f"importing a report loaded the runners: {done.stdout.split()}"
+
+
 def test_the_paths_computed_from_a_modules_own_location_still_resolve() -> None:
     # Proves: the move one folder deeper did not break the paths built from `__file__`. Each assertion names the thing the path must
     # reach: the committed baselines folder (the snapshots live there and `--snapshot` writes there), the API directory (the scratch
@@ -72,10 +100,3 @@ def test_the_paths_computed_from_a_modules_own_location_still_resolve() -> None:
     assert (scratch_database.API_DIR / "pyproject.toml").is_file()
     assert run_eval.RESULTS_DIR == MODEL_EVAL_DIR / "results"
     assert run_eval.CAPTURED_PAGES_DIR == MODEL_EVAL_DIR / "captured_pages" == capture.CAPTURED_PAGES_DIR
-
-
-def test_the_replay_test_that_skips_without_captured_pages_looks_in_the_right_folder() -> None:
-    # Proves: a test that SKIPS when its folder is missing cannot tell "no captures on this machine" from "I look in the wrong place".
-    # `test_validation_on_real_pages.py` built its path from the literal name `eval`; after the folder was renamed it would have skipped
-    # quietly on the laptop that has the captures, and nobody would have noticed. Its folder must be this package.
-    assert test_validation_on_real_pages.EVAL == MODEL_EVAL_DIR

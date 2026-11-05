@@ -13,7 +13,7 @@ How to put a venue's calendar page into the hand-labelled pool that the evaluati
 | 3 | **Capture the page** | `uv run python -m agent_worker.model_eval.capture <key>` | Saves `agent_worker/model_eval/captured_pages/<key>-<YYYY-MM-DD>.html` (gitignored). |
 | 4 | **Read the page** | `uv run python -m agent_worker.model_eval.label_draft agent_worker/model_eval/captured_pages/<file> --all` | Prints the page's visible lines, numbered. It does **not** write labels. |
 | 5 | **Write the label** | `agent_worker/model_eval/labels.py`, `PAGE_LABELS` | One `PageLabel` for the whole page, by hand. Decide `gated` and `held_out` here. |
-| 6 | **Run the label tests** | `uv run pytest agent_worker/tests/test_labels.py` | And, for a *gated* venue, add its key to `GATED_VENUES` in that test file first. |
+| 6 | **Run the label tests** | `uv run pytest agent_worker/tests/model_eval/test_labels.py` | And, for a *gated* venue, add its key to `GATED_VENUES` in that test file first. |
 | 7 | **(Separate) add it to the production venue list** | `app/db/seed.py` | Only if the worker should fetch it for real. The eval does not need it. |
 
 ### 1. Pick the venue, and check the page can be fetched
@@ -35,7 +35,7 @@ Add one entry to `VENUE_FACTS` in `labels.py`:
 - The **key** (`new_venue`) is what you type after `capture`, what a `PageLabel` points at (`venue="new_venue"`), and the start of the fixture's file name. Short, lower-case, underscores.
 - The **name** should match how the venue will be named in the database (`app/db/seed.py`), so the eval and the worker agree.
 - The metro zone defaults to `America/Chicago`; the label tests currently require that, since the alpha serves one metro.
-- Adding the entry does **not** touch `tests/test_labels.py`. That file changes only for a gated venue (step 6).
+- Adding the entry does **not** touch `tests/model_eval/test_labels.py`. That file changes only for a gated venue (step 6).
 
 ### 3. Capture the page
 
@@ -90,7 +90,7 @@ How to decide each row:
 ### 6. Run the label tests
 
 ```
-uv run pytest agent_worker/tests/test_labels.py
+uv run pytest agent_worker/tests/model_eval/test_labels.py
 ```
 
 It checks the shape: every page has shows, every show names a source line and an act, no show appears twice on a page, every labelled venue has its facts, and every non-show can match something. It checks the *form* of a label, not whether it is true; that is why `source_line` exists.

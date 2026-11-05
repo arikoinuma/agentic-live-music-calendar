@@ -354,3 +354,6 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     return asyncio.run(evaluate(args))
 
+
+if __name__ == "__main__":
+    sys.exit(main())

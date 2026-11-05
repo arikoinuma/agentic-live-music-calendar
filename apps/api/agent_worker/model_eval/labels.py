@@ -136,7 +136,7 @@ VENUE_FACTS: dict[str, VenueFacts] = {
 # Squirrel page lists August 17-22).
 AUGUST_CAPTURE = D(2026, 8, 17)
 
-OCTOBER_CAPTURE = D(2026, 10, 10)  # model_eval/capture.py, the pipeline's own fetch
+OCTOBER_CAPTURE = D(2026, 10, 10)  # eval/capture.py, the pipeline's own fetch
 
 NOVEMBER_CAPTURE = D(2026, 11, 4) # Ari's manual effort as part of the milestone C5
 

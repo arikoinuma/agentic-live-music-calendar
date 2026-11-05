@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from agent_worker.model_eval import labels
+from agent_worker.model_eval import labels, run_eval
 
 # A2.1-D2 as revised by Ari on October 11, 2026: Terminal Bar moved to informational (an outlier layout —
 # a date line then one line per act — that no rung fixed without breaking other pages).
@@ -130,4 +130,4 @@ UNLABELLED_ON_PURPOSE: set[str] = {
 
 
 def labels_fixtures_dir() -> Path:
-    return Path(labels.__file__).parent / "captured_pages"
+    return run_eval.CAPTURED_PAGES_DIR

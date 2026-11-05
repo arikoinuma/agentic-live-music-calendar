@@ -148,7 +148,7 @@ async def test_run_pages_runs_each_page_alone_on_an_empty_calendar(
     json.dumps(records)  # the whole record is plain data
 
 
-def test_db_score_scenarios_are_the_ones_the_command_line_offers() -> None:
+def test_two_run_scenarios_are_the_ones_the_command_line_offers() -> None:
     # Proves: the CLI's --scenario choices are exactly the scenarios `two_run_scenarios` defines, so a new scenario can't be added to one
     # and forgotten in the other.
     parser_choices = {s.value for s in two_run_scenarios.Scenario}

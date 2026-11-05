@@ -387,6 +387,15 @@ attempt 2's: on a machine with no larger model to swap in, attempt 3 was byte-id
 attempt therefore adds a sentence of its own (`policy._FINAL_PAGE_ADVICE`). Anything that builds retry requests
 from history needs a test that asserts *consecutive attempts differ*, not just that "a hint is present".
 
+## `labels_sha` is a hash of the whole file, comments included
+
+`results_file.labels_sha` is the SHA-256 of `labels.py`, and the committed baselines record it (`68539c30…` for all four `c5-*` ones).
+`evaluating-model-performance.md` says two runs with different values were scored against different labels and are not comparable. So
+**any edit to `labels.py`, even a comment, changes the hash** and makes the next run look incomparable with the baselines although no
+label changed. The C5.1 move renamed a folder named in one comment there (`# eval/capture.py`) and changed the hash; code review caught
+it, because the report prints the stored hash and never recomputes it, so the golden-output check could not. The comment was
+restored, and it still says `eval/capture.py`. When a label really changes, the hash should change: say so in the log.
+
 ## A fixture-based test can't run in CI: `model_eval/captured_pages/` and `model_eval/results/` are gitignored
 
 The venue pages and the stored eval results are not in the repo, so CI and a fresh clone have neither, and the

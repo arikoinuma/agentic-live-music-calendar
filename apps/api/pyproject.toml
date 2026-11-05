@@ -80,7 +80,7 @@ asyncio_default_test_loop_scope = "session"
 
 [tool.coverage.run]
 # Report-only (`make coverage`; A7-D1). Branch coverage, because a line that runs can still have a branch that never
-# does (a guard clause is one line, taken one way). Tests are the measuring stick, not the thing measured; eval/ is
+# does (a guard clause is one line, taken one way). Tests are the measuring stick, not the thing measured; model_eval/ is
 # the experiment harness and local_test.py a manual script, neither run by the suite.
 branch = true
 source = ["app", "agent_worker"]

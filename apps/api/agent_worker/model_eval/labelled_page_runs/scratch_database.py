@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import NullPool
 
-# apps/api/ — two levels up from agent_worker/model_eval/labelled_page_runs/scratch_database.py. Used to find alembic.ini and migrations/ from any cwd.
+# apps/api/ — three levels up from agent_worker/model_eval/labelled_page_runs/scratch_database.py. Used to find alembic.ini and migrations/ from any cwd.
 API_DIR = Path(__file__).resolve().parents[3]
 
 # The ONLY database name this module will ever create, migrate, truncate or drop. A constant, not configurable.
