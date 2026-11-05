@@ -218,18 +218,18 @@ def test_a_failed_json_ld_attempt_falls_back_unless_the_failure_was_only_about_a
     # Proves (plan §2, A3-PR2-3): on the JSON-LD route the page hint has no consumer, so only a failure
     # that is solely about acts (and reaches the splitter's hint) is worth retrying there. Anything else
     # repeats byte for byte, so the next attempt reads the page text with the model route.
-    assert route_falls_back(record(route="jsonld", findings=(DATE,)))
-    assert route_falls_back(record(route="jsonld", findings=(CONSISTENCY,)))
-    assert route_falls_back(record(route="jsonld", reasons=(FailureReason.EXTRACT_FAILED,)))  # a malformed date
-    assert route_falls_back(record(route="jsonld", findings=(DROPPED, CONSISTENCY)))
-    assert not route_falls_back(record(route="jsonld", findings=(DROPPED,)))
+    assert route_falls_back(record(route="structured", findings=(DATE,)))
+    assert route_falls_back(record(route="structured", findings=(CONSISTENCY,)))
+    assert route_falls_back(record(route="structured", reasons=(FailureReason.EXTRACT_FAILED,)))  # a malformed date
+    assert route_falls_back(record(route="structured", findings=(DROPPED, CONSISTENCY)))
+    assert not route_falls_back(record(route="structured", findings=(DROPPED,)))
 
 
 def test_only_a_failed_json_ld_attempt_falls_back() -> None:
     # Proves: the model route, the image route, and a JSON-LD attempt that passed never trigger it.
     assert not route_falls_back(record(route="model", findings=(DATE,)))
     assert not route_falls_back(record(route="image", findings=(DATE,)))
-    assert not route_falls_back(record(route="jsonld", verdict=Verdict.PASSED, reasons=()))
+    assert not route_falls_back(record(route="structured", verdict=Verdict.PASSED, reasons=()))
 
 
 # ---------------------------------------------------------------------------
@@ -344,7 +344,7 @@ def test_the_final_sentence_is_added_only_when_asked_for() -> None:
 
 def test_a_failed_json_ld_attempt_sends_the_next_attempt_to_the_model_route() -> None:
     # Proves (A3-K5, A3-PR1-2): the route changes along with the hint when the JSON-LD route can't help.
-    second = plan(2, [record(route="jsonld", findings=(DATE,))])
+    second = plan(2, [record(route="structured", findings=(DATE,))])
     assert second.config.route == "model"
 
 
@@ -358,7 +358,7 @@ def test_the_route_fallback_is_sticky_across_later_failures() -> None:
     # failed for a different reason; attempt 3 must stay on the model route. Decided from the previous
     # attempt only, it would go back to the JSON-LD route that already under-reported.
     history = [
-        record(1, route="jsonld", findings=(error(CheckCode.JSONLD_UNDER_REPORTED),)),
+        record(1, route="structured", findings=(error(CheckCode.JSONLD_UNDER_REPORTED),)),
         record(2, route="model", reasons=(FailureReason.LOW_CONFIDENCE,)),
     ]
     assert plan(3, history).config.route == "model"
@@ -367,7 +367,7 @@ def test_the_route_fallback_is_sticky_across_later_failures() -> None:
 def test_a_failure_about_acts_only_keeps_the_json_ld_route_and_hints_the_splitter() -> None:
     # Proves (A3-K5): the splitter's hint has a consumer on the JSON-LD route, so a splitter-only failure
     # retries there — with the splitter hint set and the page hint empty.
-    second = plan(2, [record(route="jsonld", findings=(DROPPED,))])
+    second = plan(2, [record(route="structured", findings=(DROPPED,))])
     assert second.config.route == BASE_CONFIG.route
     assert "listing 3" in second.config.splitter_hint and second.config.retry_hint == ""
 
@@ -378,7 +378,7 @@ def test_a_retry_always_differs_from_the_first_attempt() -> None:
     for history in (
         [record(findings=(DATE,))], [record(reasons=(FailureReason.LOW_CONFIDENCE,))],
         [record(reasons=(FailureReason.EXTRACT_FAILED,))], [record(reasons=(FailureReason.UNREADABLE,))],
-        [record(route="jsonld", findings=(CONSISTENCY,))],
+        [record(route="structured", findings=(CONSISTENCY,))],
     ):
         second = plan(2, history)
         assert second.config != BASE_CONFIG, history
@@ -402,7 +402,7 @@ def test_the_larger_model_tier_swaps_every_extraction_role_but_not_the_matcher()
     ("route", "expected"),
     [
         ("model", {"page": "m-page", "splitter": "m-split", "status": "m-status"}),
-        ("jsonld", {"page": None, "splitter": "m-split", "status": None}),
+        ("structured", {"page": None, "splitter": "m-split", "status": None}),
         ("image", {"page": "m-page", "splitter": None, "status": None}),
     ],
 )
@@ -416,3 +416,15 @@ def test_the_models_an_attempt_used_name_only_the_calls_its_route_made(route: st
     )
     attempt = AttemptPlan("initial", BASE_CONFIG, roles)
     assert attempt.models_used(route) == expected  # type: ignore[arg-type]
+
+
+def test_a_route_name_stored_before_c6_1_reads_as_structured() -> None:
+    # Proves (C6.1-D1): the route was renamed from "jsonld" to "structured" and stored data (audit rows, saved eval
+    # results, the committed baselines) keeps the old word. Readers pass a stored name through `stored_route`, so
+    # old and new compare as one route; other names, and None, are untouched. Expected values are the two spellings.
+    from agent_worker.policy import stored_route
+
+    assert stored_route("jsonld") == "structured"
+    assert stored_route("structured") == "structured"
+    assert stored_route("model") == "model"
+    assert stored_route(None) is None

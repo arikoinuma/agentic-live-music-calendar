@@ -22,12 +22,19 @@ from collections import Counter
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
+from typing import Any, cast
 
 from agent_worker.extraction import clean_text
 from agent_worker.model_eval.scoring import ErrorItem
+from agent_worker.policy import stored_route
 from agent_worker.schemas import VenuePageExtraction
-from agent_worker.validation import CheckCode, Finding, Severity, validate_extraction
+from agent_worker.validation import (
+    CheckCode,
+    Finding,
+    Severity,
+    Source,
+    validate_extraction,
+)
 
 
 class Coverage(StrEnum):
@@ -114,7 +121,8 @@ def recompute_findings(document: dict[str, Any], *, page_html: str, fetched_on: 
     """
     extraction = VenuePageExtraction.model_validate(document["raw_extraction"])
     result, _kept = validate_extraction(
-        extraction, source=document["route"], notes=document["notes"], fetched_on=fetched_on,
+        # A stored route name: "jsonld" (before C6.1) reads as "structured".
+        extraction, source=cast(Source, stored_route(document["route"])), notes=document["notes"], fetched_on=fetched_on,
         page_html=page_html, page_text=clean_text(page_html, False) if page_html else "",
     )
     return result.findings

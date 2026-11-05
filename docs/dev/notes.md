@@ -779,3 +779,18 @@ changes nothing on an existing deployment: an older preview URL kept the old pas
 its `__Host-gate` cookie, which looked like "the gate stopped working". Test on the newest deployment in a private window
 (`environments.md`, "As built"). Turborepo's strict env mode also warned that the variable was missing from `turbo.json`
 though the proxy reads it per request; it belongs in `globalPassThroughEnv` beside `APP_ENV`.
+
+## A page's visible dates can be a day late while its embedded events are right (C6.1)
+
+Found on Hook & Ladder (November 5, 2026). The fetched page prints each evening show's month and day one day late (34 of 41
+events), because the server renders them in UTC and a script corrects them in the browser; Ari's screenshot of the live site
+and the text the worker reads disagree for that reason. The page never says UTC: that is an inference from the arithmetic.
+The right dates are in the event URL slugs (`...-november-06-2026-730408`) and in an `<astro-island>` whose `props`
+attribute holds all 41 events as JSON with the metro's offset (`2026-11-06T18:30:00.000-06:00`). A model cannot fix a date the
+visible text states wrongly, so `sources/embedded_events.py` reads the island (the structured route, `structured_source`
+`"astro-island"`), and `validation.check_slug_dates` warns when a show's date disagrees with its slug. Three traps found
+while planning it: a timestamp is not a start time merely because it is one (a feed that writes `T00:00:00Z` for a date would
+move to the previous evening if converted, so a midnight in its own offset is read as a date, C6.1-D3); the `under reported`
+check compares the extraction with the visible dates and so fires on exactly this page (C6.1-D10); and the island's `title`
+omits the "with …" line the page prints, which carries the support acts (C6.1-D8). A browser fetch in the metro timezone is
+the general fix and is deferred (`arch-initial.md` Section 10).

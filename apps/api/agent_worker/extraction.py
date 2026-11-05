@@ -10,9 +10,9 @@ How to read it:
 - `ExtractionConfig` holds the switches A2.1's experiment ladder flips one at a time. Each
   defaults to today's behaviour; `PIPELINE_CONFIG` / `PIPELINE_OPTIONS` are what the pipeline
   runs, and adopting a rung means changing a default there (plan, "Experiment protocol").
-- `extract_page` chooses a route (A2.1-K3): the venue's own JSON-LD when the page has
-  usable events, otherwise the full-page model extraction A2 built.
-- `_from_model` and `_from_jsonld` are the two routes; `PageExtractionResult` records which
+- `extract_page` chooses a route (A2.1-K3): the structured route (the venue's own
+  JSON-LD, or the events embedded in an `<astro-island>`; C6.1) when the page has usable events, otherwise the full-page model extraction A2 built.
+- `_from_model` and `_from_structured` are the two routes; `PageExtractionResult` records which
   one ran, the text sent, and anything worth noting, for the eval now and the audit trail
   (A4) later.
 """
@@ -42,7 +42,7 @@ from agent_worker.schemas import (
     page_model,
     show_model,
 )
-from agent_worker.sources import jsonld
+from agent_worker.sources import embedded_events, jsonld
 from app.config import settings
 
 __all__ = [
@@ -117,9 +117,9 @@ class PageExtractionResult:
     """One page's extraction, plus how it was produced."""
 
     extraction: VenuePageExtraction
-    source: Literal["jsonld", "model", "image"]
+    source: Literal["structured", "model", "image"]
     # What the model was actually given as the page (cleaned text, or the numbered titles on
-    # the JSON-LD route). Stored per eval run so a missed act boundary can be traced to "never
+    # the structured route). Stored per eval run so a missed act boundary can be traced to "never
     # sent" vs "sent and ignored" (plan, step 9).
     sent_text: str
     notes: dict[str, Any] = field(default_factory=dict)
@@ -183,12 +183,22 @@ def _base_instruction_for(config: ExtractionConfig) -> str:
 
 
 def usable_events(html: str) -> list[dict[str, Any]]:
-    """The page's JSON-LD events that can produce a show: they need a start (the date) and a name
+    """The page's structured events that can produce a show: they need a start (the date) and a name
     (what the act splitter reads). Every page carries SOME JSON-LD (WebSite, Restaurant…), so "the
     page has JSON-LD" is the wrong test, and an Event that can't produce a show doesn't count. The
-    routing condition, shared by `extract_page` and `extract_node` (which records the route an
-    attempt used even when the attempt fails)."""
-    return [e for e in jsonld.find_events(html) if e.get("startDate") and e.get("name")]
+    routing condition, shared by `extract_page`, `nodes._route_for` and `nodes._nothing_to_read`
+    (which records the route an attempt used even when the attempt fails).
+
+    Two readers supply events (C6.1-D1): the page's JSON-LD, and, only when that finds none, the
+    events embedded in an `<astro-island>` (C6.1-D2: a page with both lists the same events twice, and
+    keeping JSON-LD first leaves every JSON-LD page exactly as it was measured). Each event is tagged
+    with `_source` (`"json-ld"` or `"astro-island"`) so the route can say which reader it used."""
+    ld = [
+        {**e, "_source": "json-ld"} for e in jsonld.find_events(html) if e.get("startDate") and e.get("name")
+    ]
+    if ld:
+        return ld
+    return [e for e in embedded_events.find_events(html) if e.get("startDate") and e.get("name")]
 
 
 def page_model_for(config: ExtractionConfig) -> type[BaseModel]:
@@ -282,13 +292,14 @@ def _shows_from_listings(
     return VenuePageExtraction(page_readable=listings.page_readable, shows=shows)
 
 
-def _from_jsonld(
+def _from_structured(
     events: list[dict[str, Any]], *, html: str, venue_name: str, metro_timezone: str, client: Any,
     options: RequestOptions, seed: int | None, hint: str = "",
 ) -> PageExtractionResult:
-    """Shows from the venue's JSON-LD; only the acts come from a model (act_split.py).
+    """Shows from the venue's structured events (JSON-LD, or an `<astro-island>`'s embedded events: C6.1-D1); only the
+    acts come from a model (act_split.py).
 
-    A title the splitter gives no acts (a non-music entry: JSON-LD lists the whole calendar)
+    A title the splitter gives no acts (a non-music entry: a structured source lists the whole calendar)
     is kept with `acts: []`, exactly as the model route does, so A3's completeness check sees
     the same shapes from both routes (A2 Design, "Consequences"). `confidence` 1.0 is a
     placeholder: it claims a certainty about acts the splitter doesn't have, and A3's decision
@@ -321,9 +332,15 @@ def _from_jsonld(
         "no_acts": [t for t, acts in zip(titles, split.acts, strict=True) if not acts],
         "missing_ids": split.missing_ids,
         "title_mismatches": split.title_mismatches,
+        # Which reader supplied the events (C6.1-D1): the audit trail and the checks that only make sense for
+        # one of them (the visible-dates guard, the slug cross-check) read this.
+        "structured_source": events[0].get("_source", "json-ld") if events else "json-ld",
     }
+    if notes["structured_source"] == embedded_events.SOURCE:
+        # The venue's URL slug per show, in show order, for validation.check_slug_dates (C6.1-D6).
+        notes["slugs"] = [e.get("_slug") for e in events]
     return PageExtractionResult(
-        extraction=page_cls(page_readable=True, shows=shows), source="jsonld",
+        extraction=page_cls(page_readable=True, shows=shows), source="structured",
         sent_text="\n".join(f"{i}: {t}" for i, t in enumerate(titles)), notes=notes,
     )
 
@@ -358,7 +375,7 @@ def extract_page(
         # needs a start (the date) and a name (what the splitter reads). `usable_events` applies that.
         events = usable_events(html)
         if events:
-            return _from_jsonld(events, html=html, venue_name=venue_name, metro_timezone=metro_timezone,
+            return _from_structured(events, html=html, venue_name=venue_name, metro_timezone=metro_timezone,
                                 client=client, options=splitter_options, seed=seed, hint=config.splitter_hint)
 
     return _from_model(

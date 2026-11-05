@@ -80,7 +80,7 @@ async def test_a_clean_page_is_one_attempt_with_nothing_wrong(tmp_path: Path, mo
     # the raw and the validated extraction both hold the two shows and score with no error.
     run = await run_scripted(tmp_path, monkeypatch, TWO_EVENTS, LABEL, {SPLITTER: [FULL]})
     assert (run.attempt_count, run.retried, run.recovered, run.escalated) == (1, False, False, False)
-    assert run.source == "jsonld"
+    assert run.source == "structured"
     assert run.route_mismatch is False  # the staged document's route is the source validation received (C5-CR1-6)
     assert run.raw is not None and run.validated is not None
     assert len(run.raw["shows"]) == 2 and len(run.validated["shows"]) == 2

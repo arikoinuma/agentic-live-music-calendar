@@ -118,7 +118,7 @@ def test_a_page_with_dated_events_takes_the_json_ld_route() -> None:
         act_split.ActSplitItem(id=0, title="Nona", acts=["Nona"]),
     ]))
     result = run(html, client, route="auto")
-    assert result.source == "jsonld"
+    assert result.source == "structured"
     assert [c["response_model"] for c in client.chat.completions.calls] == [act_split.ActSplitAnswer]
 
 

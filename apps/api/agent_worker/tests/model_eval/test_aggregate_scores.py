@@ -199,3 +199,26 @@ def test_validation_recall_in_the_aggregate_follows_the_real_coverage_definition
     a["score"]["items"] = [{"kind": "acts_wrong", "date": "2026-10-11", "index": 3, "field": None}]
     recall = aggregate_scores.aggregate([record(attempts=[a])], {"page.html": GATED})["validation"]
     assert (recall["total"], recall["caught"]) == (1, 1)
+
+
+def test_a_saved_gate_keyed_with_the_old_route_name_is_read_as_structured() -> None:
+    # Proves (C6.1-D1): a results file written before the rename keys its per-route gate "jsonld"; the
+    # comparison asks for "structured" and must still find it, or every C5 and C6 baseline would show "-" for that
+    # row. The file's shape is the one `run_eval.aggregate` writes (gate -> scope -> passed/failures/pages).
+    from agent_worker.model_eval import run_eval
+
+    old = {"aggregate": {"gate": {"jsonld": {"passed": True, "failures": [], "pages": 3}}}}
+    new = {"aggregate": {"gate": {"structured": {"passed": False, "failures": ["x"], "pages": 3}}}}
+    assert run_eval._gate_line(old, "structured") == "PASS"
+    assert run_eval._gate_line(new, "structured") == "FAIL (1)"
+    assert run_eval._gate_line({"aggregate": {"gate": {}}}, "structured") == "-"
+
+
+def test_the_cost_by_route_reads_a_stored_old_route_name_as_structured() -> None:
+    # Proves (C6.1-CR1-2): `mean_seconds_by_route` is keyed by route, so a baseline written when the route was
+    # called "jsonld" must land under "structured" with the runs that say so, or a cost comparison across the
+    # rename splits into two rows. The records are written by `record()` in the stored (old) shape.
+    old = record(source="jsonld", seconds=10.0)
+    new = record(source="structured", seconds=20.0)
+    cost = aggregate_scores.aggregate([old, new], {})["cost"]["mean_seconds_by_route"]
+    assert cost == {"structured": 15.0}

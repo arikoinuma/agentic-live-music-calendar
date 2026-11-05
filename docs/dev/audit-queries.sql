@@ -17,7 +17,8 @@
 --   extract   tier, route, error, staging_id (the MongoDB document), shows, larger_model_used,
 --             models ({page, splitter, status}: the model each kind of call used on this route, null where the route
 --             makes no such call; `model_used` on the row is the page model)
---   validate  route, verdict, reasons, errors, warnings, repairs, excluded
+--   validate  route, verdict, reasons, errors, warnings, repairs, excluded, visible_unmatched_dates (embedded-events
+--             pages only: upcoming dates the visible text names that no event falls on; null for other routes)
 --   reconcile summary   counts (per action), coverage ({start, end} the removals were judged inside, or null),
 --                       needs_review and withheld (lists of {action, date, time, stored_id, acts, reason}),
 --                       artists (resolutions per outcome), model_decisions

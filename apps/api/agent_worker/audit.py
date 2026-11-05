@@ -163,6 +163,9 @@ def _detail(step: StepType, state: VenueGraphState, staging_id: str | None) -> d
                 "warnings": len(result.warnings) if result else 0,
                 "repairs": len(result.repairs) if result else 0,
                 "excluded": len(result.excluded) if result else 0,
+                # Events read from a page's embedded data only (C6.1-D10, C6.1-CR1-1): the visible dates no event falls on.
+                # None = the check did not apply to this route, which is not the same as zero.
+                "visible_unmatched_dates": result.visible_unmatched_dates if result else None,
             }
         case StepType.RECONCILE:
             detail = _reconcile_detail(state)

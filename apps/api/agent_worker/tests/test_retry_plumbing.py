@@ -396,7 +396,7 @@ def test_the_eval_does_not_count_a_json_ld_url_as_invented() -> None:
     # Proves (A3-PR1-11): a21-confirm reported 225 "invented" image URLs, every one a JSON-LD show
     # checked against cleaned text that can't contain them. The check is source-aware.
     score = run_eval.score_extraction(
-        _extraction_dump("https://v.example/a.png"), FixtureReference(), page_text="Nona", source="jsonld",
+        _extraction_dump("https://v.example/a.png"), FixtureReference(), page_text="Nona", source="structured",
     )
     assert score["invented_image_urls"] == []
 

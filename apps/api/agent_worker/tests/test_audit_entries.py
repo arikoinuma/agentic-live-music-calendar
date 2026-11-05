@@ -11,6 +11,7 @@ escalated), then each test names one rule and asserts the entry. Expected values
 column (`app/db/models/audit.py`) is the oracle for the confidence conversion.
 """
 
+import dataclasses
 import datetime
 import json
 from decimal import Decimal
@@ -170,7 +171,7 @@ def test_a_json_ld_validate_row_has_confidence_none_not_zero() -> None:
     # the record, so the row's confidence is NULL; a 0.000 would read as "the model was certain it was
     # wrong" and corrupt A8's calibration check. The model name is still recorded: the act splitter ran.
     state = base_state(
-        attempt_count=1, last_plan=PLAN, confidence=None, route_attempted="jsonld",
+        attempt_count=1, last_plan=PLAN, confidence=None, route_attempted="structured",
         validation=passed_validation(confidence=None),
     )
     entry = entry_for(StepType.VALIDATE, state)
@@ -406,6 +407,18 @@ def test_the_extract_row_names_the_model_of_each_call_the_route_made() -> None:
     # Proves (C6-PR1-3): the extract row's detail carries `models` per role (null for a call the route did not
     # make), so a failure can be traced to the model that produced it; `model_used` stays the page model.
     model = extraction.PIPELINE_OPTIONS.model
-    entry = entry_for(StepType.EXTRACT, base_state(attempt_count=1, last_plan=PLAN, route_attempted="jsonld"))
+    entry = entry_for(StepType.EXTRACT, base_state(attempt_count=1, last_plan=PLAN, route_attempted="structured"))
     assert entry.detail["models"] == {"page": None, "splitter": model, "status": None}
     assert entry.model_used == model
+
+
+def test_validate_detail_records_the_visible_unmatched_dates_count() -> None:
+    # Proves (C6.1-CR1-1): C6.1-D10 stopped failing an embedded-events page for visible dates with no event and
+    # promised to record the count instead. The count must reach the validate row's detail (and so
+    # `audit-queries.sql`), or it vanishes when validation returns. Other sources record None, not 0: "not
+    # checked" is not "none unmatched".
+    result = dataclasses.replace(passed_validation(verdict=Verdict.PASSED), visible_unmatched_dates=10)
+    detail = entry_for(StepType.VALIDATE, base_state(attempt_count=1, last_plan=PLAN, route_attempted="structured", validation=result)).detail
+    assert detail["visible_unmatched_dates"] == 10
+    plain = entry_for(StepType.VALIDATE, base_state(attempt_count=1, last_plan=PLAN, route_attempted="model", validation=passed_validation(verdict=Verdict.PASSED))).detail
+    assert plain["visible_unmatched_dates"] is None

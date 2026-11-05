@@ -52,7 +52,7 @@ from urllib.parse import urlparse
 import httpx
 from pydantic import ValidationError
 
-from agent_worker import act_split, extraction, status_check, validation
+from agent_worker import act_split, extraction, policy, status_check, validation
 from agent_worker.llm import ModelRoles, RequestOptions, build_clients, request_kwargs
 from agent_worker.main import model_endpoint_problem
 from agent_worker.model_eval import labels, scoring
@@ -382,10 +382,10 @@ def score_extraction(
         "invented_price": 0 if ref.states_price else sum(fills[f] for f in _PRICE_FIELDS),
         # A model-route URL must appear verbatim in the page (the cleaned text, which carries
         # "[image: URL]" lines when keep_image_urls is on, or the unescaped HTML); one that doesn't is
-        # almost certainly made up. Not checked for jsonld or image runs (see the docstring).
+        # almost certainly made up. Not checked for structured or image runs (see the docstring).
         "image_urls": image_urls,
         "invented_image_urls": (
-            [] if source in ("jsonld", "image")
+            [] if source in ("structured", "image")
             else [u for u in image_urls if not validation.verify_image_url(u, page_html, page_text)]
         ),
     }
@@ -547,7 +547,7 @@ def gate_summary(runs: list[dict[str, Any]], route_when_failed: str = "any") -> 
         if label.gated:
             by_run.setdefault(r["run"], []).append(outcome)
     gates = {}
-    for scope in ("all", "jsonld", "model"):
+    for scope in ("all", "structured", "model"):
         result = scoring.gate(by_run, route=None if scope == "all" else scope)
         gates[scope] = {"passed": result.passed, "failures": result.failures, "pages": result.pages}
     return {"gate": gates, "pages": pages}
@@ -661,7 +661,7 @@ def rescore(label: str) -> None:
             page_score = scoring.score_page(
                 page_label, run["extraction"], "" if is_image else fixture.read_text(), run["fixture"]
             )
-            page_score.route = run.get("source", "model")
+            page_score.route = policy.stored_route(run.get("source", "model")) or "model"
             run["label_score"] = asdict(page_score)
     data["aggregate"] = aggregate(data["runs"])
     data["rescored_from"] = label
@@ -719,7 +719,9 @@ def act_title_check(results: dict[str, Any]) -> dict[str, int]:
 
 def _gate_line(results: dict[str, Any], scope: str) -> str:
     """'PASS' / 'FAIL (n)' for one scope of a results file's gate, or '-' if it has none."""
-    gate = results.get("aggregate", {}).get("gate", {}).get(scope)
+    gates = results.get("aggregate", {}).get("gate", {})
+    # A file written before C6.1 keys the structured route's gate "jsonld" (C6.1-D1); read it as today's name.
+    gate = gates.get(scope) or next((gates[old] for old, new in policy.LEGACY_ROUTE_NAMES.items() if new == scope and old in gates), None)
     if gate is None:
         return "-"
     if not gate.get("pages", 1):
@@ -749,7 +751,7 @@ def compare(labels: list[str]) -> None:
         "config": lambda f: {k: v for k, v in (f.get("config") or {}).items() if v not in (False, None)} or "-",
         "temperature": lambda f: (f.get("request_options") or {}).get("temperature"),
         "gate (all)": lambda f: _gate_line(f, "all"),
-        "gate (jsonld)": lambda f: _gate_line(f, "jsonld"),
+        "gate (structured)": lambda f: _gate_line(f, "structured"),
         "gate (model)": lambda f: _gate_line(f, "model"),
     }.items():
         print(name.ljust(width) + "".join(str(getter(files[lab])).ljust(34) for lab in labels))

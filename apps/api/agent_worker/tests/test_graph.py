@@ -132,7 +132,7 @@ async def test_a_clean_json_ld_page_passes_on_the_first_attempt(tmp_path: Path, 
     state, client = await run_graph(tmp_path, monkeypatch, page, {SPLITTER: [NONA]})
     assert state.attempt_count == 1 and len(state.attempt_history) == 1
     assert state.validation is not None and state.validation.verdict is Verdict.PASSED
-    assert state.confidence is None and state.extraction_source == "jsonld"
+    assert state.confidence is None and state.extraction_source == "structured"
     assert reached_reconcile(state) and not reached_escalate(state)
     assert len(completions(client).calls) == 1
 
@@ -269,7 +269,7 @@ async def test_a_json_ld_page_that_under_reports_falls_back_to_the_model_route(
     state, client = await run_graph(
         tmp_path, monkeypatch, UNDER_REPORTED, {PAGE: [listings_answer(GOOD_LISTING)], SPLITTER: [NONA]},
     )
-    assert [r.route for r in state.attempt_history] == ["jsonld", "model"]
+    assert [r.route for r in state.attempt_history] == ["structured", "model"]
     assert state.attempt_history[0].reasons == [FailureReason.CHECK_ERRORS]
     assert len(completions(client).calls_for(PAGE)) == 1 and len(completions(client).calls_for(SPLITTER)) == 2
     assert reached_reconcile(state)
@@ -285,9 +285,9 @@ async def test_the_route_fallback_is_sticky_and_an_escalation_names_both_routes(
     state, _ = await run_graph(
         tmp_path, monkeypatch, UNDER_REPORTED, {PAGE: [listings_answer(unsure)], SPLITTER: [NONA]},
     )
-    assert [r.route for r in state.attempt_history] == ["jsonld", "model", "model"]
+    assert [r.route for r in state.attempt_history] == ["structured", "model", "model"]
     assert reached_escalate(state)
-    assert "jsonld and model" in (state.escalation_reason or "")
+    assert "model and structured" in (state.escalation_reason or "")
 
 
 async def test_a_malformed_json_ld_date_is_recorded_and_the_retry_uses_the_model_route(
@@ -301,7 +301,7 @@ async def test_a_malformed_json_ld_date_is_recorded_and_the_retry_uses_the_model
         tmp_path, monkeypatch, page, {PAGE: [listings_answer(GOOD_LISTING)], SPLITTER: [NONA]},
     )
     first, second = state.attempt_history
-    assert first.route == "jsonld" and first.reasons == [FailureReason.EXTRACT_FAILED]
+    assert first.route == "structured" and first.reasons == [FailureReason.EXTRACT_FAILED]
     assert second.route == "model" and second.verdict is Verdict.PASSED
     assert len(completions(client).calls_for(PAGE)) == 1
 
@@ -333,7 +333,7 @@ async def test_a_json_ld_page_of_only_stale_events_is_excluded_not_sent_to_the_m
     )
     answer = split_answer(("A", ["A"]), ("B", ["B"]), ("C", ["C"]))
     state, client = await run_graph(tmp_path, monkeypatch, page, {SPLITTER: [answer]})
-    assert state.attempt_count == 1 and [r.route for r in state.attempt_history] == ["jsonld"]
+    assert state.attempt_count == 1 and [r.route for r in state.attempt_history] == ["structured"]
     assert state.validation is not None and state.validation.excluded == [0, 1, 2] and state.validation.errors == []
     assert state.validated_extraction is not None and state.validated_extraction.shows == []
     assert completions(client).calls_for(PAGE) == [] and reached_reconcile(state)
@@ -348,7 +348,7 @@ async def test_an_end_time_equal_to_the_start_is_repaired_and_the_json_ld_route_
         event("Nona", "2026-10-20T20:00:00-05:00", endDate="2026-10-20T20:00:00-05:00"), body="Nona 8:00 pm",
     )
     state, _ = await run_graph(tmp_path, monkeypatch, page, {SPLITTER: [NONA]})
-    assert state.attempt_count == 1 and state.attempt_history[0].route == "jsonld"
+    assert state.attempt_count == 1 and state.attempt_history[0].route == "structured"
     assert state.validation is not None and [r.field for r in state.validation.repairs] == ["end_time"]
     assert state.validated_extraction is not None and state.validated_extraction.shows[0].end_time is None
 

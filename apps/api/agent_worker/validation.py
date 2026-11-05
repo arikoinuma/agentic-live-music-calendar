@@ -30,6 +30,7 @@ Three ideas the checks share:
 import datetime
 import html as html_lib
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import Any, Literal
@@ -40,10 +41,11 @@ from agent_worker.normalize import (
     infer_year,
 )
 from agent_worker.schemas import ShowExtraction, VenuePageExtraction
+from agent_worker.sources.embedded_events import slug_date
 from agent_worker.sources.jsonld import end_time_is_stated
 
 # Which route produced the extraction (PageExtractionResult.source).
-Source = Literal["jsonld", "model", "image"]
+Source = Literal["structured", "model", "image"]
 
 # ---------------------------------------------------------------------------
 # Types
@@ -78,6 +80,7 @@ class CheckCode(StrEnum):
     # warnings
     EXCLUDED_NO_ACTS = "excluded_no_acts"
     DATE_OUT_OF_WINDOW = "date_out_of_window"
+    SLUG_DATE_DISAGREES = "slug_date_disagrees"
     ACT_NOT_IN_TITLE = "act_not_in_title"
     UNUSUAL_START_TIME = "unusual_start_time"
     POSSIBLE_MERGE = "possible_merge"
@@ -152,6 +155,10 @@ class ValidationResult:
     # None = no model judged the record (JSON-LD route), or nothing was kept to judge.
     confidence: float | None = None
     extraction_failed: bool = False
+    # Events read from a page's embedded data only (C6.1-D10): how many upcoming dates the visible text names that no
+    # extracted show falls on. The under-reported check is not run for that source, since its premise (the visible
+    # dates are the reliable list) is what the source overrules, so the count is kept as evidence instead of dropped.
+    visible_unmatched_dates: int | None = None
     verdict: Verdict | None = None
     reasons: list[FailureReason] = field(default_factory=list)
 
@@ -328,7 +335,7 @@ def repair_show(
 
     Which repair runs on which source (plan, §2): the two that read no page (a misplaced start,
     an end equal to the start) run everywhere; the image-URL and unstated-end-time checks read the
-    page, so they run on the `model` source only — not `jsonld` (its values come from structured
+    page, so they run on the `model` source only — not `structured` (its values come from structured
     data, not a model) and not `image` (a poster run has no page HTML).
     """
     repairs: list[Repair] = []
@@ -419,6 +426,23 @@ def check_under_reported(
     return []
 
 
+def check_slug_dates(extraction: VenuePageExtraction, slugs: Sequence[str | None]) -> list[Finding]:
+    """Events read from a page's embedded data only (C6.1-D6): a show whose date differs from the date its URL slug
+    names in words is a WARNING for that show. The venue wrote the slug for people, in its own time, so it is evidence
+    that does not depend on any timestamp; a disagreement means the feed contradicts itself. It reports and repairs
+    nothing. `slugs` is in show order (the extraction's raw list, as `notes["slugs"]` is written); a missing slug or
+    one naming no date is silent, since there is no evidence either way."""
+    findings = []
+    for index, (show, slug) in enumerate(zip(extraction.shows, slugs, strict=False)):
+        named = slug_date(slug)
+        if named is not None and named != show.date:
+            findings.append(Finding(
+                CheckCode.SLUG_DATE_DISAGREES, Severity.WARNING,
+                f"the show is dated {show.date} but its URL names {named}", index,
+            ))
+    return findings
+
+
 def check_empty_but_dated(
     page_text: str, fetched_on: datetime.date, shown: set[tuple[int, int]]
 ) -> list[Finding]:
@@ -451,7 +475,7 @@ def aggregate_confidence(
     status merge's added shows carry the same placeholder (`added`), and a page with nothing kept
     has nothing to be confident about (`min([])` would raise).
     """
-    if source == "jsonld":
+    if source == "structured":
         return None
     judged = [s.confidence for i, s in shows if i not in added]
     return min(judged) if judged else None
@@ -496,7 +520,7 @@ def validate_extraction(
             continue
         flags = check_plausibility(show, fetched_on)
         if flags.date_out_of_window:
-            if source == "jsonld":
+            if source == "structured":
                 # A3-D13: the date is the source's own, a retry can't change it, and the model route's
                 # year rule would re-date it into a plausible but wrong date. Excluded, visibly.
                 findings.append(Finding(
@@ -531,7 +555,15 @@ def validate_extraction(
             f"the act splitter returned no answer for listing {missing}", missing,
         ))
 
-    if source == "jsonld":
+    visible_unmatched: int | None = None
+    if source == "structured" and notes.get("structured_source") == "astro-island":
+        # C6.1-D10: the embedded events overrule the page's visible dates (on Hook & Ladder those are a day late), so
+        # unmatched visible dates are expected here; failing the attempt would send it to the model route, which
+        # reads the wrong dates again (C6.1-PR1-1). The slug check below is the guard that remains.
+        shown = {(s.date.month, s.date.day) for s in extraction.shows}
+        visible_unmatched = len(upcoming_dates(page_text, fetched_on) - shown)
+        findings += check_slug_dates(extraction, notes.get("slugs") or [])
+    elif source == "structured":
         findings += check_under_reported(extraction, page_text, fetched_on)
     # A3-D10: no kept show (an empty list, or every show excluded) on a page whose text names dates.
     if not kept and outcome is not PageOutcome.UNREADABLE and source != "image":
@@ -540,5 +572,6 @@ def validate_extraction(
     confidence = aggregate_confidence(kept, source, set(notes.get("added_indices") or []))
     result = ValidationResult(
         outcome=outcome, findings=findings, repairs=repairs, excluded=excluded, confidence=confidence,
+        visible_unmatched_dates=visible_unmatched,
     )
     return result, [show for _, show in kept]
