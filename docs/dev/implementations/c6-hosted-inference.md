@@ -376,6 +376,27 @@ Ari approved fixing the prompt and the Flange case on the 26B model before any f
 - **Thinking:** no sign of hidden reasoning tokens (PLAUSIBLE, not proven): completion tokens per character of output are steady across pages (about 2.4 characters a token on Seventh St and Turf Club, 2.7 on Mortimers). No thinking switch was found, so no on/off comparison was run.
 - **Not done:** the cost is computed from recorded tokens at the prices Ari read off the DeepInfra pricing page; the plan asks for a cross-check against the account's actual spend for the run, which needs the dashboard and is Ari's to read. Not compared with `arch-initial.md` §10's estimate or the laptop's 1.5 to 7 minutes a page yet; that belongs to Step 13.
 
+### Round 9 — Step 8, the held-out run, and what the Hook & Ladder page showed, Claude Sonnet 5.5 (run for Ari), November 5, 2026
+
+**Result: `c6-heldout` (26B on every role, the two held-out pages, 5 runs) fails the gate, and the first thing it found is not a model error.** Ginkgo Coffee (JSON-LD route, 12 shows read, about 5 s a run) failed on every run; Hook & Ladder (model route, 37 shows read against 29 labelled, 87 to 114 s a run) failed on every run. Per run: Hook & Ladder 14 to 15 missed, 14 fabricated, 13 to 14 `acts_wrong`, 10 wrong times; Ginkgo Coffee 6 wrong end times and the one price missing.
+
+**A correction to my first reading.** Right after the run I told Ari the Hook & Ladder labels were a day early. That was wrong. Ari edited the dates in `labels.py` by hand (commit `c085f5d`) because the script-drafted labels had them wrong, and his labels match the live site (his screenshot, November 5). The page the pipeline fetches carries the shifted dates; the labels do not.
+
+**What the captured page holds** (checked in `model_eval/captured_pages/hook_ladder-2026-11-04.html`, 41 events):
+
+- The visible `event-row` markup shows a month, day and weekday that sit one day ahead of the local date for evening shows. 34 of the 41 events are affected.
+- The same page carries the right dates twice: in each event's slug (`paul-cebar-tomorrow-sound-november-06-2026-730408`) and in an `astro-island` whose HTML-escaped `props` attribute holds all 41 events as JSON, with ISO times and the metro offset (`2026-11-06T18:30:00.000-06:00`, `-06:00` on all 41). It also holds a `startTime` and `endTime`, the door time as `doorTime`, a price range, an age restriction, a `canceledAt`, and a `performers` list.
+- **The page never says UTC.** That the visible dates were rendered in UTC is an inference (PLAUSIBLE, strong): the shift is exactly what a UTC rendering of an evening Central time gives, it appears only on evening shows, and the live browser shows the local date. It is not stated anywhere in the markup.
+- So the model read the page faithfully and the page was wrong for it. A better model cannot fix a date the visible text states wrongly.
+
+**The remaining Hook & Ladder errors are real model errors**, and are not yet separated from the date effect: event names kept as acts (the honoree rule may be over-reaching: `C6-D2`'s prompt text), a comedy special kept as a show, two shows missed (Truthsgiving, Hipshaker MPLS), and one diacritic loss (`Imnížaska`). They are not tuned on, since these are the held-out pages, until Ari decides how to use them.
+
+**Ginkgo Coffee.** The invented end time is probably an artefact of the harness, not of the pipeline: `run_eval` runs no validation, and the real pipeline repairs an end time equal to the start (`validation.repair_show`). Not confirmed. The missing price on the Chuck Suchy show is not yet looked at.
+
+**Decision (Ari, November 5): build a reader for the embedded events, as its own milestone, C6.1** (`docs/dev/implementations/c6.1-embedded-events-reader.md`), reusing `jsonld.local_wall_clock`, with a cross-check between a show's slug date and its extracted date. The held-out pages are not scored again until C6.1 is built.
+
+**Deferred, same day** (`arch-initial.md` §10): the browser-based fetch in the metro timezone, the comparison with the rendered page, and a screenshot audit.
+
 ## Code review
 
 ### Round 1 — Claude Opus 5.5, October 28, 2026
