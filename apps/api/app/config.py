@@ -107,11 +107,13 @@ class Settings(BaseSettings):
 
     # Where the worker's model calls go (C6-D2). ONE endpoint for every call site, with a model name per role
     # below: every hosted call goes to the same provider, so one URL and one key per environment is one value
-    # to keep in step, not four. The defaults are the local Ollama the pipeline used before C6, so a laptop with
-    # none of these set behaves exactly as it did. The rule that a hosted WORKER must not keep the localhost
-    # default lives in the worker's start-up (`agent_worker.main.model_endpoint_problem`), not in the validator
-    # below: the hosted API builds `Settings` too, never sets these, and must still start (C6-PR1-1).
-    model_base_url: str = "http://localhost:11434/v1"
+    # to keep in step, not four. The URL has NO default in code (Ari's comment on PR 80): it comes only from the
+    # `MODEL_BASE_URL` environment variable. A laptop sets it in `.env` (`.env.example` has the local Ollama's
+    # line), a hosted worker sets it in its service variables. It is optional here because the hosted API builds
+    # `Settings` too, never sets it, and must still start (C6-PR1-1); the rule that a WORKER must have one, and
+    # that a hosted one must not point at localhost, lives in the worker's start-up
+    # (`agent_worker.main.model_endpoint_problem`), not in the validator below.
+    model_base_url: str | None = None
     # A `SecretStr`, so a `Settings` repr, a log line or a validation traceback cannot print the key (C6-PR1-7).
     # "ollama" is the placeholder the OpenAI client requires and Ollama ignores.
     model_api_key: SecretStr = SecretStr("ollama")

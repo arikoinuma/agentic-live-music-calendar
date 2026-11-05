@@ -250,6 +250,27 @@ def test_hosted_provenance_makes_no_request_to_localhost(monkeypatch: pytest.Mon
     assert provenance["base_url_host"] == "api.example.test" and provenance["model"] == "vendor/some-model"
 
 
+def test_ollama_provenance_asks_the_configured_host_not_a_built_in_one(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Proves (Ari's comment on PR 80): Ollama's own API (`/api/version`, `/api/tags`, `/api/ps`) lives at the host the
+    # OpenAI-compatible URL names, minus its `/v1`. No URL is written in the code; a laptop whose Ollama is on
+    # another host or port is asked there. Fails if `localhost:11434` is built back in.
+    import httpx
+
+    asked: list[str] = []
+
+    class Answer:
+        def json(self) -> dict[str, Any]:
+            return {"version": "0.0", "models": []}
+
+    def get(url: str, **kwargs: Any) -> Answer:
+        asked.append(url)
+        return Answer()
+
+    monkeypatch.setattr(httpx, "get", get)
+    run_eval.model_provenance(replace(extraction.PIPELINE_OPTIONS, model="m"), "http://ollama-box.test:9999/v1")
+    assert asked and all(u.startswith("http://ollama-box.test:9999/api/") for u in asked)
+
+
 def test_counters_are_per_run_so_concurrent_runs_cannot_mix_them() -> None:
     # Proves (C6-PR1-6): parse errors and token usage are counted per run, not in module-level lists that
     # `run_once` clears. Two runs on two threads each see only their own counts, which Step 11's parallel

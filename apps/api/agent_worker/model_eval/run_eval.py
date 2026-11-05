@@ -70,7 +70,6 @@ from app.config import settings
 
 CAPTURED_PAGES_DIR = Path(__file__).parent / "captured_pages"
 RESULTS_DIR = Path(__file__).parent / "results"
-OLLAMA_URL = "http://localhost:11434"
 
 # Request options are the pipeline's own (`extraction.PIPELINE_OPTIONS`: model from MODEL_NAME,
 # max_tokens, max_retries, num_ctx), recorded in every results file so a run can be reproduced
@@ -136,12 +135,17 @@ def new_counters() -> RunCounters:
 
 
 def _record_parse_error(error: Exception) -> None:
+    """Hook for instructor's `parse:error` event: remember a response that failed to parse into the schema, on the
+    current run's counters. Does nothing outside a counted run (`new_counters()` not called in this thread)."""
     counters = _counters.get()
     if counters is not None:
         counters.parse_errors.append(error)
 
 
 def _record_completion(response: Any) -> None:
+    """Hook for instructor's `completion:response` event: add the call's token usage to the current run's counters.
+    A response with no usage block (a provider that omits it) adds nothing and leaves `usage_seen` false, so the
+    run's token count reads as unknown, never as zero. Does nothing outside a counted run."""
     counters = _counters.get()
     usage = getattr(response, "usage", None)
     if counters is not None and usage is not None:
@@ -161,13 +165,14 @@ register_hooks(instructor_client)
 
 
 def load_text_fixture(path: Path) -> str:
-    # A fixture's visible text, cleaned exactly as the pipeline cleans a page (flat form, as
-    # A2's metrics were defined on). Confirmed on the White Squirrel fixture: a 93KB "Save
-    # As" dump was 97% <script>/markup around 2.7KB of content.
+    """A captured page's visible text, cleaned exactly as the pipeline cleans a page (flat form, as A2's metrics were
+    defined on). Confirmed on the White Squirrel capture: a 93KB "Save As" dump was 97% <script>/markup around 2.7KB
+    of content."""
     return extraction.clean_text(path.read_text(), keep_line_breaks=False)
 
 
 def load_image_fixture(path: Path) -> str:
+    """A saved poster image, base64-encoded for a multimodal message. The details of how it is embedded follow."""
     # read a saved image fixture (the flyer-image case) and return
     # it base64-encoded. Multimodal chat messages take an image as a
     # data URL: f"data:image/png;base64,{encoded}" (adjust the mime type
@@ -317,7 +322,8 @@ _PRICE_FIELDS = ("ticket_info", "admission_advance", "admission_day", "free_admi
 
 
 def _act_name(act: Any) -> str:
-    # Baseline acts are plain strings; the new schema's are objects with a `name`.
+    """One act's name, whichever schema produced it: the baseline's acts are plain strings, the new schema's are
+    objects with a `name`."""
     return act if isinstance(act, str) else str(act.get("name", ""))
 
 
@@ -392,8 +398,9 @@ def score_extraction(
 
 
 def _generalize_loc(loc: tuple[Any, ...]) -> str:
-    # ("shows", 3, "acts", 0, "start_time") -> "shows.*.acts.*.start_time", so failures
-    # on different list positions aggregate together.
+    """A validation error's location as a path with list positions replaced by `*`
+    (`("shows", 3, "acts", 0, "start_time")` -> `"shows.*.acts.*.start_time"`), so failures on different list
+    positions aggregate together."""
     return ".".join("*" if isinstance(part, int) else str(part) for part in loc)
 
 
@@ -405,19 +412,26 @@ def classify_parse_error(error: Exception) -> list[str]:
 
 
 def _same_model(listed: str | None, wanted: str) -> bool:
-    # Ollama lists a model created without a tag as "name:latest"; MODEL_NAME may omit it.
+    """True when Ollama's listed model name is the one asked for. Ollama lists a model created without a tag as
+    "name:latest" and `MODEL_NAME` may omit the tag, so both spellings match."""
     return listed in (wanted, f"{wanted}:latest")
 
 
-def loaded_context_length(model: str) -> int | None:
+def ollama_root(base_url: str | None) -> str:
+    """Ollama's own API root, from the OpenAI-compatible URL the worker is configured with: the same host without
+    its `/v1`. No URL is written in the code (Ari's comment on PR 80); the endpoint is `MODEL_BASE_URL` and nothing else."""
+    return (base_url or "").rstrip("/").removesuffix("/v1")
+
+
+def loaded_context_length(model: str, base_url: str | None) -> int | None:
     """The context window Ollama actually loaded the model with (from /api/ps). Called
     right after a label's runs, while the model is still resident. If this isn't num_ctx,
     the request's num_ctx override didn't take effect."""
-    loaded = httpx.get(f"{OLLAMA_URL}/api/ps", timeout=10).json().get("models", [])
+    loaded = httpx.get(f"{ollama_root(base_url)}/api/ps", timeout=10).json().get("models", [])
     return next((m.get("context_length") for m in loaded if _same_model(m.get("name"), model)), None)
 
 
-def model_provenance(options: RequestOptions, base_url: str) -> dict[str, str | int | None]:
+def model_provenance(options: RequestOptions, base_url: str | None) -> dict[str, str | int | None]:
     """Which model build produced a label, so a later run can be checked against it.
 
     Ollama (`provider` "ollama"): its version and the model's digest (`ollama pull` silently changes a tag), from
@@ -430,17 +444,18 @@ def model_provenance(options: RequestOptions, base_url: str) -> dict[str, str | 
     """
     if options.provider != "ollama":
         return {
-            "provider": options.provider, "base_url_host": urlparse(base_url).hostname, "model": options.model,
+            "provider": options.provider, "base_url_host": urlparse(base_url or "").hostname, "model": options.model,
         }
     model, num_ctx = options.model, options.num_ctx
-    version = httpx.get(f"{OLLAMA_URL}/api/version", timeout=10).json().get("version")
-    tags = httpx.get(f"{OLLAMA_URL}/api/tags", timeout=10).json().get("models", [])
+    root = ollama_root(base_url)
+    version = httpx.get(f"{root}/api/version", timeout=10).json().get("version")
+    tags = httpx.get(f"{root}/api/tags", timeout=10).json().get("models", [])
     digest = next((m.get("digest") for m in tags if _same_model(m.get("name"), model)), None)
     return {
         "provider": options.provider,
         "ollama_version": version,
         "model_digest": digest,
-        "loaded_context_length": loaded_context_length(model),
+        "loaded_context_length": loaded_context_length(model, base_url),
         "requested_num_ctx": num_ctx,
     }
 
@@ -794,6 +809,9 @@ def select_fixtures(which: str, only: str | None) -> list[Path]:
 
 
 def main() -> None:
+    """The command line: parse the flags, then run the labelled pages `--runs` times under a `--label`, or print
+    `--compare` / `--rescore` / `--act-check` results from saved files. Refuses an unusable model endpoint before
+    the first call (`main.model_endpoint_problem`)."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--label", help="name for this run set; results go to results/<label>.json")
     parser.add_argument("--runs", type=int, default=5, help="runs per fixture (default 5, seeds 0..n-1; A2.1 D1)")
