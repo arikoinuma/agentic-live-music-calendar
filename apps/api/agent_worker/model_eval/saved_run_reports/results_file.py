@@ -57,7 +57,13 @@ def held_out_scored(fixtures: list[str], page_labels: Mapping[str, PageLabel]) -
 def git_commit() -> str | None:
     """The commit the harness ran at, for the record; None outside a git checkout."""
     try:
-        return subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True, timeout=10).stdout.strip()
+        return subprocess.run(
+            ["git", "rev-parse", "HEAD"],  # noqa: S607 - the checkout's own git, from PATH, is the point
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        ).stdout.strip()
     except (OSError, subprocess.SubprocessError):
         return None
 
@@ -68,20 +74,42 @@ def git_commit() -> str | None:
 
 
 def build_record(
-    *, label: str | None, started_at: str, set_name: str, scenario: str | None, fixture_names: list[str],
-    page_labels: Mapping[str, PageLabel], config: Any, options: Any, request: dict[str, Any], policy: RetryPolicy,
-    provenance: dict[str, Any] | None, aggregate: dict[str, Any], scenarios: list[dict[str, Any]], runs: list[dict[str, Any]],
+    *,
+    label: str | None,
+    started_at: str,
+    set_name: str,
+    scenario: str | None,
+    fixture_names: list[str],
+    page_labels: Mapping[str, PageLabel],
+    config: Any,
+    options: Any,
+    request: dict[str, Any],
+    policy: RetryPolicy,
+    provenance: dict[str, Any] | None,
+    aggregate: dict[str, Any],
+    scenarios: list[dict[str, Any]],
+    runs: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """The results file's content, in the order the file lists it. This is the one place the file's shape is defined.
 
     `config` and `options` are the run_eval dataclasses; they are written whole, so a secret must never become a field of either
     (or must be dropped here), because `slim` keeps `request_options` in the committed snapshot."""
     return {
-        "label": label, "started_at": started_at, "set": set_name, "scenario": scenario,
-        "labels_sha": labels_sha(), "held_out_scored": held_out_scored(fixture_names, page_labels), "harness_commit": git_commit(),
-        "config": dataclasses.asdict(config), "request_options": dataclasses.asdict(options), "request": request,
-        "policy": dataclasses.asdict(policy), "provenance": provenance,
-        "aggregate": aggregate, "scenarios": scenarios, "runs": runs,
+        "label": label,
+        "started_at": started_at,
+        "set": set_name,
+        "scenario": scenario,
+        "labels_sha": labels_sha(),
+        "held_out_scored": held_out_scored(fixture_names, page_labels),
+        "harness_commit": git_commit(),
+        "config": dataclasses.asdict(config),
+        "request_options": dataclasses.asdict(options),
+        "request": request,
+        "policy": dataclasses.asdict(policy),
+        "provenance": provenance,
+        "aggregate": aggregate,
+        "scenarios": scenarios,
+        "runs": runs,
     }
 
 
@@ -132,7 +160,8 @@ def slim(data: dict[str, Any]) -> dict[str, Any]:
     out["request"] = {k: v for k, v in (data.get("request") or {}).items() if k in _PROMPT_HASHES}
     out["runs"] = [_slim_run(r) for r in data["runs"]]
     out["scenarios"] = [
-        {**s, "result": {**s["result"], "runs": [_slim_run(r) for r in s["result"]["runs"]]}} for s in data.get("scenarios", [])
+        {**s, "result": {**s["result"], "runs": [_slim_run(r) for r in s["result"]["runs"]]}}
+        for s in data.get("scenarios", [])
     ]
     return out
 

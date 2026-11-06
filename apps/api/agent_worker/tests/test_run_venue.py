@@ -61,7 +61,10 @@ def ctx(factory: async_sessionmaker[AsyncSession]) -> WorkerContext:
     """What the worker hands every node: the real Postgres audit writer (on the test connection) and a
     recording stager standing in for MongoDB."""
     return WorkerContext(
-        audit=PostgresAuditWriter(factory), stager=RecordingStager(), reader=FakeReader(), writer=FakeWriter(),
+        audit=PostgresAuditWriter(factory),
+        stager=RecordingStager(),
+        reader=FakeReader(),
+        writer=FakeWriter(),
     )
 
 
@@ -87,7 +90,8 @@ async def count(factory: async_sessionmaker[AsyncSession], model: type) -> int:
 
 
 async def test_load_venues_returns_each_venue_with_its_metros_timezone(
-    factory: async_sessionmaker[AsyncSession], venue: VenueFacts,
+    factory: async_sessionmaker[AsyncSession],
+    venue: VenueFacts,
 ) -> None:
     # Proves (A4-D6, Departure 2): the worker takes its venue facts from the database row, not from the caller:
     # id, name, calendar URL, and the timezone of the venue's metro (`metro.timezone` is the source of truth,
@@ -101,7 +105,8 @@ async def test_load_venues_returns_each_venue_with_its_metros_timezone(
 
 
 async def test_load_venues_can_pick_one_and_an_unknown_id_is_empty(
-    factory: async_sessionmaker[AsyncSession], venue: VenueFacts,
+    factory: async_sessionmaker[AsyncSession],
+    venue: VenueFacts,
 ) -> None:
     # Proves: `--venue N` selects exactly that venue, and an id that does not exist selects none.
     async with factory() as session:
@@ -110,7 +115,9 @@ async def test_load_venues_can_pick_one_and_an_unknown_id_is_empty(
 
 
 async def test_run_all_on_an_unknown_venue_raises_before_opening_any_run(
-    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts,
+    factory: async_sessionmaker[AsyncSession],
+    ctx: WorkerContext,
+    venue: VenueFacts,
 ) -> None:
     # Proves: asking for a venue the database does not have fails loudly and opens no run: an `agent_run`
     # needs a real `venue_id` (FK), and a silent no-op would look like a successful empty cycle.
@@ -121,7 +128,10 @@ async def test_run_all_on_an_unknown_venue_raises_before_opening_any_run(
 
 
 async def test_run_all_continues_after_one_venue_hits_an_infrastructure_error(
-    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts, monkeypatch: pytest.MonkeyPatch,
+    factory: async_sessionmaker[AsyncSession],
+    ctx: WorkerContext,
+    venue: VenueFacts,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves: one venue's database or network failure is logged and counted, and the loop moves on to the
     # next venue (arch-initial.md §7: every venue, every run). The exit status the caller sees is the number
@@ -133,7 +143,10 @@ async def test_run_all_continues_after_one_venue_hits_an_infrastructure_error(
         if len(seen) == 1:
             raise OSError("the network dropped")
         return VenueGraphState(
-            venue_id=v.id, calendar_url=v.calendar_url, venue_name=v.name, metro_timezone=v.metro_timezone,
+            venue_id=v.id,
+            calendar_url=v.calendar_url,
+            venue_name=v.name,
+            metro_timezone=v.metro_timezone,
         )
 
     monkeypatch.setattr(main, "run_venue", flaky)
@@ -142,7 +155,10 @@ async def test_run_all_continues_after_one_venue_hits_an_infrastructure_error(
 
 
 async def test_run_all_counts_a_venue_whose_commit_had_a_refused_show_as_failed(
-    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts, monkeypatch: pytest.MonkeyPatch,
+    factory: async_sessionmaker[AsyncSession],
+    ctx: WorkerContext,
+    venue: VenueFacts,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves (A6-D2): a venue run that returns normally but with a show the database refused counts as failed, so the
     # process exits non-zero and a person looks (`failed_commits`); a venue whose commit was clean does not. The venues are
@@ -152,10 +168,15 @@ async def test_run_all_counts_a_venue_whose_commit_had_a_refused_show_as_failed(
     async def commit_with_one_refusal(v: VenueFacts, *_: Any, **__: Any) -> VenueGraphState:
         seen.append(v.id)
         failures = (
-            ShowFailure("insert", datetime.date(2026, 10, 20), None, None, "new show", "22003", "boom"),
-        ) if len(seen) == 1 else ()
+            (ShowFailure("insert", datetime.date(2026, 10, 20), None, None, "new show", "22003", "boom"),)
+            if len(seen) == 1
+            else ()
+        )
         return VenueGraphState(
-            venue_id=v.id, calendar_url=v.calendar_url, venue_name=v.name, metro_timezone=v.metro_timezone,
+            venue_id=v.id,
+            calendar_url=v.calendar_url,
+            venue_name=v.name,
+            metro_timezone=v.metro_timezone,
             commit_result=CommitResult(failures=failures, total_ops=1),
         )
 
@@ -169,8 +190,11 @@ async def test_run_all_counts_a_venue_whose_commit_had_a_refused_show_as_failed(
 
 
 async def test_run_venue_opens_a_run_carries_its_id_and_closes_it(
-    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts,
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    factory: async_sessionmaker[AsyncSession],
+    ctx: WorkerContext,
+    venue: VenueFacts,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves (A4-K1): the `agent_run` is the parent of every row. Its id travels in the state, so every
     # audit row of the run has that `run_id`; the run is stamped finished; and the venue facts in the state
@@ -190,7 +214,10 @@ async def test_run_venue_opens_a_run_carries_its_id_and_closes_it(
 
 
 async def test_run_venue_without_a_policy_keeps_the_default_policy(
-    ctx: WorkerContext, venue: VenueFacts, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ctx: WorkerContext,
+    venue: VenueFacts,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves (C5-D5): the optional `policy` argument changes nothing for the scheduled worker, which never passes one. The
     # state the graph returns carries `DEFAULT_POLICY` itself, so the production path is the one it was before C5.
@@ -204,7 +231,10 @@ async def test_run_venue_without_a_policy_keeps_the_default_policy(
 
 
 async def test_run_venue_runs_the_graph_under_the_policy_it_is_given(
-    ctx: WorkerContext, venue: VenueFacts, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ctx: WorkerContext,
+    venue: VenueFacts,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves (C5-D5, C5-M3): a policy passed to `run_venue` is the one the routers read. With a cap of 1 and a splitter that
     # drops a show every time, the run makes ONE attempt and escalates; under the default cap of 3 the same page would be
@@ -219,14 +249,21 @@ async def test_run_venue_runs_the_graph_under_the_policy_it_is_given(
     dropping = fakes.split_answer(("Nona", ["Nona"]))  # no answer for the second title: splitter_dropped, an error
     monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [dropping]}))
     state = await run_venue(
-        venue, ctx, calendar_url=str(page), fetched_on=fakes.FETCHED, policy=replace(DEFAULT_POLICY, max_attempts=1),
+        venue,
+        ctx,
+        calendar_url=str(page),
+        fetched_on=fakes.FETCHED,
+        policy=replace(DEFAULT_POLICY, max_attempts=1),
     )
     assert state.attempt_count == 1
     assert state.escalation_reason is not None
 
 
 async def test_a_run_that_crashes_is_still_closed_and_the_error_still_propagates(
-    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts, monkeypatch: pytest.MonkeyPatch,
+    factory: async_sessionmaker[AsyncSession],
+    ctx: WorkerContext,
+    venue: VenueFacts,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves (A4-K1, A4-D8): a graph that raises leaves the run with a `finished_at` (so it does not look
     # "in progress" forever) and the exception reaches the caller, neither swallowed nor replaced. Without
@@ -243,7 +280,10 @@ async def test_a_run_that_crashes_is_still_closed_and_the_error_still_propagates
 
 
 async def test_run_venue_binds_the_run_id_for_log_lines_and_unbinds_it_after(
-    ctx: WorkerContext, venue: VenueFacts, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ctx: WorkerContext,
+    venue: VenueFacts,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves (A4-K1, A4-D7): while the graph runs, structlog's context carries `run_id` and `venue_id`, so every
     # log line of the run joins to its audit rows; afterwards they are gone, so the next venue's lines are
@@ -263,8 +303,11 @@ async def test_run_venue_binds_the_run_id_for_log_lines_and_unbinds_it_after(
 
 
 async def test_a_passing_run_leaves_the_five_steps_a_pass_visits(
-    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts,
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    factory: async_sessionmaker[AsyncSession],
+    ctx: WorkerContext,
+    venue: VenueFacts,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves: end to end through Postgres, a passing run leaves the five steps a pass visits, as rows of
     # `audit_log` in step order (the enum labels are the Python values).
@@ -273,9 +316,12 @@ async def test_a_passing_run_leaves_the_five_steps_a_pass_visits(
     monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [NONA]}))
     state = await run_venue(venue, ctx, calendar_url=str(page), fetched_on=fakes.FETCHED)
     async with factory() as session:
-        steps = [s for (s,) in await session.execute(
-            select(AuditLog.step_type).where(AuditLog.run_id == state.run_id).order_by(AuditLog.id)
-        )]
+        steps = [
+            s
+            for (s,) in await session.execute(
+                select(AuditLog.step_type).where(AuditLog.run_id == state.run_id).order_by(AuditLog.id)
+            )
+        ]
     assert steps == [StepType.FETCH, StepType.EXTRACT, StepType.VALIDATE, StepType.RECONCILE, StepType.COMMIT]
 
 

@@ -52,12 +52,16 @@ class PostgresCalendarReader:
     async def stored_shows(self, venue_id: int, start: datetime.date, end: datetime.date) -> list[StoredShow]:
         async with self._session_factory() as session:
             shows = (
-                await session.execute(
-                    select(Show)
-                    .where(Show.venue_id == venue_id, Show.date.between(start, end))
-                    .order_by(Show.date, Show.start_time, Show.id)
+                (
+                    await session.execute(
+                        select(Show)
+                        .where(Show.venue_id == venue_id, Show.date.between(start, end))
+                        .order_by(Show.date, Show.start_time, Show.id)
+                    )
                 )
-            ).scalars().all()
+                .scalars()
+                .all()
+            )
             lineups: dict[int, list[StoredLineupEntry]] = {show.id: [] for show in shows}
             if shows:
                 rows = await session.execute(
@@ -72,9 +76,16 @@ class PostgresCalendarReader:
                     )
             return [
                 StoredShow(
-                    id=s.id, date=s.date, start_time=s.start_time, end_time=s.end_time, status=s.status,
-                    admission_advance=s.admission_advance, admission_day=s.admission_day,
-                    free_admission=s.free_admission, image_url=s.image_url, original_url=s.original_url,
+                    id=s.id,
+                    date=s.date,
+                    start_time=s.start_time,
+                    end_time=s.end_time,
+                    status=s.status,
+                    admission_advance=s.admission_advance,
+                    admission_day=s.admission_day,
+                    free_admission=s.free_admission,
+                    image_url=s.image_url,
+                    original_url=s.original_url,
                     lineup=tuple(lineups[s.id]),
                 )
                 for s in shows

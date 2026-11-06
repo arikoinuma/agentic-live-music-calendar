@@ -92,8 +92,40 @@ omit = ["*/tests/*", "agent_worker/model_eval/*", "agent_worker/local_test.py"]
 show_missing = true
 skip_empty = true
 
+[tool.ruff]
+# The width the code is already written at. Without a setting ruff assumes 88, which would rewrap most of the
+# codebase; `ruff format` enforces this, and `make lint` and CI check it (PQR1-1).
+line-length = 120
+
+[tool.ruff.lint]
+# A broader rule set than ruff's default (E4, E7, E9, F), chosen from PQR1-7: pyflakes and pycodestyle (F, E, W),  # designation-ok: ruff rule codes
+# import order (I), likely bugs (B), modern syntax (UP), simplifications (SIM, C4, RET), ruff's own rules (RUF), naming
+# (N), async pitfalls (ASYNC), naive datetimes (DTZ) and bandit's security checks (S).
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "C4", "RET", "RUF", "N", "ASYNC", "DTZ", "S"]
+ignore = [
+    # The formatter owns line length for code. What it can't break is a long comment, string or URL, and this
+    # codebase's long why-comments are deliberate (AGENTS.md, Conventions). An over-long code line the formatter
+    # can't split (a long string literal) isn't flagged, so it is left to review.
+    "E501",  # designation-ok: a ruff rule code
+    # The prose deliberately uses typographic characters (an en dash, a multiplication sign, an arrow) in strings,
+    # docstrings and comments. These rules read them as look-alikes of ASCII.
+    "RUF001", "RUF002", "RUF003",
+]
+
 [tool.ruff.lint.per-file-ignores]
-# Broad except is deliberate here: one fixture/model failing outright
-# shouldn't stop the eval loop, and the failure itself is a result worth
-# recording. See the comment above the try/except in run_eval.py.
-"agent_worker/model_eval/run_eval.py" = ["BLE001"]
+# Tests assert (S101), and use throwaway passwords, temp paths and subprocess calls on fixed arguments (S105, S108,  (designation-ok: ruff rule codes)
+# S603); a test that writes a tiny fixture file in an async test is fine (ASYNC240).  (designation-ok: ruff rule codes)
+"**/tests/**" = ["S101", "S105", "S108", "S603", "ASYNC240"]  # designation-ok: ruff rule codes
+"**/conftest.py" = ["S101"]  # designation-ok: ruff rule codes
+# Test support and developer tools, not the scheduled path: their asserts check a fixture or a local run.
+"app/testing/**" = ["S101"]  # designation-ok: ruff rule codes
+"agent_worker/model_eval/**" = ["S101"]  # designation-ok: ruff rule codes
+"agent_worker/local_test.py" = ["S101"]  # designation-ok: ruff rule codes
+# Kept for now, narrowed to the files they fire in, because each is its own review finding: the exception names
+# without an `Error` suffix are PQR1-17 and the single-letter `l` is PQR1-18. Remove these lines when those land.
+"agent_worker/calendar_writer.py" = ["N818"]
+"agent_worker/nodes.py" = ["N818"]
+"agent_worker/sources/embedded_events.py" = ["N818"]
+"agent_worker/model_eval/labeled_page_runs/two_run_scenarios.py" = ["N818"]
+"agent_worker/reconcile.py" = ["E741"]  # designation-ok: ruff rule codes
+"agent_worker/tests/test_reconcile_removal.py" = ["E741"]  # designation-ok: ruff rule codes

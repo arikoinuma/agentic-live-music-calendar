@@ -74,13 +74,13 @@ def normalize_time(value: Any) -> Any:
     # raised in a validator into a validation error that `instructor` re-asks on; a
     # TypeError would escape as a crash.
     if isinstance(value, bool | int | float):
-        raise ValueError(f"a time must be written as HH:MM, not a number: {value!r}")  # noqa: TRY004
+        raise ValueError(f"a time must be written as HH:MM, not a number: {value!r}")
 
     if isinstance(value, datetime.time):
         return value.replace(tzinfo=None)
 
     if not isinstance(value, str):
-        raise ValueError(f"a time must be a string like '19:30', got {type(value).__name__}")  # noqa: TRY004
+        raise ValueError(f"a time must be a string like '19:30', got {type(value).__name__}")
 
     text = value.strip()
     if text.lower() in _NULLISH:
@@ -114,9 +114,7 @@ def normalize_time(value: Any) -> Any:
     raise ValueError(f"unrecognised time {value!r}; use 24-hour HH:MM")
 
 
-def _build(
-    hour: int, minute: int, second: int, original: Any, microsecond: int = 0
-) -> datetime.time:
+def _build(hour: int, minute: int, second: int, original: Any, microsecond: int = 0) -> datetime.time:
     # datetime.time rejects 24:00, 25:00, minute 60, … with its own ValueError; re-raise
     # with the original text so the re-ask message the model sees names what it wrote.
     try:
@@ -166,10 +164,7 @@ def infer_year(listed: datetime.date, fetch_date: datetime.date) -> datetime.dat
     # Compare (month, day) pairs rather than building dates, so Feb 29 can be placed before
     # knowing whether the chosen year has one.
     month_day = (listed.month, listed.day)
-    if month_day >= (earliest.month, earliest.day):
-        year = earliest.year
-    else:
-        year = earliest.year + 1
+    year = earliest.year if month_day >= (earliest.month, earliest.day) else earliest.year + 1
     try:
         return listed.replace(year=year)
     except ValueError:
@@ -179,12 +174,20 @@ def infer_year(listed: datetime.date, fetch_date: datetime.date) -> datetime.dat
 # Typographic characters that vary between a venue's page, its JSON-LD and a model's echo of
 # either, mapped to one plain form. NFKC alone leaves curly quotes and dashes as they are
 # (A2.1-PR1-5: "Dan’s" != "Dan's" after NFKC).
-_TYPOGRAPHIC = str.maketrans({
-    "‘": "'", "’": "'", "‚": "'", "′": "'",
-    "“": '"', "”": '"', "″": '"',
-    "–": "-", "—": "-",
-    " ": " ",
-})
+_TYPOGRAPHIC = str.maketrans(
+    {
+        "‘": "'",
+        "’": "'",
+        "‚": "'",
+        "′": "'",
+        "“": '"',
+        "”": '"',
+        "″": '"',
+        "–": "-",
+        "—": "-",
+        " ": " ",
+    }
+)
 
 
 def fold_text(text: str) -> str:
@@ -202,8 +205,23 @@ def fold_text(text: str) -> str:
 
 # Words too common in listing titles to identify anything ("The", "with", "OPEN MIC Every Monday").
 _FILLER = {
-    "the", "and", "with", "every", "night", "nights", "early", "late", "show", "presents",
-    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+    "the",
+    "and",
+    "with",
+    "every",
+    "night",
+    "nights",
+    "early",
+    "late",
+    "show",
+    "presents",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
 }
 
 
@@ -214,4 +232,3 @@ def identifying_words(text: str) -> set[str]:
     shared word, "the" included, marked the wrong show cancelled)."""
     words = "".join(c if c.isalnum() else " " for c in fold_text(text)).split()
     return {w for w in words if len(w) >= 3 and w not in _FILLER}
-

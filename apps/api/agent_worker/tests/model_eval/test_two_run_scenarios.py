@@ -72,19 +72,28 @@ def factory(db_conn: AsyncConnection) -> async_sessionmaker[AsyncSession]:
 def ctx(factory: async_sessionmaker[AsyncSession]) -> WorkerContext:
     """The real Postgres stores, and the in-memory stager the harness uses in place of MongoDB (C5-D2)."""
     return WorkerContext(
-        audit=PostgresAuditWriter(factory), stager=InMemoryStager(),
-        reader=PostgresCalendarReader(factory), writer=PostgresCalendarWriter(factory),
+        audit=PostgresAuditWriter(factory),
+        stager=InMemoryStager(),
+        reader=PostgresCalendarReader(factory),
+        writer=PostgresCalendarWriter(factory),
     )
 
 
 @pytest_asyncio.fixture(loop_scope="session")
 async def venue(factory: async_sessionmaker[AsyncSession]) -> VenueFacts:
     """A venue row made by the harness's own `ensure_venue` (and the metro it needs)."""
-    return await scratch_calendar_rows.ensure_venue(factory, LabelVenueFacts("The Test Venue", "https://example.test/calendar"))
+    return await scratch_calendar_rows.ensure_venue(
+        factory, LabelVenueFacts("The Test Venue", "https://example.test/calendar")
+    )
 
 
 def page(
-    tmp_path: Path, name: str, days: list[tuple[str, str]], captured_on: datetime.date, *, extra: list[dict[str, Any]] | None = None,
+    tmp_path: Path,
+    name: str,
+    days: list[tuple[str, str]],
+    captured_on: datetime.date,
+    *,
+    extra: list[dict[str, Any]] | None = None,
 ) -> ScenarioPage:
     """A JSON-LD fixture file with one 9 PM event per (date, act) and its label. `extra` events are added to the page only
     (not labelled as shows), for a case like a cancelled listing, which the caller labels itself."""
@@ -102,11 +111,14 @@ def script_for(*pages: ScenarioPage) -> Any:
     return {SPLITTER: [split_answer(*[(s.acts[0], [s.acts[0]]) for s in p.label.shows]) for p in pages]}
 
 
-async def active_rows(factory: async_sessionmaker[AsyncSession], venue_id: int) -> list[tuple[datetime.date, datetime.time | None]]:
+async def active_rows(
+    factory: async_sessionmaker[AsyncSession], venue_id: int
+) -> list[tuple[datetime.date, datetime.time | None]]:
     """The venue's active shows as (date, start time), oldest first, read straight from the table."""
     async with factory() as session:
         rows = await session.execute(
-            select(Show.date, Show.start_time).where(Show.venue_id == venue_id, Show.status == ShowStatus.ACTIVE)
+            select(Show.date, Show.start_time)
+            .where(Show.venue_id == venue_id, Show.status == ShowStatus.ACTIVE)
             .order_by(Show.date, Show.start_time)
         )
         return [(d, t) for d, t in rows.all()]
@@ -118,7 +130,8 @@ async def active_rows(factory: async_sessionmaker[AsyncSession], venue_id: int) 
 
 
 async def test_committed_extraction_reads_active_shows_with_acts_in_sequence_order(
-    factory: async_sessionmaker[AsyncSession], venue: VenueFacts,
+    factory: async_sessionmaker[AsyncSession],
+    venue: VenueFacts,
 ) -> None:
     # Proves: C5-M5 and the lineup order. The rows left are the venue's ACTIVE shows (a removed show is not "left"), each with
     # its acts in `sequence_number` order, times as ISO text and prices as floats, so the dict goes through `score_page` and
@@ -126,16 +139,21 @@ async def test_committed_extraction_reads_active_shows_with_acts_in_sequence_ord
     async with factory() as session:
         opener, headliner = Artist(name="Opener"), Artist(name="Headliner")
         live = Show(
-            venue_id=venue.id, date=D(2026, 10, 20), start_time=T(21, 0), admission_day=Decimal("12.50"),
+            venue_id=venue.id,
+            date=D(2026, 10, 20),
+            start_time=T(21, 0),
+            admission_day=Decimal("12.50"),
             status=ShowStatus.ACTIVE,
         )
         gone = Show(venue_id=venue.id, date=D(2026, 10, 21), status=ShowStatus.REMOVED)
         session.add_all([opener, headliner, live, gone])
         await session.flush()
-        session.add_all([
-            ShowArtist(show_id=live.id, artist_id=headliner.id, sequence_number=2),
-            ShowArtist(show_id=live.id, artist_id=opener.id, sequence_number=1),
-        ])
+        session.add_all(
+            [
+                ShowArtist(show_id=live.id, artist_id=headliner.id, sequence_number=2),
+                ShowArtist(show_id=live.id, artist_id=opener.id, sequence_number=1),
+            ]
+        )
         await session.commit()
     extraction = await scratch_calendar_rows.committed_extraction(factory, venue.id)
     [show] = extraction["shows"]
@@ -152,14 +170,22 @@ async def test_committed_extraction_reads_active_shows_with_acts_in_sequence_ord
 
 
 async def test_the_same_page_twice_changes_nothing_the_second_time(
-    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    factory: async_sessionmaker[AsyncSession],
+    ctx: WorkerContext,
+    venue: VenueFacts,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves: the REPEAT scenario (A5 idempotence; local_test.py's stated expectation). Run 1 inserts every show; run 2 finds
     # every one already stored and does nothing: all no-ops, the same rows, and `count_differences` (the harness's report of
     # where reality departs from this expectation) is empty.
-    first = page(tmp_path, "a", [("2026-10-20", "Nona"), ("2026-10-21", "Lent"), ("2026-10-22", "Chicken Wire")], D(2026, 10, 12))
+    first = page(
+        tmp_path, "a", [("2026-10-20", "Nona"), ("2026-10-21", "Lent"), ("2026-10-22", "Chicken Wire")], D(2026, 10, 12)
+    )
     monkeypatch.setattr(nodes, "instructor_client", scripted_client(script_for(first)))
-    result = await two_run_scenarios.run_scenario(Scenario.REPEAT, first=first, second=None, venue=venue, ctx=ctx, factory=factory)
+    result = await two_run_scenarios.run_scenario(
+        Scenario.REPEAT, first=first, second=None, venue=venue, ctx=ctx, factory=factory
+    )
     run1, run2 = result.runs
     assert run1.reconcile_counts is not None and run2.reconcile_counts is not None
     assert (run1.reconcile_counts["insert"], run2.reconcile_counts["insert"]) == (3, 0)
@@ -169,7 +195,11 @@ async def test_the_same_page_twice_changes_nothing_the_second_time(
 
 
 async def test_a_second_page_in_a_later_month_leaves_the_first_pages_rows_alone(
-    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    factory: async_sessionmaker[AsyncSession],
+    ctx: WorkerContext,
+    venue: VenueFacts,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves: the SEQUENCE scenario, the "a page listing two weeks must not remove week three" case. Page A lists October 20
     # and 21 (fetched Oct 12); page B lists November 20 and 21 (fetched Nov 19). B's window starts at ITS fetch date, Nov 19,
@@ -178,48 +208,81 @@ async def test_a_second_page_in_a_later_month_leaves_the_first_pages_rows_alone(
     first = page(tmp_path, "a", [("2026-10-20", "Nona"), ("2026-10-21", "Lent")], D(2026, 10, 12))
     second = page(tmp_path, "b", [("2026-11-20", "Sunny Day"), ("2026-11-21", "Poliça")], D(2026, 11, 19))
     monkeypatch.setattr(nodes, "instructor_client", scripted_client(script_for(first, second)))
-    await two_run_scenarios.run_scenario(Scenario.SEQUENCE, first=first, second=second, venue=venue, ctx=ctx, factory=factory)
-    assert [d for d, _ in await active_rows(factory, venue.id)] == [D(2026, 10, 20), D(2026, 10, 21), D(2026, 11, 20), D(2026, 11, 21)]
+    await two_run_scenarios.run_scenario(
+        Scenario.SEQUENCE, first=first, second=second, venue=venue, ctx=ctx, factory=factory
+    )
+    assert [d for d, _ in await active_rows(factory, venue.id)] == [
+        D(2026, 10, 20),
+        D(2026, 10, 21),
+        D(2026, 11, 20),
+        D(2026, 11, 21),
+    ]
 
 
 async def test_a_second_page_that_drops_a_show_inside_its_window_removes_only_that_show(
-    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    factory: async_sessionmaker[AsyncSession],
+    ctx: WorkerContext,
+    venue: VenueFacts,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves: the OVERLAP scenario. Both pages are fetched Oct 12; A lists the 20th, 21st and 22nd, B only the 20th and 22nd.
     # The 21st is inside B's window (Oct 12 to Oct 22) and no longer listed, so it is soft-deleted (`removed`); the shared
     # shows are no-ops and nothing appears twice. One removal is below the mass-removal guard (A5-D10: at least 3).
-    first = page(tmp_path, "a", [("2026-10-20", "Nona"), ("2026-10-21", "Lent"), ("2026-10-22", "Chicken Wire")], D(2026, 10, 12))
+    first = page(
+        tmp_path, "a", [("2026-10-20", "Nona"), ("2026-10-21", "Lent"), ("2026-10-22", "Chicken Wire")], D(2026, 10, 12)
+    )
     second = page(tmp_path, "b", [("2026-10-20", "Nona"), ("2026-10-22", "Chicken Wire")], D(2026, 10, 12))
     monkeypatch.setattr(nodes, "instructor_client", scripted_client(script_for(first, second)))
-    result = await two_run_scenarios.run_scenario(Scenario.OVERLAP, first=first, second=second, venue=venue, ctx=ctx, factory=factory)
+    result = await two_run_scenarios.run_scenario(
+        Scenario.OVERLAP, first=first, second=second, venue=venue, ctx=ctx, factory=factory
+    )
     assert [d for d, _ in await active_rows(factory, venue.id)] == [D(2026, 10, 20), D(2026, 10, 22)]
     counts = result.runs[1].reconcile_counts
     assert counts is not None and (counts["remove"], counts["no_op"], counts["insert"]) == (1, 2, 0)
     async with factory() as session:
-        removed = (await session.execute(select(func.count()).select_from(Show).where(Show.status == ShowStatus.REMOVED))).scalar_one()
+        removed = (
+            await session.execute(select(func.count()).select_from(Show).where(Show.status == ShowStatus.REMOVED))
+        ).scalar_one()
     assert removed == 1
 
 
 async def test_a_perturbed_database_is_repaired_by_the_next_run_with_an_update_a_remove_and_an_insert(
-    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    factory: async_sessionmaker[AsyncSession],
+    ctx: WorkerContext,
+    venue: VenueFacts,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves: C5-PR1-3. After run 1 the harness sets one row's start time to NULL, deletes another row, and adds a stale row
     # inside the window; run 2 on the same page then does exactly: 1 UPDATE (a time that appears later is an update, A5), 1
     # INSERT (the deleted row comes back), 1 REMOVE (the stale row) and a no-op for the rest. A changed non-null time would be a
     # remove plus an insert (A5-D3) and never exercise an update, which is why the perturbation is "time to NULL". The rows
     # after run 2 are the rows after run 1.
-    first = page(tmp_path, "a", [("2026-10-20", "Nona"), ("2026-10-21", "Lent"), ("2026-10-22", "Chicken Wire")], D(2026, 10, 12))
+    first = page(
+        tmp_path, "a", [("2026-10-20", "Nona"), ("2026-10-21", "Lent"), ("2026-10-22", "Chicken Wire")], D(2026, 10, 12)
+    )
     monkeypatch.setattr(nodes, "instructor_client", scripted_client(script_for(first)))
-    result = await two_run_scenarios.run_scenario(Scenario.PERTURBED, first=first, second=None, venue=venue, ctx=ctx, factory=factory)
+    result = await two_run_scenarios.run_scenario(
+        Scenario.PERTURBED, first=first, second=None, venue=venue, ctx=ctx, factory=factory
+    )
     counts = result.runs[1].reconcile_counts
     assert counts is not None
     assert (counts["update"], counts["insert"], counts["remove"], counts["no_op"]) == (1, 1, 1, 1)
     assert result.count_differences == []
-    assert await active_rows(factory, venue.id) == [(D(2026, 10, 20), T(21, 0)), (D(2026, 10, 21), T(21, 0)), (D(2026, 10, 22), T(21, 0))]
+    assert await active_rows(factory, venue.id) == [
+        (D(2026, 10, 20), T(21, 0)),
+        (D(2026, 10, 21), T(21, 0)),
+        (D(2026, 10, 22), T(21, 0)),
+    ]
 
 
 async def test_a_cancelled_listing_is_not_in_the_rows_and_is_not_counted_missed(
-    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    factory: async_sessionmaker[AsyncSession],
+    ctx: WorkerContext,
+    venue: VenueFacts,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves: C5-PR1-5 and C5-M6. A page lists one live show and one cancelled one (labelled with its status, A2.1-D12).
     # Reconcile skips the cancelled listing with nothing stored, and `ShowStatus` has no cancelled value, so the database holds
@@ -227,12 +290,22 @@ async def test_a_cancelled_listing_is_not_in_the_rows_and_is_not_counted_missed(
     # `scheduled_only(label)`, so it is 0 missed.
     cancelled = event("Gone Band", "2026-10-21T21:00:00-05:00", eventStatus="https://schema.org/EventCancelled")
     first = page(tmp_path, "a", [("2026-10-20", "Nona")], D(2026, 10, 12), extra=[cancelled])
-    label = replace(first.label, shows=(
-        *first.label.shows, LabelledShow(D(2026, 10, 21), ("Gone Band",), "Gone Band", T(21, 0), status="cancelled"),
-    ))
+    label = replace(
+        first.label,
+        shows=(
+            *first.label.shows,
+            LabelledShow(D(2026, 10, 21), ("Gone Band",), "Gone Band", T(21, 0), status="cancelled"),
+        ),
+    )
     first = ScenarioPage(label=label, fixture=first.fixture)
-    monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [split_answer(("Nona", ["Nona"]), ("Gone Band", ["Gone Band"]))]}))
-    result = await two_run_scenarios.run_scenario(Scenario.REPEAT, first=first, second=None, venue=venue, ctx=ctx, factory=factory)
+    monkeypatch.setattr(
+        nodes,
+        "instructor_client",
+        scripted_client({SPLITTER: [split_answer(("Nona", ["Nona"]), ("Gone Band", ["Gone Band"]))]}),
+    )
+    result = await two_run_scenarios.run_scenario(
+        Scenario.REPEAT, first=first, second=None, venue=venue, ctx=ctx, factory=factory
+    )
     run1 = result.runs[0]
     assert len(run1.committed["shows"]) == 1
     assert run1.committed_score["missed"] == 0
@@ -245,19 +318,27 @@ async def test_a_cancelled_listing_is_not_in_the_rows_and_is_not_counted_missed(
 
 
 async def test_reset_empties_the_calendar_and_audit_tables_but_keeps_venues_and_the_metro(
-    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    factory: async_sessionmaker[AsyncSession],
+    ctx: WorkerContext,
+    venue: VenueFacts,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves: C5-PR1-12 (e). Between independent pages the harness truncates what a run writes (shows, lineups, artists, the
     # audit trail and runs) so one page's artists cannot change how the next page's artists are matched; it must never touch
     # `venue` or `metro`, which are the harness's own setup. This is the one destructive statement the harness runs.
     first = page(tmp_path, "a", [("2026-10-20", "Nona")], D(2026, 10, 12))
     monkeypatch.setattr(nodes, "instructor_client", scripted_client(script_for(first)))
-    await two_run_scenarios.run_scenario(Scenario.REPEAT, first=first, second=None, venue=venue, ctx=ctx, factory=factory)
+    await two_run_scenarios.run_scenario(
+        Scenario.REPEAT, first=first, second=None, venue=venue, ctx=ctx, factory=factory
+    )
     await scratch_calendar_rows.reset(factory)
     async with factory() as session:
         for model in (Show, ShowArtist, Artist, AuditLog):
             assert (await session.execute(select(func.count()).select_from(model))).scalar_one() == 0, model.__name__
-        assert (await session.execute(select(func.count()).select_from(Venue).where(Venue.id == venue.id))).scalar_one() == 1
+        assert (
+            await session.execute(select(func.count()).select_from(Venue).where(Venue.id == venue.id))
+        ).scalar_one() == 1
 
 
 # ---------------------------------------------------------------------------
@@ -265,10 +346,14 @@ async def test_reset_empties_the_calendar_and_audit_tables_but_keeps_venues_and_
 # ---------------------------------------------------------------------------
 
 
-def labelled_page(captured_on: datetime.date, *days: str, status: str = "scheduled", non_show_days: tuple[str, ...] = ()) -> PageLabel:
+def labelled_page(
+    captured_on: datetime.date, *days: str, status: str = "scheduled", non_show_days: tuple[str, ...] = ()
+) -> PageLabel:
     """A label with one show per ISO date (acts named for the day), all with the given status."""
     return PageLabel(
-        venue="test_venue", gated=True, captured_on=captured_on,
+        venue="test_venue",
+        gated=True,
+        captured_on=captured_on,
         shows=tuple(LabelledShow(D.fromisoformat(d), (f"Act {d}",), d, status=status) for d in days),
         non_shows=tuple(NonShow(f"Open mic {d}", D.fromisoformat(d), None, "open mic") for d in non_show_days),
     )
@@ -282,10 +367,13 @@ def test_expected_rows_for_a_repeat_or_perturbed_run_are_the_one_pages_scheduled
     # Proves: C5-K3, the simple half. A repeat and a perturbed run both converge on the single page's live shows, and a
     # labelled cancelled or postponed show is ABSENT (ShowStatus has no such value; reconcile skips it, A2.1-D12 +
     # Action.SKIP). Expected: the page's three scheduled dates.
-    first = replace(labelled_page(D(2026, 10, 12), "2026-10-20", "2026-10-21"), shows=(
-        *labelled_page(D(2026, 10, 12), "2026-10-20", "2026-10-21").shows,
-        *labelled_page(D(2026, 10, 12), "2026-10-22", status="cancelled").shows,
-    ))
+    first = replace(
+        labelled_page(D(2026, 10, 12), "2026-10-20", "2026-10-21"),
+        shows=(
+            *labelled_page(D(2026, 10, 12), "2026-10-20", "2026-10-21").shows,
+            *labelled_page(D(2026, 10, 12), "2026-10-22", status="cancelled").shows,
+        ),
+    )
     for scenario in (Scenario.REPEAT, Scenario.PERTURBED):
         assert dates(two_run_scenarios.expected_rows(scenario, first, None)) == ["2026-10-20", "2026-10-21"]
 
@@ -297,7 +385,10 @@ def test_expected_rows_after_pages_a_month_apart_hold_both_pages() -> None:
     first = labelled_page(D(2026, 10, 12), "2026-10-20", "2026-10-21")
     second = labelled_page(D(2026, 11, 19), "2026-11-20", "2026-11-21")
     assert dates(two_run_scenarios.expected_rows(Scenario.SEQUENCE, first, second)) == [
-        "2026-10-20", "2026-10-21", "2026-11-20", "2026-11-21",
+        "2026-10-20",
+        "2026-10-21",
+        "2026-11-20",
+        "2026-11-21",
     ]
 
 
@@ -328,21 +419,29 @@ def test_expected_rows_window_end_includes_the_dates_of_listed_non_shows() -> No
 
 
 async def test_a_perturbed_scenario_whose_first_run_left_nothing_to_perturb_is_reported_not_raised(
-    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    factory: async_sessionmaker[AsyncSession],
+    ctx: WorkerContext,
+    venue: VenueFacts,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves: C5-CR1-2. When the first run escalates (here the splitter drops a title on every attempt) it commits nothing, so
     # there are no rows to damage. That is an OUTCOME of the model, not an infrastructure failure, so the scenario returns with
     # `not_run` set and the first run's record, instead of raising and losing every page already run in the invocation.
     first = page(tmp_path, "a", [("2026-10-20", "Nona"), ("2026-10-21", "Lent")], D(2026, 10, 12))
     monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [split_answer(("Nona", ["Nona"]))]}))
-    result = await two_run_scenarios.run_scenario(Scenario.PERTURBED, first=first, second=None, venue=venue, ctx=ctx, factory=factory)
+    result = await two_run_scenarios.run_scenario(
+        Scenario.PERTURBED, first=first, second=None, venue=venue, ctx=ctx, factory=factory
+    )
     assert result.not_run is not None and "perturbed" in result.not_run
     assert len(result.runs) == 1 and result.runs[0].escalated
     assert result.perturbation is None
 
 
 async def test_the_runner_skips_the_database_score_of_a_scenario_that_was_not_run(
-    factory: async_sessionmaker[AsyncSession], tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    factory: async_sessionmaker[AsyncSession],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves: C5-CR1-2 through `run_labeled_pages.run_scenarios`: the instance is recorded with its reason, has no database score
     # (there is nothing to score against an expectation), and the loop goes on to the next page.
@@ -351,7 +450,11 @@ async def test_the_runner_skips_the_database_score_of_a_scenario_that_was_not_ru
     page_a = page(tmp_path, "a", [("2026-10-20", "Nona"), ("2026-10-21", "Lent")], D(2026, 10, 12))
     monkeypatch.setattr(run_labeled_pages, "PAGE_LABELS", {"a.html": page_a.label})
     monkeypatch.setattr(run_labeled_pages.run_eval, "CAPTURED_PAGES_DIR", tmp_path)
-    monkeypatch.setattr(run_labeled_pages, "VENUE_FACTS", {"test_venue": LabelVenueFacts("The Test Venue", "https://example.test/calendar")})
+    monkeypatch.setattr(
+        run_labeled_pages,
+        "VENUE_FACTS",
+        {"test_venue": LabelVenueFacts("The Test Venue", "https://example.test/calendar")},
+    )
     monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [split_answer(("Nona", ["Nona"]))]}))
     out = await run_labeled_pages.run_scenarios(Scenario.PERTURBED, ["a.html"], factory=factory, policy=None)
     assert out[0]["database_score"] is None
@@ -370,18 +473,32 @@ def test_the_database_score_does_not_judge_image_links() -> None:
     # check happens per run, on the page each link came from (`PageRun.committed_score`). Database scoring is about which shows
     # and acts are left. Expected values: one labelled show, returned with an image link, scores no error.
     label = labelled_page(D(2026, 10, 12), "2026-10-20")
-    rows = {"page_readable": True, "shows": [{
-        "date": "2026-10-20", "time": None, "end_time": None, "acts": [{"name": "Act 2026-10-20"}],
-        "admission_advance": None, "admission_day": None, "free_admission": None, "status": "scheduled",
-        "image_url": "https://example.test/poster.png",
-    }]}
+    rows = {
+        "page_readable": True,
+        "shows": [
+            {
+                "date": "2026-10-20",
+                "time": None,
+                "end_time": None,
+                "acts": [{"name": "Act 2026-10-20"}],
+                "admission_advance": None,
+                "admission_day": None,
+                "free_admission": None,
+                "status": "scheduled",
+                "image_url": "https://example.test/poster.png",
+            }
+        ],
+    }
     result = two_run_scenarios.score_database(Scenario.REPEAT, label, None, rows)
     assert result["errors"] == []
     assert result["fields"]["image_url"]["wrong"] == 0
 
 
 async def test_the_runner_prints_each_scenarios_database_score(
-    factory: async_sessionmaker[AsyncSession], tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+    factory: async_sessionmaker[AsyncSession],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     # Proves: the console shows what a scenario is for. After a scenario the runner prints the database score against what a
     # perfect pipeline would leave (labelled, returned, missed, wrong acts, invented), because the aggregate lines at the end of
@@ -392,7 +509,11 @@ async def test_the_runner_prints_each_scenarios_database_score(
     page_a = page(tmp_path, "a", [("2026-10-20", "Nona"), ("2026-10-21", "Lent")], D(2026, 10, 12))
     monkeypatch.setattr(run_labeled_pages, "PAGE_LABELS", {"a.html": page_a.label})
     monkeypatch.setattr(run_labeled_pages.run_eval, "CAPTURED_PAGES_DIR", tmp_path)
-    monkeypatch.setattr(run_labeled_pages, "VENUE_FACTS", {"test_venue": LabelVenueFacts("The Test Venue", "https://example.test/calendar")})
+    monkeypatch.setattr(
+        run_labeled_pages,
+        "VENUE_FACTS",
+        {"test_venue": LabelVenueFacts("The Test Venue", "https://example.test/calendar")},
+    )
     monkeypatch.setattr(nodes, "instructor_client", scripted_client(script_for(page_a)))
     await run_labeled_pages.run_scenarios(Scenario.REPEAT, ["a.html"], factory=factory, policy=None)
     assert "database vs expected: labelled 2, returned 2, missed 0, wrong acts 0, invented 0" in capsys.readouterr().out
@@ -404,11 +525,17 @@ async def test_the_runner_prints_each_scenarios_database_score(
 
 THREE_DAYS = [("2026-10-20", "Nona"), ("2026-10-21", "Lent"), ("2026-10-22", "Chicken Wire")]
 READ_ALL = split_answer(("Nona", ["Nona"]), ("Lent", ["Lent"]), ("Chicken Wire", ["Chicken Wire"]))
-MISS_LAST = split_answer(("Nona", ["Nona"]), ("Lent", ["Lent"]), ("Chicken Wire", []))  # the last title is judged no act: left out
+MISS_LAST = split_answer(
+    ("Nona", ["Nona"]), ("Lent", ["Lent"]), ("Chicken Wire", [])
+)  # the last title is judged no act: left out
 
 
 async def test_a_model_that_misses_a_show_both_times_is_not_a_reconcile_difference(
-    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    factory: async_sessionmaker[AsyncSession],
+    ctx: WorkerContext,
+    venue: VenueFacts,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves: the expected counts follow what run 1 ACTUALLY extracted, not the label. The label has three live shows; the scripted
     # model leaves one out both times, so run 1 inserts 2. After the perturbation run 2 must update 1, insert 1 (the deleted row),
@@ -416,14 +543,25 @@ async def test_a_model_that_misses_a_show_both_times_is_not_a_reconcile_differen
     # expected a no-op of 1 and reported a difference for correct behaviour (Ari's first perturbed baseline).
     first = page(tmp_path, "a", THREE_DAYS, D(2026, 10, 12))
     monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [MISS_LAST]}))
-    result = await two_run_scenarios.run_scenario(Scenario.PERTURBED, first=first, second=None, venue=venue, ctx=ctx, factory=factory)
+    result = await two_run_scenarios.run_scenario(
+        Scenario.PERTURBED, first=first, second=None, venue=venue, ctx=ctx, factory=factory
+    )
     counts = result.runs[1].reconcile_counts
-    assert counts is not None and (counts["update"], counts["insert"], counts["remove"], counts["no_op"]) == (1, 1, 1, 0)
+    assert counts is not None and (counts["update"], counts["insert"], counts["remove"], counts["no_op"]) == (
+        1,
+        1,
+        1,
+        0,
+    )
     assert result.count_differences == [] and result.model_changed is False
 
 
 async def test_a_model_that_changes_its_answer_between_runs_is_reported_as_that(
-    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    factory: async_sessionmaker[AsyncSession],
+    ctx: WorkerContext,
+    venue: VenueFacts,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves: the local model is not repeatable even at temperature 0 (White Squirrel's October page gave 10, 11, 10, 10 and 11 shows in five
     # extractions), so a scenario can see a different page reading on its second run. Run 1 leaves a show out and run 2 finds it:
@@ -431,7 +569,9 @@ async def test_a_model_that_changes_its_answer_between_runs_is_reported_as_that(
     # harness must say the EXTRACTION changed, in one line, instead of listing count mismatches that look like reconcile faults.
     first = page(tmp_path, "a", THREE_DAYS, D(2026, 10, 12))
     monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [MISS_LAST, READ_ALL]}))
-    result = await two_run_scenarios.run_scenario(Scenario.PERTURBED, first=first, second=None, venue=venue, ctx=ctx, factory=factory)
+    result = await two_run_scenarios.run_scenario(
+        Scenario.PERTURBED, first=first, second=None, venue=venue, ctx=ctx, factory=factory
+    )
     counts = result.runs[1].reconcile_counts
     assert counts is not None and (counts["update"], counts["insert"], counts["remove"]) == (1, 2, 1)
     assert result.model_changed is True
@@ -440,13 +580,19 @@ async def test_a_model_that_changes_its_answer_between_runs_is_reported_as_that(
 
 
 async def test_a_repeat_whose_second_reading_differs_is_reported_as_a_changed_extraction(
-    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    factory: async_sessionmaker[AsyncSession],
+    ctx: WorkerContext,
+    venue: VenueFacts,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves: the same rule for the repeat scenario, whose whole expectation is "run 2 changes nothing". If the model finds a show on
     # the second reading, run 2 inserts it, which is the model changing its answer, not reconcile failing to be idempotent.
     first = page(tmp_path, "a", THREE_DAYS, D(2026, 10, 12))
     monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [MISS_LAST, READ_ALL]}))
-    result = await two_run_scenarios.run_scenario(Scenario.REPEAT, first=first, second=None, venue=venue, ctx=ctx, factory=factory)
+    result = await two_run_scenarios.run_scenario(
+        Scenario.REPEAT, first=first, second=None, venue=venue, ctx=ctx, factory=factory
+    )
     assert result.model_changed is True
     assert "2 shows on run 1 and 3 on run 2" in result.count_differences[0]
 
@@ -455,11 +601,17 @@ async def test_a_repeat_whose_second_reading_differs_is_reported_as_a_changed_ex
 # Ari's review of PR 78: "the same number of listings does not mean the model repeated its extraction"
 # ---------------------------------------------------------------------------
 
-READ_ALL_RENAMED = split_answer(("Nona", ["Nona"]), ("Lent", ["Lent"]), ("Chicken Wire", ["Sunday Marching Band"]))  # same 3 shows, one act differs
+READ_ALL_RENAMED = split_answer(
+    ("Nona", ["Nona"]), ("Lent", ["Lent"]), ("Chicken Wire", ["Sunday Marching Band"])
+)  # same 3 shows, one act differs
 
 
 async def test_a_repeat_with_the_same_number_of_shows_but_a_different_act_is_still_a_changed_extraction(
-    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    factory: async_sessionmaker[AsyncSession],
+    ctx: WorkerContext,
+    venue: VenueFacts,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves: whether the model changed its answer is decided by comparing the two extractions' shows, not by counting them.
     # Both readings find three shows, but the second names one act differently, so reconcile updates that show on run 2. Counting
@@ -467,17 +619,25 @@ async def test_a_repeat_with_the_same_number_of_shows_but_a_different_act_is_sti
     # blame the extraction instead. Expected: model_changed, and one difference that says the shows differ.
     first = page(tmp_path, "a", THREE_DAYS, D(2026, 10, 12))
     monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [READ_ALL, READ_ALL_RENAMED]}))
-    result = await two_run_scenarios.run_scenario(Scenario.REPEAT, first=first, second=None, venue=venue, ctx=ctx, factory=factory)
+    result = await two_run_scenarios.run_scenario(
+        Scenario.REPEAT, first=first, second=None, venue=venue, ctx=ctx, factory=factory
+    )
     assert result.model_changed is True
     assert len(result.count_differences) == 1 and "differ" in result.count_differences[0]
 
 
 async def test_an_identical_extraction_twice_is_held_to_reconcile_counts(
-    factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, venue: VenueFacts, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    factory: async_sessionmaker[AsyncSession],
+    ctx: WorkerContext,
+    venue: VenueFacts,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves: the other side of the rule above. When the two extractions are identical (as a repeatable hosted model would give),
     # nothing is excused: the run is held to reconcile's expected counts, and a clean repeat reports no differences.
     first = page(tmp_path, "a", THREE_DAYS, D(2026, 10, 12))
     monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [READ_ALL]}))
-    result = await two_run_scenarios.run_scenario(Scenario.REPEAT, first=first, second=None, venue=venue, ctx=ctx, factory=factory)
+    result = await two_run_scenarios.run_scenario(
+        Scenario.REPEAT, first=first, second=None, venue=venue, ctx=ctx, factory=factory
+    )
     assert result.model_changed is False and result.count_differences == []

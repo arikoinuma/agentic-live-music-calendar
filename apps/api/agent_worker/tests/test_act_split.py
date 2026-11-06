@@ -58,10 +58,12 @@ def test_answers_align_by_id_not_position() -> None:
     # Proves: a reordered answer with one item missing still puts each act list on its own
     # title, and the missing id gets no acts and is recorded — a dropped item can't shift
     # every later show's acts onto the wrong show.
-    result = split(answering(
-        act_split.ActSplitItem(id=2, title=TITLES[2], acts=["Martin Devaney & Friends", "Wesley Church"]),
-        act_split.ActSplitItem(id=0, title=TITLES[0], acts=["Lent", "Gills", "Boomdagger"]),
-    ))
+    result = split(
+        answering(
+            act_split.ActSplitItem(id=2, title=TITLES[2], acts=["Martin Devaney & Friends", "Wesley Church"]),
+            act_split.ActSplitItem(id=0, title=TITLES[0], acts=["Lent", "Gills", "Boomdagger"]),
+        )
+    )
     assert result.acts == [["Lent", "Gills", "Boomdagger"], [], ["Martin Devaney & Friends", "Wesley Church"]]
     assert result.missing_ids == [1]
 
@@ -74,13 +76,15 @@ def test_the_first_answer_for_an_id_wins_and_ids_outside_the_range_are_ignored()
     # The expected lists are written by hand from the script below. Only the repeated-id half can fail a mutation:
     # the range filter is redundant by construction (the alignment loop only ever reads ids 0..len(titles)-1),
     # so the ids -1 and 3 document the rule rather than guard it (A7-PR1-2).
-    result = split(answering(
-        act_split.ActSplitItem(id=0, title=TITLES[0], acts=["Lent", "Gills", "Boomdagger"]),
-        act_split.ActSplitItem(id=0, title=TITLES[0], acts=["Someone Else"]),
-        act_split.ActSplitItem(id=-1, title="before the first", acts=["Ghost One"]),
-        act_split.ActSplitItem(id=3, title="after the last", acts=["Ghost Two"]),
-        act_split.ActSplitItem(id=2, title=TITLES[2], acts=["Martin Devaney & Friends", "Wesley Church"]),
-    ))
+    result = split(
+        answering(
+            act_split.ActSplitItem(id=0, title=TITLES[0], acts=["Lent", "Gills", "Boomdagger"]),
+            act_split.ActSplitItem(id=0, title=TITLES[0], acts=["Someone Else"]),
+            act_split.ActSplitItem(id=-1, title="before the first", acts=["Ghost One"]),
+            act_split.ActSplitItem(id=3, title="after the last", acts=["Ghost Two"]),
+            act_split.ActSplitItem(id=2, title=TITLES[2], acts=["Martin Devaney & Friends", "Wesley Church"]),
+        )
+    )
     assert result.acts == [["Lent", "Gills", "Boomdagger"], [], ["Martin Devaney & Friends", "Wesley Church"]]
     assert result.missing_ids == [1]
     assert result.title_mismatches == []
@@ -91,18 +95,24 @@ def test_a_requoted_echo_is_not_a_mismatch_but_a_different_title_is() -> None:
     # an apostrophe hasn't changed the title; one that echoes different words has, and that
     # is recorded rather than trusted silently.
     titles = ["Aaron James w. Bury ‘Em Deep", "Nona"]
-    result = split(answering(
-        act_split.ActSplitItem(id=0, title="Aaron James w. Bury 'Em Deep", acts=["Aaron James", "Bury 'Em Deep"]),
-        act_split.ActSplitItem(id=1, title="Something Else", acts=["Nona"]),
-    ), titles)
+    result = split(
+        answering(
+            act_split.ActSplitItem(id=0, title="Aaron James w. Bury 'Em Deep", acts=["Aaron James", "Bury 'Em Deep"]),
+            act_split.ActSplitItem(id=1, title="Something Else", acts=["Nona"]),
+        ),
+        titles,
+    )
     assert result.title_mismatches == [1]
 
 
 def test_identical_titles_keep_their_own_ids() -> None:
     # Proves: a weekly listing with the same title twice on one page gets each answer by id.
-    result = split(answering(
-        act_split.ActSplitItem(id=0, title="Nona", acts=["Nona"]),
-        act_split.ActSplitItem(id=1, title="Nona", acts=["Nona"]),
-    ), ["Nona", "Nona"])
+    result = split(
+        answering(
+            act_split.ActSplitItem(id=0, title="Nona", acts=["Nona"]),
+            act_split.ActSplitItem(id=1, title="Nona", acts=["Nona"]),
+        ),
+        ["Nona", "Nona"],
+    )
     assert result.acts == [["Nona"], ["Nona"]]
     assert result.missing_ids == []

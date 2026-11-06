@@ -68,7 +68,8 @@ def uncollected(
         return any(fnmatch.fnmatch(part, glob) for part in f.relative_to(root).parts[:-1] for glob in norecursedirs)
 
     return [
-        f for f in files
+        f
+        for f in files
         if f.name.startswith("test_") and (not any(f.is_relative_to(r) for r in roots) or skipped_dir(f))
     ]
 
@@ -130,7 +131,9 @@ def test_the_guards_can_fail(tmp_path: Path) -> None:
     # A file inside `testpaths` but under a directory pytest never recurses into (`build`, by default) is not
     # collected either: it counts as uncollected too (A7-CR1-5).
     skipped = tmp_path / "agent_worker" / "build" / "test_z.py"
-    assert uncollected([skipped, inside], ["app", "agent_worker"], tmp_path, norecursedirs=["build", "*.egg"]) == [skipped]
+    assert uncollected([skipped, inside], ["app", "agent_worker"], tmp_path, norecursedirs=["build", "*.egg"]) == [
+        skipped
+    ]
     assert uncollected([skipped], ["app", "agent_worker"], tmp_path, norecursedirs=[]) == []
 
     assert would_import("local_test.py", ["test_*.py", "*_test.py"]) == "*_test.py"

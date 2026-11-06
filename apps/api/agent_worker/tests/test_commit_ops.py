@@ -76,7 +76,9 @@ def test_inserts_and_updates_come_before_removals_each_in_calendar_order() -> No
     # removal on the 23rd must still come last.
     ops = build_ops(a_mixed_plan(), VENUE, URL)
     assert [(op.action, op.decision.date.day) for op in ops] == [
-        (Action.UPDATE, 22), (Action.INSERT, 25), (Action.REMOVE, 23),
+        (Action.UPDATE, 22),
+        (Action.INSERT, 25),
+        (Action.REMOVE, 23),
     ]
 
 
@@ -109,7 +111,8 @@ def test_a_cancelled_removal_and_an_absent_removal_are_both_status_removed_write
     )
     removals = [op for op in build_ops(plan, VENUE, URL) if op.action is Action.REMOVE]
     assert sorted((op.stored_id, op.reconcile_reason) for op in removals) == [
-        (1, "cancelled"), (2, "absent from the page"),
+        (1, "cancelled"),
+        (2, "absent from the page"),
     ]
     assert all(op.values == {"status": ShowStatus.REMOVED} and op.lineup is None for op in removals)
 
@@ -141,9 +144,16 @@ def test_an_insert_carries_the_listing_the_venue_the_url_and_status_active() -> 
     # and poster, the venue it belongs to, the page it came from (`original_url`) and `status = active`.
     op = only_insert({"end_time": at(23), "free_admission": True, "image_url": "https://venue.example/poster.png"})
     assert op.values == {
-        "venue_id": VENUE, "date": day(20), "start_time": at(20), "end_time": at(23),
-        "admission_advance": None, "admission_day": None, "free_admission": True,
-        "image_url": "https://venue.example/poster.png", "original_url": URL, "status": ShowStatus.ACTIVE,
+        "venue_id": VENUE,
+        "date": day(20),
+        "start_time": at(20),
+        "end_time": at(23),
+        "admission_advance": None,
+        "admission_day": None,
+        "free_admission": True,
+        "image_url": "https://venue.example/poster.png",
+        "original_url": URL,
+        "status": ShowStatus.ACTIVE,
     }
 
 
@@ -217,10 +227,12 @@ def test_new_artist_names_are_the_first_seen_spelling_of_each_unknown_act() -> N
     # Proves (requirements, "Agent Artist Creation & Matching"; A5-D8): a new artist is created with the spelling first
     # seen on a page, once however many shows name it. "Sunny Day" and "SUNNY DAY" tidy to one key; the op for each
     # show names the key and the first-seen spelling. A known artist (Nona) needs no name.
-    plan = plan_for([
-        listed(0, day(20), at(20), acts=["Sunny Day", "Nona"]),
-        listed(1, day(21), at(20), acts=[ListedAct("SUNNY DAY")]),
-    ])
+    plan = plan_for(
+        [
+            listed(0, day(20), at(20), acts=["Sunny Day", "Nona"]),
+            listed(1, day(21), at(20), acts=[ListedAct("SUNNY DAY")]),
+        ]
+    )
     first, second = build_ops(plan, VENUE, URL)
     assert first.new_artist_names == {"sunny day": "Sunny Day"}
     assert second.new_artist_names == {"sunny day": "Sunny Day"}
@@ -236,19 +248,46 @@ def test_new_artist_names_are_the_first_seen_spelling_of_each_unknown_act() -> N
 # timestamps). `SNAPSHOT_COLUMNS` is DERIVED from the model; this literal list is what makes a new column a visible,
 # deliberate change: a migration that adds one turns the pin below red (A6-PR1-10).
 LITERAL_COLUMNS = (
-    "id", "venue_id", "event_id", "date", "start_time", "end_time", "age_restriction", "serves_alcohol", "setting",
-    "seating", "admission_advance", "admission_day", "free_admission", "image_url", "original_url", "status",
+    "id",
+    "venue_id",
+    "event_id",
+    "date",
+    "start_time",
+    "end_time",
+    "age_restriction",
+    "serves_alcohol",
+    "setting",
+    "seating",
+    "admission_advance",
+    "admission_day",
+    "free_admission",
+    "image_url",
+    "original_url",
+    "status",
 )
 
 
 def a_row(**changes: Any) -> dict[str, Any]:
     """A `show` row as the writer reads it: every snapshot column, plus the two timestamps a snapshot must drop."""
     row: dict[str, Any] = {
-        "id": 5, "venue_id": 4, "event_id": None, "date": datetime.date(2026, 10, 20), "start_time": datetime.time(20, 0),
-        "end_time": None, "age_restriction": None, "serves_alcohol": None, "setting": None, "seating": None,
-        "admission_advance": None, "admission_day": Decimal("20.00"), "free_admission": None, "image_url": None,
-        "original_url": "https://venue.example/events", "status": ShowStatus.ACTIVE,
-        "created_at": datetime.datetime(2026, 10, 1, 12, 0), "updated_at": datetime.datetime(2026, 10, 2, 12, 0),
+        "id": 5,
+        "venue_id": 4,
+        "event_id": None,
+        "date": datetime.date(2026, 10, 20),
+        "start_time": datetime.time(20, 0),
+        "end_time": None,
+        "age_restriction": None,
+        "serves_alcohol": None,
+        "setting": None,
+        "seating": None,
+        "admission_advance": None,
+        "admission_day": Decimal("20.00"),
+        "free_admission": None,
+        "image_url": None,
+        "original_url": "https://venue.example/events",
+        "status": ShowStatus.ACTIVE,
+        "created_at": datetime.datetime(2026, 10, 1, 12, 0, tzinfo=datetime.UTC),
+        "updated_at": datetime.datetime(2026, 10, 2, 12, 0, tzinfo=datetime.UTC),
     }
     row.update(changes)
     return row
@@ -270,10 +309,22 @@ def test_a_snapshot_is_restorable_json_with_the_lineup_in_performance_order() ->
     ]
     snap = snapshot_of(a_row(), lineup)
     assert snap == {
-        "id": 5, "venue_id": 4, "event_id": None, "date": "2026-10-20", "start_time": "20:00:00", "end_time": None,
-        "age_restriction": None, "serves_alcohol": None, "setting": None, "seating": None, "admission_advance": None,
-        "admission_day": "20.00", "free_admission": None, "image_url": None,
-        "original_url": "https://venue.example/events", "status": "active",
+        "id": 5,
+        "venue_id": 4,
+        "event_id": None,
+        "date": "2026-10-20",
+        "start_time": "20:00:00",
+        "end_time": None,
+        "age_restriction": None,
+        "serves_alcohol": None,
+        "setting": None,
+        "seating": None,
+        "admission_advance": None,
+        "admission_day": "20.00",
+        "free_admission": None,
+        "image_url": None,
+        "original_url": "https://venue.example/events",
+        "status": "active",
         "lineup": [
             {"artist_id": 7, "start_time": "20:30:00", "sequence_number": 1},
             {"artist_id": 8, "start_time": None, "sequence_number": 2},
@@ -301,7 +352,9 @@ def test_summary_counts_has_exactly_five_keys_written_from_the_result_and_the_re
     # (from the result), the last two are what reconcile decided to leave alone (from the plan). Failures are never a
     # key here (they are the `failed` list).
     plan = a_mixed_plan()
-    result = CommitResult(written={"inserted": 1, "updated": 1, "removed": 0}, artists_created=0, failures=(), total_ops=3)
+    result = CommitResult(
+        written={"inserted": 1, "updated": 1, "removed": 0}, artists_created=0, failures=(), total_ops=3
+    )
     assert summary_counts(plan, result) == {"inserted": 1, "updated": 1, "removed": 0, "no_op": 1, "skip": 1}
 
 

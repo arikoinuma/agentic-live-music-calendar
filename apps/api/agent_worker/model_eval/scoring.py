@@ -81,10 +81,7 @@ class ReturnedShow:
         """From an extraction dump (`model_dump(mode="json")`). A2's `baseline-32k` stored acts
         as plain strings and has no `status`; both are accepted (A2.1-PR1-13). `index` is the show's
         position in the dump's `shows` list."""
-        acts = tuple(
-            (a if isinstance(a, str) else str(a.get("name", ""))).strip()
-            for a in show.get("acts") or []
-        )
+        acts = tuple((a if isinstance(a, str) else str(a.get("name", ""))).strip() for a in show.get("acts") or [])
         return cls(
             date=_parse_date(show.get("date")),
             acts=tuple(a for a in acts if a),
@@ -142,7 +139,6 @@ def match_shows(labelled: list[LabelledShow], returned: list[ReturnedShow]) -> M
                 remaining.remove(hit)
                 pairs[lbl] = hit
     return Matching(matched=list(pairs.items()), missed=[lbl for lbl in labelled if lbl not in pairs], extras=remaining)
-
 
 
 # ---------------------------------------------------------------------------
@@ -291,7 +287,9 @@ def score_page(label: PageLabel, extraction: dict[str, Any], page_html: str = ""
     with_acts = [s for s in shows if s.acts]
     dropped = [s for s in shows if not s.acts]
     score = PageScore(
-        fixture=fixture, labelled=len(label.shows), returned=len(with_acts),
+        fixture=fixture,
+        labelled=len(label.shows),
+        returned=len(with_acts),
         dropped_empty=len(dropped),
     )
     matching = match_shows(list(label.shows), with_acts)
@@ -370,7 +368,17 @@ def summed(scores: list[PageScore]) -> PageScore:
     per page (a 5-show page must not weigh as much as a 10-show one; C5-M2). It lists `PageScore`'s count fields by name, so a
     count added to `PageScore` must be added here too."""
     total = PageScore()
-    for name in ("labelled", "returned", "dropped_empty", "missed", "acts_wrong", "fabricated", "leaks", "unsplit", "order_differs"):
+    for name in (
+        "labelled",
+        "returned",
+        "dropped_empty",
+        "missed",
+        "acts_wrong",
+        "fabricated",
+        "leaks",
+        "unsplit",
+        "order_differs",
+    ):
         setattr(total, name, sum(getattr(s, name) for s in scores))
     for field_name, tally in total.fields.items():
         for s in scores:
@@ -392,7 +400,9 @@ def headline_rates(score: PageScore) -> Rates:
     # (docs/dev/alpha-deployment-plan.md, C5.)
     found = score.labelled - score.missed - score.acts_wrong
     return Rates(
-        found=found, labelled=score.labelled, returned=score.returned,
+        found=found,
+        labelled=score.labelled,
+        returned=score.returned,
         recall=found / score.labelled if score.labelled else 1.0,
         precision=found / score.returned if score.returned else 1.0,
         precision_lenient=found / (score.returned - score.leaks) if score.returned - score.leaks else 1.0,
@@ -416,8 +426,10 @@ class GateResult:
 
 
 def gate(
-    runs: dict[int, list[PageScore | PageFailure]], route: str | None = None,
-    missing_tolerance: float = MISSING_TOLERANCE, leaks_per_page: int = LEAKS_PER_PAGE,
+    runs: dict[int, list[PageScore | PageFailure]],
+    route: str | None = None,
+    missing_tolerance: float = MISSING_TOLERANCE,
+    leaks_per_page: int = LEAKS_PER_PAGE,
 ) -> GateResult:
     """Apply the standard to every run (A2.1-D1: every run must pass; an average doesn't count).
 

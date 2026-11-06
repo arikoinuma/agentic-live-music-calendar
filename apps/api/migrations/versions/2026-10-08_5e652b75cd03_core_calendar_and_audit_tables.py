@@ -32,6 +32,7 @@ Deliberate departures from data-model-initial.md (full list in the plan):
   doc says plain `Numeric`; plus indexes on `show (venue_id, date)` and
   `audit_log (run_id)`, which the doc doesn't list.
 """
+
 from collections.abc import Sequence
 
 import sqlalchemy as sa
@@ -39,26 +40,26 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '5e652b75cd03'
-down_revision: str | Sequence[str] | None = 'db2aedec0bb9'
+revision: str = "5e652b75cd03"
+down_revision: str | Sequence[str] | None = "db2aedec0bb9"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 # Postgres enum type name -> labels, in order. data-model-initial.md section 4.
 ENUMS = {
-    "artist_format": ('solo', 'duo', 'trio', 'band'),
-    "artist_repertoire": ('original', 'cover', 'both_other'),
-    "run_trigger": ('scheduled', 'manual', 'submission', 'flag_threshold'),
-    "age_restriction": ('all_ages', 'twenty_one_plus'),
-    "setting": ('indoor', 'outdoor', 'both'),
-    "seating": ('standing', 'seated', 'both'),
-    "show_status": ('active', 'removed'),
-    "step_type": ('fetch', 'extract', 'validate', 'reconcile', 'commit', 'escalate'),
-    "audit_source": ('agent', 'user'),
-    "entity_type": ('venue', 'artist', 'show', 'event'),
-    "audit_outcome": ('inserted', 'updated', 'removed', 'no_op', 'escalated'),
-    "venue_type": ('bar', 'club', 'theater', 'coffeehouse', 'arena', 'park', 'other'),
-    "fetch_strategy": ('http', 'browser'),
+    "artist_format": ("solo", "duo", "trio", "band"),
+    "artist_repertoire": ("original", "cover", "both_other"),
+    "run_trigger": ("scheduled", "manual", "submission", "flag_threshold"),
+    "age_restriction": ("all_ages", "twenty_one_plus"),
+    "setting": ("indoor", "outdoor", "both"),
+    "seating": ("standing", "seated", "both"),
+    "show_status": ("active", "removed"),
+    "step_type": ("fetch", "extract", "validate", "reconcile", "commit", "escalate"),
+    "audit_source": ("agent", "user"),
+    "entity_type": ("venue", "artist", "show", "event"),
+    "audit_outcome": ("inserted", "updated", "removed", "no_op", "escalated"),
+    "venue_type": ("bar", "club", "theater", "coffeehouse", "arena", "park", "other"),
+    "fetch_strategy": ("http", "browser"),
 }
 
 
@@ -79,96 +80,106 @@ def upgrade() -> None:
         # half-failed earlier run — even one with different labels.
         postgresql.ENUM(*labels, name=name).create(op.get_bind(), checkfirst=False)
 
-
     # --- Step 2: brand-new tables --------------------------------------------
     # Ordered so that every table's foreign-key targets already exist when it
     # is created: artist and event have none; agent_run points at venue
     # (which already exists from the first migration); show points at venue
     # and event; audit_log at agent_run; show_artist at show and artist.
-    op.create_table('artist',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('name', sa.String(), nullable=False),
-    sa.Column('photo_url', sa.String(), nullable=True),
-    sa.Column('website', sa.String(), nullable=True),
-    sa.Column('hometown', sa.Text(), nullable=True),
-    sa.Column('format', _enum('artist_format'), nullable=True),
-    sa.Column('repertoire', _enum('artist_repertoire'), nullable=True),
-    sa.Column('extra_metadata', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.PrimaryKeyConstraint('id', name=op.f('artist_pkey'))
+    op.create_table(
+        "artist",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("name", sa.String(), nullable=False),
+        sa.Column("photo_url", sa.String(), nullable=True),
+        sa.Column("website", sa.String(), nullable=True),
+        sa.Column("hometown", sa.Text(), nullable=True),
+        sa.Column("format", _enum("artist_format"), nullable=True),
+        sa.Column("repertoire", _enum("artist_repertoire"), nullable=True),
+        sa.Column("extra_metadata", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.PrimaryKeyConstraint("id", name=op.f("artist_pkey")),
     )
-    op.create_index(op.f('artist_extra_metadata_idx'), 'artist', ['extra_metadata'], unique=False, postgresql_using='gin')
-    op.create_table('event',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('name', sa.String(), nullable=False),
-    sa.Column('start_date', sa.Date(), nullable=True),
-    sa.Column('end_date', sa.Date(), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.PrimaryKeyConstraint('id', name=op.f('event_pkey'))
+    op.create_index(
+        op.f("artist_extra_metadata_idx"), "artist", ["extra_metadata"], unique=False, postgresql_using="gin"
     )
-    op.create_table('agent_run',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('venue_id', sa.Integer(), nullable=False),
-    sa.Column('trigger', _enum('run_trigger'), nullable=False),
-    sa.Column('started_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('finished_at', sa.DateTime(timezone=True), nullable=True),
-    sa.ForeignKeyConstraint(['venue_id'], ['venue.id'], name=op.f('agent_run_venue_id_fkey')),
-    sa.PrimaryKeyConstraint('id', name=op.f('agent_run_pkey'))
+    op.create_table(
+        "event",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("name", sa.String(), nullable=False),
+        sa.Column("start_date", sa.Date(), nullable=True),
+        sa.Column("end_date", sa.Date(), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.PrimaryKeyConstraint("id", name=op.f("event_pkey")),
     )
-    op.create_table('show',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('venue_id', sa.Integer(), nullable=False),
-    sa.Column('event_id', sa.Integer(), nullable=True),
-    sa.Column('date', sa.Date(), nullable=False),
-    sa.Column('start_time', sa.Time(), nullable=True),
-    sa.Column('end_time', sa.Time(), nullable=True),
-    sa.Column('age_restriction', _enum('age_restriction'), nullable=True),
-    sa.Column('serves_alcohol', sa.Boolean(), nullable=True),
-    sa.Column('setting', _enum('setting'), nullable=True),
-    sa.Column('seating', _enum('seating'), nullable=True),
-    sa.Column('admission_advance', sa.Numeric(precision=10, scale=2), nullable=True),
-    sa.Column('admission_day', sa.Numeric(precision=10, scale=2), nullable=True),
-    sa.Column('free_admission', sa.Boolean(), nullable=True),
-    sa.Column('image_url', sa.String(), nullable=True),
-    sa.Column('original_url', sa.Text(), nullable=True),
-    sa.Column('status', _enum('show_status'), server_default='active', nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.CheckConstraint('NOT (free_admission AND (admission_advance IS NOT NULL OR admission_day IS NOT NULL))', name=op.f('show_free_admission_check')),
-    sa.ForeignKeyConstraint(['event_id'], ['event.id'], name=op.f('show_event_id_fkey')),
-    sa.ForeignKeyConstraint(['venue_id'], ['venue.id'], name=op.f('show_venue_id_fkey')),
-    sa.PrimaryKeyConstraint('id', name=op.f('show_pkey'))
+    op.create_table(
+        "agent_run",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("venue_id", sa.Integer(), nullable=False),
+        sa.Column("trigger", _enum("run_trigger"), nullable=False),
+        sa.Column("started_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("finished_at", sa.DateTime(timezone=True), nullable=True),
+        sa.ForeignKeyConstraint(["venue_id"], ["venue.id"], name=op.f("agent_run_venue_id_fkey")),
+        sa.PrimaryKeyConstraint("id", name=op.f("agent_run_pkey")),
     )
-    op.create_index(op.f('show_venue_id_idx'), 'show', ['venue_id', 'date'], unique=False)
-    op.create_table('audit_log',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('run_id', sa.Integer(), nullable=True),
-    sa.Column('attempt_number', sa.Integer(), server_default=sa.text('1'), nullable=False),
-    sa.Column('step_type', _enum('step_type'), nullable=False),
-    sa.Column('source', _enum('audit_source'), nullable=False),
-    sa.Column('entity_type', _enum('entity_type'), nullable=True),
-    sa.Column('entity_id', sa.Integer(), nullable=True),
-    sa.Column('outcome', _enum('audit_outcome'), nullable=True),
-    sa.Column('model_used', sa.String(), nullable=True),
-    sa.Column('confidence', sa.Numeric(precision=4, scale=3), nullable=True),
-    sa.Column('previous_value', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-    sa.Column('new_value', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-    sa.Column('snapshot_key', sa.String(), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['run_id'], ['agent_run.id'], name=op.f('audit_log_run_id_fkey')),
-    sa.PrimaryKeyConstraint('id', name=op.f('audit_log_pkey'))
+    op.create_table(
+        "show",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("venue_id", sa.Integer(), nullable=False),
+        sa.Column("event_id", sa.Integer(), nullable=True),
+        sa.Column("date", sa.Date(), nullable=False),
+        sa.Column("start_time", sa.Time(), nullable=True),
+        sa.Column("end_time", sa.Time(), nullable=True),
+        sa.Column("age_restriction", _enum("age_restriction"), nullable=True),
+        sa.Column("serves_alcohol", sa.Boolean(), nullable=True),
+        sa.Column("setting", _enum("setting"), nullable=True),
+        sa.Column("seating", _enum("seating"), nullable=True),
+        sa.Column("admission_advance", sa.Numeric(precision=10, scale=2), nullable=True),
+        sa.Column("admission_day", sa.Numeric(precision=10, scale=2), nullable=True),
+        sa.Column("free_admission", sa.Boolean(), nullable=True),
+        sa.Column("image_url", sa.String(), nullable=True),
+        sa.Column("original_url", sa.Text(), nullable=True),
+        sa.Column("status", _enum("show_status"), server_default="active", nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.CheckConstraint(
+            "NOT (free_admission AND (admission_advance IS NOT NULL OR admission_day IS NOT NULL))",
+            name=op.f("show_free_admission_check"),
+        ),
+        sa.ForeignKeyConstraint(["event_id"], ["event.id"], name=op.f("show_event_id_fkey")),
+        sa.ForeignKeyConstraint(["venue_id"], ["venue.id"], name=op.f("show_venue_id_fkey")),
+        sa.PrimaryKeyConstraint("id", name=op.f("show_pkey")),
     )
-    op.create_index(op.f('audit_log_run_id_idx'), 'audit_log', ['run_id'], unique=False)
-    op.create_table('show_artist',
-    sa.Column('show_id', sa.Integer(), nullable=False),
-    sa.Column('artist_id', sa.Integer(), nullable=False),
-    sa.Column('start_time', sa.Time(), nullable=True),
-    sa.Column('sequence_number', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['artist_id'], ['artist.id'], name=op.f('show_artist_artist_id_fkey')),
-    sa.ForeignKeyConstraint(['show_id'], ['show.id'], name=op.f('show_artist_show_id_fkey')),
-    sa.PrimaryKeyConstraint('show_id', 'artist_id', name=op.f('show_artist_pkey'))
+    op.create_index(op.f("show_venue_id_idx"), "show", ["venue_id", "date"], unique=False)
+    op.create_table(
+        "audit_log",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("run_id", sa.Integer(), nullable=True),
+        sa.Column("attempt_number", sa.Integer(), server_default=sa.text("1"), nullable=False),
+        sa.Column("step_type", _enum("step_type"), nullable=False),
+        sa.Column("source", _enum("audit_source"), nullable=False),
+        sa.Column("entity_type", _enum("entity_type"), nullable=True),
+        sa.Column("entity_id", sa.Integer(), nullable=True),
+        sa.Column("outcome", _enum("audit_outcome"), nullable=True),
+        sa.Column("model_used", sa.String(), nullable=True),
+        sa.Column("confidence", sa.Numeric(precision=4, scale=3), nullable=True),
+        sa.Column("previous_value", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column("new_value", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column("snapshot_key", sa.String(), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.ForeignKeyConstraint(["run_id"], ["agent_run.id"], name=op.f("audit_log_run_id_fkey")),
+        sa.PrimaryKeyConstraint("id", name=op.f("audit_log_pkey")),
+    )
+    op.create_index(op.f("audit_log_run_id_idx"), "audit_log", ["run_id"], unique=False)
+    op.create_table(
+        "show_artist",
+        sa.Column("show_id", sa.Integer(), nullable=False),
+        sa.Column("artist_id", sa.Integer(), nullable=False),
+        sa.Column("start_time", sa.Time(), nullable=True),
+        sa.Column("sequence_number", sa.Integer(), nullable=True),
+        sa.ForeignKeyConstraint(["artist_id"], ["artist.id"], name=op.f("show_artist_artist_id_fkey")),
+        sa.ForeignKeyConstraint(["show_id"], ["show.id"], name=op.f("show_artist_show_id_fkey")),
+        sa.PrimaryKeyConstraint("show_id", "artist_id", name=op.f("show_artist_pkey")),
     )
 
     # --- Step 3: widen the two tables the first migration created -----------
@@ -176,23 +187,31 @@ def upgrade() -> None:
     # data-model-initial.md section 2. These are add_column (not create_table)
     # because the tables already exist, possibly with rows in them, so every
     # NOT NULL column added here carries a server_default.
-    op.add_column('metro', sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False))
-    op.add_column('metro', sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False))
-    op.add_column('venue', sa.Column('photo_url', sa.String(), nullable=True))
-    op.add_column('venue', sa.Column('address', sa.Text(), nullable=True))
-    op.add_column('venue', sa.Column('phone_numbers', postgresql.ARRAY(sa.Text()), nullable=True))
-    op.add_column('venue', sa.Column('emails', postgresql.ARRAY(sa.Text()), nullable=True))
-    op.add_column('venue', sa.Column('website', sa.String(), nullable=True))
-    op.add_column('venue', sa.Column('age_restriction', _enum('age_restriction'), nullable=True))
-    op.add_column('venue', sa.Column('serves_alcohol', sa.Boolean(), nullable=True))
-    op.add_column('venue', sa.Column('venue_type', _enum('venue_type'), nullable=True))
-    op.add_column('venue', sa.Column('setting', _enum('setting'), nullable=True))
-    op.add_column('venue', sa.Column('seating', _enum('seating'), nullable=True))
-    op.add_column('venue', sa.Column('fetch_strategy', _enum('fetch_strategy'), server_default='http', nullable=False))
-    op.add_column('venue', sa.Column('extra_metadata', postgresql.JSONB(astext_type=sa.Text()), nullable=True))
-    op.add_column('venue', sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False))
-    op.add_column('venue', sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False))
-    op.create_index(op.f('venue_extra_metadata_idx'), 'venue', ['extra_metadata'], unique=False, postgresql_using='gin')
+    op.add_column(
+        "metro", sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False)
+    )
+    op.add_column(
+        "metro", sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False)
+    )
+    op.add_column("venue", sa.Column("photo_url", sa.String(), nullable=True))
+    op.add_column("venue", sa.Column("address", sa.Text(), nullable=True))
+    op.add_column("venue", sa.Column("phone_numbers", postgresql.ARRAY(sa.Text()), nullable=True))
+    op.add_column("venue", sa.Column("emails", postgresql.ARRAY(sa.Text()), nullable=True))
+    op.add_column("venue", sa.Column("website", sa.String(), nullable=True))
+    op.add_column("venue", sa.Column("age_restriction", _enum("age_restriction"), nullable=True))
+    op.add_column("venue", sa.Column("serves_alcohol", sa.Boolean(), nullable=True))
+    op.add_column("venue", sa.Column("venue_type", _enum("venue_type"), nullable=True))
+    op.add_column("venue", sa.Column("setting", _enum("setting"), nullable=True))
+    op.add_column("venue", sa.Column("seating", _enum("seating"), nullable=True))
+    op.add_column("venue", sa.Column("fetch_strategy", _enum("fetch_strategy"), server_default="http", nullable=False))
+    op.add_column("venue", sa.Column("extra_metadata", postgresql.JSONB(astext_type=sa.Text()), nullable=True))
+    op.add_column(
+        "venue", sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False)
+    )
+    op.add_column(
+        "venue", sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False)
+    )
+    op.create_index(op.f("venue_extra_metadata_idx"), "venue", ["extra_metadata"], unique=False, postgresql_using="gin")
 
 
 def downgrade() -> None:
@@ -201,32 +220,32 @@ def downgrade() -> None:
     # additions to the pre-existing tables, then drop the new tables
     # (children before parents, so no foreign key is violated), and only then
     # drop the enum types those tables used.
-    op.drop_index(op.f('venue_extra_metadata_idx'), table_name='venue', postgresql_using='gin')
-    op.drop_column('venue', 'updated_at')
-    op.drop_column('venue', 'created_at')
-    op.drop_column('venue', 'extra_metadata')
-    op.drop_column('venue', 'fetch_strategy')
-    op.drop_column('venue', 'seating')
-    op.drop_column('venue', 'setting')
-    op.drop_column('venue', 'venue_type')
-    op.drop_column('venue', 'serves_alcohol')
-    op.drop_column('venue', 'age_restriction')
-    op.drop_column('venue', 'website')
-    op.drop_column('venue', 'emails')
-    op.drop_column('venue', 'phone_numbers')
-    op.drop_column('venue', 'address')
-    op.drop_column('venue', 'photo_url')
-    op.drop_column('metro', 'updated_at')
-    op.drop_column('metro', 'created_at')
-    op.drop_table('show_artist')
-    op.drop_index(op.f('audit_log_run_id_idx'), table_name='audit_log')
-    op.drop_table('audit_log')
-    op.drop_index(op.f('show_venue_id_idx'), table_name='show')
-    op.drop_table('show')
-    op.drop_table('agent_run')
-    op.drop_table('event')
-    op.drop_index(op.f('artist_extra_metadata_idx'), table_name='artist', postgresql_using='gin')
-    op.drop_table('artist')
+    op.drop_index(op.f("venue_extra_metadata_idx"), table_name="venue", postgresql_using="gin")
+    op.drop_column("venue", "updated_at")
+    op.drop_column("venue", "created_at")
+    op.drop_column("venue", "extra_metadata")
+    op.drop_column("venue", "fetch_strategy")
+    op.drop_column("venue", "seating")
+    op.drop_column("venue", "setting")
+    op.drop_column("venue", "venue_type")
+    op.drop_column("venue", "serves_alcohol")
+    op.drop_column("venue", "age_restriction")
+    op.drop_column("venue", "website")
+    op.drop_column("venue", "emails")
+    op.drop_column("venue", "phone_numbers")
+    op.drop_column("venue", "address")
+    op.drop_column("venue", "photo_url")
+    op.drop_column("metro", "updated_at")
+    op.drop_column("metro", "created_at")
+    op.drop_table("show_artist")
+    op.drop_index(op.f("audit_log_run_id_idx"), table_name="audit_log")
+    op.drop_table("audit_log")
+    op.drop_index(op.f("show_venue_id_idx"), table_name="show")
+    op.drop_table("show")
+    op.drop_table("agent_run")
+    op.drop_table("event")
+    op.drop_index(op.f("artist_extra_metadata_idx"), table_name="artist", postgresql_using="gin")
+    op.drop_table("artist")
 
     # After the tables: a type can't be dropped while a column still uses it.
     for name in ENUMS:

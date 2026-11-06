@@ -43,10 +43,13 @@ class FakeCompletions:
     `status_answer`; anything else (the full-page extraction) gets `page_shows` wrapped in
     whatever page model was requested, so a test sees exactly the schema the code asked for."""
 
-    def __init__(self, page_shows: list[dict[str, Any]] | None = None,
-                 split_answer: act_split.ActSplitAnswer | None = None,
-                 status_answer: status_check.StatusAnswer | None = None,
-                 listings: list[dict[str, Any]] | None = None) -> None:
+    def __init__(
+        self,
+        page_shows: list[dict[str, Any]] | None = None,
+        split_answer: act_split.ActSplitAnswer | None = None,
+        status_answer: status_check.StatusAnswer | None = None,
+        listings: list[dict[str, Any]] | None = None,
+    ) -> None:
         self.calls: list[dict[str, Any]] = []
         self.page_shows = page_shows or []
         self.listings = listings or []
@@ -80,8 +83,12 @@ def sent_content(client: SimpleNamespace, index: int = 0) -> str:
 def run(html: str, client: SimpleNamespace, **config: Any) -> extraction.PageExtractionResult:
     """Call `extract_page` with the pipeline's options and the given config switches."""
     return extraction.extract_page(
-        html, venue_name="The White Squirrel Bar", metro_timezone=CHICAGO, fetch_date=FETCHED,
-        client=client, options=extraction.PIPELINE_OPTIONS,
+        html,
+        venue_name="The White Squirrel Bar",
+        metro_timezone=CHICAGO,
+        fetch_date=FETCHED,
+        client=client,
+        options=extraction.PIPELINE_OPTIONS,
         config=replace(extraction.PIPELINE_CONFIG, **config),
     )
 
@@ -100,8 +107,11 @@ def ws_event(name: str, start: str, **extra: Any) -> dict[str, Any]:
 def model_show(day: int, *acts: str, year: int = 2026) -> dict[str, Any]:
     """One show as the fake model returns it on the model route."""
     return {
-        "venue": "Terminal Bar", "date": datetime.date(year, 10, day).isoformat(),
-        "acts": [{"name": a} for a in acts], "is_ambiguous": False, "confidence": 0.9,
+        "venue": "Terminal Bar",
+        "date": datetime.date(year, 10, day).isoformat(),
+        "acts": [{"name": a} for a in acts],
+        "is_ambiguous": False,
+        "confidence": 0.9,
     }
 
 
@@ -114,9 +124,13 @@ def test_a_page_with_dated_events_takes_the_json_ld_route() -> None:
     # Proves: deterministic first. With usable JSON-LD the only model call is the act
     # splitter's — no full-page extraction is requested.
     html = jsonld_page(ws_event("Nona", "2026-08-17T21:00:00-05:00"))
-    client = fake_client(split_answer=act_split.ActSplitAnswer(items=[
-        act_split.ActSplitItem(id=0, title="Nona", acts=["Nona"]),
-    ]))
+    client = fake_client(
+        split_answer=act_split.ActSplitAnswer(
+            items=[
+                act_split.ActSplitItem(id=0, title="Nona", acts=["Nona"]),
+            ]
+        )
+    )
     result = run(html, client, route="auto")
     assert result.source == "structured"
     assert [c["response_model"] for c in client.chat.completions.calls] == [act_split.ActSplitAnswer]
@@ -165,11 +179,15 @@ def test_the_json_ld_route_builds_shows_from_events_and_the_splitter() -> None:
         ws_event("Open Jam", "2026-08-21T23:00:00Z"),
         ws_event("Nona", "2026-08-22T18:00:00-05:00", eventStatus="https://schema.org/EventCancelled"),
     )
-    client = fake_client(split_answer=act_split.ActSplitAnswer(items=[
-        act_split.ActSplitItem(id=0, title="Lent w. Gills", acts=["Lent", "Gills"]),
-        act_split.ActSplitItem(id=1, title="Open Jam", acts=[]),
-        act_split.ActSplitItem(id=2, title="Nona", acts=["Nona"]),
-    ]))
+    client = fake_client(
+        split_answer=act_split.ActSplitAnswer(
+            items=[
+                act_split.ActSplitItem(id=0, title="Lent w. Gills", acts=["Lent", "Gills"]),
+                act_split.ActSplitItem(id=1, title="Open Jam", acts=[]),
+                act_split.ActSplitItem(id=2, title="Nona", acts=["Nona"]),
+            ]
+        )
+    )
     result = run(html, client, route="auto")
     shows = result.extraction.shows
     assert [s.date for s in shows] == [datetime.date(2026, 8, d) for d in (20, 21, 22)]
@@ -191,8 +209,12 @@ BR_PAGE = "<h2>Friday August 28th<br/>Man Down<br/>Justin Payne / Larrkins</h2>"
 def test_clean_text_keeps_line_breaks_only_when_asked() -> None:
     # Proves: the line-break rung changes exactly what it says. Terminal Bar marks each act
     # with <br>; the flat form (today's) erases that boundary.
-    assert extraction.clean_text(BR_PAGE, keep_line_breaks=False) == "Friday August 28th Man Down Justin Payne / Larrkins"
-    assert extraction.clean_text(BR_PAGE, keep_line_breaks=True) == "Friday August 28th\nMan Down\nJustin Payne / Larrkins"
+    assert (
+        extraction.clean_text(BR_PAGE, keep_line_breaks=False) == "Friday August 28th Man Down Justin Payne / Larrkins"
+    )
+    assert (
+        extraction.clean_text(BR_PAGE, keep_line_breaks=True) == "Friday August 28th\nMan Down\nJustin Payne / Larrkins"
+    )
 
 
 def test_every_switch_reaches_the_sent_request() -> None:
@@ -232,9 +254,14 @@ def test_temperature_and_seed_are_top_level_arguments() -> None:
     # own default, which every A2 label ran at).
     client = fake_client()
     extraction.extract_page(
-        "<p>x</p>", venue_name="V", metro_timezone=CHICAGO, fetch_date=FETCHED, client=client,
+        "<p>x</p>",
+        venue_name="V",
+        metro_timezone=CHICAGO,
+        fetch_date=FETCHED,
+        client=client,
         options=replace(extraction.PIPELINE_OPTIONS, temperature=None),
-        config=extraction.PIPELINE_CONFIG, seed=3,
+        config=extraction.PIPELINE_CONFIG,
+        seed=3,
     )
     call = client.chat.completions.calls[0]
     assert "temperature" not in call
@@ -275,7 +302,8 @@ def test_the_harness_with_no_flags_is_the_pipeline() -> None:
     # flags the harness builds exactly the pipeline's options and config, and one flag
     # changes exactly one field.
     assert run_eval.configure(run_eval.parse_overrides([])) == (
-        extraction.PIPELINE_OPTIONS, extraction.PIPELINE_CONFIG,
+        extraction.PIPELINE_OPTIONS,
+        extraction.PIPELINE_CONFIG,
     )
     options, config = run_eval.configure(run_eval.parse_overrides(["--line-breaks"]))
     assert options == extraction.PIPELINE_OPTIONS
@@ -284,9 +312,7 @@ def test_the_harness_with_no_flags_is_the_pipeline() -> None:
     assert options == replace(extraction.PIPELINE_OPTIONS, temperature=0.0)
 
 
-def test_extract_node_and_the_harness_send_identical_requests(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_extract_node_and_the_harness_send_identical_requests(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     # Proves: the same page through `extract_node` and through the harness produces the same
     # message and the same request arguments (the property every eval result depends on).
     html = "<html><body><p>Friday October 2nd</p><p>Griffin / Alec C</p></body></html>"
@@ -295,16 +321,26 @@ def test_extract_node_and_the_harness_send_identical_requests(
 
     node_client = fake_client()
     monkeypatch.setattr(nodes, "instructor_client", node_client)
-    nodes.extract_node(VenueGraphState(
-        venue_id=1, calendar_url=str(page), page_html=html, venue_name="Terminal Bar",
-        metro_timezone=CHICAGO, fetched_on=FETCHED,
-    ))
+    nodes.extract_node(
+        VenueGraphState(
+            venue_id=1,
+            calendar_url=str(page),
+            page_html=html,
+            venue_name="Terminal Bar",
+            metro_timezone=CHICAGO,
+            fetched_on=FETCHED,
+        )
+    )
 
     eval_client = fake_client()
     monkeypatch.setattr(run_eval, "instructor_client", eval_client)
     run_eval.extract(
-        page, venue_name="Terminal Bar", metro_timezone=CHICAGO, fetch_date=FETCHED,
-        options=extraction.PIPELINE_OPTIONS, config=extraction.PIPELINE_CONFIG,
+        page,
+        venue_name="Terminal Bar",
+        metro_timezone=CHICAGO,
+        fetch_date=FETCHED,
+        options=extraction.PIPELINE_OPTIONS,
+        config=extraction.PIPELINE_CONFIG,
     )
 
     node_call, eval_call = node_client.chat.completions.calls[0], eval_client.chat.completions.calls[0]
@@ -323,18 +359,28 @@ def test_fetch_node_keeps_raw_html_and_cleaned_text(monkeypatch: pytest.MonkeyPa
     # URL and for a fixture path.
     html = '<html><head><script type="application/ld+json">[]</script></head><body><p>Show 8pm</p></body></html>'
     monkeypatch.setattr(nodes.httpx, "get", lambda url, **_: SimpleNamespace(text=html, raise_for_status=lambda: None))
-    live = nodes.fetch_node(VenueGraphState(
-        venue_id=1, calendar_url="https://venue.example/", venue_name="V", metro_timezone=CHICAGO,
-    ))
+    live = nodes.fetch_node(
+        VenueGraphState(
+            venue_id=1,
+            calendar_url="https://venue.example/",
+            venue_name="V",
+            metro_timezone=CHICAGO,
+        )
+    )
     assert live.page_html == html
     assert live.page_content == extraction.clean_text(html, extraction.PIPELINE_CONFIG.keep_line_breaks)
     assert live.fetched_on == nodes.metro_today(CHICAGO)
 
     page = tmp_path / "page.html"
     page.write_text(html)
-    local = nodes.fetch_node(VenueGraphState(
-        venue_id=1, calendar_url=str(page), venue_name="V", metro_timezone=CHICAGO,
-    ))
+    local = nodes.fetch_node(
+        VenueGraphState(
+            venue_id=1,
+            calendar_url=str(page),
+            venue_name="V",
+            metro_timezone=CHICAGO,
+        )
+    )
     assert local.page_html == html
 
 
@@ -370,10 +416,15 @@ def test_fetch_node_keeps_a_fetch_date_it_was_given(tmp_path: Path) -> None:
     # was captured passes `fetched_on`, and fetch_node keeps it.
     page = tmp_path / "page.html"
     page.write_text("<p>Show</p>")
-    state = nodes.fetch_node(VenueGraphState(
-        venue_id=1, calendar_url=str(page), venue_name="V", metro_timezone=CHICAGO,
-        fetched_on=datetime.date(2026, 8, 17),
-    ))
+    state = nodes.fetch_node(
+        VenueGraphState(
+            venue_id=1,
+            calendar_url=str(page),
+            venue_name="V",
+            metro_timezone=CHICAGO,
+            fetched_on=datetime.date(2026, 8, 17),
+        )
+    )
     assert state.fetched_on == datetime.date(2026, 8, 17)
 
 
@@ -384,9 +435,14 @@ def test_fetch_node_reads_a_local_image_as_base64_and_leaves_the_html_unset(tmp_
     # nothing to try. The expected string is computed here from the bytes the test wrote, not by the node.
     poster = tmp_path / "poster.png"
     poster.write_bytes(b"\x89PNG\r\n\x1a\n not really an image")
-    state = nodes.fetch_node(VenueGraphState(
-        venue_id=1, calendar_url=str(poster), venue_name="V", metro_timezone=CHICAGO,
-    ))
+    state = nodes.fetch_node(
+        VenueGraphState(
+            venue_id=1,
+            calendar_url=str(poster),
+            venue_name="V",
+            metro_timezone=CHICAGO,
+        )
+    )
     assert state.fetch_error is None
     assert state.page_content == base64.b64encode(poster.read_bytes()).decode()
     assert state.page_html is None
@@ -405,18 +461,28 @@ def test_extract_node_and_the_harness_send_identical_image_requests(
     monkeypatch.setattr(nodes, "instructor_client", node_client)
     monkeypatch.setattr(extraction, "PIPELINE_CONFIG", replace(extraction.PIPELINE_CONFIG, year_rule=True))
     monkeypatch.setattr(nodes, "PIPELINE_CONFIG", extraction.PIPELINE_CONFIG)
-    state = nodes.extract_node(VenueGraphState(
-        venue_id=1, calendar_url=str(poster), page_content=b64, venue_name="V",
-        metro_timezone=CHICAGO, fetched_on=datetime.date(2026, 8, 17),
-    ))
+    state = nodes.extract_node(
+        VenueGraphState(
+            venue_id=1,
+            calendar_url=str(poster),
+            page_content=b64,
+            venue_name="V",
+            metro_timezone=CHICAGO,
+            fetched_on=datetime.date(2026, 8, 17),
+        )
+    )
     assert state.extraction is not None
     assert state.extraction.shows[0].date == datetime.date(2026, 10, 7)
 
     eval_client = fake_client(page_shows=[model_show(7, "The Envies", year=2024)])
     monkeypatch.setattr(run_eval, "instructor_client", eval_client)
     run_eval.extract(
-        poster, venue_name="V", metro_timezone=CHICAGO, fetch_date=datetime.date(2026, 8, 17),
-        options=extraction.PIPELINE_OPTIONS, config=extraction.PIPELINE_CONFIG,
+        poster,
+        venue_name="V",
+        metro_timezone=CHICAGO,
+        fetch_date=datetime.date(2026, 8, 17),
+        options=extraction.PIPELINE_OPTIONS,
+        config=extraction.PIPELINE_CONFIG,
     )
     assert node_client.chat.completions.calls[0] == eval_client.chat.completions.calls[0]
 
@@ -427,12 +493,18 @@ def test_the_json_ld_route_keeps_only_end_times_the_page_states() -> None:
     stated = ws_event("Nona", "2026-08-17T18:00:00-05:00", endDate="2026-08-17T20:00:00-05:00")
     unstated = ws_event("Lent", "2026-08-18T18:00:00-05:00", endDate="2026-08-18T22:00:00-05:00")
     block = json.dumps([stated, unstated])
-    html = (f'<html><head><script type="application/ld+json">{block}</script></head>'
-            "<body>Nona 6:00 pm - 8:00 pm. Lent 6:00 pm.</body></html>")
-    client = fake_client(split_answer=act_split.ActSplitAnswer(items=[
-        act_split.ActSplitItem(id=0, title="Nona", acts=["Nona"]),
-        act_split.ActSplitItem(id=1, title="Lent", acts=["Lent"]),
-    ]))
+    html = (
+        f'<html><head><script type="application/ld+json">{block}</script></head>'
+        "<body>Nona 6:00 pm - 8:00 pm. Lent 6:00 pm.</body></html>"
+    )
+    client = fake_client(
+        split_answer=act_split.ActSplitAnswer(
+            items=[
+                act_split.ActSplitItem(id=0, title="Nona", acts=["Nona"]),
+                act_split.ActSplitItem(id=1, title="Lent", acts=["Lent"]),
+            ]
+        )
+    )
     shows = run(html, client, route="auto").extraction.shows
     assert [s.end_time for s in shows] == [datetime.time(20, 0), None]
 
@@ -475,7 +547,9 @@ def test_no_status_question_when_the_page_never_says_cancelled() -> None:
     # second model call, and every show stays scheduled. That is most pages.
     client = fake_client(page_shows=[model_show(11, "Karina Rykman")])
     result = run("<p>Oct 11 Karina Rykman</p>", client, status_pass=True, **SHOWS_ROUTE)
-    assert [c["response_model"] for c in client.chat.completions.calls if c["response_model"] is status_check.StatusAnswer] == []
+    assert [
+        c["response_model"] for c in client.chat.completions.calls if c["response_model"] is status_check.StatusAnswer
+    ] == []
     assert [s.status for s in result.extraction.shows] == ["scheduled"]  # type: ignore[attr-defined]
 
 
@@ -486,10 +560,12 @@ def test_the_status_question_marks_matched_shows_and_adds_skipped_ones() -> None
     # rule applies to the added show's date as to every other.
     client = fake_client(
         page_shows=[model_show(10, "Robert Ellis", "Philip Bowen"), model_show(11, "Karina Rykman")],
-        status_answer=status_check.StatusAnswer(items=[
-            status_item(10, "Robert Ellis", "Philip Bowen", status="cancelled"),
-            status_item(21, "Baby Bugs", "Elliot Lee", status="postponed"),
-        ]),
+        status_answer=status_check.StatusAnswer(
+            items=[
+                status_item(10, "Robert Ellis", "Philip Bowen", status="cancelled"),
+                status_item(21, "Baby Bugs", "Elliot Lee", status="postponed"),
+            ]
+        ),
     )
     shows = run(CANCELLED_PAGE, client, status_pass=True, **SHOWS_ROUTE).extraction.shows
     by_date = {s.date: (s.status, [a.name for a in s.acts]) for s in shows}  # type: ignore[attr-defined]
@@ -523,8 +599,11 @@ def test_the_pipeline_asks_the_status_question() -> None:
 def listing(day: int, title: str, year: int = 2026) -> dict[str, Any]:
     """One listing as the full-page model returns it on the title-split route."""
     return {
-        "venue": "7th St Entry", "date": datetime.date(year, 10, day).isoformat(), "title": title,
-        "is_ambiguous": False, "confidence": 0.9,
+        "venue": "7th St Entry",
+        "date": datetime.date(year, 10, day).isoformat(),
+        "title": title,
+        "is_ambiguous": False,
+        "confidence": 0.9,
     }
 
 
@@ -534,13 +613,20 @@ def test_title_split_asks_for_verbatim_titles_and_splits_them_separately() -> No
     # in its schema), and the same act splitter turns every title into acts. The year rule still
     # applies to the listings' dates; a title the splitter rejects is kept with no acts for A3.
     client = fake_client(
-        listings=[listing(1, "Owen Riegling | In The Feeling Tour | with | Payton Smith", year=2024),
-                  listing(5, "Open Mic Night")],
-        split_answer=act_split.ActSplitAnswer(items=[
-            act_split.ActSplitItem(id=0, title="Owen Riegling | In The Feeling Tour | with | Payton Smith",
-                                   acts=["Owen Riegling", "Payton Smith"]),
-            act_split.ActSplitItem(id=1, title="Open Mic Night", acts=[]),
-        ]),
+        listings=[
+            listing(1, "Owen Riegling | In The Feeling Tour | with | Payton Smith", year=2024),
+            listing(5, "Open Mic Night"),
+        ],
+        split_answer=act_split.ActSplitAnswer(
+            items=[
+                act_split.ActSplitItem(
+                    id=0,
+                    title="Owen Riegling | In The Feeling Tour | with | Payton Smith",
+                    acts=["Owen Riegling", "Payton Smith"],
+                ),
+                act_split.ActSplitItem(id=1, title="Open Mic Night", acts=[]),
+            ]
+        ),
     )
     result = run("<p>listings</p>", client, title_split=True, status_pass=False)
     models = [c["response_model"] for c in client.chat.completions.calls]
@@ -570,12 +656,26 @@ def test_every_listing_field_carries_over_to_its_show() -> None:
     # time, prices, free admission after A2-F1, image, ambiguity, confidence) reach the show
     # unchanged; and ListingExtraction has exactly ShowExtraction's fields, with `title` in place
     # of `acts`, so a field added to one and not the other fails here instead of silently dropping.
-    assert set(schemas.ListingExtraction.model_fields) == (set(schemas.ShowExtraction.model_fields) - {"acts"}) | {"title"}
-    full = {**listing(9, "Lent w. Gills"), "time": "8pm", "end_time": "23:00", "admission_advance": 12.5,
-            "admission_day": 15.0, "free_admission": False, "image_url": "https://x.example/p.png",
-            "is_ambiguous": True, "confidence": 0.7}
-    client = fake_client(listings=[full], split_answer=act_split.ActSplitAnswer(items=[
-        act_split.ActSplitItem(id=0, title="Lent w. Gills", acts=["Lent", "Gills"])]))
+    assert set(schemas.ListingExtraction.model_fields) == (set(schemas.ShowExtraction.model_fields) - {"acts"}) | {
+        "title"
+    }
+    full = {
+        **listing(9, "Lent w. Gills"),
+        "time": "8pm",
+        "end_time": "23:00",
+        "admission_advance": 12.5,
+        "admission_day": 15.0,
+        "free_admission": False,
+        "image_url": "https://x.example/p.png",
+        "is_ambiguous": True,
+        "confidence": 0.7,
+    }
+    client = fake_client(
+        listings=[full],
+        split_answer=act_split.ActSplitAnswer(
+            items=[act_split.ActSplitItem(id=0, title="Lent w. Gills", acts=["Lent", "Gills"])]
+        ),
+    )
     show = run("<p>x</p>", client, title_split=True, status_pass=False, year_rule=False).extraction.shows[0]
     assert (show.time, show.end_time) == (datetime.time(20, 0), datetime.time(23, 0))
     assert (show.admission_advance, show.admission_day, show.free_admission) == (12.5, 15.0, None)
@@ -593,7 +693,12 @@ def test_an_event_a_page_lists_twice_is_one_show() -> None:
     # "@id"), which committed 64 shows for 51 real ones and put every one of those on the calendar twice.
     # The invented page repeats one event with and without an "@id"; `usable_events` keeps the first copy
     # (the richer one) only.
-    first = ws_event("Ada Fox", "2026-11-05T19:00:00-06:00", url="https://x.example/ada-fox/", **{"@id": "https://x.example/ada-fox/#event"})
+    first = ws_event(
+        "Ada Fox",
+        "2026-11-05T19:00:00-06:00",
+        url="https://x.example/ada-fox/",
+        **{"@id": "https://x.example/ada-fox/#event"},
+    )
     twin = ws_event("Ada Fox", "2026-11-05T19:00:00-06:00", url="https://x.example/ada-fox/")
     events = extraction.usable_events(jsonld_page(first, ws_event("Ben Ode", "2026-11-06T19:00:00-06:00"), twin))
     assert [e["name"] for e in events] == ["Ada Fox", "Ben Ode"]

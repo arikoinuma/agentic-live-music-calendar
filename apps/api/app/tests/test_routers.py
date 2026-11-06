@@ -109,9 +109,7 @@ async def test_lists_are_alphabetical(sample_client: AsyncClient, path: str) -> 
     assert names == sorted(names, key=str.casefold)
 
 
-@pytest.mark.parametrize(
-    ("path", "expected"), [("/shows/999", 404), ("/venues/99", 404), ("/artists/99", 404)]
-)
+@pytest.mark.parametrize(("path", "expected"), [("/shows/999", 404), ("/venues/99", 404), ("/artists/99", 404)])
 async def test_unknown_id_is_404_not_500(sample_client: AsyncClient, path: str, expected: int) -> None:
     # Proves: an id that matches no row is a 404 on all three detail routes, not a 500 (the module docstring's `== "None"`
     # bug). 999 and 99 are above every id the sample world loads (shows 1-26, venues 1-4, artists 1-10).
@@ -177,9 +175,7 @@ async def test_artist_filter_matches_anywhere_in_the_lineup(sample_client: Async
     # bill (hand-checked in `sample_data.py`: the 2026-10-20 Zhora Darling bill of Humbird, Lanue and Charlie Parr).
     shows = (await sample_client.get("/shows?artist_id=1")).json()["shows"]
     assert any(
-        entry["artist"]["id"] == 1 and entry["sequence_number"] > 1
-        for show in shows
-        for entry in show["lineup"]
+        entry["artist"]["id"] == 1 and entry["sequence_number"] > 1 for show in shows for entry in show["lineup"]
     )
 
 
@@ -187,7 +183,9 @@ async def test_a_two_act_match_returns_the_show_once(sample_client: AsyncClient)
     # Proves: asking for two artists who share one bill returns that show once, not once per matching act. Show 8's bill is
     # Jaedyn James, Tarnation and Beasthead (artists 6, 10, 9; hand-read from `_SHOW_ROWS`, 2026-10-07 at The Terminal Bar).
     # A filter written as a join on the lineup repeats a row per matching act; `EXISTS` does not (C2-K1).
-    shows = (await sample_client.get("/shows?artist_id=6&artist_id=10&artist_id=9&start=2026-10-07&end=2026-10-07")).json()["shows"]
+    shows = (
+        await sample_client.get("/shows?artist_id=6&artist_id=10&artist_id=9&start=2026-10-07&end=2026-10-07")
+    ).json()["shows"]
     ids = [s["id"] for s in shows]
     assert len(ids) == len(set(ids))
     assert 8 in ids
@@ -393,7 +391,9 @@ async def test_a_removed_show_is_invisible_everywhere(sample_client: AsyncClient
     listed = [s["id"] for s in (await sample_client.get("/shows")).json()["shows"]]
     assert 2 not in listed
     assert (await sample_client.get("/shows/2")).status_code == 404
-    months = {(m["year"], m["month"]): m["show_count"] for m in (await sample_client.get("/calendar/months")).json()["months"]}
+    months = {
+        (m["year"], m["month"]): m["show_count"] for m in (await sample_client.get("/calendar/months")).json()["months"]
+    }
     assert months[(2026, 9)] == 2
 
 
@@ -412,7 +412,9 @@ async def test_a_month_with_only_removed_shows_disappears(sample_client: AsyncCl
     assert months == [(2026, 10)]
 
 
-async def test_inherited_fields_use_is_none_not_truthiness(sample_client: AsyncClient, db_session: AsyncSession) -> None:
+async def test_inherited_fields_use_is_none_not_truthiness(
+    sample_client: AsyncClient, db_session: AsyncSession
+) -> None:
     """Proves (api-contract.md §5, C2-D6): a show's own value wins over its venue's, including `False`.
 
     Show 2 is at venue 3, which serves alcohol and is twenty-one-plus, indoor and standing. The show then
@@ -572,7 +574,11 @@ async def test_lists_ignore_database_collation(sample_client: AsyncClient, db_se
     await _settle(db_session)
 
     names = [v["name"] for v in (await sample_client.get("/venues")).json()["venues"]]
-    assert [n for n in names if n in ("Zebra Room", "apple hall", "Mortimer's")] == ["apple hall", "Mortimer's", "Zebra Room"]
+    assert [n for n in names if n in ("Zebra Room", "apple hall", "Mortimer's")] == [
+        "apple hall",
+        "Mortimer's",
+        "Zebra Room",
+    ]
 
 
 # --- The clock ---------------------------------------------------------------

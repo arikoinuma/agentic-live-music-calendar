@@ -56,8 +56,11 @@ PAGE = jsonld_page(
     event("Sunny Day", "2026-10-31T20:00:00-05:00"),
 )
 ACTS = split_answer(
-    ("Nona", ["Nona"]), ("Zhora w. Prince", ["Zhora", "Prince"]), ("Nona", ["Nona"]),
-    ("Poliça", ["Poliça"]), ("Sunny Day", ["Sunny Day"]),
+    ("Nona", ["Nona"]),
+    ("Zhora w. Prince", ["Zhora", "Prince"]),
+    ("Nona", ["Nona"]),
+    ("Poliça", ["Poliça"]),
+    ("Sunny Day", ["Sunny Day"]),
 )
 
 
@@ -81,23 +84,26 @@ async def seed_calendar(factory: async_sessionmaker[AsyncSession], url: str) -> 
         ids = {n: a.id for n, a in artists.items()}
 
         def show(day: int, month: int, status: ShowStatus = ShowStatus.ACTIVE):
-            return make_show(
-                venue.id, datetime.date(2026, month, day), datetime.time(20, 0), status, original_url=url
-            )
+            return make_show(venue.id, datetime.date(2026, month, day), datetime.time(20, 0), status, original_url=url)
 
         shows = {
-            "nona": show(20, 10), "zhora": show(22, 10), "prince": show(23, 10),
-            "back": show(24, 10, ShowStatus.REMOVED), "later": show(20, 11),
+            "nona": show(20, 10),
+            "zhora": show(22, 10),
+            "prince": show(23, 10),
+            "back": show(24, 10, ShowStatus.REMOVED),
+            "later": show(20, 11),
         }
         session.add_all(shows.values())
         await session.flush()
-        session.add_all([
-            ShowArtist(show_id=shows["nona"].id, artist_id=ids["Nona"], sequence_number=1),
-            ShowArtist(show_id=shows["zhora"].id, artist_id=ids["Zhora"], sequence_number=1),
-            ShowArtist(show_id=shows["prince"].id, artist_id=ids["Prince"], sequence_number=1),
-            ShowArtist(show_id=shows["back"].id, artist_id=ids["Nona"], sequence_number=1),
-            ShowArtist(show_id=shows["later"].id, artist_id=ids["Prince"], sequence_number=1),
-        ])
+        session.add_all(
+            [
+                ShowArtist(show_id=shows["nona"].id, artist_id=ids["Nona"], sequence_number=1),
+                ShowArtist(show_id=shows["zhora"].id, artist_id=ids["Zhora"], sequence_number=1),
+                ShowArtist(show_id=shows["prince"].id, artist_id=ids["Prince"], sequence_number=1),
+                ShowArtist(show_id=shows["back"].id, artist_id=ids["Nona"], sequence_number=1),
+                ShowArtist(show_id=shows["later"].id, artist_id=ids["Prince"], sequence_number=1),
+            ]
+        )
         await session.commit()
         ids.update({f"show_{k}": s.id for k, s in shows.items()})
     return venue, ids
@@ -105,7 +111,9 @@ async def seed_calendar(factory: async_sessionmaker[AsyncSession], url: str) -> 
 
 @pytest_asyncio.fixture(loop_scope="session")
 async def venue_run(
-    factory: async_sessionmaker[AsyncSession], tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    factory: async_sessionmaker[AsyncSession],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> tuple[VenueGraphState, dict[str, int], VenueFacts]:
     """Seed the calendar above, run venue A through the real graph on the page, return the final state, the artists'
     ids and the venue."""
@@ -115,7 +123,9 @@ async def venue_run(
     venue, ids = await seed_calendar(factory, url)
     monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [ACTS]}))
     ctx = WorkerContext(
-        audit=PostgresAuditWriter(factory), stager=RecordingStager(), reader=PostgresCalendarReader(factory),
+        audit=PostgresAuditWriter(factory),
+        stager=RecordingStager(),
+        reader=PostgresCalendarReader(factory),
         writer=FakeWriter(),  # reconcile decides and writes nothing; this file proves that, so commit writes nothing either
     )
     state = await run_venue(venue, ctx, calendar_url=url, fetched_on=fakes.FETCHED)
@@ -164,12 +174,14 @@ async def test_the_window_runs_from_the_fetch_date_to_the_last_listed_date(
     state, _, _ = venue_run
     assert state.reconcile_plan is not None and state.reconcile_plan.coverage is not None
     assert (state.reconcile_plan.coverage.start, state.reconcile_plan.coverage.end) == (
-        datetime.date(2026, 10, 12), datetime.date(2026, 10, 31),
+        datetime.date(2026, 10, 12),
+        datetime.date(2026, 10, 31),
     )
 
 
 async def test_the_artists_table_is_unchanged_by_reconcile(
-    venue_run: tuple[VenueGraphState, dict[str, int], VenueFacts], factory: async_sessionmaker[AsyncSession],
+    venue_run: tuple[VenueGraphState, dict[str, int], VenueFacts],
+    factory: async_sessionmaker[AsyncSession],
 ) -> None:
     # Proves: reconcile decides and writes nothing to the calendar (arch-initial.md §7: commit writes). Even for
     # "Sunny Day", a new artist, no `artist` row exists afterwards.

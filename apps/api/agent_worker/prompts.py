@@ -65,7 +65,7 @@ def _non_music_rule() -> str:
         "if it also mentions karaoke, a party, a series name or a themed night. Skip only "
         "entries that name no performer at all, such as a karaoke night, an open mic or a "
         "comedy night with no performing artist named. A named DJ is a performing artist. "
-        "A named host of a music show is one of its acts, but being \"hosted by\" someone does "
+        'A named host of a music show is one of its acts, but being "hosted by" someone does '
         "not make a karaoke night, open mic or comedy night a show.\n"
     )
 
@@ -190,8 +190,12 @@ def _title_rule() -> str:
 
 
 def extraction_instruction(
-    include_new_rules: bool = True, *, cancelled_rule: bool = False, act_conventions: bool = False,
-    date_heading: bool | None = None, title_split: bool = False,
+    include_new_rules: bool = True,
+    *,
+    cancelled_rule: bool = False,
+    act_conventions: bool = False,
+    date_heading: bool | None = None,
+    title_split: bool = False,
 ) -> str:
     """Assemble the instruction text. The page content is appended by the caller.
 

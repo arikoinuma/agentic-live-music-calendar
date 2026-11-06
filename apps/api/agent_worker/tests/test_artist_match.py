@@ -227,5 +227,7 @@ def test_the_same_new_artist_on_three_shows_is_one_new_artist() -> None:
     # Proves: reconcile runs before commit, so the database can't tell it an artist was already created for another
     # show. Three shows naming the same unknown artist must yield one resolution (commit then creates one
     # artist), not three.
-    resolved = resolve_artists(["Sunny Day", "Sunny Day", "sunny day"], [ZHORA], client=scripted_client({}), options=OPTIONS)
+    resolved = resolve_artists(
+        ["Sunny Day", "Sunny Day", "sunny day"], [ZHORA], client=scripted_client({}), options=OPTIONS
+    )
     assert len(resolved) == 1 and next(iter(resolved.values())).outcome == "new"

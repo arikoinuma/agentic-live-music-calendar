@@ -122,35 +122,81 @@ def _day(offset: int) -> datetime.date:
 _SHOW_ROWS: list[tuple] = [
     # Week 1
     (0, "The White Squirrel Bar", "20:00", None, _lineup("Charlie Parr"), None, "10.00", None, None),
-    (2, "Zhora Darling", "21:00", "23:30", _lineup("Nooky Jones", "Beasthead", times=("21:00", "22:30")), "18.00", "22.00", None, "https://example.com/posters/nooky.jpg"),
+    (
+        2,
+        "Zhora Darling",
+        "21:00",
+        "23:30",
+        _lineup("Nooky Jones", "Beasthead", times=("21:00", "22:30")),
+        "18.00",
+        "22.00",
+        None,
+        "https://example.com/posters/nooky.jpg",
+    ),
     (2, "The Midway Saloon", None, None, _lineup("Tarnation"), None, None, True, None),
     (3, "The Terminal Bar", "19:30", None, _lineup("Humbird"), "15.00", "18.00", None, None),
     (4, "The White Squirrel Bar", "22:00", None, _lineup("Dead Man Winter", "Lanue"), None, "12.00", None, None),
     (5, "Zhora Darling", "20:00", None, _lineup("The Cactus Blossoms"), "25.00", "30.00", None, None),
     # day 6 deliberately empty — the calendar has to render a date with
     # no shows, and a fixture where every day is full never exercises it
-
     # Week 2
     (7, "The Midway Saloon", "20:30", None, _lineup("Pert Near Sandstone"), None, "15.00", None, None),
-    (9, "The Terminal Bar", "21:00", None, _lineup("Jaedyn James", "Tarnation", "Beasthead"), "12.00", "15.00", None, None),
+    (
+        9,
+        "The Terminal Bar",
+        "21:00",
+        None,
+        _lineup("Jaedyn James", "Tarnation", "Beasthead"),
+        "12.00",
+        "15.00",
+        None,
+        None,
+    ),
     (10, "The White Squirrel Bar", None, None, _lineup("Charlie Parr"), None, None, None, None),
     (11, "Zhora Darling", "19:00", "22:00", _lineup("Lanue"), "20.00", None, None, None),
     (12, "The Midway Saloon", "21:00", None, _lineup("Humbird", "Beasthead"), None, None, True, None),
-    (13, "The Terminal Bar", "20:00", None, _lineup("The Cactus Blossoms"), "28.00", "32.00", None, "https://example.com/posters/cactus.jpg"),
-
+    (
+        13,
+        "The Terminal Bar",
+        "20:00",
+        None,
+        _lineup("The Cactus Blossoms"),
+        "28.00",
+        "32.00",
+        None,
+        "https://example.com/posters/cactus.jpg",
+    ),
     # Week 3
     (15, "The White Squirrel Bar", "20:00", None, _lineup("Nooky Jones"), None, "10.00", None, None),
     (16, "Zhora Darling", "21:30", None, _lineup("Dead Man Winter"), "16.00", "20.00", None, None),
     (17, "The Midway Saloon", "20:00", None, _lineup("Jaedyn James"), None, "8.00", None, None),
-    (18, "The Terminal Bar", "19:00", None, _lineup("Pert Near Sandstone", "Tarnation", times=("19:00", "20:30")), "14.00", "18.00", None, None),
+    (
+        18,
+        "The Terminal Bar",
+        "19:00",
+        None,
+        _lineup("Pert Near Sandstone", "Tarnation", times=("19:00", "20:30")),
+        "14.00",
+        "18.00",
+        None,
+        None,
+    ),
     (20, "The White Squirrel Bar", "22:00", None, _lineup("Beasthead"), None, None, True, None),
-
     # Week 4
     (22, "Zhora Darling", "20:00", None, _lineup("Humbird", "Lanue", "Charlie Parr"), "22.00", "26.00", None, None),
     (23, "The Midway Saloon", None, None, _lineup("Tarnation"), None, "5.00", None, None),
     (24, "The Terminal Bar", "21:00", None, _lineup("Nooky Jones"), "18.00", None, None, None),
-    (26, "The White Squirrel Bar", "20:00", "23:00", _lineup("The Cactus Blossoms", "Dead Man Winter"), "24.00", "28.00", None, None),
-
+    (
+        26,
+        "The White Squirrel Bar",
+        "20:00",
+        "23:00",
+        _lineup("The Cactus Blossoms", "Dead Man Winter"),
+        "24.00",
+        "28.00",
+        None,
+        None,
+    ),
     # Added for B3 (docs/dev/implementations/b3-the-calendar.md, B3-D5), and
     # appended so ids 1-21 don't change. The rows above never put two
     # shows at one venue on one date, never run past midnight and never
@@ -164,7 +210,17 @@ _SHOW_ROWS: list[tuple] = [
     (9, "The White Squirrel Bar", "18:00", None, _lineup("Lanue"), None, None, None, None),
     #   - the late one ends after midnight, has per-act times, and an
     #     unlabelled (so day-of-show) price:
-    (9, "The White Squirrel Bar", "22:00", "00:30", _lineup("Nooky Jones", "Pert Near Sandstone", times=("22:00", "23:15")), None, "10.00", None, None),
+    (
+        9,
+        "The White Squirrel Bar",
+        "22:00",
+        "00:30",
+        _lineup("Nooky Jones", "Pert Near Sandstone", times=("22:00", "23:15")),
+        None,
+        "10.00",
+        None,
+        None,
+    ),
     #   - an artist who also plays another venue on another date, for the
     #     artist filter:
     (9, "Zhora Darling", "20:00", None, _lineup("Charlie Parr"), "20.00", "25.00", None, None),
@@ -173,7 +229,6 @@ _SHOW_ROWS: list[tuple] = [
     #     Thu"), sorting after the evening's shows (requirements-initial.md,
     #     "Times after midnight"):
     (9, "The Midway Saloon", "01:00", None, _lineup("Dead Man Winter"), None, None, True, None),
-
     # Added for B4 (B4-D2, docs/dev/implementations/b4-detail-pages.md), and
     # appended so ids 1-25 don't change. Every show above sits inside the
     # 28-day default window (START..END), so against this data
@@ -306,10 +361,7 @@ def calendar_months() -> list[CalendarMonth]:
     for show in SHOWS:
         key = (show.date.year, show.date.month)
         counts[key] = counts.get(key, 0) + 1
-    return [
-        CalendarMonth(year=year, month=month, show_count=count)
-        for (year, month), count in sorted(counts.items())
-    ]
+    return [CalendarMonth(year=year, month=month, show_count=count) for (year, month), count in sorted(counts.items())]
 
 
 # ---------------------------------------------------------------------
@@ -376,9 +428,7 @@ async def load_sample_data(session: AsyncSession) -> None:
     """
     for model in (Metro, Venue, Artist, Show):
         if (await session.execute(select(func.count()).select_from(model))).scalar_one():
-            raise NotAnEmptyDatabaseError(
-                f"refusing to load the sample world: {model.__tablename__} already has rows"
-            )
+            raise NotAnEmptyDatabaseError(f"refusing to load the sample world: {model.__tablename__} already has rows")
 
     # Metro first: venues point at it.
     session.add(Metro(id=METRO.id, name=METRO.name, timezone=METRO.timezone, slug=METRO.slug))
@@ -390,11 +440,21 @@ async def load_sample_data(session: AsyncSession) -> None:
         assert v is not None
         session.add(
             Venue(
-                id=v.id, metro_id=v.metro.id, name=v.name, calendar_url=v.calendar_url,
-                photo_url=v.photo_url, address=v.address, phone_numbers=v.phone_numbers,
-                emails=v.emails, website=v.website, age_restriction=v.age_restriction,
-                serves_alcohol=v.serves_alcohol, venue_type=v.venue_type, setting=v.setting,
-                seating=v.seating, extra_metadata=v.extra_metadata,
+                id=v.id,
+                metro_id=v.metro.id,
+                name=v.name,
+                calendar_url=v.calendar_url,
+                photo_url=v.photo_url,
+                address=v.address,
+                phone_numbers=v.phone_numbers,
+                emails=v.emails,
+                website=v.website,
+                age_restriction=v.age_restriction,
+                serves_alcohol=v.serves_alcohol,
+                venue_type=v.venue_type,
+                setting=v.setting,
+                seating=v.seating,
+                extra_metadata=v.extra_metadata,
             )
         )
     for artist_summary in ARTISTS:
@@ -402,8 +462,14 @@ async def load_sample_data(session: AsyncSession) -> None:
         assert a is not None
         session.add(
             Artist(
-                id=a.id, name=a.name, photo_url=a.photo_url, website=a.website, hometown=a.hometown,
-                format=a.format, repertoire=a.repertoire, extra_metadata=a.extra_metadata,
+                id=a.id,
+                name=a.name,
+                photo_url=a.photo_url,
+                website=a.website,
+                hometown=a.hometown,
+                format=a.format,
+                repertoire=a.repertoire,
+                extra_metadata=a.extra_metadata,
             )
         )
     await session.flush()
@@ -418,9 +484,15 @@ async def load_sample_data(session: AsyncSession) -> None:
     for s in SHOWS:
         session.add(
             Show(
-                id=s.id, venue_id=s.venue.id, date=s.date, start_time=s.start_time, end_time=s.end_time,
-                admission_advance=s.admission_advance, admission_day=s.admission_day,
-                free_admission=s.free_admission, image_url=s.image_url,
+                id=s.id,
+                venue_id=s.venue.id,
+                date=s.date,
+                start_time=s.start_time,
+                end_time=s.end_time,
+                admission_advance=s.admission_advance,
+                admission_day=s.admission_day,
+                free_admission=s.free_admission,
+                image_url=s.image_url,
                 original_url=calendar_urls[s.venue.id],
             )
         )
@@ -429,7 +501,9 @@ async def load_sample_data(session: AsyncSession) -> None:
         for entry in s.lineup:
             session.add(
                 ShowArtist(
-                    show_id=s.id, artist_id=entry.artist.id, start_time=entry.start_time,
+                    show_id=s.id,
+                    artist_id=entry.artist.id,
+                    start_time=entry.start_time,
                     sequence_number=entry.sequence_number,
                 )
             )
@@ -438,5 +512,6 @@ async def load_sample_data(session: AsyncSession) -> None:
     # Move every sequence past the ids just written.
     for table in ("metro", "venue", "artist", "show"):
         await session.execute(
-            text(f"SELECT setval(pg_get_serial_sequence('{table}', 'id'), (SELECT max(id) FROM {table}))")
+            # The table names come from the fixed tuple above, never from input.
+            text(f"SELECT setval(pg_get_serial_sequence('{table}', 'id'), (SELECT max(id) FROM {table}))")  # noqa: S608
         )

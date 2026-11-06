@@ -175,7 +175,9 @@ def _offer_price(event: dict[str, Any]) -> float | None:
 # A price the description labels as the ticket price: "Tickets: $20", "Admission: $12.50", "Cover $5".
 _LABELED_PRICE = re.compile(r"\b(?:tickets?|admission|cover)\s*:?\s*\$\s*(\d+(?:\.\d{1,2})?)(?!\d)", re.IGNORECASE)
 # Wording that gives a price a meaning this fallback cannot represent (two prices, or door vs advance).
-_PRICE_QUALIFIER = re.compile(r"\b(?:advance|adv\.?|door|day[- ]of|presale|pre-sale|members?|students?)\b", re.IGNORECASE)
+_PRICE_QUALIFIER = re.compile(
+    r"\b(?:advance|adv\.?|door|day[- ]of|presale|pre-sale|members?|students?)\b", re.IGNORECASE
+)
 
 
 def _described_price(event: dict[str, Any]) -> float | None:
@@ -259,7 +261,9 @@ def end_time_is_stated(
 
 
 def to_structured_show(
-    event: dict[str, Any], metro_timezone: str, page_text: str | None = None,
+    event: dict[str, Any],
+    metro_timezone: str,
+    page_text: str | None = None,
     other_titles: Sequence[str] = (),
 ) -> StructuredShow:
     """Map one schema.org Event to a StructuredShow.
@@ -287,8 +291,10 @@ def to_structured_show(
     end_time = _end_time(event, metro_timezone, start)
     # A2.1-D10: keep a structured end time only if the page itself states it (see end_time_is_stated).
     title = html_lib.unescape(str(event.get("name", ""))).strip()
-    if end_time is not None and page_text is not None and not end_time_is_stated(
-        end_time, page_text, title, other_titles
+    if (
+        end_time is not None
+        and page_text is not None
+        and not end_time_is_stated(end_time, page_text, title, other_titles)
     ):
         end_time = None
     price = _offer_price(event)
@@ -298,8 +304,15 @@ def to_structured_show(
     described = _described_price(event) if price is None else None
     if described:
         return StructuredShow(
-            title=title, date=show_date, time=show_time, end_time=end_time, image_url=_image(event),
-            admission_advance=described, admission_day=described, free_admission=None, status=_status(event),
+            title=title,
+            date=show_date,
+            time=show_time,
+            end_time=end_time,
+            image_url=_image(event),
+            admission_advance=described,
+            admission_day=described,
+            free_admission=None,
+            status=_status(event),
         )
     return StructuredShow(
         title=title,

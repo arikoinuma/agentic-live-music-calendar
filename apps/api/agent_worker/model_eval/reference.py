@@ -45,7 +45,8 @@ REFERENCE: dict[str, FixtureReference] = {
     # 12 listings, each "6:00 pm - 8:00 pm" style, so every one states an end time.
     # No prices, no non-music entries. Nine are multi-act ("X w. Y, Z"); three are solo.
     "white_squirrel": FixtureReference(
-        states_end_time=True, approx_shows=12,
+        states_end_time=True,
+        approx_shows=12,
         note="every listing has a start AND end time; nine multi-act, three single-act",
     ),
     # Month grid with start times like "7p". Non-music: weekly Pool Tournament, MNUFC
@@ -62,7 +63,9 @@ REFERENCE: dict[str, FixtureReference] = {
     # not as a listing, so any act containing it is a leak. DJ Adatrack / ECID is a
     # named DJ => a show.
     "zhora": FixtureReference(
-        non_music_terms=("karaoke",), states_price=True, approx_shows=24,
+        non_music_terms=("karaoke",),
+        states_price=True,
+        approx_shows=24,
         note="single price per listing; the page gives no end times",
     ),
     # Recurring header entries (OPEN MIC Mondays, DJ Night Wednesdays — no named DJ,
@@ -70,7 +73,8 @@ REFERENCE: dict[str, FixtureReference] = {
     # NO times and NO prices, so any `time` is invented — the case that exposes v0.1-G8.
     "terminal_html": FixtureReference(
         non_music_terms=("open mic", "comedy", "dj night"),
-        states_start_time=False, approx_shows=8,
+        states_start_time=False,
+        approx_shows=8,
         note="no times anywhere on the page; dates only",
     ),
     # Posters: one show each. Poster 1: The Envies / Müllet / Kurt Russell's Muscles,
@@ -80,11 +84,14 @@ REFERENCE: dict[str, FixtureReference] = {
     # prices in the listing. Mortimer's: weekly comedy open mics and karaoke between ~7 shows;
     # no times or prices in its text.
     "seventh_st_entry": FixtureReference(
-        states_start_time=False, approx_shows=30,
+        states_start_time=False,
+        approx_shows=30,
         note="headliner | tour | with | support; two cancelled and one postponed listing",
     ),
     "mortimers": FixtureReference(
-        non_music_terms=("comedy", "karaoke", "open mic"), states_start_time=False, approx_shows=7,
+        non_music_terms=("comedy", "karaoke", "open mic"),
+        states_start_time=False,
+        approx_shows=7,
         note="18 entries, 11 of them weekly comedy or karaoke",
     ),
     "terminal_poster_1": FixtureReference(states_price=True, approx_shows=1),
@@ -95,8 +102,12 @@ REFERENCE: dict[str, FixtureReference] = {
 # A2.1's captures are named `<venue>-<YYYY-MM-DD>.html` (model_eval/capture.py); each venue maps to
 # the REFERENCE entry for its page type (A2.1-PR1-12).
 _CAPTURE_KEYS = {
-    "white_squirrel": "white_squirrel", "terminal": "terminal_html", "zhora": "zhora",
-    "midway": "midway", "seventh_st_entry": "seventh_st_entry", "mortimers": "mortimers",
+    "white_squirrel": "white_squirrel",
+    "terminal": "terminal_html",
+    "zhora": "zhora",
+    "midway": "midway",
+    "seventh_st_entry": "seventh_st_entry",
+    "mortimers": "mortimers",
 }
 
 

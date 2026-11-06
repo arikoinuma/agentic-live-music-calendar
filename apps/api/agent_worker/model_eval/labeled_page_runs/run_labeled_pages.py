@@ -119,10 +119,16 @@ def scenario_records(scenarios: list[dict[str, Any]]) -> list[dict[str, Any]]:
     against its own page's label (`aggregate_scores._scored_in`); the scenario's own database score covers it (C5-CR1-1)."""
     return [
         {
-            **run, "run": i, "scenario": s["result"]["scenario"],
-            "committed_scored": not (s["result"]["scenario"] in (two_run_scenarios.Scenario.SEQUENCE, two_run_scenarios.Scenario.OVERLAP) and i == 1),
+            **run,
+            "run": i,
+            "scenario": s["result"]["scenario"],
+            "committed_scored": not (
+                s["result"]["scenario"] in (two_run_scenarios.Scenario.SEQUENCE, two_run_scenarios.Scenario.OVERLAP)
+                and i == 1
+            ),
         }
-        for s in scenarios for i, run in enumerate(s["result"]["runs"])
+        for s in scenarios
+        for i, run in enumerate(s["result"]["runs"])
     ]
 
 
@@ -151,8 +157,10 @@ def rescore(label: str) -> Path:
             first_name, *rest = entry["pages"]
             if first_name in PAGE_LABELS and all(n in PAGE_LABELS for n in rest):
                 entry["database_score"] = two_run_scenarios.score_database(
-                    two_run_scenarios.Scenario(entry["result"]["scenario"]), PAGE_LABELS[first_name],
-                    PAGE_LABELS[rest[0]] if rest else None, entry["result"]["runs"][-1]["committed"],
+                    two_run_scenarios.Scenario(entry["result"]["scenario"]),
+                    PAGE_LABELS[first_name],
+                    PAGE_LABELS[rest[0]] if rest else None,
+                    entry["result"]["runs"][-1]["committed"],
                 )
     data["aggregate"] = aggregate_scores.aggregate(data["runs"], PAGE_LABELS)
     data["rescored_from"] = label
@@ -169,9 +177,16 @@ def _rescore_run(run: dict[str, Any]) -> None:
         return
     fixture = run_eval.CAPTURED_PAGES_DIR / run["fixture"]
     page_html = fixture.read_text() if fixture.suffix not in IMAGE_SUFFIXES and fixture.is_file() else ""
-    run.update(column_scores(
-        page_label, raw=run["raw"], validated=run["validated"], committed=run["committed"], page_html=page_html, fixture=run["fixture"],
-    ))
+    run.update(
+        column_scores(
+            page_label,
+            raw=run["raw"],
+            validated=run["validated"],
+            committed=run["committed"],
+            page_html=page_html,
+            fixture=run["fixture"],
+        )
+    )
     documents = {d["attempt"]: d for d in run["staged_documents"]}
     for attempt in run["attempts"]:
         document = documents.get(attempt["attempt"])
@@ -187,13 +202,18 @@ def _rescore_run(run: dict[str, Any]) -> None:
 def _context(factory: async_sessionmaker[AsyncSession]) -> WorkerContext:
     """The real Postgres stores and the in-memory stager (C5-D2: MongoDB is not what is being evaluated)."""
     return WorkerContext(
-        audit=PostgresAuditWriter(factory), stager=InMemoryStager(),
-        reader=PostgresCalendarReader(factory), writer=PostgresCalendarWriter(factory),
+        audit=PostgresAuditWriter(factory),
+        stager=InMemoryStager(),
+        reader=PostgresCalendarReader(factory),
+        writer=PostgresCalendarWriter(factory),
     )
 
 
 async def run_pages(
-    items: list[tuple[Path, PageLabel, LabelVenueFacts]], *, factory: async_sessionmaker[AsyncSession], runs: int,
+    items: list[tuple[Path, PageLabel, LabelVenueFacts]],
+    *,
+    factory: async_sessionmaker[AsyncSession],
+    runs: int,
     policy: RetryPolicy | None,
 ) -> list[dict[str, Any]]:
     """Run each page `runs` times, each on an empty calendar, and return the run records.
@@ -211,18 +231,28 @@ async def run_pages(
                 return await scratch_calendar_rows.committed_extraction(factory, venue_id)
 
             page_run: PageRun = await run_page(
-                label=label, fixture=fixture, venue=venue, ctx=_context(factory), committed_rows=committed, policy=policy,
+                label=label,
+                fixture=fixture,
+                venue=venue,
+                ctx=_context(factory),
+                committed_rows=committed,
+                policy=policy,
             )
             records.append({**asdict(page_run), "run": run_index})
             print(
                 f"{fixture.name[:40]:40} | run {run_index} | attempts {page_run.attempt_count} | "
-                f"escalated {page_run.escalated} | {page_run.seconds}s", flush=True,
+                f"escalated {page_run.escalated} | {page_run.seconds}s",
+                flush=True,
             )
     return records
 
 
 async def run_scenarios(
-    scenario: two_run_scenarios.Scenario, names: list[str], *, factory: async_sessionmaker[AsyncSession], policy: RetryPolicy | None,
+    scenario: two_run_scenarios.Scenario,
+    names: list[str],
+    *,
+    factory: async_sessionmaker[AsyncSession],
+    policy: RetryPolicy | None,
 ) -> list[dict[str, Any]]:
     """Run `scenario` over the selected captures: one page each (repeat, perturbed) or each consecutive pair of one venue
     (sequence, overlap). Each instance starts from an empty calendar; its two runs do not reset between them."""
@@ -234,21 +264,35 @@ async def run_scenarios(
     for first_name, second_name in instances:
         await scratch_calendar_rows.reset(factory)
         first = two_run_scenarios.ScenarioPage(PAGE_LABELS[first_name], run_eval.CAPTURED_PAGES_DIR / first_name)
-        second = two_run_scenarios.ScenarioPage(PAGE_LABELS[second_name], run_eval.CAPTURED_PAGES_DIR / second_name) if second_name else None
+        second = (
+            two_run_scenarios.ScenarioPage(PAGE_LABELS[second_name], run_eval.CAPTURED_PAGES_DIR / second_name)
+            if second_name
+            else None
+        )
         venue = await scratch_calendar_rows.ensure_venue(factory, VENUE_FACTS[first.label.venue])
         result = await two_run_scenarios.run_scenario(
-            scenario, first=first, second=second, venue=venue, ctx=_context(factory), factory=factory, policy=policy,
+            scenario,
+            first=first,
+            second=second,
+            venue=venue,
+            ctx=_context(factory),
+            factory=factory,
+            policy=policy,
         )
         rows = await scratch_calendar_rows.committed_extraction(factory, venue.id)
         # A scenario whose first run left nothing to build on is reported with its reason and has no database score (C5-CR1-2).
         database: dict[str, Any] | None = (
-            None if result.not_run else two_run_scenarios.score_database(scenario, first.label, second.label if second else None, rows)
+            None
+            if result.not_run
+            else two_run_scenarios.score_database(scenario, first.label, second.label if second else None, rows)
         )
-        out.append({
-            "pages": [first_name, *([second_name] if second_name else [])],
-            "result": asdict(result),
-            "database_score": database,
-        })
+        out.append(
+            {
+                "pages": [first_name, *([second_name] if second_name else [])],
+                "result": asdict(result),
+                "database_score": database,
+            }
+        )
         note = f"NOT RUN: {result.not_run}" if result.not_run else f"differences {result.count_differences}"
         print(f"{scenario.value}: {first_name} {'-> ' + second_name if second_name else ''} | {note}")
         if database is not None:
@@ -268,21 +312,41 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--label", help="name for this run; results go to model_eval/results/graph-<label>.json")
     parser.add_argument(
-        "--set", choices=["gated", "informational", "held_out", "all"], default="all",
+        "--set",
+        choices=["gated", "informational", "held_out", "all"],
+        default="all",
         help="which labelled pages to run; 'all' is gated + informational and never includes held_out (C5-D3)",
     )
     parser.add_argument("--only", help="only fixtures whose file name contains this text")
-    parser.add_argument("--runs", type=int, default=1, help="runs per page (default 1: at temperature 0 repeats are one sample)")
-    parser.add_argument("--scenario", choices=SCENARIO_CHOICES, help="run a two-run database scenario instead of single pages")
-    parser.add_argument("--threshold", type=float, help="the retry policy's confidence threshold (default: the pipeline's)")
+    parser.add_argument(
+        "--runs", type=int, default=1, help="runs per page (default 1: at temperature 0 repeats are one sample)"
+    )
+    parser.add_argument(
+        "--scenario", choices=SCENARIO_CHOICES, help="run a two-run database scenario instead of single pages"
+    )
+    parser.add_argument(
+        "--threshold", type=float, help="the retry policy's confidence threshold (default: the pipeline's)"
+    )
     parser.add_argument("--max-attempts", type=int, help="the retry policy's attempt cap (default: the pipeline's)")
-    parser.add_argument("--keep-db", action="store_true", help="leave the scratch database in place afterwards, to read the rows")
-    parser.add_argument("--rescore", metavar="LABEL", help="rescore a saved run into graph-rescore-<LABEL>.json (no model)")
+    parser.add_argument(
+        "--keep-db", action="store_true", help="leave the scratch database in place afterwards, to read the rows"
+    )
+    parser.add_argument(
+        "--rescore", metavar="LABEL", help="rescore a saved run into graph-rescore-<LABEL>.json (no model)"
+    )
     parser.add_argument("--compare", nargs="+", metavar="LABEL", help="print saved runs side by side")
-    parser.add_argument("--snapshot", metavar="LABEL", help="write a slim, committable summary of a saved run to docs/dev/eval-baselines/")
-    parser.add_argument("--report", metavar="LABEL", help="print a readable Markdown report of a saved run (markdown_report.py)")
+    parser.add_argument(
+        "--snapshot",
+        metavar="LABEL",
+        help="write a slim, committable summary of a saved run to docs/dev/eval-baselines/",
+    )
+    parser.add_argument(
+        "--report", metavar="LABEL", help="print a readable Markdown report of a saved run (markdown_report.py)"
+    )
     parser.add_argument("--errors", action="store_true", help="with --report: also list every error string in full")
-    parser.add_argument("--out", metavar="FILE", help="with --report: write the report to this file instead of printing it")
+    parser.add_argument(
+        "--out", metavar="FILE", help="with --report: write the report to this file instead of printing it"
+    )
     return parser.parse_args(argv)
 
 
@@ -306,7 +370,9 @@ async def evaluate(args: argparse.Namespace) -> int:
         records: list[dict[str, Any]] = []
         scenarios: list[dict[str, Any]] = []
         if args.scenario:
-            scenarios = await run_scenarios(two_run_scenarios.Scenario(args.scenario), names, factory=factory, policy=policy)
+            scenarios = await run_scenarios(
+                two_run_scenarios.Scenario(args.scenario), names, factory=factory, policy=policy
+            )
             records = scenario_records(scenarios)
         else:
             items = [(p, PAGE_LABELS[p.name], VENUE_FACTS[PAGE_LABELS[p.name].venue]) for p in fixtures]
@@ -328,9 +394,20 @@ async def evaluate(args: argparse.Namespace) -> int:
         provenance = None
     summary = aggregate_scores.aggregate(records, PAGE_LABELS)
     record = results_file.build_record(
-        label=args.label, started_at=started_at, set_name=args.set, scenario=args.scenario, fixture_names=names,
-        page_labels=PAGE_LABELS, config=config, options=options, request=run_eval.request_record(config, False),
-        policy=policy or DEFAULT_POLICY, provenance=provenance, aggregate=summary, scenarios=scenarios, runs=records,
+        label=args.label,
+        started_at=started_at,
+        set_name=args.set,
+        scenario=args.scenario,
+        fixture_names=names,
+        page_labels=PAGE_LABELS,
+        config=config,
+        options=options,
+        request=run_eval.request_record(config, False),
+        policy=policy or DEFAULT_POLICY,
+        provenance=provenance,
+        aggregate=summary,
+        scenarios=scenarios,
+        runs=records,
     )
     out_path = results_file.write_results(results_file.results_path(args.label), record)
     print(f"\nwrote {out_path}")

@@ -21,22 +21,36 @@ D = datetime.date
 
 def extraction(*shows: tuple[int, list[str]]) -> VenuePageExtraction:
     """An extraction holding shows on the given October 2026 days with the given acts."""
-    return VenuePageExtraction.model_validate({"page_readable": True, "shows": [
-        {"venue": "V", "date": D(2026, 10, day).isoformat(), "acts": [{"name": a} for a in acts],
-         "is_ambiguous": False, "confidence": 0.9}
-        for day, acts in shows
-    ]})
+    return VenuePageExtraction.model_validate(
+        {
+            "page_readable": True,
+            "shows": [
+                {
+                    "venue": "V",
+                    "date": D(2026, 10, day).isoformat(),
+                    "acts": [{"name": a} for a in acts],
+                    "is_ambiguous": False,
+                    "confidence": 0.9,
+                }
+                for day, acts in shows
+            ],
+        }
+    )
 
 
 def answer(*items: tuple[int, list[str], str]) -> status_check.StatusAnswer:
     """A status answer listing the given (day, acts, status) items."""
-    return status_check.StatusAnswer(items=[
-        status_check.StatusItem(date=D(2026, 10, day), acts=acts, status=status)  # type: ignore[arg-type]
-        for day, acts, status in items
-    ])
+    return status_check.StatusAnswer(
+        items=[
+            status_check.StatusItem(date=D(2026, 10, day), acts=acts, status=status)  # type: ignore[arg-type]
+            for day, acts, status in items
+        ]
+    )
 
 
-def merge(ex: VenuePageExtraction, ans: status_check.StatusAnswer, page_text: str, **kwargs: Any) -> list[tuple[Any, ...]]:
+def merge(
+    ex: VenuePageExtraction, ans: status_check.StatusAnswer, page_text: str, **kwargs: Any
+) -> list[tuple[Any, ...]]:
     """Run the merge and return (date, acts, status) per show, for easy comparison."""
     merged, _notes = status_check.apply(ex, ans, page_text=page_text, fetch_date=None, venue_name="V", **kwargs)
     return [(s.date.day, [a.name for a in s.acts], s.status) for s in merged.shows]  # type: ignore[attr-defined]
@@ -77,7 +91,11 @@ def test_an_answer_with_only_short_names_is_added_only_if_the_page_contains_them
     assert on_page == [(18, ["MO"], "cancelled")]
 
     merged, notes = status_check.apply(
-        extraction(), cancelled_mo, page_text="Oct 18: Lizzo cancelled", fetch_date=None, venue_name="V",
+        extraction(),
+        cancelled_mo,
+        page_text="Oct 18: Lizzo cancelled",
+        fetch_date=None,
+        venue_name="V",
     )
     assert merged.shows == []
     assert notes["not_on_page"] == [["MO"]]
@@ -99,8 +117,11 @@ def test_an_answer_the_page_doesnt_contain_is_not_added() -> None:
     # doesn't support is recorded in the notes, never turned into a show ("no invented shows").
     ex = extraction((10, ["Robert Ellis"]))
     merged, notes = status_check.apply(
-        ex, answer((12, ["Nobody Listed"], "cancelled")), page_text="Cancelled Robert Ellis",
-        fetch_date=None, venue_name="V",
+        ex,
+        answer((12, ["Nobody Listed"], "cancelled")),
+        page_text="Cancelled Robert Ellis",
+        fetch_date=None,
+        venue_name="V",
     )
     assert [(s.date.day, s.status) for s in merged.shows] == [(10, "scheduled")]  # type: ignore[attr-defined]
     assert notes["not_on_page"] == [["Nobody Listed"]]
@@ -110,7 +131,8 @@ def test_an_added_listing_is_split_when_a_splitter_is_given() -> None:
     # Proves: A2.1-CR2-4 — on the title-split route, an added cancelled listing goes through
     # the same act splitter as every other title, so it isn't stored as one long "artist".
     shows = merge(
-        extraction(), answer((17, ["Sophie Truax with Sasha Cee"], "cancelled")),
+        extraction(),
+        answer((17, ["Sophie Truax with Sasha Cee"], "cancelled")),
         page_text="Cancelled Sophie Truax with Sasha Cee",
         split_titles=lambda titles: [["Sophie Truax", "Sasha Cee"] for _ in titles],
     )

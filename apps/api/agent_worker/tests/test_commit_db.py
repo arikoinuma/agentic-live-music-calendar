@@ -66,14 +66,21 @@ def factory(db_conn: AsyncConnection) -> async_sessionmaker[AsyncSession]:
 def real_context(factory: async_sessionmaker[AsyncSession], writer: Any = None) -> WorkerContext:
     """Everything real except MongoDB: the Postgres audit writer, reader and calendar writer on the test connection."""
     return WorkerContext(
-        audit=PostgresAuditWriter(factory), stager=RecordingStager(), reader=PostgresCalendarReader(factory),
+        audit=PostgresAuditWriter(factory),
+        stager=RecordingStager(),
+        reader=PostgresCalendarReader(factory),
         writer=writer or PostgresCalendarWriter(factory),
     )
 
 
 async def run_page(
-    factory: async_sessionmaker[AsyncSession], venue: VenueFacts, page: Path, html: str, answer: dict[str, Any],
-    monkeypatch: pytest.MonkeyPatch, writer: Any = None,
+    factory: async_sessionmaker[AsyncSession],
+    venue: VenueFacts,
+    page: Path,
+    html: str,
+    answer: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+    writer: Any = None,
 ) -> VenueGraphState:
     """Run the real graph on `html` (written to `page`) with the act splitter scripted to `answer`."""
     page.write_text(html)
@@ -85,7 +92,12 @@ class Committed:
     """What run 1 left: the state, the seeded ids, the venue, and what the calendar was BEFORE the run (for the simulator)."""
 
     def __init__(
-        self, state: VenueGraphState, ids: dict[str, int], venue: VenueFacts, before: list[StoredShow], known: list[Any],
+        self,
+        state: VenueGraphState,
+        ids: dict[str, int],
+        venue: VenueFacts,
+        before: list[StoredShow],
+        known: list[Any],
         page: Path,
     ) -> None:
         self.state, self.ids, self.venue, self.before, self.known, self.page = state, ids, venue, before, known, page
@@ -98,7 +110,9 @@ class Committed:
 
 @pytest_asyncio.fixture(loop_scope="session")
 async def run1(
-    factory: async_sessionmaker[AsyncSession], tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    factory: async_sessionmaker[AsyncSession],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> Committed:
     """Seed the calendar, remember it, and commit the page of test_reconcile_db.py for real."""
     page = tmp_path / "page.html"
@@ -126,8 +140,15 @@ def comparable(shows: list[StoredShow]) -> list[tuple[Any, ...]]:
     is a constant, the real one the page's path."""
     return sorted(
         (
-            s.date, s.start_time, s.end_time, s.status.value, s.admission_advance, s.admission_day, s.free_admission,
-            s.image_url, tuple((artist_key(e.artist_name), e.start_time, e.sequence_number) for e in s.ordered_lineup()),
+            s.date,
+            s.start_time,
+            s.end_time,
+            s.status.value,
+            s.admission_advance,
+            s.admission_day,
+            s.free_admission,
+            s.image_url,
+            tuple((artist_key(e.artist_name), e.start_time, e.sequence_number) for e in s.ordered_lineup()),
         )
         for s in shows
     )
@@ -139,7 +160,8 @@ def comparable(shows: list[StoredShow]) -> list[tuple[Any, ...]]:
 
 
 async def test_the_real_commit_leaves_the_calendar_the_simulator_predicted(
-    run1: Committed, factory: async_sessionmaker[AsyncSession],
+    run1: Committed,
+    factory: async_sessionmaker[AsyncSession],
 ) -> None:
     # Proves (A5 "Departures", A6): `reconcile_support.apply_plan`, which A5's idempotency test relies on, is a faithful
     # mirror of the real write. The plan is committed for real, the stored shows are read back, and they equal what the
@@ -149,11 +171,14 @@ async def test_the_real_commit_leaves_the_calendar_the_simulator_predicted(
     reader = PostgresCalendarReader(factory)
     actual = await reader.stored_shows(run1.venue.id, *RANGE)
     assert comparable(actual) == comparable(predicted)
-    assert sorted(artist_key(a.name) for a in await reader.artists()) == sorted(artist_key(a.name) for a in predicted_artists)
+    assert sorted(artist_key(a.name) for a in await reader.artists()) == sorted(
+        artist_key(a.name) for a in predicted_artists
+    )
 
 
 async def test_each_decision_was_written_as_the_requirements_say(
-    run1: Committed, factory: async_sessionmaker[AsyncSession],
+    run1: Committed,
+    factory: async_sessionmaker[AsyncSession],
 ) -> None:
     # Proves (A5-D6, A5-D7, A6-D1): after run 1, by the seeded table worked by hand: the Oct 23 show is removed, the
     # Oct 24 show is back to active, the Oct 22 show has both acts in order, the November show is untouched, Oct 28 and 31
@@ -163,30 +188,47 @@ async def test_each_decision_was_written_as_the_requirements_say(
     assert by_date[datetime.date(2026, 10, 24)].status is ShowStatus.ACTIVE
     assert by_date[datetime.date(2026, 10, 24)].id == run1.ids["show_back"]  # the same row came back (A5-D7)
     assert [e.artist_name for e in by_date[datetime.date(2026, 10, 22)].ordered_lineup()] == ["Zhora", "Prince"]
-    assert by_date[datetime.date(2026, 11, 20)].status is ShowStatus.ACTIVE and by_date[datetime.date(2026, 11, 20)].id == run1.ids["show_later"]
+    assert (
+        by_date[datetime.date(2026, 11, 20)].status is ShowStatus.ACTIVE
+        and by_date[datetime.date(2026, 11, 20)].id == run1.ids["show_later"]
+    )
     assert {d.day for d in by_date if d.month == 10} == {20, 22, 23, 24, 28, 31}
-    assert [e.artist_id for e in by_date[datetime.date(2026, 10, 28)].lineup] == [run1.ids["Polica"]]  # linked, not duplicated
+    assert [e.artist_id for e in by_date[datetime.date(2026, 10, 28)].lineup] == [
+        run1.ids["Polica"]
+    ]  # linked, not duplicated
 
 
 async def test_an_unchanged_show_gets_no_audit_row_and_every_write_gets_one(
-    run1: Committed, factory: async_sessionmaker[AsyncSession],
+    run1: Committed,
+    factory: async_sessionmaker[AsyncSession],
 ) -> None:
     # Proves (A6-D1): run 1 wrote five shows (an update, a removal, a reactivation, two inserts: five writes), so five
     # show rows plus one artist row (Sunny Day) plus the summary; the unchanged Oct 20 show has none. Every show row has the
     # outcome of its decision.
     rows = await commit_rows(factory, run1.state.run_id)
     show_rows = [r for r in rows if r.entity_type is EntityType.SHOW]
-    assert sorted(r.outcome.value for r in show_rows if r.outcome) == ["inserted", "inserted", "removed", "updated", "updated"]
+    assert sorted(r.outcome.value for r in show_rows if r.outcome) == [
+        "inserted",
+        "inserted",
+        "removed",
+        "updated",
+        "updated",
+    ]
     assert run1.ids["show_nona"] not in {r.entity_id for r in show_rows}
     assert [r.entity_type for r in rows if r.entity_type is EntityType.ARTIST] == [EntityType.ARTIST]
     assert rows[-1].detail is not None
     assert rows[-1].entity_type is EntityType.VENUE and rows[-1].detail["counts"] == {
-        "inserted": 2, "updated": 2, "removed": 1, "no_op": 1, "skip": 0,
+        "inserted": 2,
+        "updated": 2,
+        "removed": 1,
+        "no_op": 1,
+        "skip": 0,
     }
 
 
 async def test_the_artists_table_holds_the_old_artists_plus_the_new_one_once(
-    run1: Committed, factory: async_sessionmaker[AsyncSession],
+    run1: Committed,
+    factory: async_sessionmaker[AsyncSession],
 ) -> None:
     # Proves (A5-D8, A6): the four artists seeded plus "Sunny Day", each once: "Poliça" matched the stored "Polica"
     # instead of becoming a second row, and nothing else was created.
@@ -211,7 +253,9 @@ async def counts_and_stamps(factory: async_sessionmaker[AsyncSession]) -> tuple[
 
 
 async def test_the_second_run_is_all_no_ops(
-    run1: Committed, factory: async_sessionmaker[AsyncSession], db_conn: AsyncConnection,
+    run1: Committed,
+    factory: async_sessionmaker[AsyncSession],
+    db_conn: AsyncConnection,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves (the property that stops a show flipping every night): run the same page again and the plan is all no-ops
@@ -235,7 +279,9 @@ async def test_the_second_run_is_all_no_ops(
 
 
 async def test_a_price_round_trips_exactly_and_a_second_run_does_not_rewrite_it(
-    factory: async_sessionmaker[AsyncSession], tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    factory: async_sessionmaker[AsyncSession],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves (build plan A6, the [written] price item, end to end; A6-M4): a model-route listing with a day price of 19.99
     # and an advance price of 0.125 (a HALF cent) is stored as exactly Decimal("19.99") and Decimal("0.12"), and the second
@@ -250,14 +296,22 @@ async def test_a_price_round_trips_exactly_and_a_second_run_does_not_rewrite_it(
     answer = fakes.listings_answer(
         fakes.listing("2026-10-20", "Nona", time="20:00", admission_advance=0.125, admission_day=19.99)
     )
-    monkeypatch.setattr(nodes, "instructor_client", scripted_client({fakes.PAGE: [answer], SPLITTER: [split_answer(("Nona", ["Nona"]))]}))
+    monkeypatch.setattr(
+        nodes,
+        "instructor_client",
+        scripted_client({fakes.PAGE: [answer], SPLITTER: [split_answer(("Nona", ["Nona"]))]}),
+    )
     first = await run_venue(venue, real_context(factory), calendar_url=str(page), fetched_on=fakes.FETCHED)
     assert first.commit_result is not None and first.commit_result.written["inserted"] == 1
     [shown] = await PostgresCalendarReader(factory).stored_shows(venue.id, *RANGE)
     assert (shown.admission_advance, shown.admission_day) == (Decimal("0.12"), Decimal("19.99"))
     assert str(shown.admission_day) == "19.99"
 
-    monkeypatch.setattr(nodes, "instructor_client", scripted_client({fakes.PAGE: [answer], SPLITTER: [split_answer(("Nona", ["Nona"]))]}))
+    monkeypatch.setattr(
+        nodes,
+        "instructor_client",
+        scripted_client({fakes.PAGE: [answer], SPLITTER: [split_answer(("Nona", ["Nona"]))]}),
+    )
     second = await run_venue(venue, real_context(factory), calendar_url=str(page), fetched_on=fakes.FETCHED)
     assert second.reconcile_plan is not None and [d.action for d in second.reconcile_plan.shows] == [Action.NO_OP]
     assert second.commit_result is not None and second.commit_result.written["updated"] == 0
@@ -270,14 +324,18 @@ async def test_a_price_round_trips_exactly_and_a_second_run_does_not_rewrite_it(
 # The page after the venue dropped the Oct 24 show and the Oct 22 opener: Nona (Oct 20), Zhora alone (Oct 22), Poliça
 # (Oct 28), Sunny Day (Oct 31).
 PAGE3 = jsonld_page(
-    event("Nona", "2026-10-20T20:00:00-05:00"), event("Zhora", "2026-10-22T20:00:00-05:00"),
-    event("Poliça", "2026-10-28T20:00:00-05:00"), event("Sunny Day", "2026-10-31T20:00:00-05:00"),
+    event("Nona", "2026-10-20T20:00:00-05:00"),
+    event("Zhora", "2026-10-22T20:00:00-05:00"),
+    event("Poliça", "2026-10-28T20:00:00-05:00"),
+    event("Sunny Day", "2026-10-31T20:00:00-05:00"),
 )
 ACTS3 = split_answer(("Nona", ["Nona"]), ("Zhora", ["Zhora"]), ("Poliça", ["Poliça"]), ("Sunny Day", ["Sunny Day"]))
 
 
 async def test_an_edited_page_writes_exactly_its_changes_and_show_history_tells_the_story(
-    run1: Committed, factory: async_sessionmaker[AsyncSession], db_conn: AsyncConnection,
+    run1: Committed,
+    factory: async_sessionmaker[AsyncSession],
+    db_conn: AsyncConnection,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves (A6-D1, saved query `show_history`): the third run changes only what the page changed: the Oct 22 show loses its
@@ -325,7 +383,10 @@ TWO_NEW_ACTS = split_answer(("Nona", ["Nona"]), ("Zhora", ["Zhora"]))
 
 
 async def test_a_run_with_one_refused_show_writes_the_rest_and_is_not_unfinished(
-    factory: async_sessionmaker[AsyncSession], tmp_path: Path, monkeypatch: pytest.MonkeyPatch, db_conn: AsyncConnection,
+    factory: async_sessionmaker[AsyncSession],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    db_conn: AsyncConnection,
 ) -> None:
     # Proves (A6-D2): a constraint added for this test, inside the test transaction (DDL is transactional, so the outer
     # rollback removes it), refuses any show that has an end time. Of two new shows the first has one: it is refused
@@ -339,11 +400,20 @@ async def test_a_run_with_one_refused_show_writes_the_rest_and_is_not_unfinished
 
     assert state.commit_result is not None and state.commit_result.written["inserted"] == 1
     [failure] = state.commit_result.failures
-    assert (failure.date, failure.time, failure.sqlstate) == (datetime.date(2026, 10, 20), datetime.time(20, 0), "23514")
+    assert (failure.date, failure.time, failure.sqlstate) == (
+        datetime.date(2026, 10, 20),
+        datetime.time(20, 0),
+        "23514",
+    )
     stored = await PostgresCalendarReader(factory).stored_shows(venue.id, *RANGE)
     assert [s.date.day for s in stored] == [21]
     [row] = await run(db_conn, queries["failed_commits"])
-    assert (row["run_id"], row["show_date"], row["show_time"], row["sqlstate"]) == (state.run_id, "2026-10-20", "20:00:00", "23514")
+    assert (row["run_id"], row["show_date"], row["show_time"], row["sqlstate"]) == (
+        state.run_id,
+        "2026-10-20",
+        "20:00:00",
+        "23514",
+    )
     assert state.run_id not in {r["run_id"] for r in await run(db_conn, queries["unfinished_runs"])}
 
 
@@ -362,7 +432,10 @@ class LosesTheConnectionOnTheSecondWrite(PostgresCalendarWriter):
 
 
 async def test_a_run_that_crashed_mid_commit_is_unfinished(
-    factory: async_sessionmaker[AsyncSession], tmp_path: Path, monkeypatch: pytest.MonkeyPatch, db_conn: AsyncConnection,
+    factory: async_sessionmaker[AsyncSession],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    db_conn: AsyncConnection,
 ) -> None:
     # Proves (A6-M5, A6-PR2-4): the writer delegates to the real one for the FIRST operation, then raises the real lost-
     # connection shape on the second. Exactly one per-show `commit` row exists (the first show was written), NO summary row
@@ -373,7 +446,12 @@ async def test_a_run_that_crashed_mid_commit_is_unfinished(
     queries = parse_queries(SQL_FILE.read_text())
     with pytest.raises(InterfaceError):
         await run_page(
-            factory, venue, tmp_path / "page.html", TWO_NEW, TWO_NEW_ACTS, monkeypatch,
+            factory,
+            venue,
+            tmp_path / "page.html",
+            TWO_NEW,
+            TWO_NEW_ACTS,
+            monkeypatch,
             writer=LosesTheConnectionOnTheSecondWrite(factory),
         )
     rows = await commit_rows(factory)
@@ -383,4 +461,3 @@ async def test_a_run_that_crashed_mid_commit_is_unfinished(
     assert not [r for r in rows if r.entity_type is EntityType.VENUE]
     [unfinished] = await run(db_conn, queries["unfinished_runs"])
     assert unfinished["furthest_step"] == "commit" and unfinished["finished_at"] is not None
-

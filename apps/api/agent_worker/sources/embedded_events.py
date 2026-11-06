@@ -92,10 +92,18 @@ def _displayed_title(item: dict[str, Any]) -> str:
     title already contains is not repeated."""
     title = str(item["title"]).strip()
     performers = item.get("performers")
-    support = [
-        str(p["name"]).strip() for p in performers if isinstance(p, dict) and p.get("actType") == "support"
-        and isinstance(p.get("name"), str) and p["name"].strip()
-    ] if isinstance(performers, list) else []
+    support = (
+        [
+            str(p["name"]).strip()
+            for p in performers
+            if isinstance(p, dict)
+            and p.get("actType") == "support"
+            and isinstance(p.get("name"), str)
+            and p["name"].strip()
+        ]
+        if isinstance(performers, list)
+        else []
+    )
     folded = fold_text(title)
     new = [name for name in support if fold_text(name) not in folded]
     return f"{title} with {', '.join(new)}" if new else title
@@ -109,10 +117,15 @@ def _event(item: dict[str, Any]) -> dict[str, Any] | None:
     if not isinstance(item.get("title"), str) or not item["title"].strip() or start is None:
         return None
     event: dict[str, Any] = {
-        "@type": "Event", "name": _displayed_title(item), "startDate": start,
+        "@type": "Event",
+        "name": _displayed_title(item),
+        "startDate": start,
         # A cancelled event keeps its status (A2.1-D12), the way JSON-LD's eventStatus does.
-        "eventStatus": "https://schema.org/EventCancelled" if item.get("canceledAt") else "https://schema.org/EventScheduled",
-        "_source": SOURCE, "_slug": item.get("showSlug") if isinstance(item.get("showSlug"), str) else None,
+        "eventStatus": "https://schema.org/EventCancelled"
+        if item.get("canceledAt")
+        else "https://schema.org/EventScheduled",
+        "_source": SOURCE,
+        "_slug": item.get("showSlug") if isinstance(item.get("showSlug"), str) else None,
     }
     if isinstance(item.get("endTime"), str):
         event["endDate"] = item["endTime"]
@@ -139,7 +152,9 @@ def find_events(html: str) -> list[dict[str, Any]]:
             if not isinstance(value, list):
                 continue
             for item in value:
-                if not (isinstance(item, dict) and isinstance(item.get("title"), str) and isinstance(item.get("date"), str)):
+                if not (
+                    isinstance(item, dict) and isinstance(item.get("title"), str) and isinstance(item.get("date"), str)
+                ):
                     continue
                 if (event := _event(item)) is not None:
                     events.append(event)

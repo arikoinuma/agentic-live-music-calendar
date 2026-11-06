@@ -14,7 +14,7 @@ WEB := calendar
 
 .DEFAULT_GOAL := help
 .PHONY: help setup dev api web db db-up db-down db-reset db-shell db-wait worker eval-graph eval-report eval-compare eval-snapshot \
-        migrate migration rehearse-migration seed fixtures types contract-check designation-check test coverage lint typecheck \
+        migrate migration rehearse-migration seed fixtures types contract-check designation-check test coverage format lint typecheck \
         e2e check clean
 
 help: ## Show this help
@@ -192,8 +192,11 @@ contract-check: ## Fail if the generated contract output is stale
 
 check: lint typecheck test contract-check designation-check e2e ## Run everything CI runs
 
-lint: ## ruff + eslint
-	cd $(API_DIR) && uv run ruff check .
+format: ## Auto-format the Python code (ruff format); `make lint` and CI fail on unformatted code
+	cd $(API_DIR) && uv run ruff format .
+
+lint: ## ruff (lint and format check) + eslint
+	cd $(API_DIR) && uv run ruff check . && uv run ruff format --check .
 	pnpm turbo run lint
 
 typecheck: ## mypy + tsc

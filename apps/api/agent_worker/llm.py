@@ -47,9 +47,7 @@ def build_clients(config: Settings) -> tuple[OpenAI, Any]:
     # With no `MODEL_BASE_URL` (the hosted API, which never calls a model) the OpenAI client would otherwise default to
     # api.openai.com. Point it at a name that cannot resolve (`.invalid` is reserved), so an unconfigured call fails
     # loudly instead of reaching a real provider; the worker's start-up rule stops before any call (Ari's comment on PR 80).
-    raw = OpenAI(
-        base_url=config.model_base_url or _NO_ENDPOINT, api_key=config.model_api_key.get_secret_value()
-    )
+    raw = OpenAI(base_url=config.model_base_url or _NO_ENDPOINT, api_key=config.model_api_key.get_secret_value())
     return raw, instructor.from_openai(raw, mode=Mode.JSON)
 
 
@@ -108,7 +106,9 @@ class ModelRoles:
         keeps its own. Before roles existed these three shared one `options` and tier 3 swapped it, and
         reconcile always used the pipeline's, never the attempt's. This preserves exactly that."""
         return replace(
-            self, page=replace(self.page, model=model), splitter=replace(self.splitter, model=model),
+            self,
+            page=replace(self.page, model=model),
+            splitter=replace(self.splitter, model=model),
             status=replace(self.status, model=model),
         )
 
@@ -119,12 +119,16 @@ def roles_from_settings(config: Settings, temperature: float | None) -> ModelRol
 
     def options(role_model: str | None) -> RequestOptions:
         return RequestOptions(
-            model=role_model or config.model_name, temperature=temperature, provider=config.model_provider,
+            model=role_model or config.model_name,
+            temperature=temperature,
+            provider=config.model_provider,
         )
 
     return ModelRoles(
-        page=options(None), splitter=options(config.splitter_model_name),
-        status=options(config.status_model_name), matcher=options(config.matcher_model_name),
+        page=options(None),
+        splitter=options(config.splitter_model_name),
+        status=options(config.status_model_name),
+        matcher=options(config.matcher_model_name),
     )
 
 

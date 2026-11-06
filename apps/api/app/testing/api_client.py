@@ -24,9 +24,7 @@ from app.testing.sample_data import FIXED_NOW
 
 
 @asynccontextmanager
-async def api_client(
-    session: AsyncSession, now: datetime.datetime = FIXED_NOW
-) -> AsyncIterator[AsyncClient]:
+async def api_client(session: AsyncSession, now: datetime.datetime = FIXED_NOW) -> AsyncIterator[AsyncClient]:
     """Yield a client for the real app reading through `session`, with its clock at `now`.
 
     The overrides are removed on exit, even if the test fails, so one test's clock or session can't leak

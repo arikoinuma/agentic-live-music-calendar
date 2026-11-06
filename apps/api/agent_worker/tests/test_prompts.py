@@ -188,12 +188,21 @@ def test_no_prompt_quotes_a_labelled_answer() -> None:
 
     # Every text the model is sent: the page rules, the splitter's instruction, the schema text.
     sent = [
-        prompts._act_conventions(), prompts._non_music_rule(), prompts._one_show_rule(),
-        prompts._date_heading_rule(), prompts._title_rule(), prompts._cancelled_rule(),
-        act_split._act_split_instruction(), SPLIT_ACTS_DESCRIPTION,
+        prompts._act_conventions(),
+        prompts._non_music_rule(),
+        prompts._one_show_rule(),
+        prompts._date_heading_rule(),
+        prompts._title_rule(),
+        prompts._cancelled_rule(),
+        act_split._act_split_instruction(),
+        SPLIT_ACTS_DESCRIPTION,
         # A3's retry hints (policy.py): the fixed sentences sent on every retry, and what introduces them.
-        *policy._ADVICE.values(), *policy._REASON_ADVICE.values(), policy._FINAL_PAGE_ADVICE,
-        policy._FINAL_SPLITTER_ADVICE, extraction._HINT_INTRO, act_split._HINT_INTRO,
+        *policy._ADVICE.values(),
+        *policy._REASON_ADVICE.values(),
+        policy._FINAL_PAGE_ADVICE,
+        policy._FINAL_SPLITTER_ADVICE,
+        extraction._HINT_INTRO,
+        act_split._HINT_INTRO,
     ]
     texts = fold_text(" ".join(sent))
     names = {fold_text(a) for page in PAGE_LABELS.values() for show in page.shows for a in show.acts}
@@ -258,16 +267,25 @@ CHICAGO = "America/Chicago"
 def node_state() -> VenueGraphState:
     """A graph state as fetch_node leaves it for a text page."""
     return VenueGraphState(
-        venue_id=1, calendar_url="page.html", page_html=PAGE_HTML, venue_name="Test Venue",
-        metro_timezone=CHICAGO, fetched_on=datetime.date(2026, 10, 10),
+        venue_id=1,
+        calendar_url="page.html",
+        page_html=PAGE_HTML,
+        venue_name="Test Venue",
+        metro_timezone=CHICAGO,
+        fetched_on=datetime.date(2026, 10, 10),
     )
 
 
 def eval_extract(page: Path, seed: int | None = None) -> None:
     """Run the harness's extraction of one text fixture with the pipeline's configuration."""
     run_eval.extract(
-        page, venue_name="Test Venue", metro_timezone=CHICAGO, fetch_date=datetime.date(2026, 10, 10),
-        options=extraction.PIPELINE_OPTIONS, config=extraction.PIPELINE_CONFIG, seed=seed,
+        page,
+        venue_name="Test Venue",
+        metro_timezone=CHICAGO,
+        fetch_date=datetime.date(2026, 10, 10),
+        options=extraction.PIPELINE_OPTIONS,
+        config=extraction.PIPELINE_CONFIG,
+        seed=seed,
     )
 
 
@@ -282,9 +300,7 @@ def test_extract_node_sends_whatever_prompts_returns(monkeypatch: pytest.MonkeyP
     assert sent_text(client) == SENTINEL + "Show 8pm"
 
 
-def test_eval_extract_sends_whatever_prompts_returns(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_eval_extract_sends_whatever_prompts_returns(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     # Proves: the eval harness, too, takes its instruction from prompts.py — the very drift
     # this module exists to end. Run against a real temporary text fixture.
     page = tmp_path / "page.html"
@@ -297,9 +313,7 @@ def test_eval_extract_sends_whatever_prompts_returns(
     assert sent_text(client) == SENTINEL + "Show 8pm"
 
 
-def test_both_callers_send_the_real_instruction(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_both_callers_send_the_real_instruction(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     # Proves: with nothing patched, the pipeline and the eval send byte-identical
     # instruction text — the property every eval measurement depends on.
     page = tmp_path / "page.html"
@@ -330,9 +344,7 @@ def test_retries_are_stated_not_implicit(monkeypatch: pytest.MonkeyPatch, tmp_pa
     assert eval_client.chat.completions.calls[0]["max_retries"] == 1
 
 
-def test_eval_passes_its_seed_as_a_top_level_argument(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_eval_passes_its_seed_as_a_top_level_argument(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     # Proves: the run index reaches Ollama as the OpenAI-style top-level `seed`, which its
     # /v1 endpoint honours. The earlier form, `options.seed`, is silently IGNORED by /v1
     # (verified: identical output only with the top-level argument), so a seed placed there
