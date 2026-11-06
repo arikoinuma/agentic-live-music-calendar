@@ -17,8 +17,9 @@ Invoking this skill is Ari's request to commit, push and open the draft PR at th
      maps the scope to, plus any section the row points to (for example "Check locally"). The ID stays as written. If
      the ID doesn't exist (a typo such as `PRQ1-4`), say what you think was meant and ask before going on.
    - **A GitHub issue** (`#17`, `GH-17`, or a URL): read it with the GitHub MCP `issue_read`, including its comments.
-     The ID is `GH-17`.
-   - **A described bug**: the ID is the next free `FX<n>` (check `docs/dev/issues/` and the conventions table).
+     The ID is `GH-17` in the record, the code and the docs. **In the PR body it must also appear as plain `#17`**
+     (see step 7), because GitHub links an issue only from `#<n>`, never from `GH-<n>`.
+   - **A described issue**: the ID is the next free `ISS-<n>` (check the file names in `docs/dev/issues/`).
      If the description doesn't say what happens, what should happen and where, **ask Ari clarifying questions and stop
      until he answers**. Don't guess a reproduction.
    - Check the source's Resolution tracker (review docs) or the issue's linked PRs. If an item is already resolved or in
@@ -63,16 +64,19 @@ Invoking this skill is Ari's request to commit, push and open the draft PR at th
    the end of the round. If the fixes are big enough for a second round, don't run it: say so in the handoff. Set Status to `PR open`.
 
 7. **Commit, push, open the PR, close the loop.**
-   - Commit with a message naming the issue IDs (`fix(api): follow redirects in fetch (PQR1-4)`), ending with the
+   - Commit with a message naming the issue IDs (`fix(api): follow redirects in fetch (PQR1-4)`; for a GitHub issue, `(GH-17, #17)`), ending with the
      attribution trailers. Push with `git push -u origin <branch>`, retrying network failures after 2, 4, 8 and 16 seconds.
    - Open the draft PR by following `.claude/skills/open-pr/SKILL.md` steps 0–6. In the template, "Milestone / plan"
-     becomes `Issues: <IDs>` and `Record: docs/dev/issues/<file>`. Add `Closes #<n>` for each GitHub issue, so merging closes it.
+     becomes `Issues: <IDs>` and `Record: docs/dev/issues/<file>`. **For each GitHub issue, the body must contain a line `Closes #<n>` with the plain `#<n>`** (for example
+     `Closes #17`, not `Closes GH-17`). That's what makes GitHub link the issue to the PR and close it on merge. Put the
+     same `#<n>` in the commit message as well (`fix(api): … (GH-17, #17)`). After opening, check that the issue shows
+     the PR as linked.
      Put **local check pending** items and any rejected review findings at the top of the body.
    - Close the loop with each source:
      - **Review doc:** update the issue's row in its `Resolution tracker` (create the table at the end of the doc if
        there isn't one, with every finding listed and Open as the default) to `In PR` with the PR link and the record path;
      - **GitHub issue:** add a comment linking the PR and the record, ending with the attribution footer;
-     - **FX:** nothing to update. The record is the trail.
+     - **ISS:** nothing to update. The record is the trail.
    - Write the PR link into the record's header. Commit and push both edits.
 
 8. **Stop and hand off.** Lead with the status and anything waiting on Ari. Then give, per issue: tier, what changed,

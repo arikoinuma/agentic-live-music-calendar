@@ -308,7 +308,8 @@ In short:
 
 - **Scope is set at the start.** Whatever Ari names in one run is one record (`docs/dev/issues/<lead id>-<slug>.md`),
   one branch and one PR, whether that's one issue or several.
-- **IDs come from the source:** `PQR1-4` stays `PQR1-4`, a GitHub issue is `GH-<number>`, a described bug is the next `FX<n>`.
+- **IDs come from the source:** `PQR1-4` stays `PQR1-4`, a GitHub issue is `GH-<number>`, a described bug is the next `ISS-<n>`. In a PR body, a
+  GitHub issue must also appear as plain `#<number>` (`Closes #17`), because that is the only form GitHub links.
 - **Risk decides the gates, not file count.** T0 (mechanical) and T1 (a contained fix) get no plan review and no
   approval gate. T2 (contract, migration, security design, a repo-wide convention, or a decision marked Ari's) gets a
   plan, a plan review by default, and stops at `Awaiting approval`.

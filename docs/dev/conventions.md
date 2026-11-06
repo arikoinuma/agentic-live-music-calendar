@@ -39,16 +39,17 @@ carries that defining document's scope.
 | `PQR1` | `docs/dev/review/2026-11-06-python-code-quality-review.md` (Python Quality Review, round 1) |
 
 | `GH-<n>` | GitHub issue `<n>` in this repository (the number is GitHub's own); its resolution record is `docs/dev/issues/gh-<n>-<slug>.md` |
-| `FX<n>` | a bug Ari described, with no review or GitHub issue behind it; numbered in order of its record in `docs/dev/issues/` |
+| `ISS-<n>` | an issue Ari described, with no review or GitHub issue behind it; numbered in order of its record in `docs/dev/issues/` |
 
 Future milestones use their own IDs (`B6`, `C2`, …) the same way. A code quality review in `docs/dev/review/` takes
 `PQR<round>` as its scope, and numbers its findings `PQR<round>-<n>` with no letter (`PQR1-4`), so a later review
 round (`PQR2-4`) can be told apart from this one.
 
 **Issue records** (`docs/dev/issues/`) keep the ID their issue came with: a review finding stays `PQR1-4`, a GitHub
-issue is `GH-17`, a described bug is `FX3`. A record defines its own plan-review and code-review items, written bare
+issue is `GH-17`, a described issue is `ISS-3`. (`GH-17` is the repo's searchable form; GitHub itself links only
+`#17`, so a PR body or commit message that should link the issue writes `#17` as well, as in `Closes #17`.) A record defines its own plan-review and code-review items, written bare
 inside the record (`CR1-2`). Everywhere else they take the record's **lead issue** (the first in its scope) as their
-scope: `PQR1-4-CR1-2`, `GH-17-CR1-1`, `FX3-PR1-2`. `docs/dev/issues/README.md` has the rest of the issue track.
+scope: `PQR1-4-CR1-2`, `GH-17-CR1-1`, `ISS-3-PR1-2`. `docs/dev/issues/README.md` has the rest of the issue track.
 
 ### Forms
 
