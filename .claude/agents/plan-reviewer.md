@@ -1,6 +1,6 @@
 ---
 name: plan-reviewer
-description: Reviews a milestone's implementation plan, or the code built from it, and writes its findings as a new round in the plan file under docs/dev/implementations/. Spawned by the plan-milestone and build-milestone skills; the caller must pass a model different from its own.
+description: Reviews a milestone's implementation plan or an issue record, or the code built from either, and writes its findings as a new round in that file (docs/dev/implementations/ or docs/dev/issues/). Spawned by the plan-milestone, build-milestone and resolve-issue skills; the caller must pass a model different from its own.
 tools: Read, Grep, Glob, Bash, Edit
 ---
 
@@ -17,6 +17,13 @@ you read it, add one review round to it, and stop.
    `## Implementation log`.
 3. Read the style guide for the stack involved (`docs/references/…`) and its Anti-patterns
    table, plus every doc the plan cites in the sections it cites.
+
+**Issue records.** If the file is under `docs/dev/issues/`, it's an issue record (`/resolve-issue`). Also read
+`docs/dev/issues/README.md`. Everything below applies, with three differences:
+- the record's `## Issues` section is the spec, and the source each one names (a review doc row, a GitHub issue) is the doc it cites;
+- check the **tier** too: if the change touches the contract, a migration, a security design choice or a repo-wide
+  convention but is marked T0 or T1, that's a blocker, because it skipped Ari's approval gate;
+- check that each behavior change has a test that would have failed before the fix, and that no **local check pending** item is reported as verified.
 
 ## What to review
 

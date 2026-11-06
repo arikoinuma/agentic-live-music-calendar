@@ -38,9 +38,18 @@ carries that defining document's scope.
 | `C5.1` | `docs/dev/implementations/c5.1-model-eval-layout.md` |
 | `PQR1` | `docs/dev/review/2026-11-06-python-code-quality-review.md` (Python Quality Review, round 1) |
 
+| `GH-<n>` | GitHub issue `<n>` in this repository (the number is GitHub's own); its resolution record is `docs/dev/issues/gh-<n>-<slug>.md` |
+| `ISS-<n>` | an issue Ari described, with no review or GitHub issue behind it; numbered in order of its record in `docs/dev/issues/` |
+
 Future milestones use their own IDs (`B6`, `C2`, …) the same way. A code quality review in `docs/dev/review/` takes
 `PQR<round>` as its scope, and numbers its findings `PQR<round>-<n>` with no letter (`PQR1-4`), so a later review
 round (`PQR2-4`) can be told apart from this one.
+
+**Issue records** (`docs/dev/issues/`) keep the ID their issue came with: a review finding stays `PQR1-4`, a GitHub
+issue is `GH-17`, a described issue is `ISS-3`. (`GH-17` is the repo's searchable form; GitHub itself links only
+`#17`, so a PR body or commit message that should link the issue writes `#17` as well, as in `Closes #17`.) A record defines its own plan-review and code-review items, written bare
+inside the record (`CR1-2`). Everywhere else they take the record's **lead issue** (the first in its scope) as their
+scope: `PQR1-4-CR1-2`, `GH-17-CR1-1`, `ISS-3-PR1-2`. `docs/dev/issues/README.md` has the rest of the issue track.
 
 ### Forms
 
@@ -108,7 +117,7 @@ make designation-check BASE=<commit>    # an explicit base, e.g. the diff base a
 ```
 
 Fetch `origin/main` first; a stale one makes the base too old and the check flags other people's lines. `BASE` is the diff base the milestone's Implementation log names, if you need an explicit one. The script is `scripts/check_designations.py`: it reads
-the added lines (committed, uncommitted and new files), skips the plan files under `docs/dev/implementations/` (they
+the added lines (committed, uncommitted and new files), skips the plan files under `docs/dev/implementations/` and the issue records under `docs/dev/issues/` (they
 define their own IDs, so bare is right there), and flags `D`, `E`, `F`, `S`, `G`, `K` and `PR`/`CR` tokens with no
 scope. A token that is not a designation (a ruff code, "S3") is silenced with `designation-ok` on the line, or `noqa`.
 Its default base is the merge-base with `origin/main`, which is only right when a branch holds one milestone; CI always passes the PR's own base.

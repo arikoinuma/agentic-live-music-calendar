@@ -14,7 +14,8 @@ given it falls back to the merge-base with `origin/main`, which is only right wh
 branches here are merged one after another, so `main` can be far behind.) It looks at committed, uncommitted and new
 (untracked) files. Exit status 1 if it finds any, with file:line and the line. Skipped on purpose:
 
-* files under docs/dev/implementations/: a plan file is the document that defines its own IDs, so bare is correct there;
+* files under docs/dev/implementations/ and docs/dev/issues/: a plan file or an issue record is the document that
+  defines its own IDs (its review rounds' CR1-2 items), so bare is correct there;  # designation-ok
 * the files that explain the convention with bare examples: AGENTS.md, docs/dev/conventions.md and .claude/;
 * `G<n>` in docs/dev/alpha-build-plan.md (the catalogue is bare inside the build plan, `v0.1-G<n>` elsewhere);
 * generated and binary files, and lines carrying `noqa`, `type: ignore` or `designation-ok` (an ID-shaped token that is
@@ -26,7 +27,7 @@ import subprocess
 import sys
 
 TEXT = (".py", ".md", ".sql", ".ts", ".tsx", ".sh", ".yml", ".yaml", ".toml", ".mdc")
-SKIP_PREFIXES = ("docs/dev/implementations/", "apps/calendar/lib/fixtures/", ".claude/", "docs/dev/conventions.md")
+SKIP_PREFIXES = ("docs/dev/implementations/", "docs/dev/issues/", "apps/calendar/lib/fixtures/", ".claude/", "docs/dev/conventions.md")
 SKIP_FILES = ("AGENTS.md", "CLAUDE.md")  # any directory: these files EXPLAIN the convention, with bare examples
 SKIP_NAMES = ("api-types.ts", "uv.lock", "pnpm-lock.yaml")
 # A bare designation: a letter code and a number not preceded by a scope (a letter, digit, dot, dash or underscore).
