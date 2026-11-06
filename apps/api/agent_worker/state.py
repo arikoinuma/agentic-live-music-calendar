@@ -16,17 +16,10 @@ from agent_worker.reconcile import ReconcilePlan, StoredShow
 from agent_worker.schemas import VenuePageExtraction
 from agent_worker.validation import ValidationResult
 
-# Pydantic model vs TypedDict — the doc leaves this open, and it's a
-# real choice, not a formality. LangGraph supports both equally; TypedDict
-# is the more common choice in LangGraph's own tutorials (lighter weight,
-# no validation overhead, since it's just a plain dict at runtime).
-# Pydantic (what's used below, and everywhere else in this codebase so
-# far — Settings, ShowExtraction) buys you the same thing it's bought you
-# in every other file: a bug in how a node constructs its state update
-# becomes an immediate validation error instead of a silent bad value
-# that surfaces three nodes later. This file assumes Pydantic for that
-# consistency, but reconsider if it turns out awkward once you're
-# actually wiring add_node/add_conditional_edges in the next step.
+# A Pydantic model rather than a TypedDict. LangGraph supports both, and TypedDict is what its own tutorials use
+# (a plain dict at runtime, with no validation cost). Pydantic matches the rest of this codebase (Settings,
+# ShowExtraction), and it turns a node that builds a bad state update into an immediate validation error, instead
+# of a wrong value that surfaces three nodes later.
 
 
 class VenueGraphState(BaseModel):
@@ -52,8 +45,8 @@ class VenueGraphState(BaseModel):
     # venue_name, metro_timezone — facts from the venue's database row that extraction needs
     # (A2.1): the JSON-LD route names the venue on each show, and converts a structured
     # source's UTC/offset times into the metro's wall clock (`metro.timezone`, the source of
-    # truth — data-model-initial.md). The worker doesn't read the database yet (A4/A5), so
-    # whoever builds the state passes them. Deliberately no default: a default zone hidden
+    # truth — data-model-initial.md). The worker's entry point (`agent_worker/main.py`) reads
+    # them from the venue's row and passes them in. Deliberately no default: a default zone hidden
     # here would quietly be wrong for a second metro.
     venue_name: str
     metro_timezone: str
