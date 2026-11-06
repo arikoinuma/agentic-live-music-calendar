@@ -16,6 +16,8 @@ A4 writes the audit trail around these functions, not inside them: `graph.py` re
 import base64
 import datetime
 from pathlib import Path
+from typing import Any
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -62,6 +64,20 @@ IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp")
 # file that can't be read, or a page with nothing on it.
 FETCH_ERRORS = (httpx.HTTPError, OSError, UnicodeDecodeError)
 
+# How every page fetch is made (GH-90, the same issue as review finding PQR1-4). `httpx.get` doesn't follow
+# redirects by default, and `raise_for_status()` raises on a 3xx, so a venue page that moved (http to https,
+# `www` added, a trailing slash) escalated on every run. Following them, the final page's status is what counts.
+# A redirect loop raises `TooManyRedirects`, an `httpx.HTTPError`, so it lands in `FETCH_ERRORS` like any other
+# failure. The User-Agent names the project, because some sites block the default `python-httpx/<version>`; it is a
+# generic client name with the repo's URL, not a person's contact address. The timeout is explicit rather than httpx's
+# implicit 5 s: a slow venue site gets 20 s per phase, and a fetch that hangs past that is a transient
+# `TimeoutException` that tenacity retries.
+FETCH_SETTINGS: dict[str, Any] = {
+    "follow_redirects": True,
+    "timeout": httpx.Timeout(20.0),
+    "headers": {"User-Agent": "agentic-live-music-calendar/0.1 (+https://github.com/arikoinuma/agentic-live-music-calendar)"},
+}
+
 
 class EmptyResponse(Exception):
     """A page that came back with no visible text and no usable structured events.
@@ -98,7 +114,8 @@ def _nothing_to_read(html: str) -> bool:
     wait=wait_exponential(multiplier=1, min=1, max=8), reraise=True,
 )
 def fetch_html(url: str, *, reject_empty: bool = False) -> str:
-    """Fetch a page the way the pipeline does: one plain GET, an error status raised, and (A3) the
+    """Fetch a page the way the pipeline does: one GET with `FETCH_SETTINGS` (redirects followed, a project
+    User-Agent, an explicit timeout; GH-90), an error status raised, and (A3) the
     transient failures retried with backoff — three attempts, as arch-initial.md §7 says a fetch
     failure should be (retry Fetch directly, with backoff).
 
@@ -108,11 +125,18 @@ def fetch_html(url: str, *, reject_empty: bool = False) -> str:
     nothing to read an `EmptyResponse` (the pipeline's fetch node asks for it; the capture
     script doesn't, since saving what a venue serves is its job).
     """
-    http_response = httpx.get(url)
+    http_response = httpx.get(url, **FETCH_SETTINGS)
     http_response.raise_for_status()
     if reject_empty and _nothing_to_read(http_response.text):
         raise EmptyResponse(f"{url} returned a page with nothing to read")
     return http_response.text
+
+
+def _is_http_url(url: str) -> bool:
+    """True for an http or https URL. The scheme is parsed, not prefix-matched: `startswith("http")` also matched
+    `httpfoo://…` and missed `HTTPS://…` (GH-90). `urlparse` lowercases the scheme, which RFC 3986 §3.1 makes
+    case-insensitive, so `HTTPS://…` compares equal without further work."""
+    return urlparse(url).scheme in {"http", "https"}
 
 
 def fetch_node(state: VenueGraphState) -> VenueGraphState:
@@ -137,7 +161,7 @@ def fetch_node(state: VenueGraphState) -> VenueGraphState:
     # page was captured (local_test's August fixture) passes it; otherwise it is today on the metro's clock.
     state.fetched_on = state.fetched_on or metro_today(state.metro_timezone)
     try:
-        if state.calendar_url.startswith("http"):
+        if _is_http_url(state.calendar_url):
             state.page_html = fetch_html(state.calendar_url, reject_empty=True)
             state.page_content = clean_text(state.page_html, PIPELINE_CONFIG.keep_line_breaks)
         else:
