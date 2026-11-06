@@ -36,8 +36,11 @@ carries that defining document's scope.
 | `C4` | `docs/dev/implementations/c4-metro-hosts.md` |
 | `C5` | `docs/dev/implementations/c5-pipeline-eval-harness.md` |
 | `C5.1` | `docs/dev/implementations/c5.1-model-eval-layout.md` |
+| `PQR1` | `docs/dev/review/2026-11-06-python-code-quality-review.md` (Python Quality Review, round 1) |
 
-Future milestones use their own IDs (`B6`, `C2`, …) the same way.
+Future milestones use their own IDs (`B6`, `C2`, …) the same way. A code quality review in `docs/dev/review/` takes
+`PQR<round>` as its scope, and numbers its findings `PQR<round>-<n>` with no letter (`PQR1-4`), so a later review
+round (`PQR2-4`) can be told apart from this one.
 
 ### Forms
 
