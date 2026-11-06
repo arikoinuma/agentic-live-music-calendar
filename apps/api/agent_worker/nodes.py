@@ -81,7 +81,7 @@ FETCH_SETTINGS: dict[str, Any] = {
 }
 
 
-class EmptyResponse(Exception):
+class EmptyPageError(Exception):
     """A page that came back with no visible text and no usable structured events.
 
     arch-initial.md §7 counts an empty response as a fetch failure, not an extraction: a model handed
@@ -102,7 +102,7 @@ def _is_transient(error: BaseException) -> bool:
     can be a transient blank). A 4xx is the venue's answer, not a glitch, so it is not retried."""
     if isinstance(error, httpx.HTTPStatusError):
         return error.response.status_code >= 500
-    return isinstance(error, httpx.TransportError | EmptyResponse)
+    return isinstance(error, httpx.TransportError | EmptyPageError)
 
 
 def _nothing_to_read(html: str) -> bool:
@@ -126,13 +126,13 @@ def fetch_html(url: str, *, reject_empty: bool = False) -> str:
     Shared with model_eval/capture.py, so a captured fixture is exactly what production fetches —
     A2's fixtures were browser "Save As" captures, which run JavaScript and so showed the
     model pages the pipeline never sees (A2.1 plan, Context). `reject_empty` makes a body with
-    nothing to read an `EmptyResponse` (the pipeline's fetch node asks for it; the capture
+    nothing to read an `EmptyPageError` (the pipeline's fetch node asks for it; the capture
     script doesn't, since saving what a venue serves is its job).
     """
     http_response = httpx.get(url, **FETCH_SETTINGS)
     http_response.raise_for_status()
     if reject_empty and _nothing_to_read(http_response.text):
-        raise EmptyResponse(f"{url} returned a page with nothing to read")
+        raise EmptyPageError(f"{url} returned a page with nothing to read")
     return http_response.text
 
 
@@ -150,7 +150,7 @@ def fetch_node(state: VenueGraphState) -> VenueGraphState:
     A3-D6: a failure to read the page — a network error that survived the retries, an error
     status, an unreadable file, an empty page — is recorded in `state.fetch_error` and routed to
     escalate by `route_after_fetch`, instead of raising out of the graph. An empty text page is
-    treated the same way (see `EmptyResponse`).
+    treated the same way (see `EmptyPageError`).
 
     Deliberately out of scope, not silently dropped: only the plain-text/HTML case is handled. A
     page like terminalbarmn.com, where the actual show info is inside images embedded in the HTML,
@@ -175,9 +175,9 @@ def fetch_node(state: VenueGraphState) -> VenueGraphState:
             else:
                 state.page_html = path.read_text()
                 if _nothing_to_read(state.page_html):
-                    raise EmptyResponse(f"{path.name} has nothing to read")
+                    raise EmptyPageError(f"{path.name} has nothing to read")
                 state.page_content = clean_text(state.page_html, PIPELINE_CONFIG.keep_line_breaks)
-    except (*FETCH_ERRORS, EmptyResponse) as err:
+    except (*FETCH_ERRORS, EmptyPageError) as err:
         state.fetch_error = f"{type(err).__name__}: {err}"
     return state
 

@@ -121,11 +121,6 @@ ignore = [
 "app/testing/**" = ["S101"]  # designation-ok: ruff rule codes
 "agent_worker/model_eval/**" = ["S101"]  # designation-ok: ruff rule codes
 "agent_worker/local_test.py" = ["S101"]  # designation-ok: ruff rule codes
-# Kept for now, narrowed to the files they fire in, because each is its own review finding: the exception names
-# without an `Error` suffix are PQR1-17 and the single-letter `l` is PQR1-18. Remove these lines when those land.
-"agent_worker/calendar_writer.py" = ["N818"]
-"agent_worker/nodes.py" = ["N818"]
-"agent_worker/sources/embedded_events.py" = ["N818"]
-"agent_worker/model_eval/labeled_page_runs/two_run_scenarios.py" = ["N818"]
+# The single-letter `l` is PQR1-18; these ignores stay until it lands.
 "agent_worker/reconcile.py" = ["E741"]  # designation-ok: ruff rule codes
 "agent_worker/tests/test_reconcile_removal.py" = ["E741"]  # designation-ok: ruff rule codes

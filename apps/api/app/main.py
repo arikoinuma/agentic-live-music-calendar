@@ -1,3 +1,10 @@
+"""The FastAPI application: the `app` object, its routers, and the two health routes.
+
+Read it top to bottom: `app` is created and the five routers (`app/routers/`) are attached, then `/health` (is the
+process up, and which environment does it think it is in) and `/health/db` (can it reach Postgres). Every other route
+lives in a router; the health routes stay here because they belong to the process, not to a resource.
+"""
+
 from fastapi import FastAPI, status
 from sqlalchemy import text
 
@@ -24,7 +31,7 @@ app.include_router(metro.router)
 
 
 @app.get("/health", status_code=status.HTTP_200_OK)
-async def health():
+async def health() -> dict[str, str]:
     # `app_env` is the environment this process believes it is in (C3-D6), so a wrong connection string or a
     # copied variable set is visible from outside. Read per request, from the settings the startup rule
     # (C3-D4) already checked. No database access: this is the route Railway's deploy check calls (C3-D8).
@@ -32,9 +39,9 @@ async def health():
 
 
 @app.get("/health/db")
-async def health_db():
+async def health_db() -> dict[str, str]:
     # Proves the app can reach Postgres with one round trip. A failure is deliberately not caught: SQLAlchemy
     # raises, FastAPI turns it into a 500, and a 500 is exactly the signal a health check should give.
     async with engine.connect() as conn:
         await conn.execute(text("SELECT 1"))
-        return {"message": "db connection up"}
+    return {"message": "db connection up"}
