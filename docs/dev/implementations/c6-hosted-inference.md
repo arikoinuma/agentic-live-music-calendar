@@ -435,7 +435,7 @@ Ari's comments on the draft PR (`run_eval.py:136`, `config.py:114`). **Fixed, al
 - Recall 0.805 and precision 0.812 over 660 labelled show-instances. Field accuracy (raw): start time 621 of 641 correct, door price 211 of 211, advance price 126 of 211 (85 missing, all Icehouse lone prices; see C6.1-D13), no wrong prices.
 - What each page's failures are, and what was tried: `c6.1-embedded-events-reader.md` Implementation log Rounds 3 to 7 (duplicate events, description prices, the lone-price rule, chunking, the start-time check, the splitter prompt trial).
 
-**The finding, as the plan asks for it: the honest accuracy number is the held-out one, and it is not at the standard.** The gated set passes in 4 of 5 runs. The held-out set fails in 5 of 5. D8 (iii) governs: the Icehouse errors were tuned on after scoring, so Icehouse is burned and Ari has chosen not to capture a replacement for now. D3 stopping condition (b) is met in spirit (several splitter experiments, the prompt trial included, did not close the gap) and condition (a) is not. **This is where Ari is asked under Dep-D13: continue with named further work, or accept the miss and go on.** Recommendation, not a decision: go on to C8 (the worker on Railway) and C11 with the miss accepted, using the audit report of excluded listings (C6.1-D17) and the detail-page extraction (C6.1-D16) as the planned way to find and close them.
+**The finding, as the plan asks for it: the honest accuracy number is the held-out one, and it is not at the standard.** The gated set passes in 4 of 5 runs. The held-out set fails in 5 of 5. D8 (iii) governs: the Icehouse errors were tuned on after scoring, so Icehouse is burned and Ari has chosen not to capture a replacement for now. D3 stopping condition (b) is met in spirit (several splitter experiments, the prompt trial included, did not close the gap) and condition (a) is not. **This is where Ari is asked under Dep-D13: continue with named further work, or accept the miss and go on. Ari accepted the miss on November 5, 2026 and chose to go on.** Recommendation, not a decision: go on to C8 (the worker on Railway) and C11 with the miss accepted, using the audit report of excluded listings (C6.1-D17) and the detail-page extraction (C6.1-D16) as the planned way to find and close them.
 
 **Step 13, the record.** Model per role and configuration: `arch-initial.md` §7 "Model selection". Cost and duration per page: `arch-initial.md` §10. Environment values: `environments.md`. Checkboxes and a dated status line: `alpha-deployment-plan.md` C6. The earlier claim about `gemma-4-e4b-it` in `arch-initial.md` §10 and the AI Gateway paragraph is corrected (Round 2, open point 4).
 
@@ -444,7 +444,8 @@ Ari's comments on the draft PR (`run_eval.py:136`, `config.py:114`). **Fixed, al
 | Mean seconds a page, structured route | 5.7 (gated), 15 (held-out: Dakota's 50 shows) | `c6-confirm-gated`, `c6-confirm-heldout` |
 | Mean seconds a page, model route | 41 (gated), 116 (held-out, almost all Icehouse's 47 shows) | same |
 | Cost a page | about $0.001 | Round 8: 25 runs, $0.024, from recorded tokens at $0.07 and $0.34 a million |
-| Not measured | the cost of an Icehouse-sized page (no tokens are recorded in these results files); the account's actual spend, which is Ari's to read off the DeepInfra dashboard | |
+| Account spend (Ari, November 5, 2026) | **$0.40 in total**, read off the DeepInfra dashboard and including usage from before C6; well under D3's $10 cap | DeepInfra dashboard |
+| Not measured | the cost of an Icehouse-sized page (no tokens are recorded in these results files) | |
 
 **Known remaining misses, for C7 and C11 (the burn-in sample):**
 
