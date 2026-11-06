@@ -41,6 +41,14 @@ describe("formatAdmission", () => {
     expect(formatAdmission({ ...none, admission_day: "10.00" })).toBe("$10");
   });
 
+  it("shows the same price in both fields once, plain", () => {
+    // Proves: a lone price the extractor stored as advance and day (C6.1-D13,
+    // a buy link was present) is not rendered "$10 adv / $10 door".
+    expect(
+      formatAdmission({ ...none, admission_advance: "10.00", admission_day: "10.00" }),
+    ).toBe("$10");
+  });
+
   it("labels a lone advance price", () => {
     // Proves: an online ticket price is shown as advance.
     expect(formatAdmission({ ...none, admission_advance: "15.00" })).toBe("$15 adv");

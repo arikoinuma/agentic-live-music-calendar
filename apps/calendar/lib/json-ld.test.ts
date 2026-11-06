@@ -191,6 +191,14 @@ describe("showJsonLd", () => {
       ]);
     });
 
+    it("is one unlabelled offer when advance and day are the same price", () => {
+      // Proves: C6.1-D13's both-fields price is one offer, matching what
+      // formatAdmission shows, not an "Advance" and a "Door" at one price.
+      expect(
+        showJsonLd(priced({ admission_advance: "10.00", admission_day: "10.00" }), noZone).offers,
+      ).toEqual([{ "@type": "Offer", price: "10.00", priceCurrency: "USD" }]);
+    });
+
     it("is one 'Advance' offer for a lone advance price", () => {
       // Proves: the JSON-LD says what formatAdmission says on the page
       // ("$15 adv") — B4-PR1-1a.
