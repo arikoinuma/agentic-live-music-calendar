@@ -2,7 +2,7 @@
 
 `/health` is the liveness route (no database access); `/health/db` proves one round trip to Postgres. They are read
 in three sections: what `/health` returns, what `/health/db` returns and does when the database is down (against a
-stand-in engine, so no real connection is needed), and what the OpenAPI document says about both (PQR1-15).
+real test database for success and a stand-in engine for failure), and what the OpenAPI document says about both (PQR1-15).
 """
 
 from types import TracebackType
@@ -10,6 +10,7 @@ from typing import Self
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app import main
 from app.config import settings
@@ -42,12 +43,12 @@ async def test_health_reports_the_configured_environment(monkeypatch: pytest.Mon
 # --- /health/db ----------------------------------------------------------------------------------------------------
 
 
-class FakeConnection:
-    """Stands in for an async SQLAlchemy connection: records that a statement ran, or raises when told to."""
+class FailingEngine:
+    """Stands in for the app's engine when the database is down: `connect()` hands back a connection whose first
+    statement raises. Only the failure case uses it; the success case runs against real Postgres."""
 
-    def __init__(self, error: Exception | None) -> None:
-        self.error = error
-        self.statements: list[str] = []
+    def connect(self) -> "FailingEngine":
+        return self
 
     async def __aenter__(self) -> Self:
         return self
@@ -58,33 +59,21 @@ class FakeConnection:
         return None
 
     async def execute(self, statement: object) -> None:
-        if self.error is not None:
-            raise self.error
-        self.statements.append(str(statement))
+        raise ConnectionError("database is down")
 
 
-class FakeEngine:
-    """Stands in for the app's engine so `/health/db` can be tested without Postgres (the real one points at the
-    development database, not `calendar_test`)."""
-
-    def __init__(self, error: Exception | None = None) -> None:
-        self.connection = FakeConnection(error)
-
-    def connect(self) -> FakeConnection:
-        return self.connection
-
-
-async def test_health_db_returns_its_body_after_one_round_trip(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Proves (PQR1-15): `/health/db` runs one statement on a connection and answers 200 with its message. Moving the
-    # `return` out of the `async with` block must not drop the body or skip the statement; a version that returned
-    # before executing would pass the OpenAPI test below and fail here.
-    engine = FakeEngine()
-    monkeypatch.setattr(main, "engine", engine)
+async def test_health_db_returns_its_body_after_one_round_trip(
+    monkeypatch: pytest.MonkeyPatch, migrated_engine: AsyncEngine
+) -> None:
+    # Proves (PQR1-15): `/health/db` makes a real round trip and answers 200 with its message. The app's own engine
+    # points at the development database, so the suite's `migrated_engine` (on `calendar_test`) is patched in: the
+    # route's one job, reaching Postgres, runs against Postgres and not a stand-in. Moving the `return` out of the
+    # `async with` block must not drop the body.
+    monkeypatch.setattr(main, "engine", migrated_engine)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/health/db")
     assert response.status_code == 200
     assert response.json() == {"message": "db connection up"}
-    assert engine.connection.statements == ["SELECT 1"]
 
 
 async def test_health_db_lets_a_database_error_through(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -92,7 +81,7 @@ async def test_health_db_lets_a_database_error_through(monkeypatch: pytest.Monke
     # 500, the signal a deploy check needs. A tidy-up that wrapped the block in `try/except` and returned a 200 "down"
     # body would turn that into a passing health check. `raise_app_exceptions=False` makes the client see the 500
     # that a real caller sees, instead of re-raising the error.
-    monkeypatch.setattr(main, "engine", FakeEngine(error=ConnectionError("database is down")))
+    monkeypatch.setattr(main, "engine", FailingEngine())
     transport = ASGITransport(app=app, raise_app_exceptions=False)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/health/db")
