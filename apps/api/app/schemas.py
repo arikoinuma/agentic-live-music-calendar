@@ -4,7 +4,8 @@ These are the source of truth for the shapes the frontend consumes: the
 routes in app/routers/ return them, `make types` turns them into
 apps/calendar/lib/api-types.ts, and the JSON fixtures under
 apps/calendar/lib/fixtures/ are generated to match them exactly, so the
-frontend's tests run against the same shapes the API serves. See docs/dev/api-contract.md for the reasoning behind the shapes.
+frontend's tests run against the same shapes the API serves. See
+docs/dev/api-contract.md for the reasoning behind the shapes.
 
 Three deliberate conventions, explained once here rather than repeated
 at every model:

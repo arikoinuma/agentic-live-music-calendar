@@ -1,13 +1,13 @@
 # PQR1-2: documentation cleanup
 
-**Status:** Code review
+**Status:** PR open
 **Date:** November 6, 2026
 **Scope:** PQR1-2, PQR1-3 (Ari named it "a documentation cleanup")
 **Sources:** both in `docs/dev/review/2026-11-06-python-code-quality-review.md`, §3 Details rows PQR1-2 and PQR1-3 (also
 §7 step 1, the first-impression pass)
 **Tier:** T0 — a comment-only pass (syntax trees compared before and after) plus a new README; no code behavior changes
 **Author model:** Claude Opus 5.5 (record, comment pass and README, November 6, 2026; cloud session)
-**Reviewer model:** (code review round 1, pending)
+**Reviewer model:** Claude Sonnet 5.5 (code review round 1, November 6, 2026)
 **Branch / PR:** `claude/happy-knuth-edh3br` (designated by the cloud session, restarted from `main` after PR 93 merged; a fast-forward) / PR link once opened
 
 **Designations.** Review items here are bare (`CR1-2`). Outside this record they are `PQR1-2-CR1-2`
@@ -79,6 +79,8 @@ of all six files before and after (byte-identical). Write the README from the Ma
   - `make designation-check BASE=2b1b8f7`: clean.
   - Committed as work in progress before this review, so the scope is the commit range `2b1b8f7..HEAD`.
 - **Noticed, not in scope:**
+  - The root `Makefile`'s `setup` help text says "install deps, start Postgres, migrate" but the target also seeds
+    (found through CR1-3). A one-line fix for the same follow-up.
   - `apps/api/AGENTS.md` still says `agent_worker/` imports "the ORM models once A1 lands" (A1 landed long ago).
     That's a stale "not yet" in a doc rather than in code, and it fits a follow-up docs pass.
   - `app/main.py` still has no module docstring, and the health routes lack return types. Those are PQR1-6 and PQR1-15,
@@ -87,3 +89,40 @@ of all six files before and after (byte-identical). Write the README from the Ma
   claim in `config.py`), and whether the README's commands and descriptions match the Makefile and the code.
 
 ## Code review
+
+### Round 1
+
+**Scope.** Code review of Implementation log Round 1: commit range `2b1b8f7..HEAD`, eight files (six comment edits in
+`apps/api`, the new `apps/api/README.md`, this record). Tier T0 is right: no code behavior, schema or convention changes.
+
+**Checked, and how.**
+- Re-ran the comment-only check independently: a docstring-free `ast.dump` of the six Python files at `2b1b8f7` against
+  the working tree, run from a script in the scratchpad. All six are identical (CONFIRMED). The log's claim holds.
+- Read every rewritten comment against the code it sits on. `config.py`: real environment variables over `.env` is
+  pydantic-settings' documented precedence (PLAUSIBLE, not run). `state.py`: `agent_worker/main.py` does read the venue
+  row and metro timezone and pass them in (`load_venues`, `Metro.timezone`; CONFIRMED). `schemas.py`: the "routes return
+  them" claim is true. `venues.py`: `responses=NOT_FOUND` is on the route (CONFIRMED). `common.py`: the invariance claim is
+  correct.
+- README against the repo: every `make` target (`setup`, `api`, `seed`, `worker`, `check`, `test`, `db-up`, `VENUE=`)
+  exists in the `Makefile`; `help` exists; MongoDB is in `docker-compose.yml`; `requires-python >=3.13`; `.env.example`
+  exists; `REQUIRE_DB=1` is what makes `make test` refuse skipped DB tests; the pipeline order matches `graph.py`
+  (CONFIRMED). All `scripts/` descriptions match the files present.
+- `make designation-check BASE=2b1b8f7`: clean (CONFIRMED). I did not rerun `make check`; the log's result is the
+  author's and the diff has no code change, so I take the AST result as the evidence that matters.
+- Working tree clean apart from this round.
+
+**Counts.** 0 blocker, 0 should-fix, 3 nit. **Verdict: proceed** (the nits are optional).
+
+| # | Sev | Finding | Evidence | What goes wrong | Resolution |
+|---|---|---|---|---|---|
+| CR1-1 | nit | The README says `app/` "never imports from" `agent_worker/`. That is true of production code only. `app/tests/test_staging_is_write_only.py:17` imports `agent_worker.staging`. The source rule (`apps/api/AGENTS.md:12-13`) is stated the same loose way, so this copies it, but a README is where a first-time reader takes it literally. | `apps/api/README.md` table row for `agent_worker/`; `grep -rn agent_worker apps/api/app` shows the test import. CONFIRMED. | A reader who greps finds a counterexample and distrusts the rest. Saying "`app/`'s non-test code never imports it" avoids that. | **Fixed.** The README row now says production code in `app/` never imports `agent_worker/`, and that one test in `app/tests/` does, to check staging. |
+| CR1-2 | nit | Several new lines run well past the 120-column wrapping used elsewhere in the touched files: the README table rows, the `.env` paragraph (136 characters), the "Read next" architecture bullet (135), and the `schemas.py` docstring line ending "...reasoning behind the shapes." (127). The `schemas.py` docstring now has one long line after short wrapped ones. | `git diff -U0 2b1b8f7..HEAD -- apps` filtered for lines over 121 characters. CONFIRMED. | No functional effect and ruff does not flag it (`pyproject.toml` sets no `line-length` rule that fires). Only a wrapping inconsistency in a pass whose point is polish. Table rows are fine to leave long. | **Fixed** for prose. The `.env` paragraph and the "Read next" bullet are wrapped at 120 columns, and the `schemas.py` docstring line is rewrapped (the AST dump is still identical). The README table rows stay long, because a Markdown table row can't wrap. |
+| CR1-3 | nit | The README's Running section says `make setup` installs dependencies, starts Postgres and migrates, but the Makefile's `setup` also runs `make seed` (`Makefile:38`), and the README then lists `make seed` as a separate step after it. A new reader will think they must run it. | `Makefile:31-38`, README "Running it" code block. CONFIRMED. | Harmless, since `seed` is safe to re-run (Makefile help text), but the README's own comment on `make setup` is incomplete, and it is the one command a new contributor runs first. | **Fixed.** `make setup` now reads "install dependencies, start the databases, migrate and seed" (`Makefile:38`), and `make seed` is described as a safe re-seed, matching its `make help` text. |
+
+Rejected: (none; the author's side fills this in.)
+
+Rejected: none.
+
+**After the fixes:** the docstring-free AST dump of the six Python files is still identical to the base. `make check`:
+exit 0 (ruff, mypy clean; pytest 1280 passed, 20 skipped; vitest 525 passed; e2e 107 passed). `make designation-check
+BASE=2b1b8f7`: clean.
