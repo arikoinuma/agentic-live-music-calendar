@@ -94,7 +94,7 @@ class ShowOp:
     def outcome(self) -> AuditOutcome:
         """What this write's audit row calls it. Only writes become operations, so an action always has one."""
         outcome = self.decision.action.outcome
-        assert outcome is not None
+        assert outcome is not None  # noqa: S101 - an invariant that narrows the type; nothing here runs under python -O
         return outcome
 
     @property
@@ -178,7 +178,8 @@ def build_ops(plan: ReconcilePlan, venue_id: int, original_url: str) -> tuple[Sh
     removals: list[ShowOp] = []
     for decision in plan.shows:
         if decision.action is Action.INSERT:
-            assert decision.listing is not None  # an insert is always a listing with no stored twin
+            # An insert is always a listing with no stored twin.
+            assert decision.listing is not None  # noqa: S101 - an invariant that narrows the type; nothing here runs under python -O
             values = insert_values(decision.listing, venue_id, original_url)
             lineup: tuple[LineupEntry, ...] | None = decision.lineup
         elif decision.action is Action.UPDATE:

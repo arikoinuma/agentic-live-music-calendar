@@ -35,6 +35,7 @@ running in.
 ```bash
 make check     # everything CI runs: ruff, mypy, pytest, vitest, the contract check, the designation check, Playwright
 make test      # pytest (database tests required) and vitest
+make format    # auto-format the Python code; make lint and CI fail on unformatted code
 ```
 
 Inside `apps/api`, `uv run pytest`, `uv run ruff check .` and `uv run mypy` run the Python checks alone. The pytest

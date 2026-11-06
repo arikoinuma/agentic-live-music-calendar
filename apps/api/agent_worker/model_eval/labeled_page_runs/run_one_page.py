@@ -191,7 +191,7 @@ async def run_page(
     first_document = len(stager.documents)
     name = name or fixture.name
     is_image = fixture.suffix in IMAGE_SUFFIXES
-    page_html = "" if is_image else fixture.read_text()
+    page_html = "" if is_image else fixture.read_text()  # noqa: ASYNC240 - one small local fixture, read once per page
 
     started = time.perf_counter()
     state: VenueGraphState = await run_venue(

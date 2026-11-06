@@ -226,7 +226,7 @@ class PostgresCalendarWriter:
             row = Show(**op.values)
             session.add(row)
         else:
-            assert op.stored_id is not None
+            assert op.stored_id is not None  # noqa: S101 - an invariant that narrows the type; nothing here runs under python -O
             found = await session.get(Show, op.stored_id)  # already in the session: the locked read loaded it
             if found is None:
                 raise ShowGone(f"show {op.stored_id} is not in the calendar")

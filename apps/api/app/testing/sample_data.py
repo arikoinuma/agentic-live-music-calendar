@@ -512,5 +512,6 @@ async def load_sample_data(session: AsyncSession) -> None:
     # Move every sequence past the ids just written.
     for table in ("metro", "venue", "artist", "show"):
         await session.execute(
-            text(f"SELECT setval(pg_get_serial_sequence('{table}', 'id'), (SELECT max(id) FROM {table}))")
+            # The table names come from the fixed tuple above, never from input.
+            text(f"SELECT setval(pg_get_serial_sequence('{table}', 'id'), (SELECT max(id) FROM {table}))")  # noqa: S608
         )

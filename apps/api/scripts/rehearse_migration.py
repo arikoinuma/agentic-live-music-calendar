@@ -366,7 +366,7 @@ def _diagnose_login(
     """The environment role could not log in to the copy. Ask the copy, as its OWNER, whether the role is there, and say
     which of the possible causes it is. `role` comes from ROLE_FOR_ENV (an allowlist), so it is safe to put in the SQL."""
     host, database, owner_password = target
-    sql = f"select rolcanlogin from pg_roles where rolname = '{role}'"
+    sql = f"select rolcanlogin from pg_roles where rolname = '{role}'"  # noqa: S608 - `role` is from the allowlist
     try:
         rows = query(database_url(host, database, OWNER_ROLE, owner_password), sql)
     except RehearsalError as err:
@@ -421,7 +421,7 @@ API_DIR = Path(__file__).resolve().parents[1]
 
 def run_command(argv: list[str], *, env: dict[str, str] | None = None, cwd: Path | None = None) -> RunResult:
     """Run a real command with the inherited environment plus `env` (this is where DATABASE_URL reaches Alembic)."""
-    done = subprocess.run(  # argv is a list built by rehearse(), run without a shell
+    done = subprocess.run(  # noqa: S603 - argv is a list built by rehearse(), run without a shell
         argv, env={**os.environ, **(env or {})}, cwd=cwd, capture_output=True, text=True, check=False
     )
     return RunResult(done.returncode, done.stdout, done.stderr)

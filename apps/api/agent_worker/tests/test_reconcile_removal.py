@@ -321,7 +321,7 @@ def test_the_guard_does_not_withhold_cancellations() -> None:
     # three shows even though that is most of the window.
     shows = _venue(4)
     page = [listed(i - 1, day(12 + i), at(20), acts=["Zhora"], status="cancelled") for i in (1, 2, 3)]
-    plan = plan_for(page + [listed(3, day(16), at(20), acts=["Zhora"])], shows)
+    plan = plan_for([*page, listed(3, day(16), at(20), acts=["Zhora"])], shows)
     assert len([d for d in only(plan, Action.REMOVE) if d.reason == "cancelled"]) == 3
 
 

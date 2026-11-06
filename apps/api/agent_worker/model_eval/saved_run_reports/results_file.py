@@ -58,7 +58,11 @@ def git_commit() -> str | None:
     """The commit the harness ran at, for the record; None outside a git checkout."""
     try:
         return subprocess.run(
-            ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True, timeout=10
+            ["git", "rev-parse", "HEAD"],  # noqa: S607 - the checkout's own git, from PATH, is the point
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
         ).stdout.strip()
     except (OSError, subprocess.SubprocessError):
         return None

@@ -21,6 +21,6 @@ class NodeOutcomes(StrEnum):
     finishes
     """
 
-    PASS = "pass"
+    PASS = "pass"  # noqa: S105 - a verdict value, not a password
     RETRY = "retry"
     ESCALATE = "escalate"

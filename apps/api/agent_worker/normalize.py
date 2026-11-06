@@ -74,13 +74,13 @@ def normalize_time(value: Any) -> Any:
     # raised in a validator into a validation error that `instructor` re-asks on; a
     # TypeError would escape as a crash.
     if isinstance(value, bool | int | float):
-        raise ValueError(f"a time must be written as HH:MM, not a number: {value!r}")  # noqa: TRY004
+        raise ValueError(f"a time must be written as HH:MM, not a number: {value!r}")
 
     if isinstance(value, datetime.time):
         return value.replace(tzinfo=None)
 
     if not isinstance(value, str):
-        raise ValueError(f"a time must be a string like '19:30', got {type(value).__name__}")  # noqa: TRY004
+        raise ValueError(f"a time must be a string like '19:30', got {type(value).__name__}")
 
     text = value.strip()
     if text.lower() in _NULLISH:
@@ -164,10 +164,7 @@ def infer_year(listed: datetime.date, fetch_date: datetime.date) -> datetime.dat
     # Compare (month, day) pairs rather than building dates, so Feb 29 can be placed before
     # knowing whether the chosen year has one.
     month_day = (listed.month, listed.day)
-    if month_day >= (earliest.month, earliest.day):
-        year = earliest.year
-    else:
-        year = earliest.year + 1
+    year = earliest.year if month_day >= (earliest.month, earliest.day) else earliest.year + 1
     try:
         return listed.replace(year=year)
     except ValueError:

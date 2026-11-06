@@ -140,7 +140,8 @@ async def main(env: str, set_password: bool) -> None:
     # is caught by a human before anything changes.
     action = "change the password of" if set_password else "restore"
     print(f"About to {action} role {role!r} on host {url.host}, database {url.database}.")
-    if input(f"Type the environment name ({env}) to continue: ").strip() != env:
+    # A blocking prompt is the point: nothing else runs until a human confirms.
+    if input(f"Type the environment name ({env}) to continue: ").strip() != env:  # noqa: ASYNC250
         sys.exit("Not confirmed; nothing changed.")
 
     engine = create_async_engine(url)

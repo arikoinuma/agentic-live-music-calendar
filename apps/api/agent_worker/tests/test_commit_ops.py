@@ -286,8 +286,8 @@ def a_row(**changes: Any) -> dict[str, Any]:
         "image_url": None,
         "original_url": "https://venue.example/events",
         "status": ShowStatus.ACTIVE,
-        "created_at": datetime.datetime(2026, 10, 1, 12, 0),
-        "updated_at": datetime.datetime(2026, 10, 2, 12, 0),
+        "created_at": datetime.datetime(2026, 10, 1, 12, 0, tzinfo=datetime.UTC),
+        "updated_at": datetime.datetime(2026, 10, 2, 12, 0, tzinfo=datetime.UTC),
     }
     row.update(changes)
     return row

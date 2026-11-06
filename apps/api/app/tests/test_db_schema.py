@@ -135,7 +135,7 @@ async def test_enum_labels_in_postgres_match_enums_py(db_conn: AsyncConnection) 
             "FROM pg_type t JOIN pg_enum e ON e.enumtypid = t.oid GROUP BY t.typname"
         )
     )
-    in_db = {name: labels for name, labels in rows}
+    in_db = {name: labels for name, labels in rows}  # noqa: C416 - unpacking each Row is what types it for mypy
     assert in_db == EXPECTED_ENUM_LABELS
 
 
@@ -151,7 +151,7 @@ async def test_gin_indexes_and_the_check_constraint_exist(db_conn: AsyncConnecti
     # free-admission CHECK constraint really exists in the database.
     # compare_metadata can't see either of these.
     rows = await db_conn.execute(sa.text("SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = 'public'"))
-    idx: dict[str, str] = {name: definition for name, definition in rows}
+    idx: dict[str, str] = {name: definition for name, definition in rows}  # noqa: C416 - as above, for mypy
     assert "USING gin" in idx["venue_extra_metadata_idx"]
     assert "USING gin" in idx["artist_extra_metadata_idx"]
     con = (await db_conn.execute(sa.text("SELECT conname FROM pg_constraint"))).scalars().all()
