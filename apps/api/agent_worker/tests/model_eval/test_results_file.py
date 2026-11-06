@@ -137,3 +137,18 @@ def test_build_record_has_the_keys_a_report_and_a_snapshot_read_and_survives_a_r
     assert built["held_out_scored"] is False and built["policy"]["max_attempts"] == DEFAULT_POLICY.max_attempts
     out = results_file.write_results(tmp_path / "graph-demo.json", built)
     assert json.loads(out.read_text()) == json.loads(json.dumps(built, default=str))
+
+
+def test_a_snapshot_keeps_the_c7_numbers_and_still_no_page_text() -> None:
+    # Proves (C7, Test approach §5): the per-attempt confidences, seconds and tokens are what C7's tables read, so a committed
+    # snapshot must keep them (a report from it equals one from the raw file); the page text and extractions stay out.
+    data = heavy_results()
+    data["runs"][0]["attempts"][0].update(
+        confidence=0.9, show_confidences=[0.9], judged_indices=[0], excluded_indices=[], seconds=2.5, tokens={"prompt": 5, "completion": 1},
+    )
+    data["runs"][0]["tokens_after_last_attempt"] = {"prompt": 0, "completion": 0}
+    snap = results_file.slim(data)
+    kept = snap["runs"][0]["attempts"][0]
+    assert (kept["show_confidences"], kept["tokens"], kept["seconds"]) == ([0.9], {"prompt": 5, "completion": 1}, 2.5)
+    assert snap["runs"][0]["tokens_after_last_attempt"] == {"prompt": 0, "completion": 0}
+    assert "THE VENUE PAGE TEXT" not in json.dumps(snap)

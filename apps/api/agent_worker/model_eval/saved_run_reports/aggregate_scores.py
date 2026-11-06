@@ -4,7 +4,7 @@ What this is: `aggregate(records, labels)` turns the run records of one results 
 scored three ways against its label) into the numbers the milestone reports: the three columns' counts, rates and field accuracy,
 the gate per column, the retry loop, validation recall, repeatability per page, and the cost. It is pure (no database, no model,
 no file), so it is what `--rescore` recomputes after a label or the scorer changes, and what `markdown_report` reads back. A metric
-added for a later milestone (C6's cost, C7's "attempt failed for any reason") is added here, and only here.
+added for a later milestone (C6's cost, C7's `stopped` and `confidence_disagree`) is added here, and only here.
 
 How to read it: `aggregate` at the bottom shows the shape; the helpers above it are one block each (`_column`, `_gate`, `_retry`,
 `_validation`, `_per_fixture`). Page arithmetic (`scoring.summed`, `scoring.headline_rates`) stays in `scoring.py`.
@@ -92,21 +92,35 @@ def _validation(records: list[dict[str, Any]]) -> dict[str, Any]:
     """Validation recall over EVERY attempt (C5-D7): each attempt's errors joined to that attempt's own findings."""
     pairs = []
     fired: Counter[str] = Counter()
-    disagree = 0
+    disagree = confidence_disagree = stopped = 0
     for r in records:
         for a in r["attempts"]:
             findings = validation_recall.findings_from_dicts([*a["errors"], *a["warnings"]])
             fired.update(validation_recall.findings_fired(findings))
             if a["errors"] != a["recorded_errors"]:
                 disagree += 1
+            # C7-PR1-4, C7-CR1-7: compared wherever the attempt carries `recorded_confidence`. A fresh C7 run always does (None on
+            # the structured route is a recorded None, and a recompute that gives a number there is a drift). A file recorded before
+            # C7 has no such key, and a rescore cannot add one (the staging document does not hold it), so it is skipped rather than
+            # read as a drift in validate_node that is not there.
+            if "recorded_confidence" in a and a.get("confidence") != a["recorded_confidence"]:
+                confidence_disagree += 1
             if a["score"] is not None:
-                pairs += [(scoring.ErrorItem(**item), findings) for item in a["score"].get("items", [])]
+                items = a["score"].get("items", [])
+                pairs += [(scoring.ErrorItem(**item), findings) for item in items]
+                if a["verdict"] == "failed":
+                    stopped += len(items)
     tally = validation_recall.tally(pairs)
     return {
         "total": tally.total, "caught": tally.caught, "flagged": tally.flagged, "silent": tally.silent,
         "recall": tally.recall, "by_kind": tally.by_kind, "findings_fired": dict(fired),
+        # C5-F14, adopted by C7-D8: errors on an attempt that failed for ANY reason, a finding or not. A forced run fails every
+        # model-judged attempt for low confidence, which is no finding, so without this column "silent" swallows everything.
+        "stopped": stopped,
         # C5-PR1-6: the recomputed error findings should equal the recorded ones; any attempt where they don't is counted.
         "findings_disagree": disagree,
+        # C7-PR1-4: the recomputed confidence should equal `AttemptRecord.confidence` wherever that was recorded.
+        "confidence_disagree": confidence_disagree,
         # C5-CR1-6: runs where the staged route was not the source validation received (findings may not be the pipeline's).
         "route_mismatches": sum(1 for r in records if r.get("route_mismatch", False)),
     }

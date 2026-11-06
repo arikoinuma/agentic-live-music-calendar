@@ -292,3 +292,67 @@ def test_a_graph_eval_with_no_model_endpoint_stops_before_running(monkeypatch: p
     monkeypatch.setattr(run_labeled_pages.settings, "model_base_url", None)
     monkeypatch.setattr(run_labeled_pages, "evaluate", must_not_run)
     assert run_labeled_pages.main(["--label", "x"]) == 2
+
+
+# ---------------------------------------------------------------------------
+# C7 (docs/dev/implementations/c7-pipeline-eval.md, Test approach §5): the policy sections and the forced-retry header
+# ---------------------------------------------------------------------------
+
+
+def test_a_file_without_per_attempt_confidences_says_to_rescore_it() -> None:
+    # Proves: a file from before C7 has none of the fields the policy sections read, so the report says how to fill them instead
+    # of printing three sections of zeros (and calls none of C7's judgements, so it renders while they are open).
+    text = markdown_report.render(make_results(clean_and_bad()), LABELS)
+    assert "## Policy questions (C7)" in text and "--rescore" in text
+    assert "## Threshold sweep" not in text
+
+
+def test_a_forced_run_says_so_in_the_header() -> None:
+    # Proves (C7-D3): a forced run's threshold (above 1) is not one anybody would ship, so the header says "forced retries" beside it.
+    from agent_worker.model_eval.saved_run_reports.policy_questions import (
+        FORCED_THRESHOLD,
+    )
+
+    text = markdown_report.render(make_results([record("gated.html")], policy={"confidence_threshold": FORCED_THRESHOLD, "max_attempts": 3}), LABELS)
+    assert f"threshold {FORCED_THRESHOLD} (forced retries)" in text
+    assert "(forced retries)" not in markdown_report.render(make_results([record("gated.html")]), LABELS)
+
+
+def c7_records() -> list[dict[str, Any]]:
+    """Two runs carrying C7's per-attempt fields: a gated model-route page at 0.9 with one wrong show, retried once (forced), and
+    an informational structured page."""
+    wrong = score_dict(labelled=2, returned=2, acts_wrong=1)
+    wrong["items"] = [{"kind": "acts_wrong", "date": "2026-10-20", "index": 0, "field": None}]
+    fields = {"confidence": 0.9, "show_confidences": [0.9, 1.0], "judged_indices": [0, 1], "excluded_indices": [],
+              "recorded_confidence": 0.9, "seconds": 3.0, "tokens": {"prompt": 100, "completion": 10}}
+    first = {**attempt(1, "initial"), "route": "model", "score": wrong, "verdict": "failed", "reasons": ["low_confidence"], **fields}
+    second = {**attempt(2, "narrowed"), "route": "model", "score": score_dict(labelled=2, returned=2), **fields}
+    structured = {**attempt(1, "initial"), "confidence": None, "show_confidences": [1.0], "judged_indices": [0], "excluded_indices": [],
+                  "seconds": 1.0, "tokens": None}
+    return [
+        {**record("gated.html", attempts=[first, second], source="model"), "policy": {"escalation_model": None}},
+        {**record("info.html", attempts=[structured]), "policy": {"escalation_model": None}},
+    ]
+
+
+def test_a_c7_file_gets_the_three_policy_sections() -> None:
+    # Proves (C7, Test approach §5): a results file with the new fields gets "Confidence and correctness", "Threshold sweep" and
+    # "What each retry changed", each naming its reading. Expected from the records: one judged wrong row at 0.9 and one correct at
+    # 1.0; the retry fixed the one error; the structured page gives no confidence rows.
+    text = markdown_report.render(make_results(c7_records()), LABELS)
+    for heading in ("## Confidence and correctness (C7-Q4)", "## Threshold sweep (C7-Q1)", "## What each retry changed (C7-Q3, C7-Q2)"):
+        assert heading in text, heading
+    assert "C7-R1: **not enough evidence**" in text
+    assert "| 0.9 | 1 | 1 | 1.00 | no |" in text
+    assert "| 1 to 2 | 1 | 1 | 0 | 0 | 3.0 | 100/10 |" in text
+    assert "C7-R3 tier 2" in text and "C7-R4" in text
+    assert "- structured-route pages (no confidence" in text and "0.8: 0/0/0/1" in text  # info.html is structured (C7-CR1-4)
+
+
+def test_the_pooled_policy_report_names_each_label() -> None:
+    # Proves (C7, Test approach §5, `make eval-policy`): the pooled report lists every label it read with its labels_sha and policy,
+    # then the three sections over all their runs together.
+    files = {"one": make_results(c7_records()), "two": make_results(c7_records())}
+    text = markdown_report.policy_report(files, LABELS)
+    assert "- one: labels_sha abcdef0123" in text and "- two: labels_sha abcdef0123" in text
+    assert "| 1 to 2 | 2 | 2 | 0 | 0 |" in text  # both files' retried runs pooled

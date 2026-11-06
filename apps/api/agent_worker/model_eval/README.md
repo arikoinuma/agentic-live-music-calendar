@@ -32,7 +32,7 @@ Those checks can only judge whether output *looks* right; they have no answer ke
 | **`saved_run_reports/`** | **reads** | Turns a saved run into totals, a Markdown report, a side-by-side comparison, or a committable snapshot. | only a saved file |
 | `run_eval.py`, `legacy.py`, `reference.py` | older tool | The earlier extraction-level tool: it asks only whether the model can *read a page* (no validation, no database). Left as it was. `legacy.py` is the frozen pre-A2 schema and prompt, `reference.py` a few hand-written facts per page. | the model |
 
-`labeled_page_runs/` has the files `run_one_page.py` (one page through the graph), `two_run_scenarios.py` (run twice and check the database: repeat, sequence, overlap, perturbed), `scratch_database.py` and `scratch_calendar_rows.py` (the throwaway database `calendar_eval` and its rows), and `run_labeled_pages.py` (the runners, `--rescore` and the command line). `saved_run_reports/` has `aggregate_scores.py`, `results_file.py` and `markdown_report.py`.
+`labeled_page_runs/` has the files `run_one_page.py` (one page through the graph), `two_run_scenarios.py` (run twice and check the database: repeat, sequence, overlap, perturbed), `scratch_database.py` and `scratch_calendar_rows.py` (the throwaway database `calendar_eval` and its rows), and `run_labeled_pages.py` (the runners, `--rescore` and the command line). `saved_run_reports/` has `aggregate_scores.py`, `results_file.py`, `markdown_report.py` and `policy_questions.py` (C7's tables: confidence against correctness, the threshold sweep and what each retry changed; `make eval-policy`).
 
 ## Running it
 
