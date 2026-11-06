@@ -8,7 +8,7 @@
 local, behavior-preserving rewrites, and the full suite verifies them
 **Author model:** Claude Opus 5.5 (record, formatting, lint config and fixes, November 6, 2026; cloud session)
 **Reviewer model:** Claude Sonnet 5.5 (code review round 1, November 6, 2026)
-**Branch / PR:** `claude/happy-knuth-edh3br` (designated by the cloud session, restarted from `main` after PR 94 merged; a fast-forward) / PR link once opened
+**Branch / PR:** `claude/happy-knuth-edh3br` (designated by the cloud session, restarted from `main` after PR 94 merged; a fast-forward) / [PR 95](https://github.com/arikoinuma/agentic-live-music-calendar/pull/95)
 
 **Designations.** Review items here are bare (`CR1-2`). Outside this record they are `PQR1-1-CR1-2`
 (`docs/dev/issues/README.md`, `docs/dev/conventions.md`). Ruff rule codes (`E501`, `S101`) are not designations. Where
