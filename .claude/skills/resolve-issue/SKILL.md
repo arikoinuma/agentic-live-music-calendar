@@ -12,6 +12,10 @@ branch, one PR.** Don't widen or split it. If something adjacent turns up, note 
 
 Invoking this skill is Ari's request to commit, push and open the draft PR at the end. It is **not** permission to merge.
 
+**Commit and push work in progress whenever it's worth saving.** A cloud container can be reclaimed, and a stop hook
+may ask for it. What must wait is the **PR**: it opens only at step 7, after the code review is resolved. A commit pushed
+before the review is fine; say so in the Implementation log, so the reviewer knows the scope is a commit range.
+
 0. **Intake: turn each item into an issue with an ID.** For each item in $ARGUMENTS:
    - **A review ID** (`PQR1-4`, also a range like `PQR1-1..3`): read its row in the review doc that `docs/dev/conventions.md`
      maps the scope to, plus any section the row points to (for example "Check locally"). The ID stays as written. If
@@ -26,7 +30,12 @@ Invoking this skill is Ari's request to commit, push and open the draft PR at th
      an open PR, say so and leave it out unless Ari confirms.
 
 1. **Open the record.** Branch: in a cloud session use the designated branch. Locally, create
-   `issue-<lead id lowercase>-<slug>` from an up-to-date `origin/main`. Write the diff base (`git rev-parse HEAD`)
+   `issue-<lead id lowercase>-<slug>` from an up-to-date `origin/main`.
+   - **Designated branch whose last PR already merged:** restart it from `main` with
+     `git fetch origin main && git checkout -B <branch> origin/main`. `main` already contains the merged branch, so the
+     next push is a **fast-forward**: use a plain `git push -u origin <branch>`, never `--force` or `--force-with-lease`.
+   - **Designated branch with an open, unmerged PR:** don't reset it, because that drops the PR's commits. Stop and ask Ari
+     whether to wait for the merge or use another branch. Write the diff base (`git rev-parse HEAD`)
    down now. Create `docs/dev/issues/<lead id lowercase>-<slug>.md` from the template in `docs/dev/issues/README.md`,
    fill the header and `## Issues`, and set Status to `Triage`.
 
