@@ -43,7 +43,8 @@ The review's second claim, that "a list of 5,000 `venue_id` values was accepted"
 reproduced here.
 
 **Fixed means:** no id or id-filter value can reach the database outside int32 range; such a request answers a 4xx the
-generated TypeScript already knows about, never a 500; the lists have a documented cap; a test pins each bound.
+generated TypeScript already knows about, never a 500; a test pins each bound. The id lists get **no length cap**: the
+review row mentions it, and Ari decided not to (D2), so it is out of "fixed means".
 
 ### PQR1-11: two error-body shapes for a 422
 
@@ -85,23 +86,25 @@ Recommendation: **A**. It reuses the mechanism FastAPI already uses for the othe
 no global behavior. Not in scope under either option: 404 and 503 keep `{"detail": "<string>"}` (the review row covers
 422 only); `api-contract.md` will say so, so "two shapes" does not come back as a surprise for 404.
 
-**D2 — What an out-of-range id answers (PQR1-5), and the cap on the id lists.**
+**D2 — What an out-of-range id answers (PQR1-5), and whether the id lists get a cap.** The cap part is **decided by
+Ari, November 6, 2026: no cap.** The status part still waits on his approval.
 
 - **Status:** the review suggests `Path(ge=1, le=2**31 - 1)`, which answers **422**. The alternative is a 404 ("no such
   show"). Recommendation: **422 with `ge=1, le=2**31-1`**. The frontend already refuses anything outside 1..2,147,483,647
   before it calls the API (`parseIdParam`, `MAX_ID = 2147483647`, `apps/calendar/lib/params.ts:66`), so the page answers
   404 itself and the API's 422 is only seen by other clients, for whom "your value is invalid" is the accurate answer.
   Side effect to accept: `/shows/0` and `/shows/-1` change from 404 to 422 (the frontend never sends them).
-- **List cap:** `venue_id` and `artist_id` get `max_length`. Recommendation: **100**. `api-contract.md` §2
-  ("Pagination") puts the metro at tens of venues and hundreds of artists; 100 is far above any filter a person builds
-  by ticking boxes, and it bounds the `IN (…)` list. Ari may prefer a different number; only the constant changes.
-- **Consequence for the frontend (PQR1-5-PR1-3).** The URL is the filter state, and `parseIdList`
-  (`apps/calendar/lib/params.ts:134`) forwards every distinct valid id with no count cap. Once the API caps the list, a
-  hand-edited or shared URL with 101 ids would go from a working page to a 422, which `lib/api.ts` raises as an
-  `ApiError` and the page shows as the error boundary. Recommendation: **cap `parseIdList` at the same number** (keep
-  the first 100 after the canonical sort, so one filter set is still one URL), with the vitest case in test 6. The
-  alternative is to accept the error page for such URLs; the plan does not recommend it. This adds
-  `apps/calendar/lib/params.ts` and `params.test.ts` to the change.
+- **List cap: none (Ari's decision).** The review row also asks for a length cap on `venue_id` / `artist_id`. Ari chose
+  not to add one: the metro is expected to stay under 100 venues, artists are not near 100 either, and a cap would
+  solve a problem that does not exist yet. Reasons and trade-offs weighed before deciding:
+  - A cap adds little protection on its own: the URL length limit (roughly 8 to 16 KB, reasoned and not measured) stops a
+    request at several hundred ids, before any database limit.
+  - A cap needs a frontend half. `parseIdList` (`apps/calendar/lib/params.ts:134`) forwards every distinct valid id, so a
+    shared URL over the cap would become a 422 and the error page (PQR1-5-PR1-3), or, if the frontend truncated, a page
+    that silently filters fewer ids than its URL names. Neither was worth building now.
+  - **Revisit when:** a "select all" exists in the filter UI, or artists approach the hundreds. Then add `max_length` to the
+    list alias and cap `parseIdList` in the same change. The review row (PQR1-5) stays open on this point in the tracker's
+    note, so it is not lost.
 
 ### Context
 
@@ -123,29 +126,28 @@ with `Proves:` and says where the expected values come from. Each is run before 
 2. **`test_the_largest_int32_id_is_still_a_404`** — `/shows/2147483647`, `/venues/…`, `/artists/…` answer 404. Proves the
    upper bound is inclusive and not off by one (it is the boundary that `le` and the column share). Passes today and must
    keep passing; it guards the fix from over-tightening.
-3. **`test_id_filters_are_bounded`** — `/shows?venue_id=2147483648` and `?artist_id=0` are 422; `?venue_id=` repeated 101
-   times is 422; repeated 100 times (ids that exist or not) is 200. Fails today for the first two (500, 200).
+3. **`test_id_filters_are_bounded`** — `/shows?venue_id=2147483648` and `?artist_id=0` are 422, and `?venue_id=2147483647` is
+   200 (an empty result, the inclusive upper bound). Fails today for the first two (500, 200). The existing
+   `test_repeated_filter_values_are_or_ed` already sends valid repeated ids, so it guards the alias against the
+   `Query(ge=…)` mistake in step 2 (PR1-2).
 4. **`test_every_422_has_the_same_body_shape`** — the four hand-raised sites (`end` before `start`, range too wide,
    `upcoming` with `start`, `upcoming` with no filter) plus one FastAPI-raised one (`start=notadate`): each body is
    `{"detail": [...]}` with a non-empty list whose items have `type`, `loc`, `msg`. Fails today for the four.
 5. **`test_a_hand_raised_422_names_its_parameter`** — pins all four `loc`s from the table in step 4 (`end` before `start` and
    range too wide → `["query","end"]`; both `upcoming` guards → `["query","upcoming"]`). Proves why D1-A was chosen; fails
    today.
-6. **A frontend case** in `apps/calendar/lib/params.test.ts` (D2): a search string with 101 distinct venue ids parses to at
-   most 100. Fails today (101 come back).
-
 The existing `test_invalid_ranges_are_rejected` and `test_upcoming_rejects_contradictory_or_unbounded_requests` keep
 asserting the status and stay green. `test_unknown_id_is_404_not_500` (999, 99) is unaffected.
 
 ### Steps
 
 1. Write the five tests; run them; record the failures in the Implementation log.
-2. `app/dependencies.py` (PQR1-5): add `MAX_DB_ID = 2**31 - 1`, `MAX_ID_FILTERS = 100`, and the aliases
+2. `app/dependencies.py` (PQR1-5): add `MAX_DB_ID = 2**31 - 1` and the aliases
    `DbId = Annotated[int, Path(ge=1, le=MAX_DB_ID)]` and
-   `IdFilter = Annotated[list[Annotated[int, Field(ge=1, le=MAX_DB_ID)]] | None, Query(max_length=MAX_ID_FILTERS)]`. The
+   `IdFilter = Annotated[list[Annotated[int, Field(ge=1, le=MAX_DB_ID)]] | None, Query()]` (no `max_length`: D2). The
    item-level `Field` is deliberate and verified by the reviewer: `Query(ge=1)` on a `list[int]` registers without error but
    answers 500 to every supplied value (`TypeError: Unable to apply constraint 'ge'`), so the alias's comment says "do not
-   move these onto `Query`" and test 3's in-range 100-id case guards it (PR1-2). The module docstring's list of aliases is
+   move these onto `Query`" and the existing repeated-ids test guards it (PR1-2). The module docstring's list of aliases is
    updated.
 3. `app/routers/shows.py`, `venues.py`, `artists.py` (PQR1-5): use `DbId` for the three path ids and `IdFilter` for the two
    filters. Comments say why (the column is int32; cite PQR1-5 once, at the alias).
@@ -166,17 +168,18 @@ asserting the status and stay green. `test_unknown_id_is_404_not_500` (999, 99) 
    import in `shows.py` stays for the 404.
 5. `docs/dev/api-contract.md` §3 Conventions, a new "Errors" subsection (PQR1-11, PQR1-5, PR1-6): 422 is always
    `{"detail": [{type, loc, msg, input, ctx?}]}` (FastAPI's `HTTPValidationError`; `ctx` appears on FastAPI-raised items only,
-   hand-raised ones have none), 404 and 503 are `{"detail": "<string>"}`; an id outside 1..2,147,483,647 or a list of more
-   than 100 ids is a 422. Record the decisions there as `PQR1-5-D1` and `PQR1-5-D2` (a bare `D1` fails
+   hand-raised ones have none), 404 and 503 are `{"detail": "<string>"}`; an id (path or filter) outside 1..2,147,483,647
+   is a 422; the id lists have no length cap. Record the decisions there as `PQR1-5-D1` and `PQR1-5-D2` (a bare `D1` fails
    `make designation-check`), each with its one-line reason.
-5a. `apps/calendar/lib/params.ts` and `params.test.ts` (D2, PR1-3, PR1-4): cap `parseIdList` at 100 ids; reword the comment
+5a. `apps/calendar/lib/params.ts` and `params.test.ts` (PR1-4), **comments only**: reword the comment
    at `params.ts:62-65` ("a 500 once the routers are DB-backed" becomes: the API now answers 422 at the edge, which the
    page would show as the error page, so the frontend answers 404 itself) and the one at `params.test.ts:61-64` the same way.
-   `b2-routes-and-data-loading.md` is history and stays.
+   `b2-routes-and-data-loading.md` is history and stays. This is a comment-only pass on two files, so it is verified as one
+   (syntax trees compared before and after, then `make check`; `AGENTS.md`, Conventions).
 6. `docs/dev/review/2026-11-06-python-code-quality-review.md` §8: set the PQR1-5 and PQR1-11 rows to `In PR` with the PR link
    and this record (step 7 of the run).
 7. Run `make types fixtures` and confirm no diff in `apps/calendar/lib/api-types.ts` or `lib/fixtures/` (the OpenAPI
-   document gains `minimum`/`maximum`/`maxItems`, which `openapi-typescript` does not render; if it does change them, the
+   document gains `minimum`/`maximum` on the ids, which `openapi-typescript` does not render; if it does change them, the
    regenerated output is committed, never hand-edited).
 
 ### Critical files
@@ -196,7 +199,8 @@ asserting the status and stay green. `test_unknown_id_is_404_not_500` (999, 99) 
 
 ### Out of scope, noticed
 
-- `PQR1-20` (pagination) interacts with the id-list cap only in that both bound request size; left alone.
+- The id-list length cap the review row asks for is **deliberately not done** (D2, Ari). When the tracker row moves to
+  `In PR`, its note says "int32 bounds done; list cap deferred by decision".
 - 404 and 503 still use a string `detail` (see D1). If Ari wants one shape for every error, that is a separate record.
 
 ## Plan review
@@ -245,13 +249,12 @@ existing `test_invalid_ranges_are_rejected`, `test_upcoming_rejects_contradictor
 |---|---|---|---|---|---|
 | PR1-1 | should-fix | Test 1 says the client "needs `raise_app_exceptions=False`" and "the plan picks the first", but `sample_client` is built by `app/testing/api_client.py`, which hard-codes `ASGITransport(app=app)`, and that file is not in Critical files or Steps. It isn't needed: with the stock `sample_client` the test already fails first (the `DBAPIError` propagates as a test error), and passes after the fix. Drop the `raise_app_exceptions` sentence and record the raised `DBAPIError` as the failing-first evidence; or, if a 500 status is wanted in the log, add an opt-in parameter to `api_client()` and list the file. | CONFIRMED: probe test on `HEAD` through `sample_client` failed with `sqlalchemy.exc.DBAPIError … value out of int32 range` for `/shows/99999999999` and `/shows?venue_id=99999999999`; a following `GET /shows/1` on the same client was 200. `app/testing/api_client.py` builds the transport with no option. | The implementer either edits a shared test helper (used by the keystone fixture tests too) outside the stated scope, or stalls on how to "pick the first". | **Fixed.** Test approach item 1 no longer mentions `raise_app_exceptions`; it records the propagated `DBAPIError` as the failing-first evidence and says `app/testing/api_client.py` is unchanged. |
 | PR1-2 | nit | Step 2 leaves open "whether `Query(ge=…, le=…)` applies to each item or to the list", to be checked "in step 1's probe" (step 1 is writing tests, not a probe). It's settled: on a `list[int]` it applies to the list, and the failure is a request-time 500 for every supplied value, not a startup error. The item-level `Field` is correct. Write the fact into step 2 and have the alias's comment say it, so nobody later "simplifies" to `Query(ge=1, le=…)`; test 3's "100 ids → 200" case is what would catch that regression, so keep it with real in-range ids. | CONFIRMED: standalone app with `Query(ge=1)` on `list[int] \| None`: `/q` → 200, `/q?venue_id=5` → 500 (`TypeError: Unable to apply constraint 'ge' to supplied value`). The `Field` form gives 422 with `loc ["query","venue_id",0]`. | A tidy-up that moves the bounds onto `Query` passes import, lint and typecheck, then 500s on every filtered calendar page. | **Fixed.** Step 2 states the verified fact and requires a "do not move onto `Query`" comment on the alias; test 3's in-range 100-id case is named as the guard. |
-| PR1-3 | should-fix | D2's case for the cap of 100 is incomplete. It cites "tens of venues" (`api-contract.md` §2, "Pagination"), but that same sentence says "hundreds of artists", and `artist_id` gets the same cap. And "a multi-select can only send ids it was shown" is not true: the URL is the state, and `parseIdList` (`apps/calendar/lib/params.ts:134`) forwards every distinct in-range id with no count cap. A URL with 101 artist or venue ids goes from 200 today to a 422, which `lib/api.ts` turns into an `ApiError` and the page into the error boundary (the B2-PR1-8 pattern, `params.ts:91-94`). Put that consequence in D2 for Ari, and either cap the list in `parseIdList` (adds a frontend file and a vitest case) or record that the error page is accepted for such URLs. Justify the number for artists as well as venues. | CONFIRMED by reading `params.ts:134-140` (dedupe and sort, no cap) and `api-contract.md` §2 "Pagination". PLAUSIBLE that the result is the error page (from `lib/api.ts`'s non-404 → `ApiError` path, not run). | Ari approves a cap on reasoning that doesn't match the contract, and a hand-edited or shared URL turns a working page into the error page with nothing recording that as a choice. | **Fixed.** D2 now cites "hundreds of artists", drops the false "can only send ids it was shown" claim, states the 101-id URL consequence, and recommends capping `parseIdList` at the same 100 (new step 5a, new test 6, two frontend files added to Critical files). The alternative (accept the error page) is listed for Ari. |
+| PR1-3 | should-fix | D2's case for the cap of 100 is incomplete. It cites "tens of venues" (`api-contract.md` §2, "Pagination"), but that same sentence says "hundreds of artists", and `artist_id` gets the same cap. And "a multi-select can only send ids it was shown" is not true: the URL is the state, and `parseIdList` (`apps/calendar/lib/params.ts:134`) forwards every distinct in-range id with no count cap. A URL with 101 artist or venue ids goes from 200 today to a 422, which `lib/api.ts` turns into an `ApiError` and the page into the error boundary (the B2-PR1-8 pattern, `params.ts:91-94`). Put that consequence in D2 for Ari, and either cap the list in `parseIdList` (adds a frontend file and a vitest case) or record that the error page is accepted for such URLs. Justify the number for artists as well as venues. | CONFIRMED by reading `params.ts:134-140` (dedupe and sort, no cap) and `api-contract.md` §2 "Pagination". PLAUSIBLE that the result is the error page (from `lib/api.ts`'s non-404 → `ApiError` path, not run). | Ari approves a cap on reasoning that doesn't match the contract, and a hand-edited or shared URL turns a working page into the error page with nothing recording that as a choice. | **Fixed, then closed by Ari's decision.** D2 was rewritten with the 101-id consequence and the "hundreds of artists" correction; Ari then chose **no list cap**, so the finding's concern no longer applies and no frontend cap is built. The reasoning stays in D2 for the day a cap is wanted. |
 | PR1-4 | should-fix | Two frontend comments become wrong after the fix and aren't in the plan: `apps/calendar/lib/params.ts:62-65` ("A bigger number can only ever be an out-of-range error from the database (a 500 once the routers are DB-backed)") and `apps/calendar/lib/params.test.ts:61-64` ("…or that Postgres would reject as out of range once the routers are DB-backed"). After this change the API answers 422 at the edge, which is still the reason the frontend caps (a 422 would be the error page, not a 404). Add both to Critical files with a one-line rewording; leave `b2-routes-and-data-loading.md` alone (history). | CONFIRMED by `grep -rn "out of range\|int4"` over `apps/calendar/lib`. | The repo's comments state a behavior that no longer exists, against "Verify, don't assume" / "Cite the source of a decision". | **Fixed.** Both comments are in step 5a and Critical files with the rewording; `b2-routes-and-data-loading.md` left alone as history. |
 | PR1-5 | nit | The four hand-raised sites aren't mapped to their `loc` and `input`: D1's table lists three locs for four sites, and step 4 doesn't say which goes where. Suggest: `end` before `start` → `["query","end"]`, input `end`; range too wide → `["query","end"]` (with `?end=2030-01-01` alone, `start` is the server's default, so `["query","start"]` would echo a value the client never sent); `upcoming` with `start`/`end` and `upcoming` with no filter → `["query","upcoming"]`, input `True`. Note that hand-raised `input` values go through `jsonable_encoder` (a date becomes `"2025-01-01"`, `True` becomes JSON `true`, where FastAPI's own errors echo the raw string `"true"`); harmless, but say it. Then test 5 can pin all four locs, not two. | CONFIRMED that a `datetime.date` input serializes as `"2020-01-01"` (worktree probe). The mapping is reasoning from `shows.py:80-113`. | The implementer picks locs ad hoc and the contract paragraph can't say what `loc` means for a cross-field rule. | **Fixed.** Step 4 has the site → `loc`/`input` table, including the `jsonable_encoder` note; test 5 pins all four locs. |
 | PR1-6 | nit | Step 5's contract paragraph: (a) FastAPI-raised items also carry `ctx` (e.g. `{"le": 2147483647}`), so the documented item shape is `{type, loc, msg, input, ctx?}`, which matches the generated `ValidationError` (`api-types.ts:456-464`, `input?`); hand-raised items have no `ctx`. (b) Name the section ("§3 Conventions, new 'Errors' subsection" rather than "§2/§3"). (c) In `api-contract.md` the decisions must be written `PQR1-5-D1` / `PQR1-5-D2`, not `D1`/`D2`; `make designation-check` would fail the PR otherwise. | CONFIRMED: the `ctx` key appears in the probes' `less_than_equal` / `greater_than_equal` bodies; designation rule from `AGENTS.md` "Cross-references carry a scope". | A client written to the contract's exact four-key shape is surprised by `ctx`; a bare `D1` in the contract fails CI. | **Fixed.** Step 5 names §3 Conventions, documents `ctx?`, and requires `PQR1-5-D1` / `PQR1-5-D2` in the contract. |
 
-Rejected: none. All six findings were accepted. (PR1-3's choice between capping the frontend list and accepting the error
-page is left to Ari as part of D2, with a recommendation.)
+Rejected: none. All six findings were accepted. (PR1-3 was then overtaken by Ari's decision of no list cap, recorded in D2.)
 
 ## Implementation log
 
