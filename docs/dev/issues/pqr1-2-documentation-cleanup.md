@@ -8,7 +8,7 @@
 **Tier:** T0 — a comment-only pass (syntax trees compared before and after) plus a new README; no code behavior changes
 **Author model:** Claude Opus 5.5 (record, comment pass and README, November 6, 2026; cloud session)
 **Reviewer model:** Claude Sonnet 5.5 (code review round 1, November 6, 2026)
-**Branch / PR:** `claude/happy-knuth-edh3br` (designated by the cloud session, restarted from `main` after PR 93 merged; a fast-forward) / PR link once opened
+**Branch / PR:** `claude/happy-knuth-edh3br` (designated by the cloud session, restarted from `main` after PR 93 merged; a fast-forward) / [PR 94](https://github.com/arikoinuma/agentic-live-music-calendar/pull/94)
 
 **Designations.** Review items here are bare (`CR1-2`). Outside this record they are `PQR1-2-CR1-2`
 (`docs/dev/issues/README.md`, `docs/dev/conventions.md`).
