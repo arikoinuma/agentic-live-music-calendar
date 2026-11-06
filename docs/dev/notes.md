@@ -794,3 +794,15 @@ move to the previous evening if converted, so a midnight in its own offset is re
 check compares the extraction with the visible dates and so fires on exactly this page (C6.1-D10); and the island's `title`
 omits the "with …" line the page prints, which carries the support acts (C6.1-D8). A browser fetch in the metro timezone is
 the general fix and is deferred (`arch-initial.md` Section 10).
+
+## The act splitter's empty list is both the exclusion rule and the miss (C6.1)
+
+Found on Icehouse (November 5, 2026). `act_split` returns `[]` for a title it judges not to be a music show, and validation
+leaves that listing out with an `excluded_no_acts` warning. The same `[]` correctly drops a karaoke night and wrongly drops
+"The 90's Rewind" (a themed night with a DJ and a showtime), a showcase presented by a promoter, and a `NAME PRESENTS: THE X
+SHOW` listing. Page size is not the cause (chunking changed nothing). A prompt rule that taught the splitter to keep themed
+nights fixed all three and took the gated set from 0 to 9 wrong acts, because it also made the splitter add the night's name
+as an extra act on listings that already name performers. It was reverted; the exact wording and the numbers are kept in
+`c6.1-embedded-events-reader.md` (Implementation log, Round 7) so it can be tried again in a narrower form. Meanwhile the
+validate step's audit row lists every excluded listing, and `excluded_listings` in `audit-queries.sql` reads them back, so a
+missed show can be found. The planned fix is detail-page extraction, which gives the model one show at a time.

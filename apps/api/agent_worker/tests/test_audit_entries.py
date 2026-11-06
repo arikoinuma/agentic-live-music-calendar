@@ -32,6 +32,7 @@ from agent_worker.audit import (
 from agent_worker.commit import CommitResult, ShowFailure, ShowOp, build_ops
 from agent_worker.policy import AttemptPlan, AttemptRecord
 from agent_worker.reconcile import Action, Coverage, ReconcilePlan, ShowDecision
+from agent_worker.schemas import ShowExtraction, VenuePageExtraction
 from agent_worker.state import VenueGraphState
 from agent_worker.tests.reconcile_support import URL, at, day, listed, plan_for, stored
 from agent_worker.validation import (
@@ -246,6 +247,53 @@ def test_validate_detail_records_verdict_reasons_messages_and_counts() -> None:
     assert detail["reasons"] == ["check_errors", "low_confidence"]
     assert detail["errors"] == ["date is two years out"]
     assert (detail["warnings"], detail["repairs"], detail["excluded"]) == (1, 1, 1)
+
+
+def test_the_validate_row_names_each_listing_that_was_left_out() -> None:
+    # Proves (C6.1-D17): a listing validation excluded (no act named, or a date outside the window) is
+    # recorded by what it was (date, time, its verbatim listing text, why), not only counted. A show the
+    # act splitter gave no acts used to vanish into the count "excluded: 1"; this is how a person finds
+    # The 90's Rewind-style miss afterwards. Expected values are the literals fed in below.
+    extraction_ = VenuePageExtraction(page_readable=True, shows=[
+        ShowExtraction.model_validate({
+            "venue": "V", "date": datetime.date(2026, 11, 7), "time": "20:00", "acts": [], "is_ambiguous": False,
+            "confidence": 0.9,
+        }),
+        ShowExtraction.model_validate({
+            "venue": "V", "date": datetime.date(2026, 11, 8), "time": None, "acts": [{"name": "Band"}],
+            "is_ambiguous": False, "confidence": 0.9,
+        }),
+    ])
+    result = passed_validation(
+        findings=[Finding(CheckCode.EXCLUDED_NO_ACTS, Severity.WARNING, "show 0 names no act", 0)], excluded=[0],
+    )
+    state = base_state(
+        attempt_count=1, last_plan=PLAN, route_attempted="model", validation=result, extraction=extraction_,
+        extraction_notes={"titles": ["The Rewind\n7pm DJ | 8pm Showtime", "Band"]},
+    )
+    detail = entry_for(StepType.VALIDATE, state).detail
+    assert detail["excluded_listings"] == [{
+        "date": "2026-11-07", "time": "20:00:00", "title": "The Rewind\n7pm DJ | 8pm Showtime",
+        "reason": "excluded_no_acts",
+    }]
+
+
+def test_a_long_listing_text_is_cut_and_a_missing_extraction_does_not_break_the_row() -> None:
+    # Proves: the title stored in the trail is cut at 200 characters (a whole description would bloat
+    # every run's row), and a state with no extraction (the older tests build one) still gets a row, with
+    # the exclusion reported by position only.
+    long_title = "x" * 500
+    extraction_ = VenuePageExtraction(page_readable=True, shows=[ShowExtraction.model_validate({
+        "venue": "V", "date": datetime.date(2026, 11, 7), "acts": [], "is_ambiguous": False, "confidence": 0.9,
+    })])
+    with_titles = base_state(
+        attempt_count=1, last_plan=PLAN, route_attempted="model", extraction=extraction_,
+        validation=passed_validation(findings=[], excluded=[0]), extraction_notes={"titles": [long_title]},
+    )
+    [listing] = entry_for(StepType.VALIDATE, with_titles).detail["excluded_listings"]
+    assert len(listing["title"]) == 200 and listing["time"] is None
+    bare = base_state(attempt_count=1, last_plan=PLAN, route_attempted="model", validation=passed_validation())
+    assert entry_for(StepType.VALIDATE, bare).detail["excluded_listings"] == [{"index": 3}]
 
 
 # ---------------------------------------------------------------------------

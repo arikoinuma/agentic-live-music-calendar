@@ -4,7 +4,7 @@
 -- HOW TO RUN ONE (from the repo root; psql runs inside the container, so the file is piped in):
 --     cat docs/dev/audit-queries.sql | docker compose exec -T postgres psql -U postgres -d calendar_dev \
 --         -v run_id=3 -v show_id=12 -f -
---   That runs all six queries. For one query, paste it into `make db-shell` after
+--   That runs all seven queries. For one query, paste it into `make db-shell` after
 --     \set run_id 3
 --     \set show_id 12
 --   (`\i` doesn't work here: it reads the file from inside the container, which doesn't have the repo.)
@@ -17,8 +17,10 @@
 --   extract   tier, route, error, staging_id (the MongoDB document), shows, larger_model_used,
 --             models ({page, splitter, status}: the model each kind of call used on this route, null where the route
 --             makes no such call; `model_used` on the row is the page model)
---   validate  route, verdict, reasons, errors, warnings, repairs, excluded, visible_unmatched_dates (embedded-events
---             pages only: upcoming dates the visible text names that no event falls on; null for other routes)
+--   validate  route, verdict, reasons, errors, warnings, repairs, excluded, excluded_listings (one {date, time, title,
+--             reason} per listing left out: the listing's text cut at 200 characters, and why; C6.1-D17),
+--             visible_unmatched_dates (embedded-events pages only: upcoming dates the visible text names that no event
+--             falls on; null for other routes)
 --   reconcile summary   counts (per action), coverage ({start, end} the removals were judged inside, or null),
 --                       needs_review and withheld (lists of {action, date, time, stored_id, acts, reason}),
 --                       artists (resolutions per outcome), model_decisions
@@ -167,3 +169,26 @@ WHERE al.step_type = 'commit'
   AND al.entity_type = 'show'
   AND al.detail ->> 'error' IS NOT NULL
 ORDER BY al.id DESC;
+
+-- name: excluded_listings
+-- "Which listings did validation leave out, and was one of them a real show?" Every listing excluded in each run's
+-- LAST validate attempt (the one whose shows were kept), newest run first. reason is excluded_no_acts (the act
+-- splitter named no act: a real show it missed looks exactly like a karaoke night here, so read listing_text) or
+-- date_out_of_window. listing_text is the listing's verbatim text, cut at 200 characters; it is null on a route that
+-- has no verbatim titles. C6.1-D17: nothing else records which listing it was, only that one was excluded.
+SELECT r.id AS run_id,
+       v.name AS venue,
+       r.started_at,
+       l ->> 'date'   AS listing_date,
+       l ->> 'time'   AS listing_time,
+       l ->> 'reason' AS reason,
+       l ->> 'title'  AS listing_text
+FROM audit_log al
+JOIN agent_run r ON r.id = al.run_id
+JOIN venue v ON v.id = r.venue_id
+CROSS JOIN LATERAL jsonb_array_elements(COALESCE(al.detail -> 'excluded_listings', CAST('[]' AS jsonb))) AS l
+WHERE al.step_type = 'validate'
+  AND al.attempt_number = (
+        SELECT max(x.attempt_number) FROM audit_log x WHERE x.run_id = al.run_id AND x.step_type = 'validate'
+      )
+ORDER BY r.started_at DESC, r.id DESC, l ->> 'date', l ->> 'time';

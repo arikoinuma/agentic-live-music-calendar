@@ -42,6 +42,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agent_worker.commit import CommitResult, ShowFailure, ShowOp, summary_counts
 from agent_worker.state import VenueGraphState
+from agent_worker.validation import CheckCode
 from app.config import AppEnv
 from app.db.models import AgentRun, AuditLog
 from app.enums import AuditOutcome, AuditSource, EntityType, RunTrigger, StepType
@@ -131,6 +132,42 @@ def attempt_number(step: StepType, state: VenueGraphState) -> int:
     return max(1, state.attempt_count)
 
 
+# How much of a listing's verbatim text the trail keeps. A listing's text can run to its whole description; the
+# first 200 characters name the show and keep each run's row small.
+_LISTING_TEXT_CHARS = 200
+
+
+def _excluded_listings(state: VenueGraphState) -> list[dict[str, Any]]:
+    """What validation left out, one entry per excluded show: its date, time, listing text and why (C6.1-D17).
+
+    The date and time come from the extracted show at that position, the text from the route's verbatim titles when
+    they line up with the shows (the title-split route; elsewhere there is none), and the reason from the finding
+    that excluded it. A state with no extraction yields the position only, so the row is still written.
+    """
+    result = state.validation
+    if result is None:
+        return []
+    shows = state.extraction.shows if state.extraction else []
+    raw_titles = state.extraction_notes.get("titles")
+    titles = raw_titles if isinstance(raw_titles, list) and len(raw_titles) == len(shows) else None
+    reasons = {
+        f.show_index: f.code.value for f in result.findings
+        if f.show_index is not None and f.code in (CheckCode.EXCLUDED_NO_ACTS, CheckCode.DATE_OUT_OF_WINDOW)
+    }
+    listings: list[dict[str, Any]] = []
+    for index in result.excluded:
+        if index >= len(shows):
+            listings.append({"index": index})
+            continue
+        show = shows[index]
+        listings.append({
+            "date": show.date, "time": show.time,
+            "title": titles[index][:_LISTING_TEXT_CHARS] if titles else None,
+            "reason": reasons.get(index),
+        })
+    return listings
+
+
 def _detail(step: StepType, state: VenueGraphState, staging_id: str | None) -> dict[str, Any]:
     """The step's evidence, as plain data that goes into the JSONB `detail` column."""
     plan = state.last_plan
@@ -163,6 +200,10 @@ def _detail(step: StepType, state: VenueGraphState, staging_id: str | None) -> d
                 "warnings": len(result.warnings) if result else 0,
                 "repairs": len(result.repairs) if result else 0,
                 "excluded": len(result.excluded) if result else 0,
+                # C6.1-D17: WHICH listings were left out, not only how many. A listing the act splitter gave no
+                # acts is excluded with a warning and never reaches the calendar, so this is the only place a
+                # missed show can be found afterwards (docs/dev/audit-queries.sql, `excluded_listings`).
+                "excluded_listings": _excluded_listings(state),
                 # Events read from a page's embedded data only (C6.1-D10, C6.1-CR1-1): the visible dates no event falls on.
                 # None = the check did not apply to this route, which is not the same as zero.
                 "visible_unmatched_dates": result.visible_unmatched_dates if result else None,
