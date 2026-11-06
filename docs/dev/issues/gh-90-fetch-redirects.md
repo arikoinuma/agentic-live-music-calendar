@@ -11,7 +11,7 @@ one the issue names, and nothing touches the contract, a migration or a conventi
 **Reviewer model:** Claude Opus 5.5 (code review round 1, November 6, 2026). A separate instance with no author context,
 but the same model as the author: Ari asked for "another Opus" as the reviewer when he started this run, which departs
 from `AGENTS.md`'s different-model rule for this run only. The PR body says so at the top for him to confirm (CR1-3).
-**Branch / PR:** `claude/happy-knuth-edh3br` (designated by the cloud session, restarted from `main` after PR 91 merged) / PR link once opened
+**Branch / PR:** `claude/happy-knuth-edh3br` (designated by the cloud session, restarted from `main` after PR 91 merged) / [PR 92](https://github.com/arikoinuma/agentic-live-music-calendar/pull/92)
 
 **Designations.** Review items here are bare (`CR1-2`). Outside this record they are `GH-90-CR1-2`
 (`docs/dev/issues/README.md`, `docs/dev/conventions.md`).

@@ -230,7 +230,7 @@ each one. `/resolve-issue` updates a row when its PR opens (`docs/dev/issues/REA
 | PQR1-1 | High | S | Code is not auto-formatted, and CI doesn't check it | Open | | |
 | PQR1-2 | High | S | Tutorial scaffolding and stale "not yet" comments remain in the most-read files | Open | | |
 | PQR1-3 | High | S | `apps/api/README.md` is an empty file | Open | | |
-| PQR1-4 | High (latent bug) | S | The fetch does not follow redirects, so a venue page that redirects can never be fetched | Open | | |
+| PQR1-4 | High (latent bug) | S | The fetch does not follow redirects, so a venue page that redirects can never be fetched | In PR (also GH-90) | [PR 92](https://github.com/arikoinuma/agentic-live-music-calendar/pull/92) | `docs/dev/issues/gh-90-fetch-redirects.md` |
 | PQR1-5 | Medium | S | An out-of-range id is a 500, not a 404 or 422 | Open | | |
 | PQR1-6 | Medium | S | Four modules break the repo's own "every module opens with a docstring" rule | Open | | |
 | PQR1-7 | Medium | S | Only ruff's default rules are on | Open | | |
