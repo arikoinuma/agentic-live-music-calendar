@@ -161,7 +161,9 @@ def check_select(sql: str) -> None:
 def delete_branch(run: Runner, neonctl: str, project_id: str, name: str) -> None:
     """Delete a rehearsal branch. Refuses any name that is not one (see BRANCH_PREFIX)."""
     if not name.startswith(BRANCH_PREFIX) or name == BRANCH_PREFIX:
-        raise RehearsalError(f"refusing to delete {name!r}: only branches named {BRANCH_PREFIX}* are rehearsal branches")
+        raise RehearsalError(
+            f"refusing to delete {name!r}: only branches named {BRANCH_PREFIX}* are rehearsal branches"
+        )
     _run(run, neonctl, [neonctl, "branches", "delete", name, "--project-id", project_id])
 
 
@@ -282,7 +284,9 @@ def rehearse(
         return host, database, connection_password(out.stdout)
 
     try:
-        say(f"Rehearsing the {env} migration on a copy of {parent_name or 'the default branch'} (project {project_id}).")
+        say(
+            f"Rehearsing the {env} migration on a copy of {parent_name or 'the default branch'} (project {project_id})."
+        )
         parent_host, _, _ = owner_connection(parent_name)
 
         create = ["branches", "create", "--name", name]
@@ -294,7 +298,10 @@ def rehearse(
         create += ["--no-secrets"]  # do not print the new branch's credentials into our output
         neon(*create)
         created = True
-        say(f"Created branch {name}" + (f", which Neon deletes by itself at {expiry}." if expiry else " (no expiry set)."))
+        say(
+            f"Created branch {name}"
+            + (f", which Neon deletes by itself at {expiry}." if expiry else " (no expiry set).")
+        )
 
         host, database, owner_password = owner_connection(name)
         target = (host, database, owner_password)
@@ -359,7 +366,7 @@ def _diagnose_login(
     """The environment role could not log in to the copy. Ask the copy, as its OWNER, whether the role is there, and say
     which of the possible causes it is. `role` comes from ROLE_FOR_ENV (an allowlist), so it is safe to put in the SQL."""
     host, database, owner_password = target
-    sql = f"select rolcanlogin from pg_roles where rolname = '{role}'"
+    sql = f"select rolcanlogin from pg_roles where rolname = '{role}'"  # noqa: S608 - `role` is from the allowlist
     try:
         rows = query(database_url(host, database, OWNER_ROLE, owner_password), sql)
     except RehearsalError as err:
@@ -414,7 +421,7 @@ API_DIR = Path(__file__).resolve().parents[1]
 
 def run_command(argv: list[str], *, env: dict[str, str] | None = None, cwd: Path | None = None) -> RunResult:
     """Run a real command with the inherited environment plus `env` (this is where DATABASE_URL reaches Alembic)."""
-    done = subprocess.run(  # argv is a list built by rehearse(), run without a shell
+    done = subprocess.run(  # noqa: S603 - argv is a list built by rehearse(), run without a shell
         argv, env={**os.environ, **(env or {})}, cwd=cwd, capture_output=True, text=True, check=False
     )
     return RunResult(done.returncode, done.stdout, done.stderr)
@@ -423,12 +430,20 @@ def run_command(argv: list[str], *, env: dict[str, str] | None = None, cwd: Path
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Rehearse the pending migrations on a throwaway Neon branch.")
     parser.add_argument("env", choices=sorted(ROLE_FOR_ENV), help="the environment whose migration to rehearse")
-    parser.add_argument("--project-id", default=os.environ.get("NEON_PROJECT_ID"), help="Neon project id (or NEON_PROJECT_ID)")
-    parser.add_argument("--parent", help="branch to copy (default: dev -> dev, staging -> staging, prod -> the default branch)")
+    parser.add_argument(
+        "--project-id", default=os.environ.get("NEON_PROJECT_ID"), help="Neon project id (or NEON_PROJECT_ID)"
+    )
+    parser.add_argument(
+        "--parent", help="branch to copy (default: dev -> dev, staging -> staging, prod -> the default branch)"
+    )
     parser.add_argument("--sql", help="one SELECT to run after the upgrade, for example: select slug from metro")
     parser.add_argument("--keep", action="store_true", help="do not delete the branch afterwards (it still expires)")
-    parser.add_argument("--ttl-minutes", type=int, default=120, help="Neon deletes the branch by itself after this long (default 120)")
-    parser.add_argument("--no-expiry", action="store_true", help="do not set an expiry (if your Neon plan rejects --expires-at)")
+    parser.add_argument(
+        "--ttl-minutes", type=int, default=120, help="Neon deletes the branch by itself after this long (default 120)"
+    )
+    parser.add_argument(
+        "--no-expiry", action="store_true", help="do not set an expiry (if your Neon plan rejects --expires-at)"
+    )
     args = parser.parse_args(argv)
 
     if not args.project_id:

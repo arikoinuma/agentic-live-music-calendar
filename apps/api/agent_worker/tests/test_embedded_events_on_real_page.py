@@ -75,21 +75,45 @@ def test_the_page_takes_the_structured_route_and_validation_does_not_send_it_to_
     html = _PATH.read_text()
     events = extraction.usable_events(html)
     assert events and events[0]["_source"] == "astro-island"
-    state = VenueGraphState(venue_id=1, venue_name="The Hook & Ladder", calendar_url="https://v.example/", metro_timezone=CHICAGO, page_html=html)
-    assert nodes._route_for(state, SimpleNamespace(config=replace(extraction.PIPELINE_CONFIG, route="auto"))) == "structured"  # type: ignore[arg-type]
+    state = VenueGraphState(
+        venue_id=1,
+        venue_name="The Hook & Ladder",
+        calendar_url="https://v.example/",
+        metro_timezone=CHICAGO,
+        page_html=html,
+    )
+    plan = SimpleNamespace(config=replace(extraction.PIPELINE_CONFIG, route="auto"))
+    assert nodes._route_for(state, plan) == "structured"  # type: ignore[arg-type]
     shows = [jsonld.to_structured_show(e, CHICAGO) for e in events]
-    page = VenuePageExtraction(page_readable=True, shows=[
-        ShowExtraction.model_validate({
-            "venue": "The Hook & Ladder", "date": s.date, "time": s.time, "end_time": None,
-            "acts": [{"name": s.title}], "is_ambiguous": False, "confidence": 1.0, "status": s.status,
-        }) for s in shows
-    ])
+    page = VenuePageExtraction(
+        page_readable=True,
+        shows=[
+            ShowExtraction.model_validate(
+                {
+                    "venue": "The Hook & Ladder",
+                    "date": s.date,
+                    "time": s.time,
+                    "end_time": None,
+                    "acts": [{"name": s.title}],
+                    "is_ambiguous": False,
+                    "confidence": 1.0,
+                    "status": s.status,
+                }
+            )
+            for s in shows
+        ],
+    )
     notes = {
-        "structured_source": "astro-island", "titles": [s.title for s in shows],
+        "structured_source": "astro-island",
+        "titles": [s.title for s in shows],
         "slugs": [e.get("_slug") for e in events],
     }
     result, _ = validation.validate_extraction(
-        page, source="structured", notes=notes, fetched_on=FETCHED, page_html=html,
+        page,
+        source="structured",
+        notes=notes,
+        fetched_on=FETCHED,
+        page_html=html,
         page_text=clean_text(html, keep_line_breaks=False),
     )
     assert validation.CheckCode.JSONLD_UNDER_REPORTED not in [f.code for f in result.findings]
@@ -98,8 +122,16 @@ def test_the_page_takes_the_structured_route_and_validation_does_not_send_it_to_
     verdict = policy.combine(result, policy.RetryPolicy())
     assert verdict.verdict is validation.Verdict.PASSED  # the attempt passes: it is not sent to the model route
     record = policy.AttemptRecord(
-        attempt=1, tier="primary", model="m", route="structured", error=None, verdict=validation.Verdict.PASSED,
-        reasons=verdict.reasons, findings=verdict.errors, confidence=None, error_count=len(verdict.errors),
+        attempt=1,
+        tier="primary",
+        model="m",
+        route="structured",
+        error=None,
+        verdict=validation.Verdict.PASSED,
+        reasons=verdict.reasons,
+        findings=verdict.errors,
+        confidence=None,
+        error_count=len(verdict.errors),
         warning_count=len(verdict.warnings),
     )
     assert not policy.route_falls_back(record)

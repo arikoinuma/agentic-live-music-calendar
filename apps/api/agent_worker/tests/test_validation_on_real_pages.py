@@ -58,7 +58,11 @@ EXPECTED: dict[str, tuple[int, int, list[tuple[str, str]]]] = {
     "Archives_ Events - The White Squirrel Bar.html": (12, 12, []),
     "white_squirrel-2026-10-10.html": (12, 11, []),  # one non-music event the splitter left empty
     "seventh_st_entry-2026-10-10.html": (30, 30, []),
-    "mortimers-2026-10-10.html": (18, 5, []),  # 13 listings name no act; two of them are real shows (the gate's `missed: 2`)
+    "mortimers-2026-10-10.html": (
+        18,
+        5,
+        [],
+    ),  # 13 listings name no act; two of them are real shows (the gate's `missed: 2`)
     "terminal-2026-10-10.html": (14, 14, []),
     "Terminal Bar – The Terminal Bar.html": (8, 6, []),
     "Events — Zhora Darling.html": (24, 23, []),
@@ -88,8 +92,12 @@ def replay(run: dict[str, Any]) -> tuple[validation.ValidationResult, list[Any]]
         # The stored JSON-LD runs predate `notes["titles"]`; the numbered titles that were sent are the same list.
         notes["titles"] = [line.split(": ", 1)[1] for line in run["sent_text"].split("\n")]
     result, kept = validation.validate_extraction(
-        VenuePageExtraction.model_validate(run["extraction"]), source=policy.stored_route(run["source"]), notes=notes,  # type: ignore[arg-type]  # a stored name; the old "jsonld" reads as "structured"
-        fetched_on=label.captured_on, page_html=html, page_text="" if is_image else clean_text(html, False),
+        VenuePageExtraction.model_validate(run["extraction"]),
+        source=policy.stored_route(run["source"]),  # type: ignore[arg-type]  # a stored name; the old "jsonld" reads as "structured"
+        notes=notes,
+        fetched_on=label.captured_on,
+        page_html=html,
+        page_text="" if is_image else clean_text(html, False),
     )
     return combine(result, DEFAULT_POLICY), kept
 
@@ -120,7 +128,9 @@ def test_every_excluded_show_on_a_real_page_is_reported_with_a_warning() -> None
 
 
 @needs_data
-@pytest.mark.parametrize("fixture", ["Archives_ Events - The White Squirrel Bar.html", "white_squirrel-2026-10-10.html"])
+@pytest.mark.parametrize(
+    "fixture", ["Archives_ Events - The White Squirrel Bar.html", "white_squirrel-2026-10-10.html"]
+)
 def test_the_json_ld_under_report_guard_does_not_fire_on_the_real_white_squirrel_pages(fixture: str) -> None:
     # Proves: the evidence the threshold of 3 was chosen from. Built from the page's own JSON-LD, with no
     # model: events -> structured shows -> the guard. Both captures' text names exactly the dates their
@@ -128,10 +138,15 @@ def test_the_json_ld_under_report_guard_does_not_fire_on_the_real_white_squirrel
     html = (FIXTURES / fixture).read_text()
     events = [e for e in jsonld.find_events(html) if e.get("startDate") and e.get("name")]
     structured = [jsonld.to_structured_show(e, "America/Chicago") for e in events]
-    extraction = VenuePageExtraction.model_validate({"page_readable": True, "shows": [
-        {"venue": "V", "date": s.date, "acts": [{"name": s.title}], "is_ambiguous": False, "confidence": 1.0}
-        for s in structured
-    ]})
+    extraction = VenuePageExtraction.model_validate(
+        {
+            "page_readable": True,
+            "shows": [
+                {"venue": "V", "date": s.date, "acts": [{"name": s.title}], "is_ambiguous": False, "confidence": 1.0}
+                for s in structured
+            ],
+        }
+    )
     findings = validation.check_under_reported(extraction, clean_text(html, False), PAGE_LABELS[fixture].captured_on)
     assert findings == []
 
@@ -145,7 +160,8 @@ def test_act_not_in_title_catches_a_real_wrong_act_in_the_current_pipelines_run(
     if not A3_CONFIRM.exists():
         pytest.skip("a3-confirm.json is not present (produced by the A3 build's gated eval run)")
     run = next(
-        r for r in json.loads(A3_CONFIRM.read_text())["runs"]
+        r
+        for r in json.loads(A3_CONFIRM.read_text())["runs"]
         if r["run"] == 0 and r["fixture"] == "seventh_st_entry-2026-10-10.html"
     )
     result, _ = replay(run)

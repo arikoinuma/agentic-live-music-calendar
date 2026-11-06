@@ -23,8 +23,17 @@ NOT_PRODUCTION_FILES = {"local_test.py"}
 
 # pymongo collection methods that return documents or counts of them. `find` is separate (below), because
 # `str.find` is everywhere.
-MONGO_READS = {"find_one", "find_one_and_update", "find_one_and_delete", "find_one_and_replace",
-               "aggregate", "count_documents", "estimated_document_count", "distinct", "watch"}
+MONGO_READS = {
+    "find_one",
+    "find_one_and_update",
+    "find_one_and_delete",
+    "find_one_and_replace",
+    "aggregate",
+    "count_documents",
+    "estimated_document_count",
+    "distinct",
+    "watch",
+}
 
 
 def mongo_reads(source: str) -> list[tuple[int, str]]:

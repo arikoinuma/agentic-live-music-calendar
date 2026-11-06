@@ -62,7 +62,10 @@ def test_coverage_a_page_level_error_covers_a_show_nothing_was_returned_for() ->
     # Proves: C5-K4. A missed show with no returned show (index None) can only be noticed by a page-level finding
     # (`show_index` None), such as the JSON-LD under-report check.
     error = ErrorItem("missed", "2026-10-11", None)
-    assert recall.coverage(error, [finding(CheckCode.JSONLD_UNDER_REPORTED, Severity.ERROR, None)]) is recall.Coverage.CAUGHT
+    assert (
+        recall.coverage(error, [finding(CheckCode.JSONLD_UNDER_REPORTED, Severity.ERROR, None)])
+        is recall.Coverage.CAUGHT
+    )
 
 
 def test_coverage_a_missed_show_with_no_page_level_finding_is_silent() -> None:
@@ -77,7 +80,8 @@ def test_coverage_a_show_the_splitter_dropped_is_caught_by_the_finding_on_its_re
     # `excluded_no_acts` (a warning). Both sit on index 2, so the error is caught.
     error = ErrorItem("missed", "2026-10-11", 2)
     findings = [
-        finding(CheckCode.SPLITTER_DROPPED, Severity.ERROR, 2), finding(CheckCode.EXCLUDED_NO_ACTS, Severity.WARNING, 2),
+        finding(CheckCode.SPLITTER_DROPPED, Severity.ERROR, 2),
+        finding(CheckCode.EXCLUDED_NO_ACTS, Severity.WARNING, 2),
     ]
     assert recall.coverage(error, findings) is recall.Coverage.CAUGHT
 
@@ -119,14 +123,19 @@ D = datetime.date
 T = datetime.time
 TWO_EVENTS = jsonld_page(event("Nona", "2026-10-20T21:00:00-05:00"), event("Lent", "2026-10-21T21:00:00-05:00"))
 LABEL = PageLabel(
-    venue="test_venue", gated=True, captured_on=fakes.FETCHED, shows=(
-        LabelledShow(D(2026, 10, 20), ("Nona",), "Nona", T(21, 0)), LabelledShow(D(2026, 10, 21), ("Lent",), "Lent", T(21, 0)),
+    venue="test_venue",
+    gated=True,
+    captured_on=fakes.FETCHED,
+    shows=(
+        LabelledShow(D(2026, 10, 20), ("Nona",), "Nona", T(21, 0)),
+        LabelledShow(D(2026, 10, 21), ("Lent",), "Lent", T(21, 0)),
     ),
 )
 
 
 async def test_recomputed_error_findings_equal_the_recorded_ones_on_every_attempt(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves: C5-PR1-6. `AttemptRecord.findings` holds the error findings only and nothing stores an earlier attempt's
     # warnings, so the harness recomputes every attempt's findings with the pure `validate_extraction` from the staged

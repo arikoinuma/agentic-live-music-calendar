@@ -82,9 +82,18 @@ def audit_row(entry: AuditEntry) -> AuditLog:
     transaction), so a column added to the table is added in one place.
     """
     return AuditLog(
-        run_id=entry.run_id, attempt_number=entry.attempt_number, step_type=entry.step_type, source=entry.source,
-        entity_type=entry.entity_type, entity_id=entry.entity_id, outcome=entry.outcome, model_used=entry.model_used,
-        confidence=entry.confidence, previous_value=entry.previous_value, new_value=entry.new_value, detail=entry.detail,
+        run_id=entry.run_id,
+        attempt_number=entry.attempt_number,
+        step_type=entry.step_type,
+        source=entry.source,
+        entity_type=entry.entity_type,
+        entity_id=entry.entity_id,
+        outcome=entry.outcome,
+        model_used=entry.model_used,
+        confidence=entry.confidence,
+        previous_value=entry.previous_value,
+        new_value=entry.new_value,
+        detail=entry.detail,
     )
 
 
@@ -116,7 +125,12 @@ def audit_confidence(value: float | None) -> decimal.Decimal | None:
 # model decisions about artists are separate rows (`model_decision_entries`), and commit's rows about a show or an
 # artist are built below, written by the calendar writer.
 _VENUE_LEVEL = {
-    StepType.FETCH, StepType.EXTRACT, StepType.VALIDATE, StepType.RECONCILE, StepType.COMMIT, StepType.ESCALATE,
+    StepType.FETCH,
+    StepType.EXTRACT,
+    StepType.VALIDATE,
+    StepType.RECONCILE,
+    StepType.COMMIT,
+    StepType.ESCALATE,
 }
 # The two steps where a language model made the judgement being recorded: extract (reads the page or
 # splits titles) and validate (the verdict weighs the model's own confidence).
@@ -151,7 +165,8 @@ def _excluded_listings(state: VenueGraphState) -> list[dict[str, Any]]:
     raw_titles = state.extraction_notes.get("titles")
     titles = raw_titles if isinstance(raw_titles, list) and len(raw_titles) == len(shows) else None
     reasons = {
-        f.show_index: f.code.value for f in result.findings
+        f.show_index: f.code.value
+        for f in result.findings
         if f.show_index is not None and f.code in (CheckCode.EXCLUDED_NO_ACTS, CheckCode.DATE_OUT_OF_WINDOW)
     }
     listings: list[dict[str, Any]] = []
@@ -160,11 +175,14 @@ def _excluded_listings(state: VenueGraphState) -> list[dict[str, Any]]:
             listings.append({"index": index})
             continue
         show = shows[index]
-        listings.append({
-            "date": show.date, "time": show.time,
-            "title": titles[index][:_LISTING_TEXT_CHARS] if titles else None,
-            "reason": reasons.get(index),
-        })
+        listings.append(
+            {
+                "date": show.date,
+                "time": show.time,
+                "title": titles[index][:_LISTING_TEXT_CHARS] if titles else None,
+                "reason": reasons.get(index),
+            }
+        )
     return listings
 
 
@@ -235,8 +253,12 @@ def _reconcile_detail(state: VenueGraphState) -> dict[str, Any]:
     def where(decision: Any) -> dict[str, Any]:
         acts = [a.name for a in decision.listing.acts] if decision.listing else None
         return {
-            "action": decision.action, "date": decision.date, "time": decision.start_time,
-            "stored_id": decision.stored_id, "acts": acts, "reason": decision.reason,
+            "action": decision.action,
+            "date": decision.date,
+            "time": decision.start_time,
+            "stored_id": decision.stored_id,
+            "acts": acts,
+            "reason": decision.reason,
         }
 
     outcomes = {"exact": 0, "new": 0, "matched_by_model": 0, "new_after_model": 0}
@@ -269,8 +291,14 @@ def _commit_detail(state: VenueGraphState) -> dict[str, Any]:
     plan = state.reconcile_plan
     result = state.commit_result or CommitResult()
     return {
-        "counts": summary_counts(plan, result) if plan else {
-            "inserted": 0, "updated": 0, "removed": 0, "no_op": 0, "skip": 0,
+        "counts": summary_counts(plan, result)
+        if plan
+        else {
+            "inserted": 0,
+            "updated": 0,
+            "removed": 0,
+            "no_op": 0,
+            "skip": 0,
         },
         "artists_created": result.artists_created,
         "failed": [_failure_dict(f) for f in result.failures],
@@ -280,31 +308,58 @@ def _commit_detail(state: VenueGraphState) -> dict[str, Any]:
 
 
 def show_write_entry(
-    op: ShowOp, *, run_id: int | None, attempt_number: int, show_id: int,
-    previous: dict[str, Any] | None, new: dict[str, Any],
+    op: ShowOp,
+    *,
+    run_id: int | None,
+    attempt_number: int,
+    show_id: int,
+    previous: dict[str, Any] | None,
+    new: dict[str, Any],
 ) -> AuditEntry:
     """The row for a show commit wrote (A6-D1: only writes get one): the outcome, the two snapshots a revert restores,
     and in `detail` why (the reconcile reason), which columns changed, and whether a guess was involved."""
     changed = sorted(op.values) + (["lineup"] if op.lineup is not None else [])
     return AuditEntry(
-        run_id=run_id, attempt_number=attempt_number, step_type=StepType.COMMIT, source=AuditSource.AGENT,
-        entity_type=EntityType.SHOW, entity_id=show_id, outcome=op.outcome, previous_value=previous, new_value=new,
-        detail=to_jsonable_python({
-            "action": op.action, "reconcile_reason": op.reconcile_reason, "changed": changed,
-            "needs_review": op.needs_review,
-        }),
+        run_id=run_id,
+        attempt_number=attempt_number,
+        step_type=StepType.COMMIT,
+        source=AuditSource.AGENT,
+        entity_type=EntityType.SHOW,
+        entity_id=show_id,
+        outcome=op.outcome,
+        previous_value=previous,
+        new_value=new,
+        detail=to_jsonable_python(
+            {
+                "action": op.action,
+                "reconcile_reason": op.reconcile_reason,
+                "changed": changed,
+                "needs_review": op.needs_review,
+            }
+        ),
     )
 
 
 def artist_created_entry(
-    *, run_id: int | None, attempt_number: int, artist_id: int, name: str, key: str,
+    *,
+    run_id: int | None,
+    attempt_number: int,
+    artist_id: int,
+    name: str,
+    key: str,
 ) -> AuditEntry:
     """The row for an artist commit created, in the same transaction as the show that first needed it. Name only
     (requirements: all other artist fields are left for a human)."""
     return AuditEntry(
-        run_id=run_id, attempt_number=attempt_number, step_type=StepType.COMMIT, source=AuditSource.AGENT,
-        entity_type=EntityType.ARTIST, entity_id=artist_id, outcome=AuditOutcome.INSERTED,
-        new_value={"id": artist_id, "name": name}, detail={"name": name, "key": key},
+        run_id=run_id,
+        attempt_number=attempt_number,
+        step_type=StepType.COMMIT,
+        source=AuditSource.AGENT,
+        entity_type=EntityType.ARTIST,
+        entity_id=artist_id,
+        outcome=AuditOutcome.INSERTED,
+        new_value={"id": artist_id, "name": name},
+        detail={"name": name, "key": key},
     )
 
 
@@ -313,8 +368,13 @@ def show_failure_entry(failure: ShowFailure, *, run_id: int | None, attempt_numb
     and its `detail` says WHICH show failed (an insert has no id yet) and why. Written outside the rolled-back
     transaction, through `AuditWriter.record`."""
     return AuditEntry(
-        run_id=run_id, attempt_number=attempt_number, step_type=StepType.COMMIT, source=AuditSource.AGENT,
-        entity_type=EntityType.SHOW, entity_id=failure.stored_id, detail=to_jsonable_python(_failure_dict(failure)),
+        run_id=run_id,
+        attempt_number=attempt_number,
+        step_type=StepType.COMMIT,
+        source=AuditSource.AGENT,
+        entity_type=EntityType.SHOW,
+        entity_id=failure.stored_id,
+        detail=to_jsonable_python(_failure_dict(failure)),
     )
 
 
@@ -332,16 +392,25 @@ def model_decision_entries(state: VenueGraphState) -> list[AuditEntry]:
         return []
     return [
         AuditEntry(
-            run_id=state.run_id, attempt_number=attempt_number(StepType.RECONCILE, state),
-            step_type=StepType.RECONCILE, source=AuditSource.AGENT, entity_type=EntityType.ARTIST,
-            entity_id=resolution.artist_id, model_used=resolution.model_used,
+            run_id=state.run_id,
+            attempt_number=attempt_number(StepType.RECONCILE, state),
+            step_type=StepType.RECONCILE,
+            source=AuditSource.AGENT,
+            entity_type=EntityType.ARTIST,
+            entity_id=resolution.artist_id,
+            model_used=resolution.model_used,
             confidence=audit_confidence(resolution.confidence),
-            detail=to_jsonable_python({
-                "name": resolution.name, "outcome": resolution.outcome, "reason": resolution.reason,
-                "candidates": [{"id": c.id, "name": c.name} for c in resolution.candidates],
-            }),
+            detail=to_jsonable_python(
+                {
+                    "name": resolution.name,
+                    "outcome": resolution.outcome,
+                    "reason": resolution.reason,
+                    "candidates": [{"id": c.id, "name": c.name} for c in resolution.candidates],
+                }
+            ),
         )
-        for resolution in plan.artists if resolution.decided_by == "model"
+        for resolution in plan.artists
+        if resolution.decided_by == "model"
     ]
 
 

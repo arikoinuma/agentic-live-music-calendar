@@ -52,15 +52,21 @@ PLAN = AttemptPlan(tier="initial", config=extraction.PIPELINE_CONFIG, roles=extr
 # A plan with a dated, timed decision and a coverage window, so the JSON check below has dates and enums to convert.
 A_PLAN = ReconcilePlan(
     coverage=Coverage(datetime.date(2026, 10, 12), datetime.date(2026, 10, 31)),
-    shows=(ShowDecision(Action.INSERT, datetime.date(2026, 10, 20), datetime.time(20, 0), "new show", needs_review=True),),
+    shows=(
+        ShowDecision(Action.INSERT, datetime.date(2026, 10, 20), datetime.time(20, 0), "new show", needs_review=True),
+    ),
 )
 
 
 def base_state(**changes: object) -> VenueGraphState:
     """A state as fetch would leave it, for venue 4, run 9."""
     fields: dict[str, object] = {
-        "venue_id": 4, "calendar_url": "https://venue.example/events", "venue_name": "The Venue",
-        "metro_timezone": "America/Chicago", "fetched_on": datetime.date(2026, 10, 12), "run_id": 9,
+        "venue_id": 4,
+        "calendar_url": "https://venue.example/events",
+        "venue_name": "The Venue",
+        "metro_timezone": "America/Chicago",
+        "fetched_on": datetime.date(2026, 10, 12),
+        "run_id": 9,
         "page_content": "x" * 120,
     }
     fields.update(changes)
@@ -71,9 +77,12 @@ def passed_validation(**changes: object) -> ValidationResult:
     """A `ValidationResult` that passed at 0.9 confidence, with one warning, one repair and one excluded show,
     so the validate row's counts have something to count. A test overrides what it needs."""
     fields: dict[str, object] = {
-        "outcome": None, "verdict": Verdict.PASSED, "confidence": 0.9,
+        "outcome": None,
+        "verdict": Verdict.PASSED,
+        "confidence": 0.9,
         "findings": [Finding(CheckCode.AMBIGUOUS, Severity.WARNING, "maybe two shows", 0)],
-        "repairs": [Repair(0, "image_url", "http://x/y.png", "not on the page")], "excluded": [3],
+        "repairs": [Repair(0, "image_url", "http://x/y.png", "not on the page")],
+        "excluded": [3],
     }
     fields.update(changes)
     return ValidationResult(**fields)  # type: ignore[arg-type]
@@ -99,7 +108,6 @@ def test_the_venue_level_steps_act_on_the_venue(step: StepType) -> None:
     # about one show or one artist are separate (see "Commit's other rows" below).
     entry = entry_for(step, base_state(attempt_count=1))
     assert (entry.entity_type, entry.entity_id) == (EntityType.VENUE, 4)
-
 
 
 # ---------------------------------------------------------------------------
@@ -138,8 +146,10 @@ def test_agentic_steps_record_the_model_the_attempt_used(step: StepType) -> None
     # Proves: build plan A4, "on the agentic steps `model_used`": the model name is the attempt's own
     # (`last_plan.options.model`), which on a tier-3 attempt is the larger model when one ran.
     larger = AttemptPlan(
-        tier="larger_model", config=extraction.PIPELINE_CONFIG,
-        roles=PLAN.roles.escalated("the-larger-model"), larger_model_used=True,
+        tier="larger_model",
+        config=extraction.PIPELINE_CONFIG,
+        roles=PLAN.roles.escalated("the-larger-model"),
+        larger_model_used=True,
     )
     assert entry_for(step, base_state(attempt_count=1, last_plan=PLAN)).model_used == PLAN.options.model
     assert entry_for(step, base_state(attempt_count=3, last_plan=larger)).model_used == "the-larger-model"
@@ -172,7 +182,10 @@ def test_a_json_ld_validate_row_has_confidence_none_not_zero() -> None:
     # the record, so the row's confidence is NULL; a 0.000 would read as "the model was certain it was
     # wrong" and corrupt A8's calibration check. The model name is still recorded: the act splitter ran.
     state = base_state(
-        attempt_count=1, last_plan=PLAN, confidence=None, route_attempted="structured",
+        attempt_count=1,
+        last_plan=PLAN,
+        confidence=None,
+        route_attempted="structured",
         validation=passed_validation(confidence=None),
     )
     entry = entry_for(StepType.VALIDATE, state)
@@ -219,7 +232,10 @@ def test_extract_detail_records_route_tier_error_and_the_staging_id() -> None:
     # Proves (A4-D4): `detail.staging_id` is what joins the extract row to its MongoDB document, and a failed
     # attempt's error is on the row. The expected keys are the plan's, spelled out.
     state = base_state(
-        attempt_count=2, last_plan=PLAN, route_attempted="model", extract_error="ValueError: bad json",
+        attempt_count=2,
+        last_plan=PLAN,
+        route_attempted="model",
+        extract_error="ValueError: bad json",
     )
     detail = entry_for(StepType.EXTRACT, state, staging_id="doc-7").detail
     assert detail["staging_id"] == "doc-7"
@@ -233,14 +249,19 @@ def test_validate_detail_records_verdict_reasons_messages_and_counts() -> None:
     # the failure reasons as their string codes, the error messages, and the counts of warnings, repairs
     # and exclusions.
     result = passed_validation(
-        verdict=Verdict.FAILED, confidence=0.4,
+        verdict=Verdict.FAILED,
+        confidence=0.4,
         findings=[
             Finding(CheckCode.DATE_IMPLAUSIBLE, Severity.ERROR, "date is two years out", 1),
             Finding(CheckCode.AMBIGUOUS, Severity.WARNING, "maybe two shows", 0),
         ],
     ).with_verdict(Verdict.FAILED, [FailureReason.CHECK_ERRORS, FailureReason.LOW_CONFIDENCE])
     state = base_state(
-        attempt_count=1, last_plan=PLAN, route_attempted="model", validation=result, confidence=0.4,
+        attempt_count=1,
+        last_plan=PLAN,
+        route_attempted="model",
+        validation=result,
+        confidence=0.4,
     )
     detail = entry_for(StepType.VALIDATE, state).detail
     assert detail["route"] == "model" and detail["verdict"] == "failed"
@@ -254,28 +275,52 @@ def test_the_validate_row_names_each_listing_that_was_left_out() -> None:
     # recorded by what it was (date, time, its verbatim listing text, why), not only counted. A show the
     # act splitter gave no acts used to vanish into the count "excluded: 1"; this is how a person finds
     # The 90's Rewind-style miss afterwards. Expected values are the literals fed in below.
-    extraction_ = VenuePageExtraction(page_readable=True, shows=[
-        ShowExtraction.model_validate({
-            "venue": "V", "date": datetime.date(2026, 11, 7), "time": "20:00", "acts": [], "is_ambiguous": False,
-            "confidence": 0.9,
-        }),
-        ShowExtraction.model_validate({
-            "venue": "V", "date": datetime.date(2026, 11, 8), "time": None, "acts": [{"name": "Band"}],
-            "is_ambiguous": False, "confidence": 0.9,
-        }),
-    ])
+    extraction_ = VenuePageExtraction(
+        page_readable=True,
+        shows=[
+            ShowExtraction.model_validate(
+                {
+                    "venue": "V",
+                    "date": datetime.date(2026, 11, 7),
+                    "time": "20:00",
+                    "acts": [],
+                    "is_ambiguous": False,
+                    "confidence": 0.9,
+                }
+            ),
+            ShowExtraction.model_validate(
+                {
+                    "venue": "V",
+                    "date": datetime.date(2026, 11, 8),
+                    "time": None,
+                    "acts": [{"name": "Band"}],
+                    "is_ambiguous": False,
+                    "confidence": 0.9,
+                }
+            ),
+        ],
+    )
     result = passed_validation(
-        findings=[Finding(CheckCode.EXCLUDED_NO_ACTS, Severity.WARNING, "show 0 names no act", 0)], excluded=[0],
+        findings=[Finding(CheckCode.EXCLUDED_NO_ACTS, Severity.WARNING, "show 0 names no act", 0)],
+        excluded=[0],
     )
     state = base_state(
-        attempt_count=1, last_plan=PLAN, route_attempted="model", validation=result, extraction=extraction_,
+        attempt_count=1,
+        last_plan=PLAN,
+        route_attempted="model",
+        validation=result,
+        extraction=extraction_,
         extraction_notes={"titles": ["The Rewind\n7pm DJ | 8pm Showtime", "Band"]},
     )
     detail = entry_for(StepType.VALIDATE, state).detail
-    assert detail["excluded_listings"] == [{
-        "date": "2026-11-07", "time": "20:00:00", "title": "The Rewind\n7pm DJ | 8pm Showtime",
-        "reason": "excluded_no_acts",
-    }]
+    assert detail["excluded_listings"] == [
+        {
+            "date": "2026-11-07",
+            "time": "20:00:00",
+            "title": "The Rewind\n7pm DJ | 8pm Showtime",
+            "reason": "excluded_no_acts",
+        }
+    ]
 
 
 def test_a_long_listing_text_is_cut_and_a_missing_extraction_does_not_break_the_row() -> None:
@@ -283,12 +328,27 @@ def test_a_long_listing_text_is_cut_and_a_missing_extraction_does_not_break_the_
     # every run's row), and a state with no extraction (the older tests build one) still gets a row, with
     # the exclusion reported by position only.
     long_title = "x" * 500
-    extraction_ = VenuePageExtraction(page_readable=True, shows=[ShowExtraction.model_validate({
-        "venue": "V", "date": datetime.date(2026, 11, 7), "acts": [], "is_ambiguous": False, "confidence": 0.9,
-    })])
+    extraction_ = VenuePageExtraction(
+        page_readable=True,
+        shows=[
+            ShowExtraction.model_validate(
+                {
+                    "venue": "V",
+                    "date": datetime.date(2026, 11, 7),
+                    "acts": [],
+                    "is_ambiguous": False,
+                    "confidence": 0.9,
+                }
+            )
+        ],
+    )
     with_titles = base_state(
-        attempt_count=1, last_plan=PLAN, route_attempted="model", extraction=extraction_,
-        validation=passed_validation(findings=[], excluded=[0]), extraction_notes={"titles": [long_title]},
+        attempt_count=1,
+        last_plan=PLAN,
+        route_attempted="model",
+        extraction=extraction_,
+        validation=passed_validation(findings=[], excluded=[0]),
+        extraction_notes={"titles": [long_title]},
     )
     [listing] = entry_for(StepType.VALIDATE, with_titles).detail["excluded_listings"]
     assert len(listing["title"]) == 200 and listing["time"] is None
@@ -356,7 +416,10 @@ def test_a_written_show_row_has_the_outcome_both_snapshots_and_the_reason() -> N
     snapshot = {"id": 5, "status": "active", "lineup": []}
     entry = show_write_entry(op, run_id=9, attempt_number=1, show_id=5, previous=None, new=snapshot)
     assert (entry.step_type, entry.entity_type, entry.entity_id, entry.outcome) == (
-        StepType.COMMIT, EntityType.SHOW, 5, AuditOutcome.INSERTED,
+        StepType.COMMIT,
+        EntityType.SHOW,
+        5,
+        AuditOutcome.INSERTED,
     )
     assert entry.previous_value is None and entry.new_value == snapshot and entry.run_id == 9
     assert entry.detail["action"] == "insert" and entry.detail["reconcile_reason"] == "new show"
@@ -370,10 +433,16 @@ def test_an_update_and_a_removal_are_named_updated_and_removed() -> None:
         [listed(0, day(20), at(20), acts=["Zhora", "Nona"])],
         [stored(1, day(20), at(20), acts=[(7, "Nona")]), stored(2, day(20), at(22), acts=[(9, "Prince")])],
     )
-    entries = {op.action: show_write_entry(op, run_id=1, attempt_number=1, show_id=op.stored_id or 0, previous={}, new={})
-               for op in build_ops(plan, 4, URL)}
-    assert entries[Action.UPDATE].outcome is AuditOutcome.UPDATED and entries[Action.UPDATE].detail["changed"] == ["lineup"]
-    assert entries[Action.REMOVE].outcome is AuditOutcome.REMOVED and entries[Action.REMOVE].detail["changed"] == ["status"]
+    entries = {
+        op.action: show_write_entry(op, run_id=1, attempt_number=1, show_id=op.stored_id or 0, previous={}, new={})
+        for op in build_ops(plan, 4, URL)
+    }
+    assert entries[Action.UPDATE].outcome is AuditOutcome.UPDATED and entries[Action.UPDATE].detail["changed"] == [
+        "lineup"
+    ]
+    assert entries[Action.REMOVE].outcome is AuditOutcome.REMOVED and entries[Action.REMOVE].detail["changed"] == [
+        "status"
+    ]
 
 
 def test_a_created_artist_row_is_name_only() -> None:
@@ -387,13 +456,20 @@ def test_a_created_artist_row_is_name_only() -> None:
 def test_a_failure_row_has_no_outcome_no_snapshots_and_says_which_show_failed() -> None:
     # Proves (A6-PR2-3): nothing was written, so no outcome and no snapshots; an insert has no id yet, so the show is
     # identified by `detail`: pinned keys.
-    failure = ShowFailure("insert", datetime.date(2026, 10, 20), datetime.time(20, 0), None, "new show", "22003", "boom")
+    failure = ShowFailure(
+        "insert", datetime.date(2026, 10, 20), datetime.time(20, 0), None, "new show", "22003", "boom"
+    )
     entry = show_failure_entry(failure, run_id=9, attempt_number=2)
     assert (entry.entity_type, entry.entity_id, entry.outcome) == (EntityType.SHOW, None, None)
     assert entry.previous_value is None and entry.new_value is None and entry.attempt_number == 2
     assert entry.detail == {
-        "action": "insert", "date": "2026-10-20", "time": "20:00:00", "stored_id": None, "reconcile_reason": "new show",
-        "sqlstate": "22003", "error": "boom",
+        "action": "insert",
+        "date": "2026-10-20",
+        "time": "20:00:00",
+        "stored_id": None,
+        "reconcile_reason": "new show",
+        "sqlstate": "22003",
+        "error": "boom",
     }
 
 
@@ -406,13 +482,20 @@ def test_every_commit_row_is_json_serializable_and_becomes_an_orm_row() -> None:
         artist_created_entry(run_id=9, attempt_number=1, artist_id=31, name="Sunny Day", key="sunny day"),
         show_failure_entry(
             ShowFailure("update", datetime.date(2026, 10, 20), None, 3, "details changed", None, "gone"),
-            run_id=9, attempt_number=1,
+            run_id=9,
+            attempt_number=1,
         ),
     ]
     for entry in entries:
         json.dumps(entry.detail)
     row = audit_row(entries[0])
-    assert (row.run_id, row.step_type, row.entity_id, row.outcome, row.new_value) == (9, StepType.COMMIT, 5, AuditOutcome.INSERTED, {"id": 5})
+    assert (row.run_id, row.step_type, row.entity_id, row.outcome, row.new_value) == (
+        9,
+        StepType.COMMIT,
+        5,
+        AuditOutcome.INSERTED,
+        {"id": 5},
+    )
 
 
 def test_escalate_is_a_real_row_with_the_reason_and_the_escalated_outcome() -> None:
@@ -435,14 +518,33 @@ def test_every_entrys_detail_is_json_serializable(step: StepType) -> None:
     # production, mid-run. A fully loaded state (dates, enum reasons, findings, repairs, an attempt
     # record) goes through `json.dumps` for each step.
     record = AttemptRecord(
-        attempt=1, tier="initial", model="m", route="model", error=None, verdict=Verdict.PASSED, reasons=[],
-        findings=[], confidence=0.9, error_count=0, warning_count=1,
+        attempt=1,
+        tier="initial",
+        model="m",
+        route="model",
+        error=None,
+        verdict=Verdict.PASSED,
+        reasons=[],
+        findings=[],
+        confidence=0.9,
+        error_count=0,
+        warning_count=1,
     )
     state = base_state(
-        attempt_count=1, last_plan=PLAN, route_attempted="model", validation=passed_validation(),
-        attempt_history=[record], escalation_reason="why", reconcile_plan=A_PLAN, confidence=0.9,
+        attempt_count=1,
+        last_plan=PLAN,
+        route_attempted="model",
+        validation=passed_validation(),
+        attempt_history=[record],
+        escalation_reason="why",
+        reconcile_plan=A_PLAN,
+        confidence=0.9,
         commit_result=CommitResult(
-            failures=(ShowFailure("insert", datetime.date(2026, 10, 20), datetime.time(20, 0), None, "new show", "22003", "x"),),
+            failures=(
+                ShowFailure(
+                    "insert", datetime.date(2026, 10, 20), datetime.time(20, 0), None, "new show", "22003", "x"
+                ),
+            ),
             total_ops=1,
         ),
     )
@@ -466,7 +568,17 @@ def test_validate_detail_records_the_visible_unmatched_dates_count() -> None:
     # `audit-queries.sql`), or it vanishes when validation returns. Other sources record None, not 0: "not
     # checked" is not "none unmatched".
     result = dataclasses.replace(passed_validation(verdict=Verdict.PASSED), visible_unmatched_dates=10)
-    detail = entry_for(StepType.VALIDATE, base_state(attempt_count=1, last_plan=PLAN, route_attempted="structured", validation=result)).detail
+    detail = entry_for(
+        StepType.VALIDATE, base_state(attempt_count=1, last_plan=PLAN, route_attempted="structured", validation=result)
+    ).detail
     assert detail["visible_unmatched_dates"] == 10
-    plain = entry_for(StepType.VALIDATE, base_state(attempt_count=1, last_plan=PLAN, route_attempted="model", validation=passed_validation(verdict=Verdict.PASSED))).detail
+    plain = entry_for(
+        StepType.VALIDATE,
+        base_state(
+            attempt_count=1,
+            last_plan=PLAN,
+            route_attempted="model",
+            validation=passed_validation(verdict=Verdict.PASSED),
+        ),
+    ).detail
     assert plain["visible_unmatched_dates"] is None

@@ -50,8 +50,12 @@ T = datetime.time
 VENUE = VenueFacts(id=1, name="The Test Venue", calendar_url="unused", metro_timezone="America/Chicago")
 TWO_EVENTS = jsonld_page(event("Nona", "2026-10-20T21:00:00-05:00"), event("Lent", "2026-10-21T21:00:00-05:00"))
 LABEL = PageLabel(
-    venue="test_venue", gated=True, captured_on=fakes.FETCHED, shows=(
-        LabelledShow(D(2026, 10, 20), ("Nona",), "Nona", T(21, 0)), LabelledShow(D(2026, 10, 21), ("Lent",), "Lent", T(21, 0)),
+    venue="test_venue",
+    gated=True,
+    captured_on=fakes.FETCHED,
+    shows=(
+        LabelledShow(D(2026, 10, 20), ("Nona",), "Nona", T(21, 0)),
+        LabelledShow(D(2026, 10, 21), ("Lent",), "Lent", T(21, 0)),
     ),
 )
 FULL = split_answer(("Nona", ["Nona"]), ("Lent", ["Lent"]))
@@ -64,8 +68,13 @@ async def no_rows() -> dict[str, Any]:
 
 
 async def run_scripted(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, html: str, label: PageLabel, script: dict[Any, list[Any]],
-    *, policy: Any = None,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    html: str,
+    label: PageLabel,
+    script: dict[Any, list[Any]],
+    *,
+    policy: Any = None,
 ) -> PageRun:
     """Write `html` as the fixture, script the model, and run the page through the real graph with recording stores."""
     page = tmp_path / "page.html"
@@ -74,7 +83,12 @@ async def run_scripted(
     audit = RecordingAudit()
     ctx = WorkerContext(audit=audit, stager=InMemoryStager(), reader=FakeReader(), writer=FakeWriter(audit))
     return await run_page(
-        label=label, fixture=page, venue=VENUE, ctx=ctx, committed_rows=no_rows, policy=policy,
+        label=label,
+        fixture=page,
+        venue=VENUE,
+        ctx=ctx,
+        committed_rows=no_rows,
+        policy=policy,
     )
 
 
@@ -91,7 +105,9 @@ async def test_a_clean_page_is_one_attempt_with_nothing_wrong(tmp_path: Path, mo
         assert (column["missed"], column["acts_wrong"], column["fabricated"], column["items"]) == (0, 0, 0, [])
 
 
-async def test_a_retry_that_recovers_is_scored_attempt_by_attempt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_a_retry_that_recovers_is_scored_attempt_by_attempt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # Proves: C5-D7 and C5-M4. Attempt 1's splitter drops Lent (an error, so a retry); attempt 2 answers in full. The run is
     # two attempts, retried and recovered; attempt 2 is the 'narrowed' tier; and the PER-ATTEMPT scores differ: attempt 1 missed
     # Lent, attempt 2 missed nothing. If only the last attempt were scored, "did the retry fix it" could not be asked.
@@ -105,7 +121,9 @@ async def test_a_retry_that_recovers_is_scored_attempt_by_attempt(tmp_path: Path
     assert len(run.staged_documents) == 2  # one staging document per attempt (A4)
 
 
-async def test_a_page_that_never_validates_escalates_at_the_cap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_a_page_that_never_validates_escalates_at_the_cap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # Proves: the escalation path. The splitter drops Lent on every attempt: three attempts (the default cap), escalated, no
     # validated extraction (nothing reaches reconcile), and every labelled show Lent... is counted missed in the validated column.
     run = await run_scripted(tmp_path, monkeypatch, TWO_EVENTS, LABEL, {SPLITTER: [DROPS_LENT]})
@@ -115,11 +133,18 @@ async def test_a_page_that_never_validates_escalates_at_the_cap(tmp_path: Path, 
     assert run.escalation_reason is not None
 
 
-async def test_a_policy_passed_to_the_harness_is_the_policy_the_run_uses(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_a_policy_passed_to_the_harness_is_the_policy_the_run_uses(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # Proves: C5-D5. `run_page(policy=...)` reaches the graph's routers: with a cap of 1 the same always-failing page makes
     # ONE attempt, not three. The expectation is the cap we passed.
     run = await run_scripted(
-        tmp_path, monkeypatch, TWO_EVENTS, LABEL, {SPLITTER: [DROPS_LENT]}, policy=replace(DEFAULT_POLICY, max_attempts=1),
+        tmp_path,
+        monkeypatch,
+        TWO_EVENTS,
+        LABEL,
+        {SPLITTER: [DROPS_LENT]},
+        policy=replace(DEFAULT_POLICY, max_attempts=1),
     )
     assert (run.attempt_count, run.escalated, run.retried) == (1, True, False)
     assert run.policy["max_attempts"] == 1
@@ -147,13 +172,22 @@ def test_the_committed_column_is_held_to_the_scheduled_shows_but_raw_and_validat
     # Proves: the column rule `run_page` and `--rescore` now share. The database cannot hold a cancelled show (reconcile skips
     # it), so with a cancelled show labelled, the raw and validated columns that return nothing miss both labelled shows while the
     # committed column that returns nothing misses only the scheduled one. Expected counts are read off the label below.
-    label = PageLabel(venue="v", gated=True, captured_on=datetime.date(2026, 10, 12), shows=(
-        LabelledShow(datetime.date(2026, 10, 20), ("Nona",), "Nona"),
-        LabelledShow(datetime.date(2026, 10, 21), ("Lent",), "Lent", status="cancelled"),
-    ))
+    label = PageLabel(
+        venue="v",
+        gated=True,
+        captured_on=datetime.date(2026, 10, 12),
+        shows=(
+            LabelledShow(datetime.date(2026, 10, 20), ("Nona",), "Nona"),
+            LabelledShow(datetime.date(2026, 10, 21), ("Lent",), "Lent", status="cancelled"),
+        ),
+    )
     scores = column_scores(label, raw=None, validated=None, committed={"shows": []}, page_html="", fixture="p.html")
     assert set(scores) == {"raw_score", "validated_score", "committed_score"}
-    assert (scores["raw_score"]["missed"], scores["validated_score"]["missed"], scores["committed_score"]["missed"]) == (2, 2, 1)
+    assert (
+        scores["raw_score"]["missed"],
+        scores["validated_score"]["missed"],
+        scores["committed_score"]["missed"],
+    ) == (2, 2, 1)
 
 
 # ---------------------------------------------------------------------------
@@ -163,14 +197,19 @@ def test_the_committed_column_is_held_to_the_scheduled_shows_but_raw_and_validat
 # A model-route page with a show and a no-acts listing, the real 7th St Entry shape (C7-F3): the model gives the no-acts listing a
 # lower confidence, the splitter returns no act for it, and validation excludes it before taking the record's minimum.
 MODEL_PAGE = fakes.text_page("Nona", "Oct 20", "8 pm", "Private event", "Oct 21")
-MODEL_LABEL = PageLabel(venue="test_venue", gated=True, captured_on=fakes.FETCHED, shows=(
-    LabelledShow(D(2026, 10, 20), ("Nona",), "Nona", T(20, 0)),
-))
+MODEL_LABEL = PageLabel(
+    venue="test_venue",
+    gated=True,
+    captured_on=fakes.FETCHED,
+    shows=(LabelledShow(D(2026, 10, 20), ("Nona",), "Nona", T(20, 0)),),
+)
 MODEL_SCRIPT: dict[Any, list[Any]] = {
-    fakes.PAGE: [fakes.listings_answer(
-        fakes.listing("2026-10-20", "Nona", time="20:00", confidence=0.9),
-        fakes.listing("2026-10-21", "Private event", confidence=0.5),
-    )],
+    fakes.PAGE: [
+        fakes.listings_answer(
+            fakes.listing("2026-10-20", "Nona", time="20:00", confidence=0.9),
+            fakes.listing("2026-10-21", "Private event", confidence=0.5),
+        )
+    ],
     SPLITTER: [split_answer(("Nona", ["Nona"]), ("Private event", []))],
     fakes.STATUS: [{"items": []}],
 }
@@ -202,19 +241,27 @@ def counting_client(script: dict[Any, list[Any]], *, usage: bool = True) -> Simp
     )
 
 
-async def test_each_attempt_records_its_confidence_and_which_shows_it_covers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_each_attempt_records_its_confidence_and_which_shows_it_covers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # Proves (C7-F3, C7-PR1-1): the fields C7-K1 reads. The model gave 0.9 and 0.5; the no-acts listing (index 1) is excluded, so the
     # record's confidence is 0.9 (the minimum over the judged show only), `show_confidences` keeps both values as the model gave
     # them, and `judged_indices` is [0]. The recomputed confidence equals the one `validate_node` recorded (the self-check).
     run = await run_scripted(tmp_path, monkeypatch, MODEL_PAGE, MODEL_LABEL, MODEL_SCRIPT)
     (only,) = run.attempts
     assert run.source == "model"
-    assert (only.confidence, only.show_confidences, only.judged_indices, only.excluded_indices) == (0.9, [0.9, 0.5], [0], [1])
+    assert (only.confidence, only.show_confidences, only.judged_indices, only.excluded_indices) == (
+        0.9,
+        [0.9, 0.5],
+        [0],
+        [1],
+    )
     assert only.recorded_confidence == 0.9
 
 
 async def test_a_structured_route_attempt_has_no_confidence_but_keeps_the_placeholders(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves (C7-F5, C7-PR1-3): the structured route has no confidence (`aggregate_confidence` returns None), and the recorder still
     # stores its placeholder 1.0s as they are; dropping the route is C7-K1's job, so a mutation there can fail a test.
@@ -232,7 +279,9 @@ async def test_each_attempt_records_its_seconds(tmp_path: Path, monkeypatch: pyt
     assert sum(s or 0 for s in seconds) <= run.seconds + 0.1
 
 
-async def test_tokens_are_recorded_per_attempt_and_sum_to_the_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_tokens_are_recorded_per_attempt_and_sum_to_the_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # Proves (C7-D6): the counting hooks are attached to the client the graph's nodes call, and each attempt's tokens are its own.
     # Attempt 1 makes one splitter call (it drops Lent), attempt 2 one more: 10 prompt and 2 completion tokens each. Nothing runs
     # after the last staging (no ambiguous artist), so the remainder is 0, and the three sum to the run's 20 and 4.
@@ -241,28 +290,38 @@ async def test_tokens_are_recorded_per_attempt_and_sum_to_the_run(tmp_path: Path
     monkeypatch.setattr(nodes, "instructor_client", counting_client({SPLITTER: [DROPS_LENT, FULL]}))
     audit = RecordingAudit()
     run = await run_page(
-        label=LABEL, fixture=page, venue=VENUE, committed_rows=no_rows,
+        label=LABEL,
+        fixture=page,
+        venue=VENUE,
+        committed_rows=no_rows,
         ctx=WorkerContext(audit=audit, stager=InMemoryStager(), reader=FakeReader(), writer=FakeWriter(audit)),
     )
     assert [a.tokens for a in run.attempts] == [{"prompt": 10, "completion": 2}, {"prompt": 10, "completion": 2}]
     assert run.tokens_after_last_attempt == {"prompt": 0, "completion": 0}
 
 
-async def test_tokens_are_none_not_zero_when_no_response_carries_usage(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_tokens_are_none_not_zero_when_no_response_carries_usage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # Proves (C7-D6): a provider that reports no usage is an unknown cost, never 0 tokens.
     page = tmp_path / "page.html"
     page.write_text(TWO_EVENTS)
     monkeypatch.setattr(nodes, "instructor_client", counting_client({SPLITTER: [FULL]}, usage=False))
     audit = RecordingAudit()
     run = await run_page(
-        label=LABEL, fixture=page, venue=VENUE, committed_rows=no_rows,
+        label=LABEL,
+        fixture=page,
+        venue=VENUE,
+        committed_rows=no_rows,
         ctx=WorkerContext(audit=audit, stager=InMemoryStager(), reader=FakeReader(), writer=FakeWriter(audit)),
     )
     assert [a.tokens for a in run.attempts] == [None]
     assert run.tokens_after_last_attempt is None
 
 
-async def test_forced_retries_run_every_tier_on_a_model_route_page(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_forced_retries_run_every_tier_on_a_model_route_page(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # Proves (C7-D3): with the forced threshold every model-judged attempt fails for low confidence, so a clean model-route page
     # makes the cap's three attempts, one per tier, every one scored, and escalates. The threshold the record carries is the
     # forced one, which is how the report knows to say "forced retries".
@@ -273,14 +332,18 @@ async def test_forced_retries_run_every_tier_on_a_model_route_page(tmp_path: Pat
     assert run.escalated and run.policy["confidence_threshold"] == FORCED_THRESHOLD
 
 
-async def test_forced_retries_leave_a_structured_page_at_one_attempt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_forced_retries_leave_a_structured_page_at_one_attempt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # Proves (C7-D3's limit): the structured route has no confidence, so there is nothing to force; it passes on attempt 1.
     policy = run_labeled_pages.build_policy(None, None, force=True)
     run = await run_scripted(tmp_path, monkeypatch, TWO_EVENTS, LABEL, {SPLITTER: [FULL]}, policy=policy)
     assert (run.attempt_count, run.attempts[0].verdict) == (1, "passed")
 
 
-async def test_an_escalation_model_runs_every_call_of_attempt_three(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_an_escalation_model_runs_every_call_of_attempt_three(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # Proves (C6-D4, C7-D2): `--escalation-model X` puts X on attempt 3's page, splitter and status calls, and the attempt records
     # `larger_model_used`. Attempts 1 and 2 keep the configured model. The expectation is the name passed in.
     page = tmp_path / "page.html"
@@ -289,7 +352,10 @@ async def test_an_escalation_model_runs_every_call_of_attempt_three(tmp_path: Pa
     monkeypatch.setattr(nodes, "instructor_client", client)
     audit = RecordingAudit()
     run = await run_page(
-        label=MODEL_LABEL, fixture=page, venue=VENUE, committed_rows=no_rows,
+        label=MODEL_LABEL,
+        fixture=page,
+        venue=VENUE,
+        committed_rows=no_rows,
         ctx=WorkerContext(audit=audit, stager=InMemoryStager(), reader=FakeReader(), writer=FakeWriter(audit)),
         policy=run_labeled_pages.build_policy(None, None, force=True, escalation_model="bigger-model"),
     )
@@ -298,4 +364,3 @@ async def test_an_escalation_model_runs_every_call_of_attempt_three(tmp_path: Pa
     for kind in (fakes.PAGE, SPLITTER):
         models = [c["model"] for c in calls.calls_for(kind)]
         assert models[-1] == "bigger-model" and "bigger-model" not in models[:-1]
-

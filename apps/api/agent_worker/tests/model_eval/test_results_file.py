@@ -56,12 +56,27 @@ def heavy_results() -> dict[str, Any]:
     run["validated"] = run["committed"] = run["raw"]
     run["staged_documents"] = [{"attempt": 1, "page_text": "THE VENUE PAGE TEXT " * 500, "raw_extraction": run["raw"]}]
     return {
-        "label": "demo", "started_at": "2026-11-04T17:00:00+00:00", "set": "all", "scenario": None, "labels_sha": "abc",
-        "held_out_scored": False, "harness_commit": "def", "config": {"route": "auto"}, "request_options": {"model": "m"},
-        "request": {"instruction": "A LONG PROMPT " * 500, "instruction_sha": "1234abcd56", "response_schema": {"big": "schema"},
-                    "response_schema_sha": "9999aaaa00", "response_schema_chars": 4000},
-        "policy": {"confidence_threshold": 0.8}, "provenance": {"m": {"model_digest": "d"}},
-        "aggregate": aggregate_scores.aggregate([run], {"page.html": GATED}), "scenarios": [], "runs": [run],
+        "label": "demo",
+        "started_at": "2026-11-04T17:00:00+00:00",
+        "set": "all",
+        "scenario": None,
+        "labels_sha": "abc",
+        "held_out_scored": False,
+        "harness_commit": "def",
+        "config": {"route": "auto"},
+        "request_options": {"model": "m"},
+        "request": {
+            "instruction": "A LONG PROMPT " * 500,
+            "instruction_sha": "1234abcd56",
+            "response_schema": {"big": "schema"},
+            "response_schema_sha": "9999aaaa00",
+            "response_schema_chars": 4000,
+        },
+        "policy": {"confidence_threshold": 0.8},
+        "provenance": {"m": {"model_digest": "d"}},
+        "aggregate": aggregate_scores.aggregate([run], {"page.html": GATED}),
+        "scenarios": [],
+        "runs": [run],
     }
 
 
@@ -74,14 +89,22 @@ def test_a_snapshot_drops_the_page_text_extractions_and_prompt_but_keeps_the_sco
     snap = results_file.slim(data)
     text = json.dumps(snap)
     assert "THE VENUE PAGE TEXT" not in text and "A LONG PROMPT" not in text and "raw_extraction" not in text
-    assert len(text) < len(json.dumps(data)) / 2  # the real guarantees are the absences above; this only catches a bulky regression
+    assert (
+        len(text) < len(json.dumps(data)) / 2
+    )  # the real guarantees are the absences above; this only catches a bulky regression
     assert snap["aggregate"] == data["aggregate"] and snap["labels_sha"] == "abc"
-    assert snap["request"] == {"instruction_sha": "1234abcd56", "response_schema_sha": "9999aaaa00", "response_schema_chars": 4000}
+    assert snap["request"] == {
+        "instruction_sha": "1234abcd56",
+        "response_schema_sha": "9999aaaa00",
+        "response_schema_chars": 4000,
+    }
     assert snap["runs"][0]["raw_score"] == data["runs"][0]["raw_score"] and "raw" not in snap["runs"][0]
     assert snap["runs"][0]["attempts"] == data["runs"][0]["attempts"]
 
 
-def test_a_snapshot_renders_a_report_and_compares_like_the_full_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_a_snapshot_renders_a_report_and_compares_like_the_full_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # Proves: the point of the snapshot. After the raw results are gone (a new laptop, a cleaned folder), the committed snapshot is
     # enough for `--report` and `--compare`. The report from the snapshot equals the report from the full file.
     data = heavy_results()
@@ -94,11 +117,15 @@ def test_a_snapshot_renders_a_report_and_compares_like_the_full_file(tmp_path: P
     assert out == snapshots / "demo.json" and out.is_file()
     (tmp_path / "results" / "graph-demo.json").unlink()  # the raw file is gone
     loaded = results_file.load_results("demo")
-    assert markdown_report.render(loaded, {"page.html": GATED}) == markdown_report.render(results_file.slim(data), {"page.html": GATED})
+    assert markdown_report.render(loaded, {"page.html": GATED}) == markdown_report.render(
+        results_file.slim(data), {"page.html": GATED}
+    )
     assert "labels_sha" in markdown_report.compare_table({"demo": loaded})
 
 
-def test_load_results_prefers_the_raw_file_and_says_where_it_looked(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_load_results_prefers_the_raw_file_and_says_where_it_looked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # Proves: a missing label gives an error naming both places it looked, instead of a bare FileNotFoundError, and a label present in
     # both places loads the full raw file (the snapshot is the fallback).
     monkeypatch.setattr(results_file, "RESULTS_DIR", tmp_path / "results")
@@ -126,13 +153,37 @@ def test_build_record_has_the_keys_a_report_and_a_snapshot_read_and_survives_a_r
     config, options = run_eval.configure({})[1], run_eval.configure({})[0]
     run = record("page.html", raw={"shows": []})
     built = results_file.build_record(
-        label="demo", started_at="2026-11-05T00:00:00+00:00", set_name="all", scenario=None, fixture_names=["page.html"],
-        page_labels={"page.html": GATED}, config=config, options=options, request={"instruction_sha": "abc"}, policy=DEFAULT_POLICY,
-        provenance=None, aggregate=aggregate_scores.aggregate([run], {"page.html": GATED}), scenarios=[], runs=[run],
+        label="demo",
+        started_at="2026-11-05T00:00:00+00:00",
+        set_name="all",
+        scenario=None,
+        fixture_names=["page.html"],
+        page_labels={"page.html": GATED},
+        config=config,
+        options=options,
+        request={"instruction_sha": "abc"},
+        policy=DEFAULT_POLICY,
+        provenance=None,
+        aggregate=aggregate_scores.aggregate([run], {"page.html": GATED}),
+        scenarios=[],
+        runs=[run],
     )
     assert list(built) == [
-        "label", "started_at", "set", "scenario", "labels_sha", "held_out_scored", "harness_commit", "config", "request_options",
-        "request", "policy", "provenance", "aggregate", "scenarios", "runs",
+        "label",
+        "started_at",
+        "set",
+        "scenario",
+        "labels_sha",
+        "held_out_scored",
+        "harness_commit",
+        "config",
+        "request_options",
+        "request",
+        "policy",
+        "provenance",
+        "aggregate",
+        "scenarios",
+        "runs",
     ]
     assert built["held_out_scored"] is False and built["policy"]["max_attempts"] == DEFAULT_POLICY.max_attempts
     out = results_file.write_results(tmp_path / "graph-demo.json", built)
@@ -144,7 +195,12 @@ def test_a_snapshot_keeps_the_c7_numbers_and_still_no_page_text() -> None:
     # snapshot must keep them (a report from it equals one from the raw file); the page text and extractions stay out.
     data = heavy_results()
     data["runs"][0]["attempts"][0].update(
-        confidence=0.9, show_confidences=[0.9], judged_indices=[0], excluded_indices=[], seconds=2.5, tokens={"prompt": 5, "completion": 1},
+        confidence=0.9,
+        show_confidences=[0.9],
+        judged_indices=[0],
+        excluded_indices=[],
+        seconds=2.5,
+        tokens={"prompt": 5, "completion": 1},
     )
     data["runs"][0]["tokens_after_last_attempt"] = {"prompt": 0, "completion": 0}
     snap = results_file.slim(data)

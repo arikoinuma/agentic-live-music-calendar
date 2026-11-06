@@ -54,6 +54,7 @@ def stored_route(name: str | None) -> str | None:
     value, and None, is returned unchanged."""
     return LEGACY_ROUTE_NAMES.get(name, name) if name is not None else None
 
+
 # ---------------------------------------------------------------------------
 # The settings
 # ---------------------------------------------------------------------------
@@ -118,7 +119,11 @@ class AttemptPlan:
         status model is the one that WOULD have been used, not one that ran.
         """
         page = self.roles.page.model if route in ("model", "image") else None
-        splitter = self.roles.splitter.model if route == "structured" or (route == "model" and self.config.title_split) else None
+        splitter = (
+            self.roles.splitter.model
+            if route == "structured" or (route == "model" and self.config.title_split)
+            else None
+        )
         status = self.roles.status.model if route == "model" and self.config.status_pass else None
         return {"page": page, "splitter": splitter, "status": status}
 
@@ -223,9 +228,7 @@ _REASON_ADVICE: dict[FailureReason, str] = {
 _FINAL_PAGE_ADVICE = (
     "This is the last attempt. If the page doesn't clearly state a field, leave it null rather than guess."
 )
-_FINAL_SPLITTER_ADVICE = (
-    "This is the last attempt. Copy each act's name exactly as the title writes it; never add a name the title doesn't contain."
-)
+_FINAL_SPLITTER_ADVICE = "This is the last attempt. Copy each act's name exactly as the title writes it; never add a name the title doesn't contain."
 
 
 def retry_hint(history: list[AttemptRecord], final: bool = False) -> tuple[str, str]:
@@ -282,8 +285,11 @@ def route_falls_back(record: AttemptRecord) -> bool:
 
 
 def plan_for_attempt(
-    attempt: int, policy: RetryPolicy, history: list[AttemptRecord],
-    base_config: ExtractionConfig, base_roles: ModelRoles,
+    attempt: int,
+    policy: RetryPolicy,
+    history: list[AttemptRecord],
+    base_config: ExtractionConfig,
+    base_roles: ModelRoles,
 ) -> AttemptPlan:
     """How attempt number `attempt` (1-based) should run, given the attempts before it."""
     if attempt <= 1:
@@ -302,7 +308,9 @@ def plan_for_attempt(
     page_hint, splitter_hint = retry_hint(history, final=attempt >= 3)
     fell_back = any(route_falls_back(r) for r in history)
     config = replace(
-        base_config, retry_hint=page_hint, splitter_hint=splitter_hint,
+        base_config,
+        retry_hint=page_hint,
+        splitter_hint=splitter_hint,
         route="model" if fell_back else base_config.route,
     )
     if attempt >= 3:
@@ -315,6 +323,14 @@ def plan_for_attempt(
 
 
 __all__ = [
-    "DEFAULT_POLICY", "AttemptPlan", "AttemptRecord", "RetryPolicy", "Route", "combine",
-    "decide_route", "plan_for_attempt", "retry_hint", "route_falls_back",
+    "DEFAULT_POLICY",
+    "AttemptPlan",
+    "AttemptRecord",
+    "RetryPolicy",
+    "Route",
+    "combine",
+    "decide_route",
+    "plan_for_attempt",
+    "retry_hint",
+    "route_falls_back",
 ]

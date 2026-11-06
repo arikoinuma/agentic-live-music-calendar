@@ -7,13 +7,12 @@ Contract: docs/dev/api-contract.md section 2.
 """
 
 import datetime
-from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException
 
 from app import queries
-from app.dependencies import Db, LiveMetro, Today
-from app.routers.common import NOT_FOUND
+from app.dependencies import Db, DbId, IdFilter, LiveMetro, Today
+from app.routers.common import NOT_FOUND, unprocessable
 from app.schemas import ShowDetail, ShowListResponse
 
 router = APIRouter(prefix="/shows", tags=["shows"])
@@ -41,11 +40,12 @@ async def list_shows(
     # Without it FastAPI sees a non-scalar type annotation and assumes
     # the value belongs in the request *body*, which for a GET means it
     # never arrives. This is the single most surprising thing about
-    # FastAPI's parameter inference.
+    # FastAPI's parameter inference. `IdFilter` carries that marker, and
+    # the int32 bounds on each id (app/dependencies.py, PQR1-5).
     #
     # Repeat the key to pass several: ?venue_id=1&venue_id=3
-    venue_id: Annotated[list[int] | None, Query()] = None,
-    artist_id: Annotated[list[int] | None, Query()] = None,
+    venue_id: IdFilter = None,
+    artist_id: IdFilter = None,
     # "Every show from today on, however far out" -- the artist page's
     # "upcoming shows" (B4-D2). A client can't ask for that with
     # dates: the server owns "now" (api-contract.md section 3), and an
@@ -81,15 +81,12 @@ async def list_shows(
     # the injected clock (app/clock.py, C2-D2).
     if upcoming:
         if start is not None or end is not None:
-            raise HTTPException(
-                status_code=422,
-                detail="`upcoming` cannot be combined with `start` or `end`",
-            )
+            raise unprocessable("upcoming", "`upcoming` cannot be combined with `start` or `end`", upcoming)
         if not venue_id and not artist_id:
-            raise HTTPException(
-                status_code=422,
-                detail="`upcoming` needs a `venue_id` or `artist_id`; "
-                "without one it would be an unbounded scan of every show",
+            raise unprocessable(
+                "upcoming",
+                "`upcoming` needs a `venue_id` or `artist_id`; without one it would be an unbounded scan of every show",
+                upcoming,
             )
         # Open-ended: from today with no upper bound. `end` is filled in
         # below from what was actually returned. MAX_RANGE doesn't apply --
@@ -104,12 +101,11 @@ async def list_shows(
             end = start + DEFAULT_WINDOW
 
         if end < start:
-            raise HTTPException(status_code=422, detail="`end` must be on or after `start`")
+            raise unprocessable("end", "`end` must be on or after `start`", end)
         if end - start > MAX_RANGE:
-            raise HTTPException(
-                status_code=422,
-                detail=f"Date range too wide; maximum is {MAX_RANGE.days} days",
-            )
+            # `end` is the parameter named, not `start`: with `end` alone, `start` is the server's default, a value
+            # the client never sent.
+            raise unprocessable("end", f"Date range too wide; maximum is {MAX_RANGE.days} days", end)
 
     shows = await queries.list_shows(session, metro, start, end, venue_id, artist_id)
 
@@ -122,7 +118,7 @@ async def list_shows(
 
 
 @router.get("/{show_id}", responses=NOT_FOUND)
-async def get_show(show_id: int, session: Db, metro: LiveMetro) -> ShowDetail:
+async def get_show(show_id: DbId, session: Db, metro: LiveMetro) -> ShowDetail:
     show = await queries.get_show(session, metro, show_id)
     if show is None:
         raise HTTPException(status_code=404, detail="Show not found")

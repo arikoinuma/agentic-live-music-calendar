@@ -91,8 +91,13 @@ async def world(factory: async_sessionmaker[AsyncSession]) -> AsyncIterator[Worl
 
 
 async def seed_show(
-    factory: async_sessionmaker[AsyncSession], w: World, date: datetime.date, start: datetime.time | None,
-    acts: tuple[str, ...] = ("Nona",), status: ShowStatus = ShowStatus.ACTIVE, **fields: Any,
+    factory: async_sessionmaker[AsyncSession],
+    w: World,
+    date: datetime.date,
+    start: datetime.time | None,
+    acts: tuple[str, ...] = ("Nona",),
+    status: ShowStatus = ShowStatus.ACTIVE,
+    **fields: Any,
 ) -> int:
     """Store a show the way an earlier run would have, with `acts` (names from `world.artists`) as its lineup in order.
     `updated_at` is the literal past value so a test can see it move."""
@@ -102,7 +107,8 @@ async def seed_show(
         session.add(show)
         await session.flush()
         session.add_all(
-            ShowArtist(show_id=show.id, artist_id=w.artists[name], sequence_number=i) for i, name in enumerate(acts, start=1)
+            ShowArtist(show_id=show.id, artist_id=w.artists[name], sequence_number=i)
+            for i, name in enumerate(acts, start=1)
         )
         await session.commit()
         return show.id
@@ -133,14 +139,17 @@ async def lineup_of(factory: async_sessionmaker[AsyncSession], show_id: int) -> 
     async with factory() as session:
         rows = await session.execute(
             select(ShowArtist.artist_id, ShowArtist.sequence_number)
-            .where(ShowArtist.show_id == show_id).order_by(ShowArtist.sequence_number)
+            .where(ShowArtist.show_id == show_id)
+            .order_by(ShowArtist.sequence_number)
         )
         return [(a, n) for a, n in rows.all()]
 
 
 async def audit_of(factory: async_sessionmaker[AsyncSession], run_id: int) -> list[AuditLog]:
     async with factory() as session:
-        return list((await session.execute(select(AuditLog).where(AuditLog.run_id == run_id).order_by(AuditLog.id))).scalars())
+        return list(
+            (await session.execute(select(AuditLog).where(AuditLog.run_id == run_id).order_by(AuditLog.id))).scalars()
+        )
 
 
 async def count(factory: async_sessionmaker[AsyncSession], model: Any, *where: Any) -> int:
@@ -154,7 +163,8 @@ async def count(factory: async_sessionmaker[AsyncSession], model: Any, *where: A
 
 
 async def test_an_insert_writes_the_show_its_lineup_a_name_only_artist_and_two_audit_rows(
-    factory: async_sessionmaker[AsyncSession], world: World,
+    factory: async_sessionmaker[AsyncSession],
+    world: World,
 ) -> None:
     # Proves (build plan A6; data-model-initial.md §2, §3): a new show with one known act (Nona) and one new act (Sunny
     # Day) writes one `show` row with the listing's facts, its lineup in `show_artist` in order with sequence numbers, ONE
@@ -183,13 +193,21 @@ async def test_an_insert_writes_the_show_its_lineup_a_name_only_artist_and_two_a
     snap = rows[1].new_value
     assert rows[1].previous_value is None and snap is not None
     assert (snap["id"], snap["date"], snap["start_time"], snap["end_time"], snap["status"]) == (
-        show.id, "2026-10-20", "20:00:00", "23:00:00", "active",
+        show.id,
+        "2026-10-20",
+        "20:00:00",
+        "23:00:00",
+        "active",
     )
-    assert [(e["artist_id"], e["sequence_number"]) for e in snap["lineup"]] == [(world.artists["Nona"], 1), (new_artist_id, 2)]
+    assert [(e["artist_id"], e["sequence_number"]) for e in snap["lineup"]] == [
+        (world.artists["Nona"], 1),
+        (new_artist_id, 2),
+    ]
 
 
 async def test_an_update_changes_only_the_named_columns_and_leaves_the_lineup_alone(
-    factory: async_sessionmaker[AsyncSession], world: World,
+    factory: async_sessionmaker[AsyncSession],
+    world: World,
 ) -> None:
     # Proves (A5-D4): an update sets the changed columns (a new end time and a day price) and nothing else: the lineup is
     # untouched (same rows), the start time stays, and `updated_at` moves from its seeded literal.
@@ -199,13 +217,19 @@ async def test_an_update_changes_only_the_named_columns_and_leaves_the_lineup_al
     await writer_for(factory).write_show(op, {}, run_id=world.run_id, attempt_number=1)
 
     show = await show_row(factory, show_id)
-    assert (show.end_time, show.admission_day, show.start_time, show.admission_advance) == (at(23), Decimal("20.00"), at(20), None)
+    assert (show.end_time, show.admission_day, show.start_time, show.admission_advance) == (
+        at(23),
+        Decimal("20.00"),
+        at(20),
+        None,
+    )
     assert await lineup_of(factory, show_id) == [(world.artists["Nona"], 1)]
     assert show.updated_at > LONG_AGO
 
 
 async def test_a_lineup_only_update_replaces_the_lineup_and_still_moves_updated_at(
-    factory: async_sessionmaker[AsyncSession], world: World,
+    factory: async_sessionmaker[AsyncSession],
+    world: World,
 ) -> None:
     # Proves (A6 "Settled details"): an opener added to a stored show replaces the lineup (both acts, in order) and no
     # `show` column changes, yet `updated_at` moves: an ORM update that changed no column would issue no UPDATE, so the
@@ -220,14 +244,19 @@ async def test_a_lineup_only_update_replaces_the_lineup_and_still_moves_updated_
 
 
 async def test_a_removal_keeps_the_row_and_its_lineup_and_a_return_sets_it_back_to_active(
-    factory: async_sessionmaker[AsyncSession], world: World,
+    factory: async_sessionmaker[AsyncSession],
+    world: World,
 ) -> None:
     # Proves (A5-D6, A5-D7; data-model-initial.md §2 "Soft delete"): a removed show is `status = removed` with its row and
     # lineup still there, and the same show listed again is the same row back to `active`.
     show_id = await seed_show(factory, world, day(20), at(20))
     # The page lists a different show on the 24th, so the stored show on the 20th is absent from it (inside the window):
     # the plan has an insert for the new show and a removal of the stored one; only the removal is written here.
-    [removal] = [op for op in await ops_for(factory, world, listed(0, day(24), at(20), acts=["Zhora"])) if op.stored_id == show_id]
+    [removal] = [
+        op
+        for op in await ops_for(factory, world, listed(0, day(24), at(20), acts=["Zhora"]))
+        if op.stored_id == show_id
+    ]
     assert (removal.action.value, removal.reconcile_reason) == ("remove", "absent from the page")
     await writer_for(factory).write_show(removal, {}, run_id=world.run_id, attempt_number=1)
     assert (await show_row(factory, show_id)).status is ShowStatus.REMOVED
@@ -240,7 +269,8 @@ async def test_a_removal_keeps_the_row_and_its_lineup_and_a_return_sets_it_back_
 
 
 async def test_previous_value_is_the_row_before_the_change(
-    factory: async_sessionmaker[AsyncSession], world: World,
+    factory: async_sessionmaker[AsyncSession],
+    world: World,
 ) -> None:
     # Proves (A6-K1, A6-M1): the snapshot taken BEFORE the write shows the old values and the one taken after shows the
     # new ones. The ORM hands back the same, mutated object after a change, so a `previous` read after the write would
@@ -256,14 +286,17 @@ async def test_previous_value_is_the_row_before_the_change(
 
 
 async def test_a_failed_write_rolls_back_the_show_the_artist_and_the_audit_row(
-    factory: async_sessionmaker[AsyncSession], world: World,
+    factory: async_sessionmaker[AsyncSession],
+    world: World,
 ) -> None:
     # Proves (A6-K1): a write that fails after its show was inserted leaves NOTHING. The lineup names an artist id that
     # does not exist, so the foreign key fails at the lineup flush, after the show insert and after a new artist
     # ("Sunny Day") was created. Afterwards there is no show, no new artist and no audit row. (This proves the DATA rolls
     # back; the failure comes before the audit rows are added, so the next test is the one about the audit rows.)
     [op] = await ops_for(factory, world, listed(0, day(20), at(20), acts=["Sunny Day"]))
-    broken = dataclasses.replace(op, lineup=(LineupEntry("sunny day", None, "Sunny Day", None, 1), LineupEntry("x", 999_999, "x", None, 2)))
+    broken = dataclasses.replace(
+        op, lineup=(LineupEntry("sunny day", None, "Sunny Day", None, 1), LineupEntry("x", 999_999, "x", None, 2))
+    )
     with pytest.raises(IntegrityError):
         await writer_for(factory).write_show(broken, {}, run_id=world.run_id, attempt_number=1)
     assert await count(factory, Show, Show.venue_id == world.venue_id) == 0
@@ -284,7 +317,8 @@ class CountingFactory:
 
 
 async def test_a_write_uses_exactly_one_session(
-    factory: async_sessionmaker[AsyncSession], world: World,
+    factory: async_sessionmaker[AsyncSession],
+    world: World,
 ) -> None:
     # Proves (A6-K1, A6-M2): everything about one show, its audit rows included, goes through ONE session and so one
     # transaction. In these tests every session shares the test connection in savepoint mode, so a second session's
@@ -306,7 +340,8 @@ class FailsAfterTheAuditRows(PostgresCalendarWriter):
 
 
 async def test_audit_rows_roll_back_with_the_write(
-    factory: async_sessionmaker[AsyncSession], world: World,
+    factory: async_sessionmaker[AsyncSession],
+    world: World,
 ) -> None:
     # Proves (A6-K1, A6-M2): the audit rows are in the SAME transaction as the change. The writer here raises right after
     # producing the real audit rows; with the rows only added to the transaction nothing survives (no show, no artist,
@@ -321,12 +356,15 @@ async def test_audit_rows_roll_back_with_the_write(
 
 
 async def test_a_check_constraint_violation_is_an_integrity_error_that_leaves_nothing(
-    factory: async_sessionmaker[AsyncSession], world: World,
+    factory: async_sessionmaker[AsyncSession],
+    world: World,
 ) -> None:
     # Proves (data-model-initial.md §2, `show_free_admission_check`): a show that is free AND priced is refused by the
     # table (reconcile and validation prevent it; this is the net under them). It is a class-23 integrity violation, a
     # decision error, and nothing is written.
-    [op] = await ops_for(factory, world, listed(0, day(20), at(20), acts=["Nona"], free_admission=True, admission_day=10.0))
+    [op] = await ops_for(
+        factory, world, listed(0, day(20), at(20), acts=["Nona"], free_admission=True, admission_day=10.0)
+    )
     with pytest.raises(IntegrityError) as caught:
         await writer_for(factory).write_show(op, {}, run_id=world.run_id, attempt_number=1)
     assert caught.value.orig.sqlstate == "23514" and is_decision_error(caught.value)  # type: ignore[union-attr]
@@ -334,7 +372,8 @@ async def test_a_check_constraint_violation_is_an_integrity_error_that_leaves_no
 
 
 async def test_an_overflowing_price_is_a_plain_dbapi_error_with_a_class_22_sqlstate(
-    factory: async_sessionmaker[AsyncSession], world: World,
+    factory: async_sessionmaker[AsyncSession],
+    world: World,
 ) -> None:
     # Proves (A6-PR1-1): a price that does not fit `Numeric(10, 2)` raises a plain `DBAPIError` (NOT `IntegrityError`, and
     # `DataError` never occurs on this driver) with SQLSTATE 22003, and `is_decision_error` calls it one show's problem.
@@ -348,7 +387,8 @@ async def test_an_overflowing_price_is_a_plain_dbapi_error_with_a_class_22_sqlst
 
 
 async def test_a_vanished_show_is_a_show_gone_failure_not_an_attribute_error(
-    factory: async_sessionmaker[AsyncSession], world: World,
+    factory: async_sessionmaker[AsyncSession],
+    world: World,
 ) -> None:
     # Proves (A6-PR1-7): an update naming a stored show that was deleted by hand between reconcile and commit raises
     # `ShowGone` from the FIRST (locked) read, which `is_decision_error` calls one show's failure, instead of a
@@ -393,7 +433,9 @@ async def restore(session: AsyncSession, snapshot: dict[str, Any]) -> None:
     await session.execute(delete(ShowArtist).where(ShowArtist.show_id == row.id))
     session.add_all(
         ShowArtist(
-            show_id=row.id, artist_id=e["artist_id"], sequence_number=e["sequence_number"],
+            show_id=row.id,
+            artist_id=e["artist_id"],
+            sequence_number=e["sequence_number"],
             start_time=datetime.time.fromisoformat(e["start_time"]) if e["start_time"] else None,
         )
         for e in snapshot["lineup"]
@@ -402,14 +444,17 @@ async def restore(session: AsyncSession, snapshot: dict[str, Any]) -> None:
 
 
 async def test_restoring_previous_value_reproduces_the_row_as_it_was(
-    factory: async_sessionmaker[AsyncSession], world: World,
+    factory: async_sessionmaker[AsyncSession],
+    world: World,
 ) -> None:
     # Proves (build plan A6: "those are what a future revert restores"): the snapshot is SUFFICIENT. A show with a price
     # and one act is updated (new end time, a different price, an opener added); restoring the audit row's
     # `previous_value` puts the columns and the lineup back, and a fresh snapshot equals `previous_value` exactly.
     show_id = await seed_show(factory, world, day(20), at(20), admission_day=Decimal("15.00"), end_time=None)
     [op] = await ops_for(
-        factory, world, listed(0, day(20), at(20), acts=["Zhora", "Nona"], end_time=at(23), admission_day=18.5),
+        factory,
+        world,
+        listed(0, day(20), at(20), acts=["Zhora", "Nona"], end_time=at(23), admission_day=18.5),
     )
     await writer_for(factory).write_show(op, {}, run_id=world.run_id, attempt_number=1)
     [row] = [r for r in await audit_of(factory, world.run_id) if r.entity_id == show_id]
@@ -422,7 +467,9 @@ async def test_restoring_previous_value_reproduces_the_row_as_it_was(
         current = await session.get(Show, show_id)
         assert current is not None
         links = await session.execute(
-            select(ShowArtist.artist_id, ShowArtist.start_time, ShowArtist.sequence_number).where(ShowArtist.show_id == show_id)
+            select(ShowArtist.artist_id, ShowArtist.start_time, ShowArtist.sequence_number).where(
+                ShowArtist.show_id == show_id
+            )
         )
         again = snapshot_of(
             {c: getattr(current, c) for c in SNAPSHOT_COLUMNS},
@@ -437,20 +484,32 @@ async def test_restoring_previous_value_reproduces_the_row_as_it_was(
 
 
 async def test_a_new_artist_named_by_two_shows_is_created_once_and_both_link_to_it(
-    factory: async_sessionmaker[AsyncSession], world: World,
+    factory: async_sessionmaker[AsyncSession],
+    world: World,
 ) -> None:
     # Proves (requirements, "Agent Artist Creation & Matching"; A6-K2): "Sunny Day" on two shows is ONE artist row, and
     # the second show links to the id the first created (the loop hands the first show's created ids to the second).
     ops = await ops_for(
-        factory, world, listed(0, day(20), at(20), acts=["Sunny Day"]), listed(1, day(21), at(20), acts=["Sunny Day"]),
+        factory,
+        world,
+        listed(0, day(20), at(20), acts=["Sunny Day"]),
+        listed(1, day(21), at(20), acts=["Sunny Day"]),
     )
-    result = await write_plan(ops, writer_for(factory), PostgresAuditWriter(factory), run_id=world.run_id, attempt_number=1)
+    result = await write_plan(
+        ops, writer_for(factory), PostgresAuditWriter(factory), run_id=world.run_id, attempt_number=1
+    )
     assert result.written == {"inserted": 2, "updated": 0, "removed": 0} and result.artists_created == 1
     assert await count(factory, Artist, Artist.name == "Sunny Day") == 1
     async with factory() as session:
-        artist_ids = set((await session.execute(
-            select(ShowArtist.artist_id).join(Show, Show.id == ShowArtist.show_id).where(Show.venue_id == world.venue_id)
-        )).scalars())
+        artist_ids = set(
+            (
+                await session.execute(
+                    select(ShowArtist.artist_id)
+                    .join(Show, Show.id == ShowArtist.show_id)
+                    .where(Show.venue_id == world.venue_id)
+                )
+            ).scalars()
+        )
     assert len(artist_ids) == 1
 
 
@@ -470,58 +529,79 @@ class FailsTheFirstWriteAfterCreatingItsArtist(PostgresCalendarWriter):
 
 
 async def test_a_rolled_back_artist_is_not_remembered(
-    factory: async_sessionmaker[AsyncSession], world: World,
+    factory: async_sessionmaker[AsyncSession],
+    world: World,
 ) -> None:
     # Proves (A6-K1, A6-M3): the first show names a new artist and its write fails AFTER the artist was created; the
     # transaction rolls the artist back. The second show names the same artist, so it must create it AGAIN and link to
     # the new id. A writer that remembered the first, rolled-back id (a cache that outlives the transaction) would link
     # the second show to an artist that does not exist and fail on the foreign key.
     ops = await ops_for(
-        factory, world, listed(0, day(20), at(20), acts=["Sunny Day"]), listed(1, day(21), at(20), acts=["Sunny Day"]),
+        factory,
+        world,
+        listed(0, day(20), at(20), acts=["Sunny Day"]),
+        listed(1, day(21), at(20), acts=["Sunny Day"]),
     )
     result = await write_plan(
-        ops, FailsTheFirstWriteAfterCreatingItsArtist(factory), PostgresAuditWriter(factory),
-        run_id=world.run_id, attempt_number=1,
+        ops,
+        FailsTheFirstWriteAfterCreatingItsArtist(factory),
+        PostgresAuditWriter(factory),
+        run_id=world.run_id,
+        attempt_number=1,
     )
     assert result.written["inserted"] == 1 and len(result.failures) == 1 and result.artists_created == 1
     assert await count(factory, Artist, Artist.name == "Sunny Day") == 1
     assert await count(factory, Show, Show.venue_id == world.venue_id) == 1
-    [second_show] = (await PostgresCalendarReader(factory).stored_shows(world.venue_id, day(1), day(31)))
+    [second_show] = await PostgresCalendarReader(factory).stored_shows(world.venue_id, day(1), day(31))
     assert second_show.date == day(21) and [e.artist_name for e in second_show.lineup] == ["Sunny Day"]
 
 
 async def test_an_overflowing_price_fails_only_its_show(
-    factory: async_sessionmaker[AsyncSession], world: World,
+    factory: async_sessionmaker[AsyncSession],
+    world: World,
 ) -> None:
     # Proves (A6-D2; the A6-D2 scenario): of three new shows, the middle one has a price that overflows `Numeric(10, 2)`.
     # The other two are written, the bad one is not, and it is recorded: a failure row (no outcome, no snapshots) that says
     # WHICH show (October 21, 8 PM, an insert has no id), the SQLSTATE and the error; and the result has one failure.
     ops = await ops_for(
-        factory, world,
+        factory,
+        world,
         listed(0, day(20), at(20), acts=["Nona"]),
         listed(1, day(21), at(20), acts=["Zhora"], admission_day=99_999_999_999.0),
         listed(2, day(22), at(20), acts=["Nona"]),
     )
-    result = await write_plan(ops, writer_for(factory), PostgresAuditWriter(factory), run_id=world.run_id, attempt_number=1)
+    result = await write_plan(
+        ops, writer_for(factory), PostgresAuditWriter(factory), run_id=world.run_id, attempt_number=1
+    )
     assert result.written["inserted"] == 2 and len(result.failures) == 1 and not result.all_failed
     stored = await PostgresCalendarReader(factory).stored_shows(world.venue_id, day(1), day(31))
     assert sorted(s.date.day for s in stored) == [20, 22]
 
     [failure_row] = [r for r in await audit_of(factory, world.run_id) if r.detail and r.detail.get("error")]
     assert (failure_row.step_type, failure_row.entity_type, failure_row.entity_id, failure_row.outcome) == (
-        StepType.COMMIT, EntityType.SHOW, None, None,
+        StepType.COMMIT,
+        EntityType.SHOW,
+        None,
+        None,
     )
     assert failure_row.previous_value is None and failure_row.new_value is None
     assert failure_row.detail is not None
     assert (failure_row.detail["date"], failure_row.detail["time"], failure_row.detail["sqlstate"]) == (
-        "2026-10-21", "20:00:00", "22003",
+        "2026-10-21",
+        "20:00:00",
+        "22003",
     )
     assert failure_row.detail["action"] == "insert" and "overflow" in failure_row.detail["error"]
 
 
 @pytest.mark.parametrize(
     "error",
-    [fakes.lost_connection(), fakes.connection_failure("08006"), fakes.connection_failure("57P01"), ValueError("a bug")],
+    [
+        fakes.lost_connection(),
+        fakes.connection_failure("08006"),
+        fakes.connection_failure("57P01"),
+        ValueError("a bug"),
+    ],
     ids=["lost_connection", "08006", "57P01", "bug"],
 )
 async def test_a_connection_error_stops_the_run(error: BaseException) -> None:
@@ -570,14 +650,20 @@ async def test_an_all_failed_run_is_flagged() -> None:
     # listings); two that all fail do not (too few to say).
     three = plan_for([listed(i, day(20 + i), at(20), acts=["Nona"]) for i in range(3)])
     result = await write_plan(
-        build_ops(three, 1, URL), FakeWriter(fail={i: fakes.overflow() for i in range(3)}), RecordingAudit(),
-        run_id=1, attempt_number=1,
+        build_ops(three, 1, URL),
+        FakeWriter(fail={i: fakes.overflow() for i in range(3)}),
+        RecordingAudit(),
+        run_id=1,
+        attempt_number=1,
     )
     assert result.all_failed and len(result.failures) == 3 and result.written["inserted"] == 0
     two = plan_for([listed(i, day(20 + i), at(20), acts=["Nona"]) for i in range(2)])
     result = await write_plan(
-        build_ops(two, 1, URL), FakeWriter(fail={i: fakes.overflow() for i in range(2)}), RecordingAudit(),
-        run_id=1, attempt_number=1,
+        build_ops(two, 1, URL),
+        FakeWriter(fail={i: fakes.overflow() for i in range(2)}),
+        RecordingAudit(),
+        run_id=1,
+        attempt_number=1,
     )
     assert len(result.failures) == 2 and not result.all_failed
 

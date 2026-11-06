@@ -22,6 +22,7 @@ app.include_router(artists.router)
 app.include_router(calendar.router)
 app.include_router(metro.router)
 
+
 @app.get("/health", status_code=status.HTTP_200_OK)
 async def health():
     # `app_env` is the environment this process believes it is in (C3-D6), so a wrong connection string or a

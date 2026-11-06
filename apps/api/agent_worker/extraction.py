@@ -47,8 +47,17 @@ from agent_worker.sources import embedded_events, jsonld
 from app.config import settings
 
 __all__ = [
-    "PIPELINE_CONFIG", "PIPELINE_OPTIONS", "PIPELINE_ROLES", "ExtractionConfig", "PageExtractionResult",
-    "RequestOptions", "clean_text", "extract_image", "extract_page", "instructor_client", "usable_events",
+    "PIPELINE_CONFIG",
+    "PIPELINE_OPTIONS",
+    "PIPELINE_ROLES",
+    "ExtractionConfig",
+    "PageExtractionResult",
+    "RequestOptions",
+    "clean_text",
+    "extract_image",
+    "extract_page",
+    "instructor_client",
+    "usable_events",
 ]
 
 
@@ -112,8 +121,12 @@ PIPELINE_OPTIONS = PIPELINE_ROLES.page
 # Later on October 11, after `a21-title-split`: the act conventions, line-break cleaning and title
 # split on the model route.
 PIPELINE_CONFIG = ExtractionConfig(
-    route="auto", year_rule=True, status_pass=True,
-    act_conventions=True, keep_line_breaks=True, title_split=True,
+    route="auto",
+    year_rule=True,
+    status_pass=True,
+    act_conventions=True,
+    keep_line_breaks=True,
+    title_split=True,
 )
 
 
@@ -198,9 +211,7 @@ def usable_events(html: str) -> list[dict[str, Any]]:
     events embedded in an `<astro-island>` (C6.1-D2: a page with both lists the same events twice, and
     keeping JSON-LD first leaves every JSON-LD page exactly as it was measured). Each event is tagged
     with `_source` (`"json-ld"` or `"astro-island"`) so the route can say which reader it used."""
-    ld = [
-        {**e, "_source": "json-ld"} for e in jsonld.find_events(html) if e.get("startDate") and e.get("name")
-    ]
+    ld = [{**e, "_source": "json-ld"} for e in jsonld.find_events(html) if e.get("startDate") and e.get("name")]
     if ld:
         return _without_repeats(ld)
     return _without_repeats([e for e in embedded_events.find_events(html) if e.get("startDate") and e.get("name")])
@@ -291,8 +302,16 @@ def _joined(answers: list[Any], config: ExtractionConfig) -> Any:
 
 
 def _from_model(
-    html: str, *, venue_name: str, fetch_date: datetime.date, client: Any, options: RequestOptions,
-    splitter_options: RequestOptions, status_options: RequestOptions, config: ExtractionConfig, seed: int | None,
+    html: str,
+    *,
+    venue_name: str,
+    fetch_date: datetime.date,
+    client: Any,
+    options: RequestOptions,
+    splitter_options: RequestOptions,
+    status_options: RequestOptions,
+    config: ExtractionConfig,
+    seed: int | None,
 ) -> PageExtractionResult:
     """The full-page model extraction, as A2 built it: cleaned text after the instruction. The page call uses
     `options`; the act splitter (here and in the status merge) uses `splitter_options`; the status question uses
@@ -321,17 +340,31 @@ def _from_model(
         asked = status_check.mentions_status(text)
         answer = (
             status_check.ask(text, client=client, options=status_options, seed=seed)
-            if asked else status_check.StatusAnswer(items=[])
+            if asked
+            else status_check.StatusAnswer(items=[])
         )
         splitter = (
-            (lambda titles: act_split.split_titles(
-                titles, client=client, options=splitter_options, seed=seed, hint=config.splitter_hint,
-            ).acts)
-            if config.title_split else None
+            (
+                lambda titles: (
+                    act_split.split_titles(
+                        titles,
+                        client=client,
+                        options=splitter_options,
+                        seed=seed,
+                        hint=config.splitter_hint,
+                    ).acts
+                )
+            )
+            if config.title_split
+            else None
         )
         extraction, merge_notes = status_check.apply(
-            extraction, answer, page_text=text, fetch_date=fetch_date if config.year_rule else None,
-            venue_name=venue_name, split_titles=splitter,
+            extraction,
+            answer,
+            page_text=text,
+            fetch_date=fetch_date if config.year_rule else None,
+            venue_name=venue_name,
+            split_titles=splitter,
         )
         # The positions of shows the merge added (placeholder confidence, no model judged them) go to the
         # top level, where validation reads them; the rest of the merge's notes stay nested.
@@ -341,8 +374,13 @@ def _from_model(
 
 
 def _shows_from_listings(
-    listings: VenueListingsExtraction, *, client: Any, options: RequestOptions, seed: int | None,
-    notes: dict[str, Any], hint: str = "",
+    listings: VenueListingsExtraction,
+    *,
+    client: Any,
+    options: RequestOptions,
+    seed: int | None,
+    notes: dict[str, Any],
+    hint: str = "",
 ) -> VenuePageExtraction:
     """The title-split route's second step: split every listing's verbatim title into acts with
     the act splitter (the JSON-LD route's narrow task), keeping every other field as the page
@@ -357,18 +395,27 @@ def _shows_from_listings(
         )
         for item, acts in zip(listings.listings, split.acts, strict=True)
     ]
-    notes.update({
-        "titles": titles,
-        "no_acts": [t for t, acts in zip(titles, split.acts, strict=True) if not acts],
-        "missing_ids": split.missing_ids,
-        "title_mismatches": split.title_mismatches,
-    })
+    notes.update(
+        {
+            "titles": titles,
+            "no_acts": [t for t, acts in zip(titles, split.acts, strict=True) if not acts],
+            "missing_ids": split.missing_ids,
+            "title_mismatches": split.title_mismatches,
+        }
+    )
     return VenuePageExtraction(page_readable=listings.page_readable, shows=shows)
 
 
 def _from_structured(
-    events: list[dict[str, Any]], *, html: str, venue_name: str, metro_timezone: str, client: Any,
-    options: RequestOptions, seed: int | None, hint: str = "",
+    events: list[dict[str, Any]],
+    *,
+    html: str,
+    venue_name: str,
+    metro_timezone: str,
+    client: Any,
+    options: RequestOptions,
+    seed: int | None,
+    hint: str = "",
 ) -> PageExtractionResult:
     """Shows from the venue's structured events (JSON-LD, or an `<astro-island>`'s embedded events: C6.1-D1); only the
     acts come from a model (act_split.py).
@@ -389,10 +436,17 @@ def _from_structured(
     show_cls = show_model(status=True, split_acts=False)
     shows = [
         show_cls(
-            venue=venue_name, date=s.date, time=s.time, end_time=s.end_time,
-            acts=[ActExtraction(name=name) for name in acts], is_ambiguous=False,
-            admission_advance=s.admission_advance, admission_day=s.admission_day,
-            free_admission=s.free_admission, image_url=s.image_url, confidence=1.0,
+            venue=venue_name,
+            date=s.date,
+            time=s.time,
+            end_time=s.end_time,
+            acts=[ActExtraction(name=name) for name in acts],
+            is_ambiguous=False,
+            admission_advance=s.admission_advance,
+            admission_day=s.admission_day,
+            free_admission=s.free_admission,
+            image_url=s.image_url,
+            confidence=1.0,
             status=s.status,
         )
         for s, acts in zip(structured, split.acts, strict=True)
@@ -414,8 +468,10 @@ def _from_structured(
         # The venue's URL slug per show, in show order, for validation.check_slug_dates (C6.1-D6).
         notes["slugs"] = [e.get("_slug") for e in events]
     return PageExtractionResult(
-        extraction=page_cls(page_readable=True, shows=shows), source="structured",
-        sent_text="\n".join(f"{i}: {t}" for i, t in enumerate(titles)), notes=notes,
+        extraction=page_cls(page_readable=True, shows=shows),
+        source="structured",
+        sent_text="\n".join(f"{i}: {t}" for i, t in enumerate(titles)),
+        notes=notes,
     )
 
 
@@ -425,9 +481,17 @@ def _from_structured(
 
 
 def extract_page(
-    html: str, *, venue_name: str, metro_timezone: str, fetch_date: datetime.date, client: Any,
-    options: RequestOptions, config: ExtractionConfig, seed: int | None = None,
-    splitter_options: RequestOptions | None = None, status_options: RequestOptions | None = None,
+    html: str,
+    *,
+    venue_name: str,
+    metro_timezone: str,
+    fetch_date: datetime.date,
+    client: Any,
+    options: RequestOptions,
+    config: ExtractionConfig,
+    seed: int | None = None,
+    splitter_options: RequestOptions | None = None,
+    status_options: RequestOptions | None = None,
 ) -> PageExtractionResult:
     """Extract every show on one fetched page (raw HTML).
 
@@ -449,18 +513,39 @@ def extract_page(
         # needs a start (the date) and a name (what the splitter reads). `usable_events` applies that.
         events = usable_events(html)
         if events:
-            return _from_structured(events, html=html, venue_name=venue_name, metro_timezone=metro_timezone,
-                                client=client, options=splitter_options, seed=seed, hint=config.splitter_hint)
+            return _from_structured(
+                events,
+                html=html,
+                venue_name=venue_name,
+                metro_timezone=metro_timezone,
+                client=client,
+                options=splitter_options,
+                seed=seed,
+                hint=config.splitter_hint,
+            )
 
     return _from_model(
-        html, venue_name=venue_name, fetch_date=fetch_date, client=client, options=options,
-        splitter_options=splitter_options, status_options=status_options, config=config, seed=seed,
+        html,
+        venue_name=venue_name,
+        fetch_date=fetch_date,
+        client=client,
+        options=options,
+        splitter_options=splitter_options,
+        status_options=status_options,
+        config=config,
+        seed=seed,
     )
 
 
 def extract_image(
-    image_b64: str, *, mime: str, fetch_date: datetime.date, client: Any, options: RequestOptions,
-    config: ExtractionConfig, seed: int | None = None,
+    image_b64: str,
+    *,
+    mime: str,
+    fetch_date: datetime.date,
+    client: Any,
+    options: RequestOptions,
+    config: ExtractionConfig,
+    seed: int | None = None,
 ) -> PageExtractionResult:
     """Extract the show a poster image depicts (the image path; build plan §8 defers reading
     images out of live pages, so this serves local poster fixtures).

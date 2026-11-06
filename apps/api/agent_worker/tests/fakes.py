@@ -87,8 +87,13 @@ def split_answer(*titles_and_acts: tuple[str, list[str]]) -> dict[str, Any]:
 def listing(day: str, title: str, *, time: str | None = None, confidence: float = 0.95, **extra: Any) -> dict[str, Any]:
     """One listing as the title-split page call returns it."""
     return {
-        "venue": "The Venue", "date": day, "time": time, "title": title, "is_ambiguous": False,
-        "confidence": confidence, **extra,
+        "venue": "The Venue",
+        "date": day,
+        "time": time,
+        "title": title,
+        "is_ambiguous": False,
+        "confidence": confidence,
+        **extra,
     }
 
 
@@ -177,7 +182,9 @@ class FakeReader:
     Typed loosely, like the fakes above, so this module does not import the reader.
     """
 
-    def __init__(self, stored: list[Any] | None = None, artists: list[Any] | None = None, *, fail: bool = False) -> None:
+    def __init__(
+        self, stored: list[Any] | None = None, artists: list[Any] | None = None, *, fail: bool = False
+    ) -> None:
         self.stored = stored or []
         self.known = artists or []
         self.fail = fail
@@ -235,7 +242,9 @@ def overflow() -> DBAPIError:
 
 def check_violation() -> IntegrityError:
     """A CHECK constraint refusing a row: SQLSTATE 23514 (class 23), an `IntegrityError`."""
-    return IntegrityError("INSERT INTO show ...", {}, _DriverError('violates check constraint "show_tmp_check"', "23514"))
+    return IntegrityError(
+        "INSERT INTO show ...", {}, _DriverError('violates check constraint "show_tmp_check"', "23514")
+    )
 
 
 def foreign_key_violation() -> IntegrityError:
@@ -297,11 +306,23 @@ class FakeWriter:
         self._next_show += 1
         if self.audit is not None:
             for key, artist_id in created.items():
-                await self.audit.record(artist_created_entry(
-                    run_id=run_id, attempt_number=attempt_number, artist_id=artist_id, name=op.new_artist_names[key], key=key,
-                ))
-            await self.audit.record(show_write_entry(
-                op, run_id=run_id, attempt_number=attempt_number, show_id=show_id,
-                previous=None if op.stored_id is None else {"fake": True}, new={"fake": True},
-            ))
+                await self.audit.record(
+                    artist_created_entry(
+                        run_id=run_id,
+                        attempt_number=attempt_number,
+                        artist_id=artist_id,
+                        name=op.new_artist_names[key],
+                        key=key,
+                    )
+                )
+            await self.audit.record(
+                show_write_entry(
+                    op,
+                    run_id=run_id,
+                    attempt_number=attempt_number,
+                    show_id=show_id,
+                    previous=None if op.stored_id is None else {"fake": True},
+                    new={"fake": True},
+                )
+            )
         return ShowWritten(show_id, op.outcome, created)

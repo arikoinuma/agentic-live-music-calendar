@@ -51,29 +51,73 @@ _TS = {"created_at", "updated_at"}
 EXPECTED_COLUMNS: dict[str, set[str]] = {
     "metro": {"id", "name", "timezone", "slug"} | _TS,
     "venue": {
-        "id", "metro_id", "name", "calendar_url", "photo_url", "address",
-        "phone_numbers", "emails", "website", "age_restriction",
-        "serves_alcohol", "venue_type", "setting", "seating",
-        "fetch_strategy", "extra_metadata",
-    } | _TS,
+        "id",
+        "metro_id",
+        "name",
+        "calendar_url",
+        "photo_url",
+        "address",
+        "phone_numbers",
+        "emails",
+        "website",
+        "age_restriction",
+        "serves_alcohol",
+        "venue_type",
+        "setting",
+        "seating",
+        "fetch_strategy",
+        "extra_metadata",
+    }
+    | _TS,
     "artist": {
-        "id", "name", "photo_url", "website", "hometown", "format",
-        "repertoire", "extra_metadata",
-    } | _TS,
+        "id",
+        "name",
+        "photo_url",
+        "website",
+        "hometown",
+        "format",
+        "repertoire",
+        "extra_metadata",
+    }
+    | _TS,
     "event": {"id", "name", "start_date", "end_date"} | _TS,
     "show": {
-        "id", "venue_id", "event_id", "date", "start_time", "end_time",
-        "age_restriction", "serves_alcohol", "setting", "seating",
-        "admission_advance", "admission_day", "free_admission", "image_url",
-        "original_url", "status",
-    } | _TS,
+        "id",
+        "venue_id",
+        "event_id",
+        "date",
+        "start_time",
+        "end_time",
+        "age_restriction",
+        "serves_alcohol",
+        "setting",
+        "seating",
+        "admission_advance",
+        "admission_day",
+        "free_admission",
+        "image_url",
+        "original_url",
+        "status",
+    }
+    | _TS,
     "show_artist": {"show_id", "artist_id", "start_time", "sequence_number"},
     # C3-D5: `app_env` is the environment that ran it (nullable; rows from before C3 stay NULL).
     "agent_run": {"id", "venue_id", "trigger", "started_at", "finished_at", "app_env"},
     "audit_log": {
-        "id", "run_id", "attempt_number", "step_type", "source", "entity_type",
-        "entity_id", "outcome", "model_used", "confidence", "previous_value",
-        "new_value", "snapshot_key", "created_at",
+        "id",
+        "run_id",
+        "attempt_number",
+        "step_type",
+        "source",
+        "entity_type",
+        "entity_id",
+        "outcome",
+        "model_used",
+        "confidence",
+        "previous_value",
+        "new_value",
+        "snapshot_key",
+        "created_at",
         # A4 (docs/dev/implementations/a4-auditability.md, A4-D2): the evidence behind a step.
         "detail",
     },
@@ -196,12 +240,7 @@ def test_column_types_the_doc_specifies() -> None:
 
 def _enum_columns() -> list[tuple[str, str, sa.Enum]]:
     """Every enum-typed column in the schema, as (table, column, type)."""
-    return [
-        (t.name, c.name, c.type)
-        for t in TABLES.values()
-        for c in t.columns
-        if isinstance(c.type, sa.Enum)
-    ]
+    return [(t.name, c.name, c.type) for t in TABLES.values() for c in t.columns if isinstance(c.type, sa.Enum)]
 
 
 def test_every_python_enum_is_a_postgres_type_and_nothing_else_is() -> None:
@@ -209,9 +248,7 @@ def test_every_python_enum_is_a_postgres_type_and_nothing_else_is() -> None:
     # Catches both an enum defined but never used on a column, and a column
     # using an enum type that has no Python counterpart.
     in_enums_py = {
-        obj
-        for _, obj in inspect.getmembers(enums, inspect.isclass)
-        if issubclass(obj, StrEnum) and obj is not StrEnum
+        obj for _, obj in inspect.getmembers(enums, inspect.isclass) if issubclass(obj, StrEnum) and obj is not StrEnum
     }
     # 13 today; derived rather than hard-coded so a new enum in enums.py
     # that nobody mapped to a column fails here.

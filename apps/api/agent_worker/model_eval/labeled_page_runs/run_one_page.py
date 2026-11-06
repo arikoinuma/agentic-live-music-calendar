@@ -109,12 +109,20 @@ class AttemptResult:
     score: dict[str, Any] | None  # asdict(PageScore) of THIS attempt's extraction; None when the call produced nothing
     errors: list[dict[str, Any]] = field(default_factory=list)  # recomputed error findings
     warnings: list[dict[str, Any]] = field(default_factory=list)  # recomputed warnings (stored nowhere else)
-    recorded_errors: list[dict[str, Any]] = field(default_factory=list)  # what AttemptRecord.findings held, for the self-check
+    recorded_errors: list[dict[str, Any]] = field(
+        default_factory=list
+    )  # what AttemptRecord.findings held, for the self-check
     # C7 (Step 2). Every field has a default, so a results file written before C7 still loads.
-    confidence: float | None = None  # the record's confidence as validation computed it: the minimum over the judged shows
-    show_confidences: list[float | None] = field(default_factory=list)  # each raw show's confidence as the model gave it, by index
+    confidence: float | None = (
+        None  # the record's confidence as validation computed it: the minimum over the judged shows
+    )
+    show_confidences: list[float | None] = field(
+        default_factory=list
+    )  # each raw show's confidence as the model gave it, by index
     judged_indices: list[int] = field(default_factory=list)  # the raw indexes that confidence covers (C7-PR1-1)
-    excluded_indices: list[int] = field(default_factory=list)  # the raw indexes validation excluded (`ValidationResult.excluded`)
+    excluded_indices: list[int] = field(
+        default_factory=list
+    )  # the raw indexes validation excluded (`ValidationResult.excluded`)
     recorded_confidence: float | None = None  # AttemptRecord.confidence, for the self-check; None when not recorded
     seconds: float | None = None  # from the previous attempt's staging (or the run's start) to this one's
     tokens: dict[str, int] | None = None  # this attempt's extraction calls; None when no response carried `usage`
@@ -162,8 +170,13 @@ def score_dict(label: PageLabel, extraction: dict[str, Any] | None, page_html: s
 
 
 def column_scores(
-    label: PageLabel, *, raw: dict[str, Any] | None, validated: dict[str, Any] | None, committed: dict[str, Any],
-    page_html: str, fixture: str,
+    label: PageLabel,
+    *,
+    raw: dict[str, Any] | None,
+    validated: dict[str, Any] | None,
+    committed: dict[str, Any],
+    page_html: str,
+    fixture: str,
 ) -> dict[str, dict[str, Any]]:
     """The three scored columns of one run, keyed as `PageRun` names them (`raw_score`, `validated_score`, `committed_score`).
 
@@ -207,7 +220,9 @@ def staged_seconds(documents: list[dict[str, Any]]) -> list[float | None]:
 
 
 def _spans(
-    started: float, marks: list[tuple[float, tuple[int, int, bool]]], end: tuple[int, int, bool],
+    started: float,
+    marks: list[tuple[float, tuple[int, int, bool]]],
+    end: tuple[int, int, bool],
 ) -> tuple[list[float], list[dict[str, int] | None], dict[str, int] | None]:
     """Each attempt's seconds and tokens from the stager's marks, and the tokens spent after the last one.
 
@@ -226,30 +241,50 @@ def _spans(
 
 
 def _attempt_result(
-    document: dict[str, Any], record: AttemptRecord | None, label: PageLabel, page_html: str, fixture: str,
-    *, seconds: float | None, tokens: dict[str, int] | None,
+    document: dict[str, Any],
+    record: AttemptRecord | None,
+    label: PageLabel,
+    page_html: str,
+    fixture: str,
+    *,
+    seconds: float | None,
+    tokens: dict[str, int] | None,
 ) -> AttemptResult:
     """Score one staged attempt and recompute its validation. A call that produced no extraction has no score and no findings."""
     raw = document["raw_extraction"]
-    result = recompute_validation(document, page_html=page_html, fetched_on=label.captured_on) if raw is not None else None
+    result = (
+        recompute_validation(document, page_html=page_html, fetched_on=label.captured_on) if raw is not None else None
+    )
     findings = result.findings if result is not None else []
     return AttemptResult(
-        attempt=document["attempt"], tier=document["tier"], route=document["route"], model=document["model"],
-        larger_model_used=document["larger_model_used"], error=document["error"],
-        verdict=record.verdict.value if record else "none", reasons=[r.value for r in record.reasons] if record else [],
+        attempt=document["attempt"],
+        tier=document["tier"],
+        route=document["route"],
+        model=document["model"],
+        larger_model_used=document["larger_model_used"],
+        error=document["error"],
+        verdict=record.verdict.value if record else "none",
+        reasons=[r.value for r in record.reasons] if record else [],
         score=score_dict(label, raw, page_html, fixture) if raw is not None else None,
         errors=[finding_dict(f) for f in findings if f.severity is Severity.ERROR],
         warnings=[finding_dict(f) for f in findings if f.severity is Severity.WARNING],
         recorded_errors=[finding_dict(f) for f in record.findings] if record else [],
         **confidence_fields(document, result),
         recorded_confidence=record.confidence if record else None,
-        seconds=seconds, tokens=tokens,
+        seconds=seconds,
+        tokens=tokens,
     )
 
 
 async def run_page(
-    *, label: PageLabel, fixture: Path, venue: VenueFacts, ctx: WorkerContext,
-    committed_rows: Callable[[], Awaitable[dict[str, Any]]], policy: RetryPolicy | None = None, name: str | None = None,
+    *,
+    label: PageLabel,
+    fixture: Path,
+    venue: VenueFacts,
+    ctx: WorkerContext,
+    committed_rows: Callable[[], Awaitable[dict[str, Any]]],
+    policy: RetryPolicy | None = None,
+    name: str | None = None,
 ) -> PageRun:
     """Run `fixture` through the graph as `venue`, and score the raw, validated and committed results against `label`.
 
@@ -259,11 +294,13 @@ async def run_page(
     it differs from the file's name (a scenario feeds every capture of a venue from one fixed path, see `two_run_scenarios.run_scenario`).
     """
     stager = ctx.stager
-    assert isinstance(stager, InMemoryStager), "run_page records per-attempt documents; give the context an InMemoryStager"
+    assert isinstance(stager, InMemoryStager), (
+        "run_page records per-attempt documents; give the context an InMemoryStager"
+    )
     first_document = len(stager.documents)
     name = name or fixture.name
     is_image = fixture.suffix in IMAGE_SUFFIXES
-    page_html = "" if is_image else fixture.read_text()
+    page_html = "" if is_image else fixture.read_text()  # noqa: ASYNC240 - one small local fixture, read once per page
 
     # Count this run's calls (C7-D6): the hooks write to the counters found through `run_eval`'s ContextVar, which the graph's
     # node threads inherit from this task, and the stager notes the totals at each staging.
@@ -271,12 +308,19 @@ async def run_page(
     stager.counters = run_eval.new_counters()
     started = time.perf_counter()
     state: VenueGraphState = await run_venue(
-        venue, ctx, trigger=RunTrigger.MANUAL, calendar_url=str(fixture), fetched_on=label.captured_on, policy=policy,
+        venue,
+        ctx,
+        trigger=RunTrigger.MANUAL,
+        calendar_url=str(fixture),
+        fetched_on=label.captured_on,
+        policy=policy,
     )
     seconds = round(time.perf_counter() - started, 1)
 
     documents = stager.documents[first_document:]
-    attempt_seconds, attempt_tokens, tokens_after = _spans(started, stager.marks[first_document:], _tokens_now(stager.counters))
+    attempt_seconds, attempt_tokens, tokens_after = _spans(
+        started, stager.marks[first_document:], _tokens_now(stager.counters)
+    )
     records = {r.attempt: r for r in state.attempt_history}
     attempts = [
         _attempt_result(d, records.get(d["attempt"]), label, page_html, name, seconds=s, tokens=t)
@@ -289,21 +333,34 @@ async def run_page(
     # included, so an escalated run must not report it: nothing from it was committed.
     validated = (
         state.validated_extraction.model_dump(mode="json")
-        if state.validated_extraction is not None and not escalated else None
+        if state.validated_extraction is not None and not escalated
+        else None
     )
     committed = await committed_rows()
     final_verdict = state.validation.verdict.value if state.validation and state.validation.verdict else None
     return PageRun(
-        fixture=name, venue_id=venue.id, run_id=state.run_id, seconds=seconds,
-        source=state.extraction_source, attempt_count=state.attempt_count, retried=state.attempt_count > 1,
+        fixture=name,
+        venue_id=venue.id,
+        run_id=state.run_id,
+        seconds=seconds,
+        source=state.extraction_source,
+        attempt_count=state.attempt_count,
+        retried=state.attempt_count > 1,
         recovered=state.attempt_count > 1 and not escalated and final_verdict != "failed",
-        escalated=escalated, escalation_reason=state.escalation_reason, final_verdict=final_verdict,
+        escalated=escalated,
+        escalation_reason=state.escalation_reason,
+        final_verdict=final_verdict,
         policy=dataclasses.asdict(state.policy),
         reconcile_counts=state.reconcile_plan.counts() if state.reconcile_plan else None,
         commit_written=dict(state.commit_result.written) if state.commit_result else None,
-        raw=raw, validated=validated, committed=committed,
+        raw=raw,
+        validated=validated,
+        committed=committed,
         **column_scores(label, raw=raw, validated=validated, committed=committed, page_html=page_html, fixture=name),
-        attempts=attempts, staged_documents=documents,
-        route_mismatch=bool(documents and state.extraction_source is not None and documents[-1]["route"] != state.extraction_source),
+        attempts=attempts,
+        staged_documents=documents,
+        route_mismatch=bool(
+            documents and state.extraction_source is not None and documents[-1]["route"] != state.extraction_source
+        ),
         tokens_after_last_attempt=tokens_after,
     )

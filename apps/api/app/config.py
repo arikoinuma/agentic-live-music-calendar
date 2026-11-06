@@ -82,7 +82,7 @@ def environment_problem(
 class Settings(BaseSettings):
     # Real environment variables win over `.env`, which only fills in what isn't set. The relative path is
     # `apps/api/.env`, because every entry point runs with `apps/api/` as its working directory (`uv run`).
-    model_config = SettingsConfigDict(env_file='.env')
+    model_config = SettingsConfigDict(env_file=".env")
 
     # Which place this process believes it is in (C3-D3). Defaults to `local` so a hosted service that forgets
     # the variable behaves as a laptop, and the consistency rule below then refuses a hosted database for it.

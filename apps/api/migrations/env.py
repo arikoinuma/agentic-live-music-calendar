@@ -113,9 +113,7 @@ def do_run_migrations(connection) -> None:
     # which models to use, then run the migration scripts inside one
     # transaction (Postgres can roll back schema changes, so a failure
     # leaves the database untouched).
-    context.configure(
-        connection=connection, target_metadata=target_metadata, **COMPARE_OPTS
-    )
+    context.configure(connection=connection, target_metadata=target_metadata, **COMPARE_OPTS)
 
     with context.begin_transaction():
         context.run_migrations()

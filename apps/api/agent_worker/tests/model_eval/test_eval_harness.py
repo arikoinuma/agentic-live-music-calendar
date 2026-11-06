@@ -31,8 +31,11 @@ def show(acts: list[Any], **fields: Any) -> dict[str, Any]:
     """One show as a dict, shaped like `VenuePageExtraction.model_dump()` output (acts may
     be plain strings, the pre-A2 shape, or objects)."""
     base: dict[str, Any] = {
-        "venue": "The Terminal Bar", "date": "2026-08-07", "acts": acts,
-        "is_ambiguous": False, "confidence": 0.9,
+        "venue": "The Terminal Bar",
+        "date": "2026-08-07",
+        "acts": acts,
+        "is_ambiguous": False,
+        "confidence": 0.9,
     }
     base.update(fields)
     return base
@@ -49,7 +52,8 @@ def test_a_leaked_non_music_act_is_counted() -> None:
     ref = REFERENCE["terminal_html"]
     result = run_eval.score_extraction(
         {"shows": [show(["OPEN MIC"]), show([{"name": "Open Comedy Night"}]), show(["Envies"])]},
-        ref, page_text="",
+        ref,
+        page_text="",
     )
     assert result["leaks"] == ["OPEN MIC", "Open Comedy Night"]
 
@@ -59,7 +63,9 @@ def test_a_show_with_no_acts_is_counted_as_empty() -> None:
     # artists would otherwise score as zero leaks (no act name to match), a false zero
     # on exactly the rule A2 is measuring. The baseline produced two such shows itself.
     result = run_eval.score_extraction(
-        {"shows": [show([]), show(["Envies"]), show([])]}, FixtureReference(), page_text="",
+        {"shows": [show([]), show(["Envies"]), show([])]},
+        FixtureReference(),
+        page_text="",
     )
     assert result["empty_acts"] == 2
 
@@ -68,7 +74,9 @@ def test_a_leak_titled_in_the_venue_field_is_counted() -> None:
     # Proves: when a model puts the entry's title in `venue` and returns no acts, the
     # leak is still caught, not only leaks that arrive as act names.
     result = run_eval.score_extraction(
-        {"shows": [show([], venue="KARAOKE NIGHT")]}, REFERENCE["zhora"], page_text="",
+        {"shows": [show([], venue="KARAOKE NIGHT")]},
+        REFERENCE["zhora"],
+        page_text="",
     )
     assert result["leaks"] == ["KARAOKE NIGHT"]
 
@@ -90,7 +98,8 @@ def test_an_image_url_not_in_the_page_text_is_invented() -> None:
     # page text (the cleaned text has no URLs, so in practice any URL is invented).
     result = run_eval.score_extraction(
         {"shows": [show(["A"], image_url="https://x.test/p.jpg"), show(["B"], image_url="seen.jpg")]},
-        FixtureReference(), page_text="the page mentions seen.jpg here",
+        FixtureReference(),
+        page_text="the page mentions seen.jpg here",
     )
     assert result["invented_image_urls"] == ["https://x.test/p.jpg"]
 
@@ -100,14 +109,24 @@ def test_aggregate_sums_empty_acts_and_leaks_over_ok_runs_only() -> None:
     # carry the empty-acts total alongside leaks, so the comparison reads it.
     ref = REFERENCE["terminal_html"]
     ok = {
-        "key": "terminal_html", "outcome": "ok", "attempts_used": 1, "parse_failures": 0,
-        "parse_failure_fields": [], "seconds": 10.0, "shows": 2, "page_readable": True,
+        "key": "terminal_html",
+        "outcome": "ok",
+        "attempts_used": 1,
+        "parse_failures": 0,
+        "parse_failure_fields": [],
+        "seconds": 10.0,
+        "shows": 2,
+        "page_readable": True,
         "extraction": {"shows": [show([]), show(["OPEN MIC"])]},
         "score": run_eval.score_extraction({"shows": [show([]), show(["OPEN MIC"])]}, ref, ""),
     }
     failed = {
-        "key": "terminal_html", "outcome": "IncompleteOutputException", "attempts_used": 0,
-        "parse_failures": 0, "parse_failure_fields": [], "seconds": 70.0,
+        "key": "terminal_html",
+        "outcome": "IncompleteOutputException",
+        "attempts_used": 0,
+        "parse_failures": 0,
+        "parse_failure_fields": [],
+        "seconds": 70.0,
     }
     agg = run_eval.aggregate([ok, failed])
     assert (agg["runs"], agg["ok"]) == (2, 1)
@@ -120,9 +139,7 @@ def test_aggregate_sums_empty_acts_and_leaks_over_ok_runs_only() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_the_legacy_configuration_is_the_pre_a2_one(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_the_legacy_configuration_is_the_pre_a2_one(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     # Proves: `legacy=True` sends the pre-A2 instruction ("any ticket info") and asks for
     # the pre-A2 schema (required `time`, a `ticket_info` string, bare-string acts), so the
     # `baseline` label can be re-run after the live schema and prompt have moved on —
@@ -136,12 +153,8 @@ def test_the_legacy_configuration_is_the_pre_a2_one(
             captured.append(kwargs)
             return VenuePageExtraction(page_readable=True, shows=[])
 
-    monkeypatch.setattr(
-        run_eval, "instructor_client", SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
-    )
-    run_eval.extract(
-        page, options=extraction.PIPELINE_OPTIONS, config=extraction.PIPELINE_CONFIG, legacy=True
-    )
+    monkeypatch.setattr(run_eval, "instructor_client", SimpleNamespace(chat=SimpleNamespace(completions=Completions())))
+    run_eval.extract(page, options=extraction.PIPELINE_OPTIONS, config=extraction.PIPELINE_CONFIG, legacy=True)
     (call,) = captured
     assert "any ticket info" in call["messages"][0]["content"]
     schema = call["response_model"].model_json_schema()
@@ -158,9 +171,17 @@ def test_aggregate_records_whether_a_fixtures_runs_were_identical() -> None:
     def ok_run(run: int, shows: list[dict[str, Any]]) -> dict[str, Any]:
         extraction_dump = {"page_readable": True, "shows": shows}
         return {
-            "fixture": "x.html", "key": "x", "run": run, "outcome": "ok", "shows": len(shows),
-            "attempts_used": 1, "parse_failures": 0, "parse_failure_fields": [], "seconds": 1.0,
-            "page_readable": True, "extraction": extraction_dump,
+            "fixture": "x.html",
+            "key": "x",
+            "run": run,
+            "outcome": "ok",
+            "shows": len(shows),
+            "attempts_used": 1,
+            "parse_failures": 0,
+            "parse_failure_fields": [],
+            "seconds": 1.0,
+            "page_readable": True,
+            "extraction": extraction_dump,
             "score": run_eval.score_extraction(extraction_dump, FixtureReference(), ""),
         }
 
@@ -178,14 +199,28 @@ def test_runs_identical_compares_runs_of_the_same_page_only() -> None:
     def ok_run(fixture: str, run: int, acts: list[str]) -> dict[str, Any]:
         extraction_dump = {"page_readable": True, "shows": [show(acts)]}
         return {
-            "fixture": fixture, "key": "x", "run": run, "outcome": "ok", "shows": 1,
-            "attempts_used": 1, "parse_failures": 0, "parse_failure_fields": [], "seconds": 1.0,
-            "page_readable": True, "extraction": extraction_dump,
+            "fixture": fixture,
+            "key": "x",
+            "run": run,
+            "outcome": "ok",
+            "shows": 1,
+            "attempts_used": 1,
+            "parse_failures": 0,
+            "parse_failure_fields": [],
+            "seconds": 1.0,
+            "page_readable": True,
+            "extraction": extraction_dump,
             "score": run_eval.score_extraction(extraction_dump, FixtureReference(), ""),
         }
 
-    agg = run_eval.aggregate([ok_run("aug.html", 0, ["A"]), ok_run("aug.html", 1, ["A"]),
-                              ok_run("oct.html", 0, ["B"]), ok_run("oct.html", 1, ["B"])])
+    agg = run_eval.aggregate(
+        [
+            ok_run("aug.html", 0, ["A"]),
+            ok_run("aug.html", 1, ["A"]),
+            ok_run("oct.html", 0, ["B"]),
+            ok_run("oct.html", 1, ["B"]),
+        ]
+    )
     assert agg["per_fixture"]["x"]["runs_identical"] is True
 
 
@@ -197,7 +232,9 @@ def test_the_request_record_stores_every_prompt_a_label_sends() -> None:
     record = run_eval.request_record(extraction.PIPELINE_CONFIG, legacy=False)
     assert "numbered event titles" in record["splitter_instruction"]
     assert "cancelled or postponed" in record["status_instruction"]
-    assert record["image_instruction"] == extraction.instruction_for(replace(extraction.PIPELINE_CONFIG, title_split=False))
+    assert record["image_instruction"] == extraction.instruction_for(
+        replace(extraction.PIPELINE_CONFIG, title_split=False)
+    )
 
 
 def test_runs_identical_needs_two_runs_of_every_page() -> None:
@@ -206,9 +243,17 @@ def test_runs_identical_needs_two_runs_of_every_page() -> None:
     def ok_run(fixture: str, run: int) -> dict[str, Any]:
         extraction_dump = {"page_readable": True, "shows": [show(["A"])]}
         return {
-            "fixture": fixture, "key": "x", "run": run, "outcome": "ok", "shows": 1,
-            "attempts_used": 1, "parse_failures": 0, "parse_failure_fields": [], "seconds": 1.0,
-            "page_readable": True, "extraction": extraction_dump,
+            "fixture": fixture,
+            "key": "x",
+            "run": run,
+            "outcome": "ok",
+            "shows": 1,
+            "attempts_used": 1,
+            "parse_failures": 0,
+            "parse_failure_fields": [],
+            "seconds": 1.0,
+            "page_readable": True,
+            "extraction": extraction_dump,
             "score": run_eval.score_extraction(extraction_dump, FixtureReference(), ""),
         }
 
@@ -289,7 +334,10 @@ def test_counters_are_per_run_so_concurrent_runs_cannot_mix_them() -> None:
         barrier.wait()
         results[name] = (len(counters.parse_errors), (counters.tokens_record() or {}).get("prompt"))
 
-    threads = [threading.Thread(target=one_run, args=("a", 2, 100)), threading.Thread(target=one_run, args=("b", 5, 700))]
+    threads = [
+        threading.Thread(target=one_run, args=("a", 2, 100)),
+        threading.Thread(target=one_run, args=("b", 5, 700)),
+    ]
     for t in threads:
         t.start()
     for t in threads:
@@ -308,7 +356,9 @@ def test_usage_is_summed_over_every_call_in_the_run() -> None:
     # Proves (C6 plan, Test 3): a run's tokens are the sum over its page, splitter and status calls.
     counters = run_eval.new_counters()
     for prompt, completion in ((100, 10), (50, 5), (20, 2)):
-        run_eval._record_completion(SimpleNamespace(usage=SimpleNamespace(prompt_tokens=prompt, completion_tokens=completion)))
+        run_eval._record_completion(
+            SimpleNamespace(usage=SimpleNamespace(prompt_tokens=prompt, completion_tokens=completion))
+        )
     assert counters.tokens_record() == {"prompt": 170, "completion": 17}
 
 
@@ -356,10 +406,13 @@ def test_run_once_sends_the_splitter_its_roles_model(tmp_path: Path) -> None:
     name = next(n for n in run_eval.PAGE_LABELS if n.endswith(".html"))
     fixture = tmp_path / name
     fixture.write_text(text_page("Nona", "Oct 20"))
-    client = scripted_client({
-        PAGE: [listings_answer(listing("2026-10-20", "Nona"))], SPLITTER: [split_answer(("Nona", ["Nona"]))],
-        STATUS: [{"items": []}],
-    })
+    client = scripted_client(
+        {
+            PAGE: [listings_answer(listing("2026-10-20", "Nona"))],
+            SPLITTER: [split_answer(("Nona", ["Nona"]))],
+            STATUS: [{"items": []}],
+        }
+    )
     base = extraction.PIPELINE_ROLES
     roles = replace(base, splitter=replace(base.splitter, model="split-m"))
     original = run_eval.instructor_client
@@ -382,7 +435,8 @@ def test_both_counting_hooks_are_registered_on_the_harness_client() -> None:
 
 
 def test_the_extraction_harness_never_selects_a_held_out_page_unless_asked(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     # Proves: C5-D3 in `run_eval` too. `--set all` is gated plus informational and excludes held-out pages; `--set held_out`
     # selects only them. The expectation is the plan's rule, over two constructed labels and fixture files.

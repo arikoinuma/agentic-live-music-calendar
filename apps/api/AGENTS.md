@@ -24,6 +24,7 @@ Run from `apps/api`. Scripts need `-m` (`uv run python -m scripts.dump_openapi`)
 uv run uvicorn app.main:app --reload    # or `make api` from the repo root
 uv run pytest                           # DB tests skip if Postgres is down
 uv run ruff check . && uv run mypy      # mypy checks app/ and agent_worker/ ([tool.mypy] files)
+uv run ruff format .                    # or `make format`; CI runs `ruff format --check` (PQR1-1)
 make coverage                           # from the repo root: branch coverage report, no threshold
 make seed                               # metro + the starting venue list (inserts only: `make db-reset` to drop old venues)
 ```

@@ -93,8 +93,12 @@ def at(hour: int, minute: int = 0) -> datetime.time:
 
 
 def stored(
-    show_id: int, date: datetime.date, start: datetime.time | None = None, acts: Sequence[tuple[int, str]] = (),
-    status: ShowStatus = ShowStatus.ACTIVE, **fields: Any,
+    show_id: int,
+    date: datetime.date,
+    start: datetime.time | None = None,
+    acts: Sequence[tuple[int, str]] = (),
+    status: ShowStatus = ShowStatus.ACTIVE,
+    **fields: Any,
 ) -> StoredShow:
     """A show that is ALREADY in the database, as the calendar reader would hand it to reconcile.
 
@@ -111,8 +115,12 @@ def stored(
 
 
 def listed(
-    index: int, date: datetime.date, time: datetime.time | None = None, acts: Iterable[str | ListedAct] = ("Nona",),
-    status: str = "scheduled", **fields: Any,
+    index: int,
+    date: datetime.date,
+    time: datetime.time | None = None,
+    acts: Iterable[str | ListedAct] = ("Nona",),
+    status: str = "scheduled",
+    **fields: Any,
 ) -> Listing:
     """One entry on the venue's page, after extraction and validation (a "kept" listing).
 
@@ -125,7 +133,11 @@ def listed(
     Example: `listed(0, day(20), at(20), acts=["Nona", "Zhora"])` is a page entry for October 20 at 8 PM naming two acts.
     """
     return Listing(
-        index=index, date=date, time=time, status=status, **fields,
+        index=index,
+        date=date,
+        time=time,
+        status=status,
+        **fields,
         acts=tuple(a if isinstance(a, ListedAct) else ListedAct(a) for a in acts),
     )
 
@@ -158,8 +170,12 @@ def inputs_for(
 
 
 def plan_for(
-    listings: Sequence[Listing], stored_shows: Sequence[StoredShow] = (), known: Sequence[KnownArtist] = KNOWN, *,
-    excluded: Iterable[datetime.date] = (), client: Any = None,
+    listings: Sequence[Listing],
+    stored_shows: Sequence[StoredShow] = (),
+    known: Sequence[KnownArtist] = KNOWN,
+    *,
+    excluded: Iterable[datetime.date] = (),
+    client: Any = None,
 ) -> ReconcilePlan:
     """The plan reconcile makes for these page listings against these stored shows and known artists.
 
@@ -168,8 +184,12 @@ def plan_for(
     that WANTS the model passes a scripted client (`fakes.scripted_client`).
     """
     return build_plan(
-        inputs_for(listings, excluded=excluded), stored_shows, known, original_url=URL,
-        client=client or scripted_client({}), options=OPTIONS,
+        inputs_for(listings, excluded=excluded),
+        stored_shows,
+        known,
+        original_url=URL,
+        client=client or scripted_client({}),
+        options=OPTIONS,
     )
 
 
@@ -220,9 +240,7 @@ def apply_plan(
 
     def lineup(decision: Any) -> tuple[StoredLineupEntry, ...]:
         """A decision's resulting lineup as stored `show_artist` rows (artist ids resolved, order and set times kept)."""
-        return tuple(
-            StoredLineupEntry(artist_id(e), e.name, e.start_time, e.sequence_number) for e in decision.lineup
-        )
+        return tuple(StoredLineupEntry(artist_id(e), e.name, e.start_time, e.sequence_number) for e in decision.lineup)
 
     for d in plan.shows:
         if d.action is Action.INSERT:
@@ -230,9 +248,16 @@ def apply_plan(
             listing = d.listing
             assert listing is not None  # an insert always carries the listing it was built from
             shows[next_show] = StoredShow(
-                id=next_show, date=d.date, start_time=listing.time, end_time=listing.end_time,
-                admission_advance=to_price(listing.admission_advance), admission_day=to_price(listing.admission_day),
-                free_admission=listing.free_admission, image_url=listing.image_url, original_url=URL, lineup=lineup(d),
+                id=next_show,
+                date=d.date,
+                start_time=listing.time,
+                end_time=listing.end_time,
+                admission_advance=to_price(listing.admission_advance),
+                admission_day=to_price(listing.admission_day),
+                free_admission=listing.free_admission,
+                image_url=listing.image_url,
+                original_url=URL,
+                lineup=lineup(d),
             )
             next_show += 1
         elif d.action is Action.UPDATE:
@@ -256,9 +281,7 @@ def apply_plan(
 # ---------------------------------------------------------------------------
 
 
-def violates_free_check(
-    show: StoredShow, changes: dict[str, tuple[Any, Any]]
-) -> bool:
+def violates_free_check(show: StoredShow, changes: dict[str, tuple[Any, Any]]) -> bool:
     """True if applying `changes` to `show` would break the table's CHECK constraint on free admission.
 
     The `show` table forbids `free_admission` together with a price (`show_free_admission_check`,
@@ -284,7 +307,10 @@ def money(value: str) -> decimal.Decimal:
 
 
 def extracted(
-    date: datetime.date, acts: Sequence[str] = ("Nona",), time: datetime.time | None = datetime.time(20, 0), **fields: Any
+    date: datetime.date,
+    acts: Sequence[str] = ("Nona",),
+    time: datetime.time | None = datetime.time(20, 0),
+    **fields: Any,
 ) -> ShowExtraction:
     """One show as the extraction model returns it: the raw record, before validation has looked at it.
 
@@ -293,8 +319,13 @@ def extracted(
     window.
     """
     return ShowExtraction(
-        venue="The Venue", date=date, time=time, is_ambiguous=False, confidence=0.9,
-        acts=[{"name": a} for a in acts], **fields,  # type: ignore[arg-type]
+        venue="The Venue",
+        date=date,
+        time=time,
+        is_ambiguous=False,
+        confidence=0.9,
+        acts=[{"name": a} for a in acts],
+        **fields,  # type: ignore[arg-type]
     )
 
 

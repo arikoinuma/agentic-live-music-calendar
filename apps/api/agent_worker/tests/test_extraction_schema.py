@@ -102,15 +102,19 @@ def test_page_level_schema_still_requires_page_readable() -> None:
 # ---------------------------------------------------------------------------
 
 OPTIONAL_SHOW_FIELDS = [
-    "time", "end_time", "admission_advance", "admission_day", "free_admission", "image_url",
+    "time",
+    "end_time",
+    "admission_advance",
+    "admission_day",
+    "free_admission",
+    "image_url",
 ]
 OPTIONAL_ACT_FIELDS = ["start_time", "sequence_number"]
 
 
 @pytest.mark.parametrize(
     ("model", "name"),
-    [(ShowExtraction, f) for f in OPTIONAL_SHOW_FIELDS]
-    + [(ActExtraction, f) for f in OPTIONAL_ACT_FIELDS],
+    [(ShowExtraction, f) for f in OPTIONAL_SHOW_FIELDS] + [(ActExtraction, f) for f in OPTIONAL_ACT_FIELDS],
 )
 def test_optional_fields_default_to_none(model: type[BaseModel], name: str) -> None:
     # Proves: every optional field has an explicit default of None, so a model that
@@ -212,12 +216,9 @@ def test_an_empty_acts_list_is_deliberately_valid() -> None:
 
 @pytest.mark.parametrize(
     ("model", "name"),
-    [(ShowExtraction, f) for f in OPTIONAL_SHOW_FIELDS]
-    + [(ActExtraction, f) for f in OPTIONAL_ACT_FIELDS],
+    [(ShowExtraction, f) for f in OPTIONAL_SHOW_FIELDS] + [(ActExtraction, f) for f in OPTIONAL_ACT_FIELDS],
 )
-def test_every_optional_field_tells_the_model_how_to_say_not_stated(
-    model: type[BaseModel], name: str
-) -> None:
+def test_every_optional_field_tells_the_model_how_to_say_not_stated(model: type[BaseModel], name: str) -> None:
     # Proves: each optional field's description ends the model's instructions with the
     # fixed phrase "otherwise null". The description is part of the request `instructor`
     # sends, so this is an instruction, not a comment — and the exact phrase (not just
@@ -331,9 +332,7 @@ def test_normalizer_converts_unambiguous_spellings(
 
 @pytest.mark.parametrize(("model", "name"), TIME_FIELDS)
 @pytest.mark.parametrize("raw", ["", "null", "None", "N/A", "na", "TBD", "tba", "Unknown"])
-def test_normalizer_reads_the_word_for_not_stated_as_none(
-    model: type[BaseModel], name: str, raw: str
-) -> None:
+def test_normalizer_reads_the_word_for_not_stated_as_none(model: type[BaseModel], name: str, raw: str) -> None:
     # Proves: a model told "otherwise null" that writes the *word* gets None, not a
     # validation error — the word means "the page doesn't state a time".
     assert validate_field(model, name, raw) is None
@@ -341,9 +340,7 @@ def test_normalizer_reads_the_word_for_not_stated_as_none(
 
 @pytest.mark.parametrize(("model", "name"), TIME_FIELDS)
 @pytest.mark.parametrize("raw", ["19:30:00Z", "19:30-05:00"])
-def test_normalizer_drops_the_timezone_without_converting(
-    model: type[BaseModel], name: str, raw: str
-) -> None:
+def test_normalizer_drops_the_timezone_without_converting(model: type[BaseModel], name: str, raw: str) -> None:
     # Proves: a zone suffix is noise, not information — the wall-clock 19:30 is kept
     # (not shifted) and the result is naive. An aware time would later fail to compare
     # equal to the database's naive `time` column (A5's reconcile key).
@@ -353,9 +350,7 @@ def test_normalizer_drops_the_timezone_without_converting(
 
 
 @pytest.mark.parametrize(("model", "name"), TIME_FIELDS)
-@pytest.mark.parametrize(
-    "raw", ["24:00", "25:00", "13pm", "0pm", "0:30", "13", "after dark", 68400, 19.5, True]
-)
+@pytest.mark.parametrize("raw", ["24:00", "25:00", "13pm", "0pm", "0:30", "13", "after dark", 68400, 19.5, True])
 def test_normalizer_refuses_non_times(model: type[BaseModel], name: str, raw: Any) -> None:
     # Proves: impossible times and free text are refused, not coerced; a bare hour
     # outside 1-12 ("0:30", "13") isn't a 12-hour reading, so assume-PM doesn't apply;

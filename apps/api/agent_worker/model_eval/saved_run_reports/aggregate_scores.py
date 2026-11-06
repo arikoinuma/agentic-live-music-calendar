@@ -31,7 +31,10 @@ def _column(scores: list[scoring.PageScore]) -> dict[str, Any]:
     total = scoring.summed(scores)
     rates = scoring.headline_rates(total)
     return {
-        **{k: getattr(total, k) for k in ("labelled", "returned", "dropped_empty", "missed", "acts_wrong", "fabricated", "leaks")},
+        **{
+            k: getattr(total, k)
+            for k in ("labelled", "returned", "dropped_empty", "missed", "acts_wrong", "fabricated", "leaks")
+        },
         "found": rates.found,
         "rates": asdict(rates),
         "fields": {
@@ -112,8 +115,13 @@ def _validation(records: list[dict[str, Any]]) -> dict[str, Any]:
                     stopped += len(items)
     tally = validation_recall.tally(pairs)
     return {
-        "total": tally.total, "caught": tally.caught, "flagged": tally.flagged, "silent": tally.silent,
-        "recall": tally.recall, "by_kind": tally.by_kind, "findings_fired": dict(fired),
+        "total": tally.total,
+        "caught": tally.caught,
+        "flagged": tally.flagged,
+        "silent": tally.silent,
+        "recall": tally.recall,
+        "by_kind": tally.by_kind,
+        "findings_fired": dict(fired),
         # C5-F14, adopted by C7-D8: errors on an attempt that failed for ANY reason, a finding or not. A forced run fails every
         # model-judged attempt for low confidence, which is no finding, so without this column "silent" swallows everything.
         "stopped": stopped,
@@ -132,7 +140,8 @@ def _per_fixture(records: list[dict[str, Any]]) -> dict[str, Any]:
     for name in sorted({r["fixture"] for r in records}):
         mine = [r for r in records if r["fixture"] == name]
         out[name] = {
-            "runs": len(mine), "seconds": [r["seconds"] for r in mine],
+            "runs": len(mine),
+            "seconds": [r["seconds"] for r in mine],
             "runs_identical": all(r["raw"] == mine[0]["raw"] for r in mine) if len(mine) >= 2 else None,
         }
     return out
@@ -145,7 +154,9 @@ def aggregate(records: list[dict[str, Any]], labels: Mapping[str, PageLabel]) ->
         seconds_by_source.setdefault(policy.stored_route(r.get("source")) or "none", []).append(r["seconds"])
     return {
         "runs": len(records),
-        "columns": {c: _column([scoring.PageScore.from_dict(r[f"{c}_score"]) for r in _scored_in(records, c)]) for c in COLUMNS},
+        "columns": {
+            c: _column([scoring.PageScore.from_dict(r[f"{c}_score"]) for r in _scored_in(records, c)]) for c in COLUMNS
+        },
         "gate": {c: _gate(records, labels, c) for c in COLUMNS},
         "retry": _retry(records),
         "validation": _validation(records),

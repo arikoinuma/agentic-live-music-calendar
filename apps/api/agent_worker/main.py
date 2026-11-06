@@ -90,8 +90,13 @@ async def load_venues(session: AsyncSession, venue_id: int | None = None) -> lis
 
 
 async def run_venue(
-    venue: VenueFacts, ctx: WorkerContext, *, trigger: RunTrigger = RunTrigger.MANUAL,
-    calendar_url: str | None = None, fetched_on: datetime.date | None = None, policy: RetryPolicy | None = None,
+    venue: VenueFacts,
+    ctx: WorkerContext,
+    *,
+    trigger: RunTrigger = RunTrigger.MANUAL,
+    calendar_url: str | None = None,
+    fetched_on: datetime.date | None = None,
+    policy: RetryPolicy | None = None,
 ) -> VenueGraphState:
     """One venue's processing cycle: open a run, run the graph, close the run. Returns the final state.
 
@@ -101,8 +106,11 @@ async def run_venue(
     worker is unchanged. Exceptions propagate (after the run is closed).
     """
     initial = VenueGraphState(
-        venue_id=venue.id, calendar_url=calendar_url or venue.calendar_url,
-        venue_name=venue.name, metro_timezone=venue.metro_timezone, fetched_on=fetched_on,
+        venue_id=venue.id,
+        calendar_url=calendar_url or venue.calendar_url,
+        venue_name=venue.name,
+        metro_timezone=venue.metro_timezone,
+        fetched_on=fetched_on,
     )
     if policy is not None:
         initial = initial.model_copy(update={"policy": policy})
@@ -116,9 +124,7 @@ async def run_venue(
     run_id = await ctx.audit.start_run(venue.id, trigger)
     structlog.contextvars.bind_contextvars(run_id=run_id, venue_id=venue.id)
     try:
-        result = await compiled_graph.ainvoke(
-            initial.model_copy(update={"run_id": run_id}), context=ctx
-        )
+        result = await compiled_graph.ainvoke(initial.model_copy(update={"run_id": run_id}), context=ctx)
         return VenueGraphState(**result)
     finally:
         await ctx.audit.finish_run(run_id)
@@ -126,8 +132,11 @@ async def run_venue(
 
 
 async def run_all(
-    session_factory: async_sessionmaker[AsyncSession], ctx: WorkerContext, *,
-    venue_id: int | None = None, trigger: RunTrigger = RunTrigger.MANUAL,
+    session_factory: async_sessionmaker[AsyncSession],
+    ctx: WorkerContext,
+    *,
+    venue_id: int | None = None,
+    trigger: RunTrigger = RunTrigger.MANUAL,
 ) -> int:
     """Process the venues one after another. Returns how many failed: with an infrastructure error, or with a show
     commit could not write (A6-D2).
@@ -154,11 +163,15 @@ async def run_all(
             # `failed_commits` saved query lists them), so the venue counts as failed and the process exits non-zero.
             failed += 1
             log.error(
-                "venue commit had failures", venue=venue.name, failures=len(state.commit_result.failures),
+                "venue commit had failures",
+                venue=venue.name,
+                failures=len(state.commit_result.failures),
                 all_failed=state.commit_result.all_failed,
             )
         log.info(
-            "venue run finished", venue=venue.name, escalated=state.escalation_reason is not None,
+            "venue run finished",
+            venue=venue.name,
+            escalated=state.escalation_reason is not None,
             attempts=state.attempt_count,
         )
     return failed
@@ -194,7 +207,10 @@ async def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run the agent worker over the venue list.")
     parser.add_argument("--venue", type=int, help="process only this venue id")
     parser.add_argument(
-        "--trigger", type=RunTrigger, choices=list(RunTrigger), default=RunTrigger.MANUAL,
+        "--trigger",
+        type=RunTrigger,
+        choices=list(RunTrigger),
+        default=RunTrigger.MANUAL,
         help="why this run started (a cron job passes `scheduled`)",
     )
     args = parser.parse_args(argv)

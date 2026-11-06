@@ -48,7 +48,7 @@ def test_a_naive_datetime_is_refused() -> None:
     # Proves: a datetime with no timezone is an error, not silently treated as UTC or local. It carries no instant, and a
     # guess would be a bug that only shows up near midnight.
     with pytest.raises(ValueError, match="timezone-aware"):
-        metro_today(datetime.datetime(2026, 10, 7, 12, 0), CHICAGO)
+        metro_today(datetime.datetime(2026, 10, 7, 12, 0), CHICAGO)  # noqa: DTZ001 - naive on purpose
 
 
 def test_get_now_is_aware() -> None:

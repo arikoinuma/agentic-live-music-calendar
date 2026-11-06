@@ -75,7 +75,9 @@ FETCH_ERRORS = (httpx.HTTPError, OSError, UnicodeDecodeError)
 FETCH_SETTINGS: dict[str, Any] = {
     "follow_redirects": True,
     "timeout": httpx.Timeout(20.0),
-    "headers": {"User-Agent": "agentic-live-music-calendar/0.1 (+https://github.com/arikoinuma/agentic-live-music-calendar)"},
+    "headers": {
+        "User-Agent": "agentic-live-music-calendar/0.1 (+https://github.com/arikoinuma/agentic-live-music-calendar)"
+    },
 }
 
 
@@ -110,8 +112,10 @@ def _nothing_to_read(html: str) -> bool:
 
 
 @retry(
-    retry=retry_if_exception(_is_transient), stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=1, max=8), reraise=True,
+    retry=retry_if_exception(_is_transient),
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=8),
+    reraise=True,
 )
 def fetch_html(url: str, *, reject_empty: bool = False) -> str:
     """Fetch a page the way the pipeline does: one GET with `FETCH_SETTINGS` (redirects followed, a project
@@ -184,14 +188,23 @@ def _run_extraction(state: VenueGraphState, plan: AttemptPlan) -> PageExtraction
     fetched_on = state.fetched_on or metro_today(state.metro_timezone)
     if Path(state.calendar_url).suffix in IMAGE_SUFFIXES:
         return extract_image(
-            state.page_content or "", mime="image/png", fetch_date=fetched_on,
-            client=instructor_client, options=plan.options, config=plan.config,
+            state.page_content or "",
+            mime="image/png",
+            fetch_date=fetched_on,
+            client=instructor_client,
+            options=plan.options,
+            config=plan.config,
         )
     return extract_page(
-        state.page_html or "", venue_name=state.venue_name,
-        metro_timezone=state.metro_timezone, fetch_date=fetched_on,
-        client=instructor_client, options=plan.roles.page, config=plan.config,
-        splitter_options=plan.roles.splitter, status_options=plan.roles.status,
+        state.page_html or "",
+        venue_name=state.venue_name,
+        metro_timezone=state.metro_timezone,
+        fetch_date=fetched_on,
+        client=instructor_client,
+        options=plan.roles.page,
+        config=plan.config,
+        splitter_options=plan.roles.splitter,
+        status_options=plan.roles.status,
     )
 
 
@@ -218,7 +231,11 @@ def extract_node(state: VenueGraphState) -> VenueGraphState:
     returns (A4-D1), from what it leaves in the state; nothing here touches a store.
     """
     plan = plan_for_attempt(
-        state.attempt_count + 1, state.policy, state.attempt_history, PIPELINE_CONFIG, PIPELINE_ROLES,
+        state.attempt_count + 1,
+        state.policy,
+        state.attempt_history,
+        PIPELINE_CONFIG,
+        PIPELINE_ROLES,
     )
     state.last_plan = plan
     state.route_attempted = _route_for(state, plan)
@@ -265,36 +282,44 @@ def validate_node(state: VenueGraphState) -> VenueGraphState:
         result = ValidationResult.for_failed_extraction()
         kept: list[ShowExtraction] = []
     else:
-        assert state.extraction_source is not None  # set together with the extraction
+        # Set together with the extraction.
+        assert state.extraction_source is not None  # noqa: S101 - a type-narrowing invariant
         page_html = state.page_html or ""
         result, kept = validate_extraction(
-            state.extraction, source=state.extraction_source, notes=state.extraction_notes,
+            state.extraction,
+            source=state.extraction_source,
+            notes=state.extraction_notes,
             fetched_on=state.fetched_on or metro_today(state.metro_timezone),
-            page_html=page_html, page_text=clean_text(page_html, False) if page_html else "",
+            page_html=page_html,
+            page_text=clean_text(page_html, False) if page_html else "",
         )
     result = combine(result, state.policy)
-    assert result.verdict is not None  # combine always sets one
+    # `combine` always sets one.
+    assert result.verdict is not None  # noqa: S101 - a type-narrowing invariant
     state.validation = result
     state.confidence = result.confidence
     state.validated_extraction = (
         state.extraction.model_copy(update={"shows": kept}) if state.extraction is not None else None
     )
     plan = state.last_plan
-    state.attempt_history = [*state.attempt_history, AttemptRecord(
-        attempt=state.attempt_count,
-        tier=plan.tier if plan else "initial",
-        model=plan.options.model if plan else "",
-        route=state.route_attempted,
-        error=state.extract_error,
-        verdict=result.verdict,
-        reasons=result.reasons,
-        findings=result.errors,
-        confidence=result.confidence,
-        error_count=len(result.errors),
-        warning_count=len(result.warnings),
-        larger_model_used=plan.larger_model_used if plan else False,
-        models=plan.models_used(state.route_attempted) if plan and state.route_attempted else {},
-    )]
+    state.attempt_history = [
+        *state.attempt_history,
+        AttemptRecord(
+            attempt=state.attempt_count,
+            tier=plan.tier if plan else "initial",
+            model=plan.options.model if plan else "",
+            route=state.route_attempted,
+            error=state.extract_error,
+            verdict=result.verdict,
+            reasons=result.reasons,
+            findings=result.errors,
+            confidence=result.confidence,
+            error_count=len(result.errors),
+            warning_count=len(result.warnings),
+            larger_model_used=plan.larger_model_used if plan else False,
+            models=plan.models_used(state.route_attempted) if plan and state.route_attempted else {},
+        ),
+    ]
     return state
 
 
@@ -309,15 +334,23 @@ def reconcile_node(state: VenueGraphState) -> VenueGraphState:
     involved for that one case. The rules are in reconcile.py and artist_match.py.
     """
     inputs = prepare_inputs(
-        state.extraction, state.validated_extraction, state.validation,
+        state.extraction,
+        state.validated_extraction,
+        state.validation,
         state.fetched_on or metro_today(state.metro_timezone),
     )
     state.reconcile_plan = build_plan(
-        inputs, state.stored_shows, state.known_artists,
-        original_url=state.calendar_url, client=instructor_client, options=PIPELINE_ROLES.matcher,
+        inputs,
+        state.stored_shows,
+        state.known_artists,
+        original_url=state.calendar_url,
+        client=instructor_client,
+        options=PIPELINE_ROLES.matcher,
     )
     log.info(
-        "reconcile decided", venue_id=state.venue_id, counts=state.reconcile_plan.counts(),
+        "reconcile decided",
+        venue_id=state.venue_id,
+        counts=state.reconcile_plan.counts(),
         withheld=len(state.reconcile_plan.withheld),
     )
     return state
@@ -335,7 +368,9 @@ def commit_node(state: VenueGraphState) -> VenueGraphState:
     plan = state.reconcile_plan
     state.commit_ops = build_ops(plan, state.venue_id, state.calendar_url) if plan else ()
     log.info(
-        "commit prepared", venue_id=state.venue_id, writes=len(state.commit_ops),
+        "commit prepared",
+        venue_id=state.venue_id,
+        writes=len(state.commit_ops),
         counts=plan.counts() if plan else None,
     )
     return state

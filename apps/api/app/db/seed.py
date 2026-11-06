@@ -85,9 +85,7 @@ async def seed(session: AsyncSession) -> None:
     """
     # Step 1: find the metro, or create it. (Looked up by name because the
     # metro table has no other natural key.)
-    metro = (
-        await session.execute(select(Metro).where(Metro.name == METRO_NAME))
-    ).scalar_one_or_none()
+    metro = (await session.execute(select(Metro).where(Metro.name == METRO_NAME))).scalar_one_or_none()
     if metro is None:
         metro = Metro(name=METRO_NAME, timezone=METRO_TIMEZONE, slug=METRO_SLUG)
         session.add(metro)
@@ -97,9 +95,7 @@ async def seed(session: AsyncSession) -> None:
     # have a venue of that name. That check is what makes re-running a no-op.
     for name, calendar_url, strategy in VENUES:
         existing = (
-            await session.execute(
-                select(Venue.id).where(Venue.metro_id == metro.id, Venue.name == name)
-            )
+            await session.execute(select(Venue.id).where(Venue.metro_id == metro.id, Venue.name == name))
         ).scalar_one_or_none()
         if existing is None:
             session.add(

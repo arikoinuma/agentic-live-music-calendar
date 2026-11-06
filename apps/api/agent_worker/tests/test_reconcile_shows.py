@@ -227,9 +227,7 @@ def test_a_cancelled_listing_removes_the_stored_show_and_says_why(status: str) -
     # Proves (A5-D6; requirements, "Cancelled or postponed listings"): the show "was most likely extracted on an
     # earlier scan before it was cancelled, and the agent has to match it to that stored record and update it".
     # The status is `removed` (the read API hides it), and the audit reason keeps the distinction.
-    plan = plan_for(
-        [listed(0, day(20), at(20), status=status)], [stored(1, day(20), at(20), acts=[(7, "Nona")])]
-    )
+    plan = plan_for([listed(0, day(20), at(20), status=status)], [stored(1, day(20), at(20), acts=[(7, "Nona")])])
     [decision] = plan.shows
     assert decision.action is Action.REMOVE and decision.reason == status and decision.stored_id == 1
 
@@ -497,7 +495,9 @@ def test_feeding_a_plans_result_back_in_gives_all_no_ops() -> None:
     assert set(actions(first)) == {"insert"}
     shows, artists = apply_plan(first, [])
     second = plan_for(page, shows, artists)
-    assert set(actions(second)) == {"no_op"}, [(d.listing.index, d.action, d.changes) for d in second.shows if d.listing]
+    assert set(actions(second)) == {"no_op"}, [
+        (d.listing.index, d.action, d.changes) for d in second.shows if d.listing
+    ]
 
 
 def test_an_update_is_stable_after_it_is_applied() -> None:

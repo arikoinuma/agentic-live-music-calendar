@@ -41,7 +41,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Replay a saved White Squirrel capture through the real worker cycle.")
     parser.add_argument("--fixture", default=FIXTURE, help="path of the saved page, relative to apps/api")
     parser.add_argument(
-        "--fetched-on", type=datetime.date.fromisoformat, default=FETCHED_ON,
+        "--fetched-on",
+        type=datetime.date.fromisoformat,
+        default=FETCHED_ON,
         help="the date the capture was saved (YYYY-MM-DD): the year rule reads it, A2.1-D13",
     )
     return parser.parse_args(argv)
@@ -61,7 +63,11 @@ async def main(fixture: str = FIXTURE, fetched_on: datetime.date = FETCHED_ON) -
         async with SessionFactory() as session:
             [venue] = await load_venues(session, venue_id=1)  # The White Squirrel Bar (app/db/seed.py)
         state = await run_venue(
-            venue, ctx, trigger=RunTrigger.MANUAL, calendar_url=fixture, fetched_on=fetched_on,
+            venue,
+            ctx,
+            trigger=RunTrigger.MANUAL,
+            calendar_url=fixture,
+            fetched_on=fetched_on,
         )
     finally:
         await mongo.close()
@@ -96,10 +102,14 @@ async def main(fixture: str = FIXTURE, fetched_on: datetime.date = FETCHED_ON) -
     if state.reconcile_plan is not None:
         plan = state.reconcile_plan
         window = f"{plan.coverage.start} to {plan.coverage.end}" if plan.coverage else "none (no dates on the page)"
-        print(f"reconcile: {plan.counts()}; removals judged inside {window}; {len(plan.withheld)} withheld by the guard")
+        print(
+            f"reconcile: {plan.counts()}; removals judged inside {window}; {len(plan.withheld)} withheld by the guard"
+        )
         for decision in plan.shows:
             flag = " (look at this one)" if decision.needs_review else ""
-            print(f"  {decision.date} {decision.start_time or 'no time'}: {decision.action.value} - {decision.reason}{flag}")
+            print(
+                f"  {decision.date} {decision.start_time or 'no time'}: {decision.action.value} - {decision.reason}{flag}"
+            )
 
     # A6: what commit wrote (shows by outcome, artists created) and which shows the database refused. Exits 1 when any
     # were refused, as the scheduled worker does (`main.run_all`), so a script running this can tell.

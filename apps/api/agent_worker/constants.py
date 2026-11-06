@@ -2,10 +2,11 @@ from enum import StrEnum
 
 
 class NodeNames(StrEnum):
-    """ 
-        Creating an enum to store node names so 
-        we are not passing plain strings to identify nodes
     """
+    Creating an enum to store node names so
+    we are not passing plain strings to identify nodes
+    """
+
     FETCH = "fetch"
     EXTRACT = "extract"
     VALIDATE = "validate"
@@ -13,11 +14,13 @@ class NodeNames(StrEnum):
     COMMIT = "commit"
     ESCALATE = "escalate"
 
+
 class NodeOutcomes(StrEnum):
-    """ 
-        Same as above but for what happens when a node
-        finishes
     """
-    PASS = "pass"
+    Same as above but for what happens when a node
+    finishes
+    """
+
+    PASS = "pass"  # noqa: S105 - a verdict value, not a password
     RETRY = "retry"
     ESCALATE = "escalate"

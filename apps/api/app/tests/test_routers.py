@@ -22,6 +22,7 @@ statement count.
 
 import datetime
 from collections.abc import Sequence
+from unittest.mock import ANY
 
 import pytest
 from httpx import AsyncClient
@@ -109,9 +110,7 @@ async def test_lists_are_alphabetical(sample_client: AsyncClient, path: str) -> 
     assert names == sorted(names, key=str.casefold)
 
 
-@pytest.mark.parametrize(
-    ("path", "expected"), [("/shows/999", 404), ("/venues/99", 404), ("/artists/99", 404)]
-)
+@pytest.mark.parametrize(("path", "expected"), [("/shows/999", 404), ("/venues/99", 404), ("/artists/99", 404)])
 async def test_unknown_id_is_404_not_500(sample_client: AsyncClient, path: str, expected: int) -> None:
     # Proves: an id that matches no row is a 404 on all three detail routes, not a 500 (the module docstring's `== "None"`
     # bug). 999 and 99 are above every id the sample world loads (shows 1-26, venues 1-4, artists 1-10).
@@ -177,9 +176,7 @@ async def test_artist_filter_matches_anywhere_in_the_lineup(sample_client: Async
     # bill (hand-checked in `sample_data.py`: the 2026-10-20 Zhora Darling bill of Humbird, Lanue and Charlie Parr).
     shows = (await sample_client.get("/shows?artist_id=1")).json()["shows"]
     assert any(
-        entry["artist"]["id"] == 1 and entry["sequence_number"] > 1
-        for show in shows
-        for entry in show["lineup"]
+        entry["artist"]["id"] == 1 and entry["sequence_number"] > 1 for show in shows for entry in show["lineup"]
     )
 
 
@@ -187,7 +184,9 @@ async def test_a_two_act_match_returns_the_show_once(sample_client: AsyncClient)
     # Proves: asking for two artists who share one bill returns that show once, not once per matching act. Show 8's bill is
     # Jaedyn James, Tarnation and Beasthead (artists 6, 10, 9; hand-read from `_SHOW_ROWS`, 2026-10-07 at The Terminal Bar).
     # A filter written as a join on the lineup repeats a row per matching act; `EXISTS` does not (C2-K1).
-    shows = (await sample_client.get("/shows?artist_id=6&artist_id=10&artist_id=9&start=2026-10-07&end=2026-10-07")).json()["shows"]
+    shows = (
+        await sample_client.get("/shows?artist_id=6&artist_id=10&artist_id=9&start=2026-10-07&end=2026-10-07")
+    ).json()["shows"]
     ids = [s["id"] for s in shows]
     assert len(ids) == len(set(ids))
     assert 8 in ids
@@ -211,8 +210,8 @@ async def test_shows_are_ordered_by_date_then_time(sample_client: AsyncClient) -
 )
 async def test_invalid_ranges_are_rejected(sample_client: AsyncClient, query: str) -> None:
     # Proves: an end before the start, and a range wider than `MAX_RANGE`, are each a 422 rather than an empty or an
-    # unbounded answer. The rules are the router's (`app/routers/shows.py`, the two `HTTPException(422)` checks), not
-    # the contract's, which mentions `MAX_RANGE` only for `upcoming=true` (§2). Both queries are written out above.
+    # unbounded answer. The rules are the router's (`app/routers/shows.py`, the two `unprocessable()` range checks), and
+    # api-contract.md §3 "Errors" lists them. Both queries are written out above.
     assert (await sample_client.get(f"/shows?{query}")).status_code == 422
 
 
@@ -393,7 +392,9 @@ async def test_a_removed_show_is_invisible_everywhere(sample_client: AsyncClient
     listed = [s["id"] for s in (await sample_client.get("/shows")).json()["shows"]]
     assert 2 not in listed
     assert (await sample_client.get("/shows/2")).status_code == 404
-    months = {(m["year"], m["month"]): m["show_count"] for m in (await sample_client.get("/calendar/months")).json()["months"]}
+    months = {
+        (m["year"], m["month"]): m["show_count"] for m in (await sample_client.get("/calendar/months")).json()["months"]
+    }
     assert months[(2026, 9)] == 2
 
 
@@ -412,7 +413,9 @@ async def test_a_month_with_only_removed_shows_disappears(sample_client: AsyncCl
     assert months == [(2026, 10)]
 
 
-async def test_inherited_fields_use_is_none_not_truthiness(sample_client: AsyncClient, db_session: AsyncSession) -> None:
+async def test_inherited_fields_use_is_none_not_truthiness(
+    sample_client: AsyncClient, db_session: AsyncSession
+) -> None:
     """Proves (api-contract.md §5, C2-D6): a show's own value wins over its venue's, including `False`.
 
     Show 2 is at venue 3, which serves alcohol and is twenty-one-plus, indoor and standing. The show then
@@ -572,7 +575,11 @@ async def test_lists_ignore_database_collation(sample_client: AsyncClient, db_se
     await _settle(db_session)
 
     names = [v["name"] for v in (await sample_client.get("/venues")).json()["venues"]]
-    assert [n for n in names if n in ("Zebra Room", "apple hall", "Mortimer's")] == ["apple hall", "Mortimer's", "Zebra Room"]
+    assert [n for n in names if n in ("Zebra Room", "apple hall", "Mortimer's")] == [
+        "apple hall",
+        "Mortimer's",
+        "Zebra Room",
+    ]
 
 
 # --- The clock ---------------------------------------------------------------
@@ -686,3 +693,85 @@ async def test_artists_are_global_not_metro_scoped(sample_client: AsyncClient, d
     await _settle(db_session)
     names = [a["name"] for a in (await sample_client.get("/artists")).json()["artists"]]
     assert "Touring Act" in names
+
+
+# ---------------------------------------------------------------------
+# The edge of the API: id bounds and the shape of a 422 (PQR1-5, PQR1-11)
+# ---------------------------------------------------------------------
+# The expected values below are written out from the rules, never read from the code under test: the database column is
+# a Postgres `integer`, so the largest id is 2,147,483,647 (2**31 - 1), and a 422 body is FastAPI's own
+# `{"detail": [{type, loc, msg, input}]}` (the `HTTPValidationError` in the generated `api-types.ts`).
+
+DETAIL_ROUTES = ["/shows", "/venues", "/artists"]
+
+
+@pytest.mark.parametrize("prefix", DETAIL_ROUTES)
+@pytest.mark.parametrize("raw_id", [0, -1, 2147483648, 99999999999])
+async def test_ids_outside_int32_are_422_not_500(sample_client: AsyncClient, prefix: str, raw_id: int) -> None:
+    # Proves (PQR1-5): a path id outside 1..2,147,483,647 is a 422 at the edge and never reaches the database. Before the
+    # fix, 2**31 and above raised an unhandled `DBAPIError` (asyncpg rejects a value outside int32), which is a 500 in
+    # production, and 0 / -1 answered 404. A parametrized sweep over all three detail routes catches one route that
+    # forgets the shared alias.
+    assert (await sample_client.get(f"{prefix}/{raw_id}")).status_code == 422
+
+
+@pytest.mark.parametrize("prefix", DETAIL_ROUTES)
+async def test_the_largest_int32_id_is_still_a_404(sample_client: AsyncClient, prefix: str) -> None:
+    # Proves (PQR1-5): the upper bound is inclusive. 2,147,483,647 is the column's own maximum, so it is a valid id with no
+    # row (404), not a 422. This guards the fix from being off by one; it passes before the fix and must keep passing.
+    assert (await sample_client.get(f"{prefix}/2147483647")).status_code == 404
+
+
+@pytest.mark.parametrize("query", ["venue_id=2147483648", "artist_id=2147483648", "venue_id=0", "artist_id=-1"])
+async def test_id_filters_outside_int32_are_422(sample_client: AsyncClient, query: str) -> None:
+    # Proves (PQR1-5): the `venue_id` / `artist_id` filters take the same bounds as a path id, item by item, so one bad
+    # value in a repeated list is refused. Before the fix the large values were a 500 and 0 / -1 were an empty 200.
+    assert (await sample_client.get(f"/shows?{query}")).status_code == 422
+
+
+async def test_the_largest_int32_id_filter_is_an_empty_200(sample_client: AsyncClient) -> None:
+    # Proves (PQR1-5): the filter's upper bound is inclusive too, and a valid id with no shows is an empty list, not an
+    # error. Passes before the fix; guards the bound from being off by one. (The no-cap decision, PQR1-5-D2, is why no
+    # test sends a long list.)
+    response = await sample_client.get("/shows?venue_id=2147483647")
+    assert response.status_code == 200
+    assert response.json()["shows"] == []
+
+
+# The router's four rules, as five queries (the range-too-wide rule twice, once from the server's default `start`), each with
+# the `loc` and `input` the contract promises for it (PQR1-5-D1; the table in the record and api-contract.md §3 "Errors").
+# FastAPI's own 422s are added in the shape test below. `input` is JSON-encoded: a date becomes a string, `True` becomes `true`.
+HAND_RAISED_422 = [
+    ("start=2026-10-10&end=2026-10-01", ["query", "end"], "2026-10-01"),  # end before start
+    ("start=2020-01-01&end=2030-01-01", ["query", "end"], "2030-01-01"),  # wider than MAX_RANGE
+    ("end=2030-01-01", ["query", "end"], "2030-01-01"),  # wider than MAX_RANGE from the server's default start
+    ("artist_id=1&upcoming=true&start=2026-10-01", ["query", "upcoming"], True),  # contradicts "from today"
+    ("upcoming=true", ["query", "upcoming"], True),  # unbounded: no venue or artist
+]
+
+
+@pytest.mark.parametrize("query", [q for q, _, _ in HAND_RAISED_422] + ["start=notadate", "venue_id=abc"])
+async def test_every_422_has_the_same_body_shape(sample_client: AsyncClient, query: str) -> None:
+    # Proves (PQR1-11): a 422 is always `{"detail": [{type, loc, msg, ...}]}`, whether the router raised it or FastAPI's
+    # validation did. Before the fix the router's four rules answered `{"detail": "<string>"}`, so a client had to handle
+    # two shapes under one status. The last two queries are FastAPI's own and pass before the fix.
+    response = await sample_client.get(f"/shows?{query}")
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert isinstance(detail, list)
+    assert detail
+    assert all({"type", "loc", "msg"} <= item.keys() for item in detail)
+
+
+@pytest.mark.parametrize(("query", "loc", "value"), HAND_RAISED_422)
+async def test_a_hand_raised_422_names_its_parameter(
+    sample_client: AsyncClient, query: str, loc: list[str], value: object
+) -> None:
+    # Proves (PQR1-5-D1): the router's own 422s say which parameter they are about, so a client can point at the field, and
+    # carry exactly what api-contract.md §3 "Errors" documents: one item, type `value_error`, the `loc`, a message, the
+    # offending `input` (JSON-encoded), and no `ctx` (only FastAPI-raised items have one). That is why the router raises
+    # `RequestValidationError` rather than a handler wrapping a string: a handler would have no parameter to name. Expected
+    # `loc` and `input` values come from the table above (they are the contract); the message text is not pinned.
+    detail = (await sample_client.get(f"/shows?{query}")).json()["detail"]
+    assert detail == [{"type": "value_error", "loc": loc, "msg": ANY, "input": value}]
+    assert detail[0]["msg"]

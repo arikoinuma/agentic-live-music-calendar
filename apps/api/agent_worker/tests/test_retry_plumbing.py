@@ -78,8 +78,13 @@ def sha(text: str) -> str:
 def run(html: str, client: Any, **config: Any) -> extraction.PageExtractionResult:
     """Call `extract_page` with the pipeline's options and the pipeline's configuration, overridden by the given switches."""
     return extraction.extract_page(
-        html, venue_name="The Venue", metro_timezone=CHICAGO, fetch_date=FETCHED, client=client,
-        options=extraction.PIPELINE_OPTIONS, config=replace(extraction.PIPELINE_CONFIG, **config),
+        html,
+        venue_name="The Venue",
+        metro_timezone=CHICAGO,
+        fetch_date=FETCHED,
+        client=client,
+        options=extraction.PIPELINE_OPTIONS,
+        config=replace(extraction.PIPELINE_CONFIG, **config),
     )
 
 
@@ -92,7 +97,9 @@ def test_the_first_attempts_page_request_is_byte_identical_to_the_measured_one()
     # Proves: with no hint, the model route's message is the pinned instruction followed by the page
     # text — nothing appended, nothing reordered. The failing state before A3 was the missing hint parameter.
     html = text_page("Nona", "Oct 20", "8 pm")
-    client = scripted_client({PAGE: [listings_answer(listing("2026-10-20", "Nona"))], SPLITTER: [split_answer(("Nona", ["Nona"]))]})
+    client = scripted_client(
+        {PAGE: [listings_answer(listing("2026-10-20", "Nona"))], SPLITTER: [split_answer(("Nona", ["Nona"]))]}
+    )
     run(html, client)
     sent = message_text(completions(client).calls_for(PAGE)[0])
     text = extraction.clean_text(html, extraction.PIPELINE_CONFIG.keep_line_breaks)
@@ -111,14 +118,20 @@ def test_the_first_attempts_splitter_request_is_byte_identical_to_the_measured_o
 def test_the_first_attempts_image_and_status_requests_are_byte_identical_to_the_measured_ones() -> None:
     # Proves: the poster (image) route and the status question — the other two requests a hint-plumbing
     # change could disturb — still send exactly the measured text.
-    client = scripted_client({
-        extraction.page_model_for(replace(extraction.PIPELINE_CONFIG, title_split=False)): [
-            {"page_readable": True, "shows": []}
-        ],
-        STATUS: [{"items": []}],
-    })
+    client = scripted_client(
+        {
+            extraction.page_model_for(replace(extraction.PIPELINE_CONFIG, title_split=False)): [
+                {"page_readable": True, "shows": []}
+            ],
+            STATUS: [{"items": []}],
+        }
+    )
     extraction.extract_image(
-        "AAAA", mime="image/png", fetch_date=FETCHED, client=client, options=extraction.PIPELINE_OPTIONS,
+        "AAAA",
+        mime="image/png",
+        fetch_date=FETCHED,
+        client=client,
+        options=extraction.PIPELINE_OPTIONS,
         config=extraction.PIPELINE_CONFIG,
     )
     content = completions(client).calls[0]["messages"][0]["content"]
@@ -138,7 +151,9 @@ HINTED = {"retry_hint": "- show 0 is dated 2026-03-01", "splitter_hint": ""}
 def model_route(**config: Any) -> Any:
     """Run the model route over a small text page with the given configuration overrides; return the scripted client so a test can read what was sent."""
     html = text_page("Nona", "Oct 20", "8 pm")
-    client = scripted_client({PAGE: [listings_answer(listing("2026-10-20", "Nona"))], SPLITTER: [split_answer(("Nona", ["Nona"]))]})
+    client = scripted_client(
+        {PAGE: [listings_answer(listing("2026-10-20", "Nona"))], SPLITTER: [split_answer(("Nona", ["Nona"]))]}
+    )
     run(html, client, **config)
     return client
 
@@ -149,7 +164,9 @@ def test_a_page_hint_reaches_the_page_instruction_and_nothing_else() -> None:
     # A2.1 found most sensitive.
     plain, hinted = model_route(), model_route(**HINTED)
     assert "2026-03-01" in message_text(completions(hinted).calls_for(PAGE)[0])
-    assert message_text(completions(hinted).calls_for(SPLITTER)[0]) == message_text(completions(plain).calls_for(SPLITTER)[0])
+    assert message_text(completions(hinted).calls_for(SPLITTER)[0]) == message_text(
+        completions(plain).calls_for(SPLITTER)[0]
+    )
 
 
 def test_a_splitter_hint_reaches_the_splitters_instruction_and_nothing_else() -> None:
@@ -174,11 +191,13 @@ def test_the_splitter_hint_reaches_the_status_merges_own_splitter_call() -> None
     # cancelled listing the main extraction skipped); it gets the same hint, and the shows it adds are
     # recorded in `notes["added_indices"]` for validation to leave out of the confidence.
     html = text_page("Ghost Band Oct 20 CANCELLED")
-    client = scripted_client({
-        PAGE: [listings_answer()],  # the page model found nothing
-        STATUS: [{"items": [{"date": "2026-10-20", "acts": ["Ghost Band"], "status": "cancelled"}]}],
-        SPLITTER: [split_answer(("Ghost Band", ["Ghost Band"]))],
-    })
+    client = scripted_client(
+        {
+            PAGE: [listings_answer()],  # the page model found nothing
+            STATUS: [{"items": [{"date": "2026-10-20", "acts": ["Ghost Band"], "status": "cancelled"}]}],
+            SPLITTER: [split_answer(("Ghost Band", ["Ghost Band"]))],
+        }
+    )
     result = run(html, client, splitter_hint="- return every id")
     assert "return every id" in message_text(completions(client).calls_for(SPLITTER)[0])
     assert result.notes["added_indices"] == [0] and len(result.extraction.shows) == 1
@@ -186,9 +205,15 @@ def test_the_splitter_hint_reaches_the_status_merges_own_splitter_call() -> None
 
 def test_no_shows_added_by_the_merge_means_an_empty_added_list() -> None:
     # Proves: `added_indices` is [] (not missing) when the status question found nothing to add.
-    result = run(text_page("Nona", "Oct 20"), scripted_client({
-        PAGE: [listings_answer(listing("2026-10-20", "Nona"))], SPLITTER: [split_answer(("Nona", ["Nona"]))],
-    }))
+    result = run(
+        text_page("Nona", "Oct 20"),
+        scripted_client(
+            {
+                PAGE: [listings_answer(listing("2026-10-20", "Nona"))],
+                SPLITTER: [split_answer(("Nona", ["Nona"]))],
+            }
+        ),
+    )
     assert result.notes["added_indices"] == []
 
 
@@ -253,7 +278,9 @@ def test_an_entity_in_an_image_address_is_unescaped_like_the_page_parser_does() 
 def test_the_model_route_sends_image_links_only_when_the_switch_is_on() -> None:
     # Proves: `ExtractionConfig.keep_image_urls` reaches what the model reads (and defaults off).
     html = '<html><body><p>Nona Oct 20</p><img src="https://v.example/nona.png"></body></html>'
-    assert extraction.ExtractionConfig().keep_image_urls is False and extraction.PIPELINE_CONFIG.keep_image_urls is False
+    assert (
+        extraction.ExtractionConfig().keep_image_urls is False and extraction.PIPELINE_CONFIG.keep_image_urls is False
+    )
     for on in (False, True):
         client = scripted_client({PAGE: [listings_answer()], STATUS: [{"items": []}]})
         run(html, client, keep_image_urls=on)
@@ -294,9 +321,15 @@ def no_backoff(monkeypatch: pytest.MonkeyPatch) -> None:
 def fetch(monkeypatch: pytest.MonkeyPatch, get: FakeGet) -> VenueGraphState:
     """Run `fetch_node` for a URL with `httpx.get` replaced by `get`; return the state it produced."""
     monkeypatch.setattr(nodes.httpx, "get", get)
-    return nodes.fetch_node(VenueGraphState(
-        venue_id=1, calendar_url=URL, venue_name="V", metro_timezone=CHICAGO, fetched_on=FETCHED,
-    ))
+    return nodes.fetch_node(
+        VenueGraphState(
+            venue_id=1,
+            calendar_url=URL,
+            venue_name="V",
+            metro_timezone=CHICAGO,
+            fetched_on=FETCHED,
+        )
+    )
 
 
 def test_three_server_errors_are_three_calls_then_a_recorded_fetch_error(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -350,29 +383,46 @@ def test_an_empty_local_text_file_is_a_fetch_error_after_one_attempt(tmp_path: P
     # Proves: the empty rule covers a local text page too (A3-PR2-8a), without retrying a file.
     path = tmp_path / "empty.html"
     path.write_text("<html></html>")
-    state = nodes.fetch_node(VenueGraphState(
-        venue_id=1, calendar_url=str(path), venue_name="V", metro_timezone=CHICAGO, fetched_on=FETCHED,
-    ))
+    state = nodes.fetch_node(
+        VenueGraphState(
+            venue_id=1,
+            calendar_url=str(path),
+            venue_name="V",
+            metro_timezone=CHICAGO,
+            fetched_on=FETCHED,
+        )
+    )
     assert "nothing to read" in (state.fetch_error or "")
 
 
 def test_a_missing_local_file_is_a_fetch_error(tmp_path: Path) -> None:
     # Proves: a calendar_url that is a path that doesn't exist reads the same as a bad URL: a recorded fetch
     # error (FileNotFoundError), not a crash out of the graph.
-    state = nodes.fetch_node(VenueGraphState(
-        venue_id=1, calendar_url=str(tmp_path / "gone.html"), venue_name="V", metro_timezone=CHICAGO,
-        fetched_on=FETCHED,
-    ))
+    state = nodes.fetch_node(
+        VenueGraphState(
+            venue_id=1,
+            calendar_url=str(tmp_path / "gone.html"),
+            venue_name="V",
+            metro_timezone=CHICAGO,
+            fetched_on=FETCHED,
+        )
+    )
     assert "FileNotFoundError" in (state.fetch_error or "")
 
 
 def test_a_good_fetch_clears_an_earlier_error(monkeypatch: pytest.MonkeyPatch) -> None:
     # Proves: `fetch_error` is reset on every call (LangGraph keeps a field's old value otherwise).
     monkeypatch.setattr(nodes.httpx, "get", FakeGet((200, OK_HTML)))
-    state = nodes.fetch_node(VenueGraphState(
-        venue_id=1, calendar_url=URL, venue_name="V", metro_timezone=CHICAGO, fetched_on=FETCHED,
-        fetch_error="an old error",
-    ))
+    state = nodes.fetch_node(
+        VenueGraphState(
+            venue_id=1,
+            calendar_url=URL,
+            venue_name="V",
+            metro_timezone=CHICAGO,
+            fetched_on=FETCHED,
+            fetch_error="an old error",
+        )
+    )
     assert state.fetch_error is None
 
 
@@ -417,9 +467,15 @@ def test_a_redirected_page_is_fetched_from_where_it_moved(monkeypatch: pytest.Mo
     # `raise_for_status()` raised "Redirect response '301 Moved Permanently'", which `_is_transient` doesn't retry.
     site = RedirectingSite()
     monkeypatch.setattr(nodes.httpx, "get", site)
-    state = nodes.fetch_node(VenueGraphState(
-        venue_id=1, calendar_url=MOVED_URL, venue_name="V", metro_timezone=CHICAGO, fetched_on=FETCHED,
-    ))
+    state = nodes.fetch_node(
+        VenueGraphState(
+            venue_id=1,
+            calendar_url=MOVED_URL,
+            venue_name="V",
+            metro_timezone=CHICAGO,
+            fetched_on=FETCHED,
+        )
+    )
     assert state.fetch_error is None and state.page_html == OK_HTML
     assert [str(r.url) for r in site.seen] == [MOVED_URL, URL]
 
@@ -456,16 +512,24 @@ def test_the_fetch_waits_20_seconds_per_phase_not_httpx_default(monkeypatch: pyt
     ],
 )
 def test_only_an_http_or_https_url_is_fetched_over_http(
-    monkeypatch: pytest.MonkeyPatch, calendar_url: str, over_http: bool,
+    monkeypatch: pytest.MonkeyPatch,
+    calendar_url: str,
+    over_http: bool,
 ) -> None:
     # Proves (GH-90): the HTTP branch is chosen by the URL's scheme, not by `startswith("http")`, which sent
     # `httpfoo://…` to httpx and sent an upper-case `HTTPS://…` to the local-file branch. Anything that isn't
     # http(s) stays on the local-file branch, as before (the stricter rules are PQR1-21, out of scope here).
     site = RedirectingSite()
     monkeypatch.setattr(nodes.httpx, "get", site)
-    nodes.fetch_node(VenueGraphState(
-        venue_id=1, calendar_url=calendar_url, venue_name="V", metro_timezone=CHICAGO, fetched_on=FETCHED,
-    ))
+    nodes.fetch_node(
+        VenueGraphState(
+            venue_id=1,
+            calendar_url=calendar_url,
+            venue_name="V",
+            metro_timezone=CHICAGO,
+            fetched_on=FETCHED,
+        )
+    )
     assert bool(site.seen) is over_http
 
 
@@ -483,7 +547,10 @@ def test_the_eval_does_not_count_a_json_ld_url_as_invented() -> None:
     # Proves (A3-PR1-11): a21-confirm reported 225 "invented" image URLs, every one a JSON-LD show
     # checked against cleaned text that can't contain them. The check is source-aware.
     score = run_eval.score_extraction(
-        _extraction_dump("https://v.example/a.png"), FixtureReference(), page_text="Nona", source="structured",
+        _extraction_dump("https://v.example/a.png"),
+        FixtureReference(),
+        page_text="Nona",
+        source="structured",
     )
     assert score["invented_image_urls"] == []
 
@@ -493,8 +560,13 @@ def test_the_eval_counts_a_model_route_url_the_page_does_not_contain() -> None:
     # the HTML with an escaped ampersand, or in the text as an "[image: …]" line, is not.
     html = '<img src="https://v.example/real.png?a=1&amp;b=2">'
     score = run_eval.score_extraction(
-        _extraction_dump("https://v.example/real.png?a=1&b=2", "https://v.example/made-up.png", "https://v.example/in-text.png"),
-        FixtureReference(), page_text="[image: https://v.example/in-text.png]", source="model", page_html=html,
+        _extraction_dump(
+            "https://v.example/real.png?a=1&b=2", "https://v.example/made-up.png", "https://v.example/in-text.png"
+        ),
+        FixtureReference(),
+        page_text="[image: https://v.example/in-text.png]",
+        source="model",
+        page_html=html,
     )
     assert score["invented_image_urls"] == ["https://v.example/made-up.png"]
 
