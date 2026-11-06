@@ -14,7 +14,8 @@ How to read it, in order:
 2. The retry hints: each reaches the call that produces the field, and no other.
 3. `clean_text` with image links (v0.1-G25).
 4. The status merge's `added_indices`.
-5. Fetch: transient errors retried, 4xx not, an empty page is a failure, not a pass.
+5. Fetch: transient errors retried, 4xx not, an empty page is a failure, not a pass; then (GH-90, the same issue as
+   PQR1-4) a redirect is followed, the request names the project, and only an http(s) URL is fetched over HTTP.
 6. The eval's image-URL check.
 """
 
@@ -380,6 +381,81 @@ def test_the_capture_script_still_gets_an_empty_page_it_asked_for(monkeypatch: p
     # isn't turned into a different tool by the pipeline's empty-page rule.
     monkeypatch.setattr(nodes.httpx, "get", FakeGet((200, "<html></html>")))
     assert nodes.fetch_html(URL) == "<html></html>"
+
+
+# --- Redirects, User-Agent and the URL check (GH-90 / PQR1-4) ---------------------------------------------------
+
+MOVED_URL = "http://venue.example/calendar"  # the old address; the venue now answers it with a 301 to URL
+
+
+class RedirectingSite:
+    """Stands in for `httpx.get` with a real `httpx.Client` on a `MockTransport`, so redirect handling is httpx's own.
+
+    The keyword arguments production passes (`follow_redirects`, `timeout`, `headers`) are forwarded unchanged.
+    That's the point: a fake that answered "followed" by itself would pass whatever the code asked for, but this
+    one only reaches the final page if production really asks httpx to follow. `MOVED_URL` answers 301 with a
+    `Location` of `URL`, and `URL` answers 200 with `OK_HTML`. Every request's headers are kept in `seen`.
+    """
+
+    def __init__(self) -> None:
+        self.seen: list[httpx.Request] = []
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        self.seen.append(request)
+        if str(request.url) == MOVED_URL:
+            return httpx.Response(301, headers={"location": URL})
+        return httpx.Response(200, text=OK_HTML)
+
+    def __call__(self, url: str, **kwargs: Any) -> httpx.Response:
+        with httpx.Client(transport=httpx.MockTransport(self.handler)) as client:
+            return client.get(url, **kwargs)
+
+
+def test_a_redirected_page_is_fetched_from_where_it_moved(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Proves (GH-90, PQR1-4): a venue page that answers 301 is read from its new address and handed on to extract,
+    # instead of escalating on every run. Before the fix `httpx.get` didn't follow (its default), and
+    # `raise_for_status()` raised "Redirect response '301 Moved Permanently'", which `_is_transient` doesn't retry.
+    site = RedirectingSite()
+    monkeypatch.setattr(nodes.httpx, "get", site)
+    state = nodes.fetch_node(VenueGraphState(
+        venue_id=1, calendar_url=MOVED_URL, venue_name="V", metro_timezone=CHICAGO, fetched_on=FETCHED,
+    ))
+    assert state.fetch_error is None and state.page_html == OK_HTML
+    assert [str(r.url) for r in site.seen] == [MOVED_URL, URL]
+
+
+def test_the_fetch_names_the_project_not_python_httpx(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Proves (GH-90): the request carries a project User-Agent, since some venue sites block the default
+    # `python-httpx/<version>`. The expected prefix is the project's name as GH-90 asks ("a generic client name,
+    # not a personal email address"), written here as a literal rather than read from nodes.py.
+    site = RedirectingSite()
+    monkeypatch.setattr(nodes.httpx, "get", site)
+    nodes.fetch_html(URL)
+    agent = site.seen[0].headers["user-agent"]
+    assert agent.startswith("agentic-live-music-calendar/") and "python-httpx" not in agent and "@" not in agent
+
+
+@pytest.mark.parametrize(
+    ("calendar_url", "over_http"),
+    [
+        ("https://venue.example/calendar", True),
+        ("HTTPS://venue.example/calendar", True),  # a scheme is case-insensitive (RFC 3986 §3.1)
+        ("httpfoo://venue.example/calendar", False),  # starts with "http", but isn't an HTTP URL
+        ("ftp://venue.example/calendar", False),
+    ],
+)
+def test_only_an_http_or_https_url_is_fetched_over_http(
+    monkeypatch: pytest.MonkeyPatch, calendar_url: str, over_http: bool,
+) -> None:
+    # Proves (GH-90): the HTTP branch is chosen by the URL's scheme, not by `startswith("http")`, which sent
+    # `httpfoo://…` to httpx and sent an upper-case `HTTPS://…` to the local-file branch. Anything that isn't
+    # http(s) stays on the local-file branch, as before (the stricter rules are PQR1-21, out of scope here).
+    site = RedirectingSite()
+    monkeypatch.setattr(nodes.httpx, "get", site)
+    nodes.fetch_node(VenueGraphState(
+        venue_id=1, calendar_url=calendar_url, venue_name="V", metro_timezone=CHICAGO, fetched_on=FETCHED,
+    ))
+    assert bool(site.seen) is over_http
 
 
 # ---------------------------------------------------------------------------
