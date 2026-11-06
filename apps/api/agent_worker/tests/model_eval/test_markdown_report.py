@@ -41,12 +41,26 @@ LABELS = {"gated.html": GATED, "info.html": INFORMATIONAL}
 def make_results(runs: list[dict[str, Any]], **extra: Any) -> dict[str, Any]:
     """A results dict shaped like the one `evaluate` writes, with the aggregate computed from the runs by the real code."""
     return {
-        "label": "demo", "started_at": "2026-11-04T17:00:00+00:00", "set": "all", "scenario": None, "labels_sha": "abcdef0123456789",
-        "held_out_scored": False, "harness_commit": "0123456789abcdef", "request_options": {"model": "gemma-test"},
+        "label": "demo",
+        "started_at": "2026-11-04T17:00:00+00:00",
+        "set": "all",
+        "scenario": None,
+        "labels_sha": "abcdef0123456789",
+        "held_out_scored": False,
+        "harness_commit": "0123456789abcdef",
+        "request_options": {"model": "gemma-test"},
         "policy": {"confidence_threshold": 0.8, "max_attempts": 3},
         "provenance": {"gemma-test": {"model_digest": "deadbeefcafe", "ollama_version": "0.99"}},
-        "request": {"instruction": "long prompt text", "instruction_sha": "1234abcd56", "response_schema_sha": "9999aaaa00", "response_schema_chars": 4000},
-        "aggregate": aggregate_scores.aggregate(runs, LABELS), "scenarios": [], "runs": runs, **extra,
+        "request": {
+            "instruction": "long prompt text",
+            "instruction_sha": "1234abcd56",
+            "response_schema_sha": "9999aaaa00",
+            "response_schema_chars": 4000,
+        },
+        "aggregate": aggregate_scores.aggregate(runs, LABELS),
+        "scenarios": [],
+        "runs": runs,
+        **extra,
     }
 
 
@@ -71,7 +85,16 @@ def test_the_header_names_what_produced_the_numbers() -> None:
     # Proves: a report says which labels, policy and model it came from, because a number without them cannot be compared with
     # another run's (the local baseline against the hosted one, C6). Expected: the values written into the hand-built file.
     text = markdown_report.render(make_results(clean_and_bad()), LABELS)
-    for needle in ("demo", "abcdef0123", "0123456789", "gemma-test", "deadbeefcafe", "0.8", "held-out scored: no", "prompt sha: 1234abcd"):
+    for needle in (
+        "demo",
+        "abcdef0123",
+        "0123456789",
+        "gemma-test",
+        "deadbeefcafe",
+        "0.8",
+        "held-out scored: no",
+        "prompt sha: 1234abcd",
+    ):
         assert needle in text, needle
 
 
@@ -121,11 +144,19 @@ def test_scenarios_report_the_database_score_and_a_changed_extraction() -> None:
     # Proves: scenario results are readable without a script: the pages, each run's reconcile counts, the database score against what
     # a perfect pipeline would leave, and the model-changed line when run 2 read the page differently. Expected: the hand-built values.
     scenario = {
-        "pages": ["a.html", "b.html"], "database_score": score_dict(labelled=23, returned=22, missed=1),
+        "pages": ["a.html", "b.html"],
+        "database_score": score_dict(labelled=23, returned=22, missed=1),
         "result": {
-            "scenario": "sequence", "not_run": None, "model_changed": True,
-            "count_differences": ["the model extracted 10 shows on run 1 and 11 on run 2 (skipped 0 then 0), so run 2's counts reflect a changed extraction, not reconcile"],
-            "runs": [{**record("a.html"), "reconcile_counts": {"insert": 12}}, {**record("b.html"), "reconcile_counts": {"insert": 10}}],
+            "scenario": "sequence",
+            "not_run": None,
+            "model_changed": True,
+            "count_differences": [
+                "the model extracted 10 shows on run 1 and 11 on run 2 (skipped 0 then 0), so run 2's counts reflect a changed extraction, not reconcile"
+            ],
+            "runs": [
+                {**record("a.html"), "reconcile_counts": {"insert": 12}},
+                {**record("b.html"), "reconcile_counts": {"insert": 10}},
+            ],
         },
     }
     text = markdown_report.render(make_results([record("a.html")], scenarios=[scenario]), LABELS)
@@ -136,9 +167,17 @@ def test_scenarios_report_the_database_score_and_a_changed_extraction() -> None:
 
 def test_a_scenario_that_was_not_run_says_why() -> None:
     # Proves: a scenario whose first run left nothing to build on is reported with its reason, not silently absent.
-    scenario = {"pages": ["a.html"], "database_score": None, "result": {
-        "scenario": "perturbed", "not_run": "the perturbed scenario needs at least two active shows", "model_changed": False,
-        "count_differences": [], "runs": [{**record("a.html"), "reconcile_counts": None}]}}
+    scenario = {
+        "pages": ["a.html"],
+        "database_score": None,
+        "result": {
+            "scenario": "perturbed",
+            "not_run": "the perturbed scenario needs at least two active shows",
+            "model_changed": False,
+            "count_differences": [],
+            "runs": [{**record("a.html"), "reconcile_counts": None}],
+        },
+    }
     text = markdown_report.render(make_results([record("a.html")], scenarios=[scenario]), LABELS)
     assert "NOT RUN" in text and "at least two active shows" in text
 
@@ -160,7 +199,9 @@ def test_a_page_missing_from_the_labels_is_still_reported() -> None:
     assert "| ? |" in text
 
 
-def test_the_command_line_prints_or_writes_the_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+def test_the_command_line_prints_or_writes_the_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     # Proves: `--report LABEL` reads graph-<LABEL>.json and prints it; `--out FILE` writes it instead, which is how a long report gets
     # into the plan's log without a terminal in between.
     monkeypatch.setattr(results_file, "RESULTS_DIR", tmp_path)
@@ -174,10 +215,13 @@ def test_the_command_line_prints_or_writes_the_report(tmp_path: Path, monkeypatc
     assert "# Report: demo" in target.read_text()
 
 
-@pytest.mark.parametrize(("argv", "expected"), [
-    (["--report", "x"], {"report": "x", "errors": False, "out": None}),
-    (["--report", "x", "--errors", "--out", "r.md"], {"errors": True, "out": "r.md"}),
-])
+@pytest.mark.parametrize(
+    ("argv", "expected"),
+    [
+        (["--report", "x"], {"report": "x", "errors": False, "out": None}),
+        (["--report", "x", "--errors", "--out", "r.md"], {"errors": True, "out": "r.md"}),
+    ],
+)
 def test_the_report_flags(argv: list[str], expected: dict[str, Any]) -> None:
     # Proves: the flags parse to the values the report reads.
     args = vars(run_labeled_pages.parse_args(argv))
@@ -201,8 +245,10 @@ def test_repeatability_is_reported_when_a_page_was_run_more_than_once() -> None:
     # page run once is not mentioned (nothing to compare).
     same = {"shows": [{"date": "2026-10-20"}]}
     runs = [
-        record("gated.html", run=0, raw=same), record("gated.html", run=1, raw={"shows": []}),
-        record("info.html", run=0, raw=same), record("info.html", run=1, raw=same),
+        record("gated.html", run=0, raw=same),
+        record("gated.html", run=1, raw={"shows": []}),
+        record("info.html", run=0, raw=same),
+        record("info.html", run=1, raw=same),
     ]
     text = markdown_report.render(make_results(runs), LABELS)
     assert "gated.html: DIFFERENT across 2 runs" in text
@@ -237,7 +283,8 @@ def test_the_fields_table_says_what_it_sums_over() -> None:
     # Proves: the tallies are summed over every run in the file (a RUNS=3 file counts each page three times), and the table says so,
     # so a reader does not mistake the counts for a single run's.
     assert "summed over all 3 runs" in markdown_report.render(
-        make_results([record("gated.html", run=i) for i in range(3)]), LABELS,
+        make_results([record("gated.html", run=i) for i in range(3)]),
+        LABELS,
     )
 
 
@@ -271,7 +318,9 @@ def test_the_closing_summary_has_a_line_per_column_and_the_retry_loop() -> None:
     for line, column in zip(lines, ("raw", "validated", "committed"), strict=False):
         rates = aggregate["columns"][column]["rates"]
         assert line.startswith(f"{column:10} recall {rates['recall']:.3f}  precision {rates['precision']:.3f}  gate ")
-    assert lines[3].startswith(f"retry rate {aggregate['retry']['retry_rate']:.3f}; escalated {aggregate['retry']['escalated']}; ")
+    assert lines[3].startswith(
+        f"retry rate {aggregate['retry']['retry_rate']:.3f}; escalated {aggregate['retry']['escalated']}; "
+    )
 
 
 def test_the_missing_value_limit_is_the_standards_not_a_second_copy() -> None:

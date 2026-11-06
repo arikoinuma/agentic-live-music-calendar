@@ -29,9 +29,15 @@ def state_with(**changes: Any) -> VenueGraphState:
     """A state as `extract_node` leaves it on attempt 2 (venue 4, run 9, a plan, the model route); a test
     overrides what it needs."""
     fields: dict[str, Any] = {
-        "venue_id": 4, "calendar_url": "https://venue.example/events", "venue_name": "The Venue",
-        "metro_timezone": "America/Chicago", "run_id": 9, "attempt_count": 2, "last_plan": PLAN,
-        "route_attempted": "model", "page_content": "Nona\nOct 20",
+        "venue_id": 4,
+        "calendar_url": "https://venue.example/events",
+        "venue_name": "The Venue",
+        "metro_timezone": "America/Chicago",
+        "run_id": 9,
+        "attempt_count": 2,
+        "last_plan": PLAN,
+        "route_attempted": "model",
+        "page_content": "Nona\nOct 20",
     }
     fields.update(changes)
     return VenueGraphState(**fields)
@@ -42,10 +48,14 @@ def test_a_successful_attempts_document_has_the_e17_record() -> None:
     # same way (A2.1-E17): who and when (run, venue, attempt), how (tier, route, model, request options,
     # configuration), what was sent, the route's notes, and the raw model output.
     extracted = VenuePageExtraction(page_readable=True, shows=[])
-    doc = document_for(state_with(
-        extraction=extracted, extraction_source="model", extraction_sent_text="Nona\nOct 20",
-        extraction_notes={"route": "model", "titles": ["Nona"]},
-    ))
+    doc = document_for(
+        state_with(
+            extraction=extracted,
+            extraction_source="model",
+            extraction_sent_text="Nona\nOct 20",
+            extraction_notes={"route": "model", "titles": ["Nona"]},
+        )
+    )
     assert (doc["run_id"], doc["venue_id"], doc["attempt"]) == (9, 4, 2)
     assert (doc["tier"], doc["route"], doc["model"]) == ("narrowed", "model", extraction.PIPELINE_OPTIONS.model)
     assert doc["request_options"]["model"] == extraction.PIPELINE_OPTIONS.model
@@ -79,7 +89,11 @@ def test_notes_holding_dates_enums_and_tuples_become_plain_data() -> None:
     # and the finished document encodes. Without the conversion `bson.encode` raises `InvalidDocument` here,
     # and in production A4-K3 would propagate it and halt the run.
     state = state_with(
-        extraction_notes={"seen": datetime.date(2026, 10, 12), "pair": ("a", "b"), "route": extraction.PIPELINE_CONFIG.route},
+        extraction_notes={
+            "seen": datetime.date(2026, 10, 12),
+            "pair": ("a", "b"),
+            "route": extraction.PIPELINE_CONFIG.route,
+        },
     )
     doc = document_for(state)
     assert doc["notes"]["seen"] == "2026-10-12"

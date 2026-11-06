@@ -68,9 +68,7 @@ def _act_split_instruction() -> str:
         "each id, list the performing acts the title names, in the order they appear, "
         "copying each name exactly as written. For a title that isn't a music show under "
         "the rule below, return its id with an empty acts list. Return every id you were "
-        "given, with its title.\n"
-        + prompts._act_conventions()
-        + prompts._non_music_rule()
+        "given, with its title.\n" + prompts._act_conventions() + prompts._non_music_rule()
     )
 
 

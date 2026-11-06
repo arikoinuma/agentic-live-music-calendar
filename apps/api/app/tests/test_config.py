@@ -30,8 +30,14 @@ def isolate_from_the_shell(monkeypatch: pytest.MonkeyPatch) -> None:
     # `_env_file=None` keeps `apps/api/.env` out, but pydantic-settings still reads exported process variables.
     # Remove every one of `Settings`' optional variables a developer's shell might export, so a laptop with
     # `MONGODB_URI` set gives the same result as CI (C3-PR1-11, C3-CR1-3).
-    for name in ("APP_ENV", "RAILWAY_ENVIRONMENT_NAME", "MONGODB_URI", "MONGODB_DATABASE", "LOG_FORMAT",
-                 "ESCALATION_MODEL_NAME"):
+    for name in (
+        "APP_ENV",
+        "RAILWAY_ENVIRONMENT_NAME",
+        "MONGODB_URI",
+        "MONGODB_DATABASE",
+        "LOG_FORMAT",
+        "ESCALATION_MODEL_NAME",
+    ):
         monkeypatch.delenv(name, raising=False)
 
 
@@ -77,7 +83,9 @@ def test_an_unknown_app_env_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
     ],
 )
 def test_each_of_the_four_environments_is_accepted_when_consistent(
-    app_env: str, database_url: str, monkeypatch: pytest.MonkeyPatch,
+    app_env: str,
+    database_url: str,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves: all four values build a `Settings` when the database agrees with them, so the allowed set is
     # exactly local/dev/staging/prod and the rule does not reject a correct configuration.
@@ -95,11 +103,25 @@ def test_each_of_the_four_environments_is_accepted_when_consistent(
 RULE_CASES = [
     # a) the local-versus-hosted database host
     ("local-on-localhost", "local", LOCAL_URL, None, None, "calendar", False),
-    ("local-on-ipv6-loopback-with-an-at-in-the-password", "local",
-     "postgresql+asyncpg://postgres:p%40ss@[::1]:5432/calendar_dev", None, None, "calendar", False),
+    (
+        "local-on-ipv6-loopback-with-an-at-in-the-password",
+        "local",
+        "postgresql+asyncpg://postgres:p%40ss@[::1]:5432/calendar_dev",
+        None,
+        None,
+        "calendar",
+        False,
+    ),
     ("local-pointing-at-neon", "local", hosted_url("calendar_prod"), None, None, "calendar", True),
-    ("prod-pointing-at-localhost", "prod", LOCAL_URL.replace("postgres:postgres", "calendar_prod:x"), None, None,
-     "calendar", True),
+    (
+        "prod-pointing-at-localhost",
+        "prod",
+        LOCAL_URL.replace("postgres:postgres", "calendar_prod:x"),
+        None,
+        None,
+        "calendar",
+        True,
+    ),
     # c) the role marker on a hosted database
     ("prod-with-its-own-role", "prod", hosted_url("calendar_prod"), None, None, "calendar", False),
     ("prod-with-the-staging-role", "prod", hosted_url("calendar_staging"), None, None, "calendar", True),
@@ -107,32 +129,94 @@ RULE_CASES = [
     ("dev-with-its-own-role", "dev", hosted_url("calendar_dev"), None, None, "calendar_dev", False),
     ("staging-with-its-own-role", "staging", hosted_url("calendar_staging"), None, None, "calendar_staging", False),
     # b) the platform's own environment name (absent locally and on Vercel, so absence is not a mismatch)
-    ("staging-on-railway-production", "staging", hosted_url("calendar_staging"), "production", None,
-     "calendar_staging", True),
+    (
+        "staging-on-railway-production",
+        "staging",
+        hosted_url("calendar_staging"),
+        "production",
+        None,
+        "calendar_staging",
+        True,
+    ),
     ("prod-on-railway-production", "prod", hosted_url("calendar_prod"), "production", None, "calendar", False),
     ("dev-on-railway-dev", "dev", hosted_url("calendar_dev"), "dev", None, "calendar_dev", False),
-    ("railway-name-is-case-insensitive", "staging", hosted_url("calendar_staging"), "Staging", None,
-     "calendar_staging", False),
-    ("no-railway-name-is-not-a-mismatch", "staging", hosted_url("calendar_staging"), None, None,
-     "calendar_staging", False),
+    (
+        "railway-name-is-case-insensitive",
+        "staging",
+        hosted_url("calendar_staging"),
+        "Staging",
+        None,
+        "calendar_staging",
+        False,
+    ),
+    (
+        "no-railway-name-is-not-a-mismatch",
+        "staging",
+        hosted_url("calendar_staging"),
+        None,
+        None,
+        "calendar_staging",
+        False,
+    ),
     # d) the MongoDB database name, checked only when a MongoDB URI is set
-    ("staging-on-the-default-mongo-database", "staging", hosted_url("calendar_staging"), None,
-     "mongodb://example", "calendar", True),
+    (
+        "staging-on-the-default-mongo-database",
+        "staging",
+        hosted_url("calendar_staging"),
+        None,
+        "mongodb://example",
+        "calendar",
+        True,
+    ),
     # A local MongoDB is skipped, the same local/hosted split (a) makes for Postgres, so the laptop's override
     # commands (APP_ENV=staging against a hosted Postgres, MONGODB_URI still the Docker one) are not refused for
     # a database name nothing hosted is using (C3-CR1-1).
-    ("staging-with-a-local-mongo-uri", "staging", hosted_url("calendar_staging"), None,
-     "mongodb://localhost:27017", "calendar", False),
-    ("staging-with-an-atlas-uri-and-the-default-database", "staging", hosted_url("calendar_staging"), None,
-     "mongodb+srv://calendar_staging:x@cluster0.example.mongodb.net/?retryWrites=true", "calendar", True),
-    ("prod-on-the-default-mongo-database", "prod", hosted_url("calendar_prod"), None, "mongodb://example",
-     "calendar", False),
-    ("prod-on-a-staging-mongo-database", "prod", hosted_url("calendar_prod"), None, "mongodb://example",
-     "calendar_staging", True),
-    ("staging-on-its-own-mongo-database", "staging", hosted_url("calendar_staging"), None, "mongodb://example",
-     "calendar_staging", False),
-    ("no-mongo-uri-skips-the-database-name", "staging", hosted_url("calendar_staging"), None, None, "calendar",
-     False),
+    (
+        "staging-with-a-local-mongo-uri",
+        "staging",
+        hosted_url("calendar_staging"),
+        None,
+        "mongodb://localhost:27017",
+        "calendar",
+        False,
+    ),
+    (
+        "staging-with-an-atlas-uri-and-the-default-database",
+        "staging",
+        hosted_url("calendar_staging"),
+        None,
+        "mongodb+srv://calendar_staging:x@cluster0.example.mongodb.net/?retryWrites=true",
+        "calendar",
+        True,
+    ),
+    (
+        "prod-on-the-default-mongo-database",
+        "prod",
+        hosted_url("calendar_prod"),
+        None,
+        "mongodb://example",
+        "calendar",
+        False,
+    ),
+    (
+        "prod-on-a-staging-mongo-database",
+        "prod",
+        hosted_url("calendar_prod"),
+        None,
+        "mongodb://example",
+        "calendar_staging",
+        True,
+    ),
+    (
+        "staging-on-its-own-mongo-database",
+        "staging",
+        hosted_url("calendar_staging"),
+        None,
+        "mongodb://example",
+        "calendar_staging",
+        False,
+    ),
+    ("no-mongo-uri-skips-the-database-name", "staging", hosted_url("calendar_staging"), None, None, "calendar", False),
 ]
 
 
@@ -142,15 +226,23 @@ RULE_CASES = [
     ids=[case[0] for case in RULE_CASES],
 )
 def test_environment_rule(
-    app_env: AppEnv, database_url: str, railway_name: str | None, mongodb_uri: str | None,
-    mongodb_database: str, expect_problem: bool,
+    app_env: AppEnv,
+    database_url: str,
+    railway_name: str | None,
+    mongodb_uri: str | None,
+    mongodb_database: str,
+    expect_problem: bool,
 ) -> None:
     # Proves (C3-K1): the rule fires on each of its four causes and on no other. A row that expects a problem
     # has exactly one thing wrong, so removing a check turns exactly one row red; a row that expects none pins
     # the likeliest mistakes the other way (a missing Railway name treated as a mismatch; an IPv6 host or an `@`
     # in a password mis-parsed by a string split).
     problem = environment_problem(
-        app_env, database_url, railway_name, mongodb_uri=mongodb_uri, mongodb_database=mongodb_database,
+        app_env,
+        database_url,
+        railway_name,
+        mongodb_uri=mongodb_uri,
+        mongodb_database=mongodb_database,
     )
     assert (problem is not None) is expect_problem, problem
 

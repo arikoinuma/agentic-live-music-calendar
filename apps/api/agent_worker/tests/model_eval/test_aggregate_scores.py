@@ -28,38 +28,91 @@ def score_dict(**counts: Any) -> dict[str, Any]:
 
 
 def record(
-    fixture: str = "page.html", *, run: int = 0, attempts: list[dict[str, Any]] | None = None, escalated: bool = False,
-    raw: dict[str, Any] | None = None, seconds: float = 1.0, source: str = "jsonld", **scores: dict[str, Any],
+    fixture: str = "page.html",
+    *,
+    run: int = 0,
+    attempts: list[dict[str, Any]] | None = None,
+    escalated: bool = False,
+    raw: dict[str, Any] | None = None,
+    seconds: float = 1.0,
+    source: str = "jsonld",
+    **scores: dict[str, Any],
 ) -> dict[str, Any]:
     """A run record as `run_labeled_pages` stores it: `asdict(PageRun)` plus the run index. Only what a test pins is filled in."""
-    attempts = attempts if attempts is not None else [{
-        "attempt": 1, "tier": "initial", "route": source, "model": "m", "larger_model_used": False, "error": None,
-        "verdict": "passed", "reasons": [], "score": score_dict(), "errors": [], "warnings": [], "recorded_errors": [],
-    }]
+    attempts = (
+        attempts
+        if attempts is not None
+        else [
+            {
+                "attempt": 1,
+                "tier": "initial",
+                "route": source,
+                "model": "m",
+                "larger_model_used": False,
+                "error": None,
+                "verdict": "passed",
+                "reasons": [],
+                "score": score_dict(),
+                "errors": [],
+                "warnings": [],
+                "recorded_errors": [],
+            }
+        ]
+    )
     return {
-        "fixture": fixture, "run": run, "venue_id": 1, "run_id": 1, "seconds": seconds, "source": source,
-        "attempt_count": len(attempts), "retried": len(attempts) > 1,
-        "recovered": len(attempts) > 1 and not escalated, "escalated": escalated, "escalation_reason": None,
-        "final_verdict": "failed" if escalated else "passed", "policy": {}, "reconcile_counts": None, "commit_written": None,
-        "raw": raw, "validated": raw, "committed": {"shows": []},
-        "raw_score": scores.get("raw_score", score_dict()), "validated_score": scores.get("validated_score", score_dict()),
-        "committed_score": scores.get("committed_score", score_dict()), "attempts": attempts, "staged_documents": [],
+        "fixture": fixture,
+        "run": run,
+        "venue_id": 1,
+        "run_id": 1,
+        "seconds": seconds,
+        "source": source,
+        "attempt_count": len(attempts),
+        "retried": len(attempts) > 1,
+        "recovered": len(attempts) > 1 and not escalated,
+        "escalated": escalated,
+        "escalation_reason": None,
+        "final_verdict": "failed" if escalated else "passed",
+        "policy": {},
+        "reconcile_counts": None,
+        "commit_written": None,
+        "raw": raw,
+        "validated": raw,
+        "committed": {"shows": []},
+        "raw_score": scores.get("raw_score", score_dict()),
+        "validated_score": scores.get("validated_score", score_dict()),
+        "committed_score": scores.get("committed_score", score_dict()),
+        "attempts": attempts,
+        "staged_documents": [],
     }
 
 
 FINDING = {"code": "splitter_dropped", "severity": "error", "message": "m", "show_index": 1}
 
 
-def attempt(n: int, tier: str, *, missed: int = 0, errors: list[dict[str, Any]] | None = None, **extra: Any) -> dict[str, Any]:
+def attempt(
+    n: int, tier: str, *, missed: int = 0, errors: list[dict[str, Any]] | None = None, **extra: Any
+) -> dict[str, Any]:
     """One attempt entry with `missed` shows missed in its score."""
     return {
-        "attempt": n, "tier": tier, "route": "jsonld", "model": "m", "larger_model_used": False, "error": None,
-        "verdict": "failed" if errors else "passed", "reasons": [], "score": score_dict(labelled=2, missed=missed),
-        "errors": errors or [], "warnings": [], "recorded_errors": errors or [], **extra,
+        "attempt": n,
+        "tier": tier,
+        "route": "jsonld",
+        "model": "m",
+        "larger_model_used": False,
+        "error": None,
+        "verdict": "failed" if errors else "passed",
+        "reasons": [],
+        "score": score_dict(labelled=2, missed=missed),
+        "errors": errors or [],
+        "warnings": [],
+        "recorded_errors": errors or [],
+        **extra,
     }
 
 
-GATED = PageLabel(venue="v", gated=True, captured_on=D(2026, 10, 12), shows=(LabelledShow(D(2026, 10, 20), ("A",), "A"),))
+GATED = PageLabel(
+    venue="v", gated=True, captured_on=D(2026, 10, 12), shows=(LabelledShow(D(2026, 10, 20), ("A",), "A"),)
+)
 
 
 # ---------------------------------------------------------------------------
@@ -83,10 +136,13 @@ def test_rates_are_computed_from_summed_counts_not_averaged_per_page() -> None:
 def test_the_aggregate_counts_each_column_separately() -> None:
     # Proves: the three columns (raw, validated, committed) are summed on their own, so the differences between them (the
     # point of the harness) survive: here validation fixes one miss the model made, and commit loses one show.
-    runs = [record(
-        raw_score=score_dict(labelled=4, returned=3, missed=1), validated_score=score_dict(labelled=4, returned=4),
-        committed_score=score_dict(labelled=4, returned=3, missed=1),
-    )]
+    runs = [
+        record(
+            raw_score=score_dict(labelled=4, returned=3, missed=1),
+            validated_score=score_dict(labelled=4, returned=4),
+            committed_score=score_dict(labelled=4, returned=3, missed=1),
+        )
+    ]
     columns = aggregate_scores.aggregate(runs, {"page.html": GATED})["columns"]
     assert (columns["raw"]["missed"], columns["validated"]["missed"], columns["committed"]["missed"]) == (1, 0, 1)
 
@@ -98,10 +154,15 @@ def test_the_retry_statistics_count_runs_attempts_and_outcomes() -> None:
     runs = [
         record(run=0),
         record(run=1, attempts=[attempt(1, "initial", missed=1, errors=[FINDING]), attempt(2, "narrowed")]),
-        record(run=2, escalated=True, attempts=[
-            attempt(1, "initial", missed=1, errors=[FINDING]), attempt(2, "narrowed", missed=1, errors=[FINDING]),
-            attempt(3, "larger_model", missed=1, errors=[FINDING]),
-        ]),
+        record(
+            run=2,
+            escalated=True,
+            attempts=[
+                attempt(1, "initial", missed=1, errors=[FINDING]),
+                attempt(2, "narrowed", missed=1, errors=[FINDING]),
+                attempt(3, "larger_model", missed=1, errors=[FINDING]),
+            ],
+        ),
     ]
     retry = aggregate_scores.aggregate(runs, {"page.html": GATED})["retry"]
     assert (retry["runs"], retry["retried"], retry["escalated"], retry["recovered"]) == (3, 2, 1, 1)
@@ -174,13 +235,18 @@ def test_the_committed_column_leaves_out_a_run_whose_rows_include_an_earlier_pag
     # scenario's own `database_score` is the right measure). Expected: the 2 "fabricated" in the flagged run are not summed.
     runs = [
         record("p.html", run=0, committed_score=score_dict(labelled=2, returned=2)),
-        {**record("p.html", run=1, committed_score=score_dict(labelled=2, returned=4, fabricated=2)), "committed_scored": False},
+        {
+            **record("p.html", run=1, committed_score=score_dict(labelled=2, returned=4, fabricated=2)),
+            "committed_scored": False,
+        },
     ]
     agg = aggregate_scores.aggregate(runs, {"p.html": GATED})
     assert agg["columns"]["committed"]["fabricated"] == 0
     assert agg["columns"]["committed"]["labelled"] == 2
     assert agg["gate"]["committed"]["passed"] is True
-    assert agg["columns"]["raw"]["labelled"] == 0  # the other columns still count both runs (both have empty scores here)
+    assert (
+        agg["columns"]["raw"]["labelled"] == 0
+    )  # the other columns still count both runs (both have empty scores here)
 
 
 def test_the_aggregate_counts_a_route_mismatch_between_the_document_and_the_extraction_source() -> None:

@@ -28,9 +28,7 @@ CHICAGO = "America/Chicago"
 def page(*blocks: Any, raw: str = "") -> str:
     """An HTML page whose <head> carries each block as its own ld+json script, plus any raw
     extra markup (used to slip an unparseable block in between good ones)."""
-    scripts = "".join(
-        f'<script type="application/ld+json">{json.dumps(b)}</script>' for b in blocks
-    )
+    scripts = "".join(f'<script type="application/ld+json">{json.dumps(b)}</script>' for b in blocks)
     return f"<html><head>{scripts}{raw}</head><body><p>Visible text</p></body></html>"
 
 
@@ -154,9 +152,7 @@ def test_a_white_squirrel_event_maps_to_a_show() -> None:
 def test_an_end_more_than_six_hours_after_the_start_is_not_taken() -> None:
     # Proves: A2.1-D10. DICE-backed pages emit endDates 3-15 hours after the start that no page
     # states; 15 hours is invented, so end_time stays null ("leave blank if unclear").
-    show = jsonld.to_structured_show(
-        event(startDate="2026-09-05T01:00:00Z", endDate="2026-09-05T16:00:00Z"), CHICAGO
-    )
+    show = jsonld.to_structured_show(event(startDate="2026-09-05T01:00:00Z", endDate="2026-09-05T16:00:00Z"), CHICAGO)
     assert show.end_time is None
 
 
@@ -256,9 +252,7 @@ def test_event_status_maps_to_show_status(status: str | None, expected: str) -> 
 def test_a_space_separated_date_time_is_a_time_not_a_date() -> None:
     # Proves: A2.1-CR1-6a. ISO 8601 allows a space instead of "T"; it must not take the
     # date-only branch (which would raise and fail the page).
-    assert jsonld.local_wall_clock("2026-10-09 21:00:00", CHICAGO) == (
-        datetime.date(2026, 10, 9), datetime.time(21, 0)
-    )
+    assert jsonld.local_wall_clock("2026-10-09 21:00:00", CHICAGO) == (datetime.date(2026, 10, 9), datetime.time(21, 0))
 
 
 @pytest.mark.parametrize(
@@ -366,7 +360,9 @@ def test_a_labeled_price_in_the_description_is_read() -> None:
     # order link, the price after a "Tickets:" label). A price the page states with no advance/door wording
     # applies to both (Ari's rule on the Ginkgo label, A2.1-D5); free_admission stays None, because false is never
     # stored (A2-F1).
-    show = _described("ORDER TICKETS: https://tickets.example/x Saturday, May 2, 2026 at 7:30 pm Tickets: $20 Corner Cafe, 1 Main St.")
+    show = _described(
+        "ORDER TICKETS: https://tickets.example/x Saturday, May 2, 2026 at 7:30 pm Tickets: $20 Corner Cafe, 1 Main St."
+    )
     assert (show.admission_advance, show.admission_day, show.free_admission) == (20.0, 20.0, None)
 
 
@@ -376,15 +372,18 @@ def test_a_price_with_cents_is_read() -> None:
     assert _described("Admission: $12.50").admission_advance == 12.5
 
 
-@pytest.mark.parametrize("text", [
-    "Tickets: $15 advance, $20 door",       # two prices with their own meanings
-    "Tickets: $15 / $20 at the door",       # door wording
-    "Tickets: $20 day of show",             # day-of wording
-    "Tickets: $15 or $20",                  # two different prices, no way to tell which
-    "Dinner for two $40 while you listen",  # a dollar amount that is not labeled as the ticket
-    "FREE TO join, tip jar on the stage",   # 'free' in prose is not a price (trivia night, open mic)
-    "Tickets: $",                           # a label with no number
-])
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Tickets: $15 advance, $20 door",  # two prices with their own meanings
+        "Tickets: $15 / $20 at the door",  # door wording
+        "Tickets: $20 day of show",  # day-of wording
+        "Tickets: $15 or $20",  # two different prices, no way to tell which
+        "Dinner for two $40 while you listen",  # a dollar amount that is not labeled as the ticket
+        "FREE TO join, tip jar on the stage",  # 'free' in prose is not a price (trivia night, open mic)
+        "Tickets: $",  # a label with no number
+    ],
+)
 def test_a_description_that_cannot_be_read_with_certainty_gives_no_price(text: str) -> None:
     # Proves (C6.1-D12): the rule is deliberately narrow. A wrong price breaks the standard ("a wrong value
     # never"), a missing one is tolerated up to 10%, so anything ambiguous is left empty, and a description

@@ -50,10 +50,16 @@ async def test_stage_returns_the_id_of_the_stored_document(client: AsyncMongoCli
     # BSON could not encode unconverted) and returns the `_id` as a string: the same string the extract row
     # stores as `detail.staging_id`, so a person can paste it into `db.extraction_staging.findOne(...)`.
     state = VenueGraphState(
-        venue_id=4, calendar_url="https://venue.example/events", venue_name="The Venue",
-        metro_timezone="America/Chicago", run_id=9, attempt_count=1, route_attempted="model",
+        venue_id=4,
+        calendar_url="https://venue.example/events",
+        venue_name="The Venue",
+        metro_timezone="America/Chicago",
+        run_id=9,
+        attempt_count=1,
+        route_attempted="model",
         last_plan=AttemptPlan(tier="initial", config=extraction.PIPELINE_CONFIG, roles=extraction.PIPELINE_ROLES),
-        extraction_notes={"seen": datetime.date(2026, 10, 12)}, extract_error="ValueError: bad json",
+        extraction_notes={"seen": datetime.date(2026, 10, 12)},
+        extract_error="ValueError: bad json",
     )
     collection = client[TEST_DATABASE]["extraction_staging"]
     staging_id = await MongoStager(collection).stage(document_for(state))

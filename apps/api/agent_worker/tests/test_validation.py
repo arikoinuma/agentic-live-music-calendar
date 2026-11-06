@@ -32,16 +32,27 @@ FETCHED = datetime.date(2026, 10, 12)
 
 
 def show(
-    day: datetime.date = datetime.date(2026, 10, 20), *acts: str, time: str | None = None,
-    end: str | None = None, **extra: Any,
+    day: datetime.date = datetime.date(2026, 10, 20),
+    *acts: str,
+    time: str | None = None,
+    end: str | None = None,
+    **extra: Any,
 ) -> ShowExtraction:
     """A show naming `acts` (one act "The Band" if none given) on `day`, with the optional fields
     given; confidence 0.9 unless overridden."""
     names = acts if acts else ("The Band",)
-    return ShowExtraction.model_validate({
-        "venue": "The Venue", "date": day, "time": time, "end_time": end,
-        "acts": [{"name": n} for n in names], "is_ambiguous": False, "confidence": 0.9, **extra,
-    })
+    return ShowExtraction.model_validate(
+        {
+            "venue": "The Venue",
+            "date": day,
+            "time": time,
+            "end_time": end,
+            "acts": [{"name": n} for n in names],
+            "is_ambiguous": False,
+            "confidence": 0.9,
+            **extra,
+        }
+    )
 
 
 def page(*shows: ShowExtraction, readable: bool = True) -> VenuePageExtraction:
@@ -50,12 +61,22 @@ def page(*shows: ShowExtraction, readable: bool = True) -> VenuePageExtraction:
 
 
 def validate(
-    extraction: VenuePageExtraction, *, source: validation.Source = "model", notes: dict[str, Any] | None = None,
-    fetched_on: datetime.date = FETCHED, html: str = "", text: str = "",
+    extraction: VenuePageExtraction,
+    *,
+    source: validation.Source = "model",
+    notes: dict[str, Any] | None = None,
+    fetched_on: datetime.date = FETCHED,
+    html: str = "",
+    text: str = "",
 ) -> tuple[validation.ValidationResult, list[ShowExtraction]]:
     """Run `validate_extraction` with defaults for everything a test doesn't care about (the fetch date, no notes, no page)."""
     return validation.validate_extraction(
-        extraction, source=source, notes=notes or {}, fetched_on=fetched_on, page_html=html, page_text=text,
+        extraction,
+        source=source,
+        notes=notes or {},
+        fetched_on=fetched_on,
+        page_html=html,
+        page_text=text,
     )
 
 
@@ -102,9 +123,18 @@ def test_a_show_with_no_acts_is_excluded_not_failed_and_is_reported() -> None:
     # over on purpose (non-music entries), so it is excluded with a warning that names it — not an
     # error, which would retry a page for a karaoke night. Excluded is not "confirmed non-music": the
     # splitter also returns [] for real shows (Mortimer's, two every run in a21-confirm).
-    extraction = page(show(), ShowExtraction.model_validate({
-        "venue": "The Venue", "date": datetime.date(2026, 10, 21), "acts": [], "is_ambiguous": False, "confidence": 0.9,
-    }))
+    extraction = page(
+        show(),
+        ShowExtraction.model_validate(
+            {
+                "venue": "The Venue",
+                "date": datetime.date(2026, 10, 21),
+                "acts": [],
+                "is_ambiguous": False,
+                "confidence": 0.9,
+            }
+        ),
+    )
     result, kept = validate(extraction, notes={"titles": ["The Band", "Karaoke Night"]})
     assert result.excluded == [1]
     assert len(kept) == 1
@@ -158,9 +188,17 @@ def test_the_title_checks_are_skipped_when_titles_and_shows_do_not_line_up() -> 
 def test_when_every_show_is_excluded_a_dated_page_is_not_a_confirmed_empty_pass() -> None:
     # Proves (A3-PR1-4): the empty-page guard keys on *kept* shows, so a dated page whose every
     # show was excluded can't slip past the guard that exists for an empty list.
-    extraction = page(ShowExtraction.model_validate({
-        "venue": "V", "date": datetime.date(2026, 10, 20), "acts": [], "is_ambiguous": False, "confidence": 0.9,
-    }))
+    extraction = page(
+        ShowExtraction.model_validate(
+            {
+                "venue": "V",
+                "date": datetime.date(2026, 10, 20),
+                "acts": [],
+                "is_ambiguous": False,
+                "confidence": 0.9,
+            }
+        )
+    )
     text = "Oct 20 Oct 21 Oct 22 Oct 23 something"
     result, kept = validate(extraction, text=text)
     assert kept == []
@@ -171,9 +209,17 @@ def test_when_every_show_is_excluded_a_dated_page_is_not_a_confirmed_empty_pass(
 def test_when_every_show_is_excluded_an_undated_page_passes_with_no_confidence() -> None:
     # Proves: nothing to commit and nothing dated is not a failure; each excluded show already
     # carries its warning.
-    extraction = page(ShowExtraction.model_validate({
-        "venue": "V", "date": datetime.date(2026, 10, 20), "acts": [], "is_ambiguous": False, "confidence": 0.9,
-    }))
+    extraction = page(
+        ShowExtraction.model_validate(
+            {
+                "venue": "V",
+                "date": datetime.date(2026, 10, 20),
+                "acts": [],
+                "is_ambiguous": False,
+                "confidence": 0.9,
+            }
+        )
+    )
     result, _ = validate(extraction, text="Karaoke night")
     assert result.errors == []
     assert result.confidence is None
@@ -190,8 +236,10 @@ def test_the_date_window_boundaries_on_the_model_route() -> None:
     # days before 2026-10-12 and passes; 09-10 is 32 and fails. 2027-10-13 is 366 ahead and passes;
     # 10-14 is 367 and fails. On the model route an out-of-window date is an error (a retry can re-read).
     for day, bad in [
-        (datetime.date(2026, 9, 11), False), (datetime.date(2026, 9, 10), True),
-        (datetime.date(2027, 10, 13), False), (datetime.date(2027, 10, 14), True),
+        (datetime.date(2026, 9, 11), False),
+        (datetime.date(2026, 9, 10), True),
+        (datetime.date(2027, 10, 13), False),
+        (datetime.date(2027, 10, 14), True),
     ]:
         result, _ = validate(page(show(day)), source="model")
         assert (CheckCode.DATE_IMPLAUSIBLE in codes(result, Severity.ERROR)) is bad, day
@@ -331,8 +379,10 @@ def test_the_end_time_check_is_scoped_to_the_listings_own_title_when_titles_line
     # vouch for a default end". With titles aligned to shows, Alpha's end of 23:00 is checked only in
     # Alpha's slice of the text (up to Beta's title), where nothing states it; Beta's own is stated.
     text = "Alpha Band Oct 15 8:00 pm Beta Group Oct 16 8:00 pm - 11:00 pm"
-    extraction = page(show(datetime.date(2026, 10, 15), "Alpha Band", time="20:00", end="23:00"),
-                      show(datetime.date(2026, 10, 16), "Beta Group", time="20:00", end="23:00"))
+    extraction = page(
+        show(datetime.date(2026, 10, 15), "Alpha Band", time="20:00", end="23:00"),
+        show(datetime.date(2026, 10, 16), "Beta Group", time="20:00", end="23:00"),
+    )
     result, kept = validate(extraction, text=text, notes={"titles": ["Alpha Band", "Beta Group"]})
     assert [r.show_index for r in result.repairs] == [0]
     assert kept[0].end_time is None and kept[1].end_time is not None
@@ -343,7 +393,9 @@ def test_the_end_time_check_is_scoped_to_the_listings_own_title_when_titles_line
 
 # A listing in the shape Icehouse uses: the date, then labeled "Doors:" and "Music:" lines.
 def _listing(day: str, doors: str, music: str) -> str:
-    return f"Some Band\nA description of the show.\n{day}\nDoors: {doors}\nMusic: {music}\n$15 adv / $20 door\nBuy Tickets"
+    return (
+        f"Some Band\nA description of the show.\n{day}\nDoors: {doors}\nMusic: {music}\n$15 adv / $20 door\nBuy Tickets"
+    )
 
 
 def test_a_start_time_that_is_the_doors_time_is_dropped_when_the_page_states_a_music_time() -> None:
@@ -449,9 +501,17 @@ def test_a_json_ld_page_whose_dates_all_have_shows_is_not_under_reported() -> No
     # as covered — the JSON-LD did list them.
     text = "Oct 20 Oct 21 Oct 22 Oct 23"
     shows = [show(datetime.date(2026, 10, d)) for d in (20, 21, 22)]
-    shows.append(ShowExtraction.model_validate({
-        "venue": "V", "date": datetime.date(2026, 10, 23), "acts": [], "is_ambiguous": False, "confidence": 1.0,
-    }))
+    shows.append(
+        ShowExtraction.model_validate(
+            {
+                "venue": "V",
+                "date": datetime.date(2026, 10, 23),
+                "acts": [],
+                "is_ambiguous": False,
+                "confidence": 1.0,
+            }
+        )
+    )
     result, _ = validate(page(*shows), source="structured", text=text)
     assert CheckCode.JSONLD_UNDER_REPORTED not in codes(result)
 
@@ -491,7 +551,9 @@ def test_a_json_ld_page_whose_every_event_is_out_of_window_passes_with_each_excl
     # the guard has to subtract the shows' own dates, not rely on "past dates are ignored".
     # (A3-K3: the window.)
     stale = [show(datetime.date(2026, 8, d), f"Band {d}") for d in (1, 2, 3)]
-    result, kept = validate(page(*stale), source="structured", text="Band 1 Aug 1 8 pm Band 2 Aug 2 8 pm Band 3 Aug 3 8 pm")
+    result, kept = validate(
+        page(*stale), source="structured", text="Band 1 Aug 1 8 pm Band 2 Aug 2 8 pm Band 3 Aug 3 8 pm"
+    )
     assert kept == [] and result.excluded == [0, 1, 2]
     assert result.errors == []
     assert [f.code for f in result.warnings] == [CheckCode.DATE_OUT_OF_WINDOW] * 3
@@ -521,10 +583,17 @@ def test_confidence_is_the_minimum_over_the_kept_shows_a_model_judged() -> None:
     # Proves (A3-D9): the minimum, not the mean — one doubtful show is the thing to look at. An excluded
     # show's confidence is ignored (it isn't in the record being judged).
     extraction = page(
-        show(datetime.date(2026, 10, 20), confidence=0.95), show(datetime.date(2026, 10, 21), confidence=0.7),
-        ShowExtraction.model_validate({
-            "venue": "V", "date": datetime.date(2026, 10, 22), "acts": [], "is_ambiguous": False, "confidence": 0.1,
-        }),
+        show(datetime.date(2026, 10, 20), confidence=0.95),
+        show(datetime.date(2026, 10, 21), confidence=0.7),
+        ShowExtraction.model_validate(
+            {
+                "venue": "V",
+                "date": datetime.date(2026, 10, 22),
+                "acts": [],
+                "is_ambiguous": False,
+                "confidence": 0.1,
+            }
+        ),
     )
     result, _ = validate(extraction)
     assert result.confidence == pytest.approx(0.7)
@@ -540,7 +609,9 @@ def test_json_ld_confidence_is_none_because_its_one_point_zero_is_a_placeholder(
 def test_shows_the_status_merge_added_are_left_out_of_the_confidence() -> None:
     # Proves (A3-PR2-11): the merge adds shows with a placeholder confidence of 1.0 that no model
     # judged; they are listed in notes["added_indices"] and must not raise the minimum.
-    extraction = page(show(datetime.date(2026, 10, 20), confidence=0.6), show(datetime.date(2026, 10, 21), confidence=1.0))
+    extraction = page(
+        show(datetime.date(2026, 10, 20), confidence=0.6), show(datetime.date(2026, 10, 21), confidence=1.0)
+    )
     result, _ = validate(extraction, notes={"added_indices": [1]})
     assert result.confidence == pytest.approx(0.6)
     only_added, _ = validate(page(show(confidence=1.0)), notes={"added_indices": [0]})
@@ -556,10 +627,15 @@ def test_ambiguous_and_possible_merge_are_warnings_only() -> None:
     # Proves (A3-D3): `is_ambiguous` means "a human may want to look" and never fails a page; acts with
     # different start times are flagged as a possible merge (A5 reads it) but are legitimately one
     # show when it has one ticket link.
-    merged = ShowExtraction.model_validate({
-        "venue": "V", "date": datetime.date(2026, 10, 20), "is_ambiguous": True, "confidence": 0.9,
-        "acts": [{"name": "A", "start_time": "19:00"}, {"name": "B", "start_time": "21:00"}],
-    })
+    merged = ShowExtraction.model_validate(
+        {
+            "venue": "V",
+            "date": datetime.date(2026, 10, 20),
+            "is_ambiguous": True,
+            "confidence": 0.9,
+            "acts": [{"name": "A", "start_time": "19:00"}, {"name": "B", "start_time": "21:00"}],
+        }
+    )
     result, kept = validate(page(merged))
     assert set(codes(result, Severity.WARNING)) == {CheckCode.AMBIGUOUS, CheckCode.POSSIBLE_MERGE}
     assert result.errors == [] and len(kept) == 1
@@ -568,9 +644,15 @@ def test_ambiguous_and_possible_merge_are_warnings_only() -> None:
 def test_the_kept_shows_keep_their_position_in_findings_after_an_exclusion() -> None:
     # Proves: a finding's `show_index` is the position in the *extracted* list, even after an earlier
     # show was excluded — so a human (and A4) can find the show it names.
-    excluded = ShowExtraction.model_validate({
-        "venue": "V", "date": datetime.date(2026, 10, 19), "acts": [], "is_ambiguous": False, "confidence": 0.9,
-    })
+    excluded = ShowExtraction.model_validate(
+        {
+            "venue": "V",
+            "date": datetime.date(2026, 10, 19),
+            "acts": [],
+            "is_ambiguous": False,
+            "confidence": 0.9,
+        }
+    )
     result, kept = validate(page(excluded, show(free_admission=True, admission_day=5.0)))
     [finding] = [f for f in result.errors if f.code is CheckCode.FREE_WITH_PRICE]
     assert finding.show_index == 1 and len(kept) == 1
@@ -590,7 +672,10 @@ def test_visible_dates_that_embedded_events_overrule_do_not_make_the_page_under_
     # (C6.1-PR1-1). The count is kept on the result instead of being thrown away.
     extraction = page(show(datetime.date(2026, 10, 20)), show(datetime.date(2026, 10, 21)))
     result, _ = validate(
-        extraction, source="structured", notes={"structured_source": "astro-island"}, text=SHIFTED_TEXT,
+        extraction,
+        source="structured",
+        notes={"structured_source": "astro-island"},
+        text=SHIFTED_TEXT,
     )
     assert CheckCode.JSONLD_UNDER_REPORTED not in codes(result)
     assert result.visible_unmatched_dates == 4
@@ -601,7 +686,10 @@ def test_the_under_reported_check_still_guards_json_ld() -> None:
     # still fails the check, as in A2.1-E16.
     extraction = page(show(datetime.date(2026, 10, 20)), show(datetime.date(2026, 10, 21)))
     result, _ = validate(
-        extraction, source="structured", notes={"structured_source": "json-ld"}, text=SHIFTED_TEXT,
+        extraction,
+        source="structured",
+        notes={"structured_source": "json-ld"},
+        text=SHIFTED_TEXT,
     )
     assert CheckCode.JSONLD_UNDER_REPORTED in codes(result, Severity.ERROR)
     assert result.visible_unmatched_dates is None
@@ -625,7 +713,9 @@ def test_a_show_whose_date_differs_from_its_slugs_date_is_a_warning() -> None:
 def test_a_slug_that_agrees_or_names_no_date_raises_nothing() -> None:
     # Proves (C6.1-D6): agreement is silent, and so is a slug with no date or a missing slug (None),
     # so the check cannot invent a finding where it has no evidence.
-    extraction = page(show(datetime.date(2026, 11, 6)), show(datetime.date(2026, 11, 7)), show(datetime.date(2026, 11, 8)))
+    extraction = page(
+        show(datetime.date(2026, 11, 6)), show(datetime.date(2026, 11, 7)), show(datetime.date(2026, 11, 8))
+    )
     notes = {"structured_source": "astro-island", "slugs": ["a-band-november-06-2026-1", "no-date-here-9", None]}
     result, _ = validate(extraction, source="structured", notes=notes)
     assert CheckCode.SLUG_DATE_DISAGREES not in codes(result)

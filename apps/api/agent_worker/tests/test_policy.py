@@ -56,24 +56,42 @@ def error(code: CheckCode, message: str = "an error") -> Finding:
 
 
 def evidence(
-    *, outcome: PageOutcome | None = PageOutcome.HAS_SHOWS, errors: tuple[Finding, ...] = (),
-    confidence: float | None = 0.95, extraction_failed: bool = False,
+    *,
+    outcome: PageOutcome | None = PageOutcome.HAS_SHOWS,
+    errors: tuple[Finding, ...] = (),
+    confidence: float | None = 0.95,
+    extraction_failed: bool = False,
 ) -> ValidationResult:
     """A `ValidationResult` as `validate_extraction` would hand it to `combine`: an outcome, the given errors and confidence."""
     return ValidationResult(
-        outcome=outcome, findings=list(errors), confidence=confidence, extraction_failed=extraction_failed,
+        outcome=outcome,
+        findings=list(errors),
+        confidence=confidence,
+        extraction_failed=extraction_failed,
     )
 
 
 def record(
-    attempt: int = 1, *, route: str | None = "model", verdict: Verdict = Verdict.FAILED,
-    reasons: tuple[FailureReason, ...] = (FailureReason.CHECK_ERRORS,), findings: tuple[Finding, ...] = (),
+    attempt: int = 1,
+    *,
+    route: str | None = "model",
+    verdict: Verdict = Verdict.FAILED,
+    reasons: tuple[FailureReason, ...] = (FailureReason.CHECK_ERRORS,),
+    findings: tuple[Finding, ...] = (),
 ) -> AttemptRecord:
     """An `AttemptRecord` for a failed attempt on the given route with the given reasons and findings; every other field is filler."""
     return AttemptRecord(
-        attempt=attempt, tier="initial", model="m", route=route,  # type: ignore[arg-type]
-        error=None, verdict=verdict, reasons=list(reasons), findings=list(findings),
-        confidence=None, error_count=len(findings), warning_count=0,
+        attempt=attempt,
+        tier="initial",
+        model="m",
+        route=route,  # type: ignore[arg-type]
+        error=None,
+        verdict=verdict,
+        reasons=list(reasons),
+        findings=list(findings),
+        confidence=None,
+        error_count=len(findings),
+        warning_count=0,
     )
 
 
@@ -175,18 +193,28 @@ def test_a_passing_verdict_passes_at_every_attempt(verdict: Verdict, attempt_cou
     assert decide_route(verdict, attempt_count, POLICY) is NodeOutcomes.PASS
 
 
-@pytest.mark.parametrize(("attempt_count", "expected"), [
-    (1, NodeOutcomes.RETRY), (2, NodeOutcomes.RETRY), (3, NodeOutcomes.ESCALATE), (4, NodeOutcomes.ESCALATE),
-])
+@pytest.mark.parametrize(
+    ("attempt_count", "expected"),
+    [
+        (1, NodeOutcomes.RETRY),
+        (2, NodeOutcomes.RETRY),
+        (3, NodeOutcomes.ESCALATE),
+        (4, NodeOutcomes.ESCALATE),
+    ],
+)
 def test_a_failed_verdict_retries_until_the_cap_then_escalates(attempt_count: int, expected: NodeOutcomes) -> None:
     # Proves (A3-K4): three attempts in total (arch-initial.md §7). Failed after the 1st and 2nd -> retry;
     # failed after the 3rd -> escalate.
     assert decide_route(Verdict.FAILED, attempt_count, POLICY) is expected
 
 
-@pytest.mark.parametrize(("attempt_count", "expected"), [
-    (4, NodeOutcomes.RETRY), (5, NodeOutcomes.ESCALATE),
-])
+@pytest.mark.parametrize(
+    ("attempt_count", "expected"),
+    [
+        (4, NodeOutcomes.RETRY),
+        (5, NodeOutcomes.ESCALATE),
+    ],
+)
 def test_the_attempt_cap_is_read_from_the_policy_not_a_literal(attempt_count: int, expected: NodeOutcomes) -> None:
     # Proves (A3-K4): "named configuration, so A8 can vary it" — with a cap of 5, attempt 4 still retries.
     assert decide_route(Verdict.FAILED, attempt_count, replace(POLICY, max_attempts=5)) is expected
@@ -267,7 +295,9 @@ def test_a_repeated_finding_appears_once() -> None:
 def test_a_failed_model_call_and_low_confidence_get_a_generic_page_hint() -> None:
     # Proves: reasons with no finding (extract_failed, unreadable, low_confidence) still tell the page
     # model something, since at temperature 0 an unchanged request returns the same answer.
-    page_hint, splitter_hint = retry_hint([record(reasons=(FailureReason.EXTRACT_FAILED, FailureReason.LOW_CONFIDENCE))])
+    page_hint, splitter_hint = retry_hint(
+        [record(reasons=(FailureReason.EXTRACT_FAILED, FailureReason.LOW_CONFIDENCE))]
+    )
     assert "valid JSON" in page_hint and "confidence" in page_hint.lower() and splitter_hint == ""
 
 
@@ -376,8 +406,10 @@ def test_a_retry_always_differs_from_the_first_attempt() -> None:
     # Proves (A3-K5): the whole point — at temperature 0 an identical retry returns the identical
     # answer, so attempts 2 and 3 must differ from attempt 1 in what they send, for every kind of failure.
     for history in (
-        [record(findings=(DATE,))], [record(reasons=(FailureReason.LOW_CONFIDENCE,))],
-        [record(reasons=(FailureReason.EXTRACT_FAILED,))], [record(reasons=(FailureReason.UNREADABLE,))],
+        [record(findings=(DATE,))],
+        [record(reasons=(FailureReason.LOW_CONFIDENCE,))],
+        [record(reasons=(FailureReason.EXTRACT_FAILED,))],
+        [record(reasons=(FailureReason.UNREADABLE,))],
         [record(route="structured", findings=(CONSISTENCY,))],
     ):
         second = plan(2, history)
@@ -411,8 +443,10 @@ def test_the_models_an_attempt_used_name_only_the_calls_its_route_made(route: st
     # route makes no page call and no status call; the poster route makes only the page call. Without this the
     # record would credit the acts to the page model once the splitter runs a different one.
     roles = replace(
-        BASE_ROLES, page=replace(BASE_ROLES.page, model="m-page"),
-        splitter=replace(BASE_ROLES.splitter, model="m-split"), status=replace(BASE_ROLES.status, model="m-status"),
+        BASE_ROLES,
+        page=replace(BASE_ROLES.page, model="m-page"),
+        splitter=replace(BASE_ROLES.splitter, model="m-split"),
+        status=replace(BASE_ROLES.status, model="m-status"),
     )
     attempt = AttemptPlan("initial", BASE_CONFIG, roles)
     assert attempt.models_used(route) == expected  # type: ignore[arg-type]

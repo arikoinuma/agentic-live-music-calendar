@@ -49,7 +49,11 @@ WINDOW = {"start": "2026-10-12", "end": "2026-10-20"}
 
 
 async def run_reconcile(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, html: str, script: dict[Any, list[Any]], reader: FakeReader,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    html: str,
+    script: dict[Any, list[Any]],
+    reader: FakeReader,
 ) -> tuple[VenueGraphState, RecordingAudit]:
     """Run the real graph on `html` with a scripted model and `reader` as the stored calendar."""
     page = tmp_path / "page.html"
@@ -57,8 +61,12 @@ async def run_reconcile(
     monkeypatch.setattr(nodes, "instructor_client", scripted_client(script))
     audit = RecordingAudit()
     state = VenueGraphState(
-        venue_id=1, calendar_url=str(page), venue_name="The Venue", metro_timezone="America/Chicago",
-        fetched_on=fakes.FETCHED, run_id=RUN_ID,
+        venue_id=1,
+        calendar_url=str(page),
+        venue_name="The Venue",
+        metro_timezone="America/Chicago",
+        fetched_on=fakes.FETCHED,
+        run_id=RUN_ID,
     )
     context = WorkerContext(audit=audit, stager=RecordingStager(), reader=reader, writer=FakeWriter())
     return VenueGraphState(**await compiled_graph.ainvoke(state, context=context)), audit
@@ -127,9 +135,16 @@ async def test_a_model_decision_about_an_artist_gets_its_own_audit_row(
         SPLITTER: [split_answer(("Zhora Band", ["Zhora Band"]))],
         ARTIST_MATCH: [{"matched_artist_id": 8, "confidence": 0.9, "reason": "same band, longer name"}],
     }
-    state, audit = await run_reconcile(tmp_path, monkeypatch, page, script, FakeReader(artists=[KnownArtist(8, "Zhora")]))
+    state, audit = await run_reconcile(
+        tmp_path, monkeypatch, page, script, FakeReader(artists=[KnownArtist(8, "Zhora")])
+    )
     assert audit.steps() == [
-        ("fetch", 1), ("extract", 1), ("validate", 1), ("reconcile", 1), ("reconcile", 1), ("commit", 1),
+        ("fetch", 1),
+        ("extract", 1),
+        ("validate", 1),
+        ("reconcile", 1),
+        ("reconcile", 1),
+        ("commit", 1),
     ]
     summary, decision = reconcile_rows(audit)
     assert summary.entity_type is EntityType.VENUE and summary.detail["model_decisions"] == 1
@@ -151,8 +166,12 @@ async def test_an_unreadable_calendar_stops_the_run_with_no_reconcile_row(
     monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [NONA]}))
     audit = RecordingAudit()
     state = VenueGraphState(
-        venue_id=1, calendar_url=str(page), venue_name="The Venue", metro_timezone="America/Chicago",
-        fetched_on=fakes.FETCHED, run_id=RUN_ID,
+        venue_id=1,
+        calendar_url=str(page),
+        venue_name="The Venue",
+        metro_timezone="America/Chicago",
+        fetched_on=fakes.FETCHED,
+        run_id=RUN_ID,
     )
     context = WorkerContext(audit=audit, stager=RecordingStager(), reader=FakeReader(fail=True), writer=FakeWriter())
     with pytest.raises(RuntimeError, match="unreadable"):

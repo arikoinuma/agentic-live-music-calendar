@@ -44,8 +44,13 @@ RUN_ID = 7
 
 
 async def run_traced(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, html: str | None, script: dict[Any, list[Any]],
-    *, url: str | None = None, stager: RecordingStager | None = None,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    html: str | None,
+    script: dict[Any, list[Any]],
+    *,
+    url: str | None = None,
+    stager: RecordingStager | None = None,
 ) -> tuple[VenueGraphState, RecordingAudit, RecordingStager]:
     """Run the real graph on `html` (or `url`) with the scripted model and recording stores."""
     if url is None:
@@ -56,10 +61,16 @@ async def run_traced(
     monkeypatch.setattr(nodes, "instructor_client", scripted_client(script))
     audit, stager = RecordingAudit(), stager or RecordingStager()
     state = VenueGraphState(
-        venue_id=1, calendar_url=url, venue_name="The Venue", metro_timezone="America/Chicago",
-        fetched_on=fakes.FETCHED, run_id=RUN_ID,
+        venue_id=1,
+        calendar_url=url,
+        venue_name="The Venue",
+        metro_timezone="America/Chicago",
+        fetched_on=fakes.FETCHED,
+        run_id=RUN_ID,
     )
-    result = await compiled_graph.ainvoke(state, context=WorkerContext(audit=audit, stager=stager, reader=FakeReader(), writer=FakeWriter()))
+    result = await compiled_graph.ainvoke(
+        state, context=WorkerContext(audit=audit, stager=stager, reader=FakeReader(), writer=FakeWriter())
+    )
     return VenueGraphState(**result), audit, stager
 
 
@@ -105,18 +116,27 @@ async def test_non_extract_rows_have_no_staging_id(tmp_path: Path, monkeypatch: 
 
 
 async def test_a_retry_adds_rows_and_a_document_per_attempt_failed_one_included(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves (A4-K3, "append-only", A4-D4): the attempt whose model call raised is staged too, with its error,
     # so a person debugging an escalation has the failed attempt's record. Attempt 2 adds its own extract
     # and validate rows next to attempt 1's instead of replacing them: the retry history survives. Each
     # document carries its own attempt number and error (which also catches staging before the node runs,
     # when a document would carry the previous attempt's fields).
-    script: dict[Any, list[Any]] = {PAGE: [ValueError("the model server went away"), listings_answer(GOOD_LISTING)], SPLITTER: [NONA]}
+    script: dict[Any, list[Any]] = {
+        PAGE: [ValueError("the model server went away"), listings_answer(GOOD_LISTING)],
+        SPLITTER: [NONA],
+    }
     _, audit, stager = await run_traced(tmp_path, monkeypatch, GOOD_PAGE, script)
     assert audit.steps() == [
-        ("fetch", 1), ("extract", 1), ("validate", 1), ("extract", 2), ("validate", 2),
-        ("reconcile", 2), ("commit", 2),
+        ("fetch", 1),
+        ("extract", 1),
+        ("validate", 1),
+        ("extract", 2),
+        ("validate", 2),
+        ("reconcile", 2),
+        ("commit", 2),
     ]
     assert [(d["attempt"], d["error"] is not None) for d in stager.documents] == [(1, True), (2, False)]
     assert "went away" in stager.documents[0]["error"]
@@ -127,7 +147,10 @@ async def test_a_retry_adds_rows_and_a_document_per_attempt_failed_one_included(
 async def test_the_failed_attempts_rows_say_it_failed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Proves: attempt 1's extract row carries the error and its validate row a failed verdict with the
     # `extract_failed` reason, and the passing attempt 2's validate row says passed.
-    script: dict[Any, list[Any]] = {PAGE: [ValueError("the model server went away"), listings_answer(GOOD_LISTING)], SPLITTER: [NONA]}
+    script: dict[Any, list[Any]] = {
+        PAGE: [ValueError("the model server went away"), listings_answer(GOOD_LISTING)],
+        SPLITTER: [NONA],
+    }
     _, audit, _ = await run_traced(tmp_path, monkeypatch, GOOD_PAGE, script)
     validates = [e for e in audit.entries if e.step_type is StepType.VALIDATE]
     assert validates[0].detail["verdict"] == "failed" and validates[0].detail["reasons"] == ["extract_failed"]
@@ -137,7 +160,8 @@ async def test_the_failed_attempts_rows_say_it_failed(tmp_path: Path, monkeypatc
 
 
 async def test_a_check_error_at_high_confidence_is_recorded_with_its_confidence(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves: a deterministic check failure at 0.99 model confidence (A3-D9) leaves a validate row with a
     # failed verdict, the check-errors reason, and the 0.990 confidence, so A8 can see a confident model
@@ -154,15 +178,22 @@ async def test_a_check_error_at_high_confidence_is_recorded_with_its_confidence(
 
 
 async def test_exhausting_the_cap_ends_with_one_escalate_row_and_its_reason(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves (A4-D5, Departure 1): three failed attempts, then one `escalate` row with outcome 'escalated'
     # and the same reason text as `state.escalation_reason`, entity = the venue. No reconcile or commit.
     boom = fakes.connection_error()
     state, audit, stager = await run_traced(tmp_path, monkeypatch, GOOD_PAGE, {PAGE: [boom]})
     assert audit.steps() == [
-        ("fetch", 1), ("extract", 1), ("validate", 1), ("extract", 2), ("validate", 2),
-        ("extract", 3), ("validate", 3), ("escalate", 3),
+        ("fetch", 1),
+        ("extract", 1),
+        ("validate", 1),
+        ("extract", 2),
+        ("validate", 2),
+        ("extract", 3),
+        ("validate", 3),
+        ("escalate", 3),
     ]
     escalate = audit.entries[-1]
     assert escalate.outcome is AuditOutcome.ESCALATED
@@ -171,12 +202,17 @@ async def test_exhausting_the_cap_ends_with_one_escalate_row_and_its_reason(
 
 
 async def test_an_unreadable_page_writes_fetch_then_escalate_and_never_stages(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves: a fetch failure leaves the fetch row (with the error) and the escalate row, no extract row,
     # and no staging document (nothing was extracted). Green even while A4-K3 is open.
     state, audit, stager = await run_traced(
-        tmp_path, monkeypatch, None, {}, url=str(tmp_path / "missing.html"),
+        tmp_path,
+        monkeypatch,
+        None,
+        {},
+        url=str(tmp_path / "missing.html"),
     )
     assert audit.steps() == [("fetch", 1), ("escalate", 1)]
     assert audit.entries[0].detail["error"] is not None and audit.entries[1].outcome is AuditOutcome.ESCALATED
@@ -204,11 +240,20 @@ async def test_a_staging_write_that_fails_stops_the_run(tmp_path: Path, monkeypa
     monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [NONA]}))
     audit = RecordingAudit()
     state = VenueGraphState(
-        venue_id=1, calendar_url=str(path), venue_name="The Venue", metro_timezone="America/Chicago",
-        fetched_on=fakes.FETCHED, run_id=RUN_ID,
+        venue_id=1,
+        calendar_url=str(path),
+        venue_name="The Venue",
+        metro_timezone="America/Chicago",
+        fetched_on=fakes.FETCHED,
+        run_id=RUN_ID,
     )
     with pytest.raises(RuntimeError, match="staging store is down"):
-        await compiled_graph.ainvoke(state, context=WorkerContext(audit=audit, stager=RecordingStager(fail=True), reader=FakeReader(), writer=FakeWriter()))
+        await compiled_graph.ainvoke(
+            state,
+            context=WorkerContext(
+                audit=audit, stager=RecordingStager(fail=True), reader=FakeReader(), writer=FakeWriter()
+            ),
+        )
     assert StepType.VALIDATE.value not in [s for s, _ in audit.steps()]
 
 

@@ -70,19 +70,25 @@ async def test_restore_creates_a_login_role_that_owns_every_table_and_enum(db_co
     assert tuple(role) == (True, False, False, False)
 
     table_owners = (
-        await db_conn.execute(sa.text("select distinct tableowner from pg_tables where schemaname = 'public'"))
-    ).scalars().all()
+        (await db_conn.execute(sa.text("select distinct tableowner from pg_tables where schemaname = 'public'")))
+        .scalars()
+        .all()
+    )
     assert table_owners == ["calendar_staging"]
 
     enum_owners = (
-        await db_conn.execute(
-            sa.text(
-                "select distinct t.typowner::regrole::text from pg_type t "
-                "join pg_namespace n on n.oid = t.typnamespace "
-                "where n.nspname = 'public' and t.typtype = 'e'"
+        (
+            await db_conn.execute(
+                sa.text(
+                    "select distinct t.typowner::regrole::text from pg_type t "
+                    "join pg_namespace n on n.oid = t.typnamespace "
+                    "where n.nspname = 'public' and t.typtype = 'e'"
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert enum_owners == ["calendar_staging"]
 
 
@@ -95,19 +101,23 @@ async def test_restore_works_as_a_non_superuser_owner_like_neondb_owner(db_conn:
     await db_conn.exec_driver_sql("create role fake_neondb_owner login createrole")
     await db_conn.exec_driver_sql("alter database calendar_test owner to fake_neondb_owner")
     tables = (
-        await db_conn.execute(sa.text("select tablename from pg_tables where schemaname = 'public'"))
-    ).scalars().all()
+        (await db_conn.execute(sa.text("select tablename from pg_tables where schemaname = 'public'"))).scalars().all()
+    )
     for table in tables:
         await db_conn.exec_driver_sql(f'alter table public."{table}" owner to fake_neondb_owner')
     # Enum types too: a non-owner cannot move them, and they were created by the superuser.
     enums = (
-        await db_conn.execute(
-            sa.text(
-                "select t.typname from pg_type t join pg_namespace n on n.oid = t.typnamespace "
-                "where n.nspname = 'public' and t.typtype = 'e'"
+        (
+            await db_conn.execute(
+                sa.text(
+                    "select t.typname from pg_type t join pg_namespace n on n.oid = t.typnamespace "
+                    "where n.nspname = 'public' and t.typtype = 'e'"
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     for enum in enums:
         await db_conn.exec_driver_sql(f'alter type public."{enum}" owner to fake_neondb_owner')
 
@@ -118,8 +128,10 @@ async def test_restore_works_as_a_non_superuser_owner_like_neondb_owner(db_conn:
         await db_conn.exec_driver_sql("reset role")
 
     owners = (
-        await db_conn.execute(sa.text("select distinct tableowner from pg_tables where schemaname = 'public'"))
-    ).scalars().all()
+        (await db_conn.execute(sa.text("select distinct tableowner from pg_tables where schemaname = 'public'")))
+        .scalars()
+        .all()
+    )
     assert owners == ["calendar_staging"]
 
 
@@ -148,8 +160,10 @@ async def test_restore_twice_is_harmless_and_keeps_the_existing_password(db_conn
     ).scalar_one()
     assert count == 1
     owners = (
-        await db_conn.execute(sa.text("select distinct tableowner from pg_tables where schemaname = 'public'"))
-    ).scalars().all()
+        (await db_conn.execute(sa.text("select distinct tableowner from pg_tables where schemaname = 'public'")))
+        .scalars()
+        .all()
+    )
     assert owners == ["calendar_staging"]
 
 

@@ -51,9 +51,16 @@ def test_nothing_that_runs_on_a_scheduled_fetch_imports_the_model_evaluation() -
     offenders = []
     for root in (API_DIR / "app", WORKER_DIR):
         for path in root.rglob("*.py"):
-            if MODEL_EVAL_DIR in path.parents or "tests" in path.relative_to(API_DIR).parts or path.name == "local_test.py":
+            if (
+                MODEL_EVAL_DIR in path.parents
+                or "tests" in path.relative_to(API_DIR).parts
+                or path.name == "local_test.py"
+            ):
                 continue
-            if any(m == "agent_worker.model_eval" or m.startswith("agent_worker.model_eval.") for m in imported_modules(path)):
+            if any(
+                m == "agent_worker.model_eval" or m.startswith("agent_worker.model_eval.")
+                for m in imported_modules(path)
+            ):
                 offenders.append(str(path.relative_to(API_DIR)))
     assert offenders == []
 
@@ -66,8 +73,11 @@ def test_saved_run_reports_never_import_labeled_page_runs() -> None:
     sources = sorted(reports.glob("*.py"))
     assert sources, "no report modules found; the folder moved?"
     offenders = [
-        f"{p.name} imports {m}" for p in sources for m in imported_modules(p)
-        if m == "agent_worker.model_eval.labeled_page_runs" or m.startswith("agent_worker.model_eval.labeled_page_runs.")
+        f"{p.name} imports {m}"
+        for p in sources
+        for m in imported_modules(p)
+        if m == "agent_worker.model_eval.labeled_page_runs"
+        or m.startswith("agent_worker.model_eval.labeled_page_runs.")
     ]
     assert offenders == []
 
@@ -85,7 +95,12 @@ def test_importing_the_reports_loads_nothing_from_labeled_page_runs() -> None:
         "print('\\n'.join(sorted(m for m in sys.modules if m.startswith('agent_worker.model_eval.labeled_page_runs'))))\n"
     )
     done = subprocess.run(
-        [sys.executable, "-c", code], cwd=API_DIR, capture_output=True, text=True, check=False, timeout=120,
+        [sys.executable, "-c", code],
+        cwd=API_DIR,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120,
         env={**os.environ, "PYTHONPATH": str(API_DIR)},
     )
     assert done.returncode == 0, done.stderr

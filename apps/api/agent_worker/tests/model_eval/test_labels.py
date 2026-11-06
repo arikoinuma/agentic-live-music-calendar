@@ -18,7 +18,16 @@ from agent_worker.model_eval import labels, run_eval
 # A2.1-D2 as revised by Ari on October 11, 2026: Terminal Bar moved to informational (an outlier layout —
 # a date line then one line per act — that no rung fixed without breaking other pages).
 # Dakota and Icehouse joined on November 5, 2026 as held-out pages (gated: a plain GET reaches them).
-GATED_VENUES = {"white_squirrel", "seventh_st_entry", "mortimers", "ginkgo_coffee", "hook_ladder", "turf_club", "dakota", "icehouse"}
+GATED_VENUES = {
+    "white_squirrel",
+    "seventh_st_entry",
+    "mortimers",
+    "ginkgo_coffee",
+    "hook_ladder",
+    "turf_club",
+    "dakota",
+    "icehouse",
+}
 
 
 def test_every_page_label_has_shows() -> None:
@@ -115,7 +124,8 @@ def test_every_captured_fixture_has_a_label() -> None:
     # nobody labelled is a page the harness silently ignores, because `select_fixtures` runs only labelled files. Add a file to
     # UNLABELLED_ON_PURPOSE (with the reason) if a capture is deliberately not scored, e.g. a venue behind a bot challenge.
     fixtures = [
-        p.name for p in labels_fixtures_dir().iterdir()
+        p.name
+        for p in labels_fixtures_dir().iterdir()
         if p.is_file() and p.name != ".gitkeep" and p.suffix != ".ics" and p.name not in UNLABELLED_ON_PURPOSE
     ]
     if not fixtures:
@@ -125,8 +135,8 @@ def test_every_captured_fixture_has_a_label() -> None:
 
 UNLABELLED_ON_PURPOSE: set[str] = {
     "Calendar - The Midway Saloon.html",  # Midway: HTTP 403 bot challenge, not worked around (A2.1-D3)
-    "uptown_arthouse-2026-10-10.html", # Uptown uses embedded Google calendar
-    "zhora-2026-10-10.html" # Zhora is JS driven site
+    "uptown_arthouse-2026-10-10.html",  # Uptown uses embedded Google calendar
+    "zhora-2026-10-10.html",  # Zhora is JS driven site
 }
 
 

@@ -71,7 +71,13 @@ def _header(data: Mapping[str, Any]) -> list[str]:
             f"policy: threshold {policy.get('confidence_threshold')}, cap {policy.get('max_attempts')}, "
             f"escalation model {policy.get('escalation_model') or 'none'}"
         ),
-        *([f"- prompt sha: {str(request.get('instruction_sha'))[:10]}; response schema sha: {str(request.get('response_schema_sha'))[:10]}"] if request else []),
+        *(
+            [
+                f"- prompt sha: {str(request.get('instruction_sha'))[:10]}; response schema sha: {str(request.get('response_schema_sha'))[:10]}"
+            ]
+            if request
+            else []
+        ),
         "",
     ]
 
@@ -81,14 +87,32 @@ def _headline(aggregate: Mapping[str, Any]) -> list[str]:
     for column in COLUMNS:
         c, gate = aggregate["columns"][column], aggregate["gate"][column]
         rates = c["rates"]
-        rows.append([
-            column, f"{rates['recall']:.3f}", f"{rates['precision']:.3f}", f"{rates['precision_lenient']:.3f}",
-            f"{c['found']}/{c['labelled']}", f"{c['missed']}/{c['acts_wrong']}/{c['fabricated']}/{c['leaks']}",
-            "PASS" if gate["passed"] else "FAIL",
-        ])
+        rows.append(
+            [
+                column,
+                f"{rates['recall']:.3f}",
+                f"{rates['precision']:.3f}",
+                f"{rates['precision_lenient']:.3f}",
+                f"{c['found']}/{c['labelled']}",
+                f"{c['missed']}/{c['acts_wrong']}/{c['fabricated']}/{c['leaks']}",
+                "PASS" if gate["passed"] else "FAIL",
+            ]
+        )
     return [
-        "## Headline", "",
-        *_table(["column", "recall", "precision", "precision (lenient)", "found/labelled", "missed/wrong/invented/leaks", "gate (gated pages)"], rows),
+        "## Headline",
+        "",
+        *_table(
+            [
+                "column",
+                "recall",
+                "precision",
+                "precision (lenient)",
+                "found/labelled",
+                "missed/wrong/invented/leaks",
+                "gate (gated pages)",
+            ],
+            rows,
+        ),
         "",
         (
             "Raw is the model's answer, validated is what reconcile receives, committed is the rows left in the database. "
@@ -101,7 +125,8 @@ def _headline(aggregate: Mapping[str, Any]) -> list[str]:
 def _retry(aggregate: Mapping[str, Any]) -> list[str]:
     r = aggregate["retry"]
     return [
-        "## The retry loop", "",
+        "## The retry loop",
+        "",
         (
             f"- runs {r['runs']}; retried {r['retried']} (rate {r['retry_rate']:.2f}); mean attempts {r['mean_attempts']:.1f}; "
             f"escalated {r['escalated']}; recovered {r['recovered']}"
@@ -119,7 +144,8 @@ def _validation(aggregate: Mapping[str, Any]) -> list[str]:
     v = aggregate["validation"]
     rows = [[kind, str(c["caught"]), str(c["flagged"]), str(c["silent"])] for kind, c in sorted(v["by_kind"].items())]
     lines = [
-        "## Validation recall", "",
+        "## Validation recall",
+        "",
         f"- {v['total']} errors over every attempt: caught {v['caught']}, flagged {v['flagged']}, silent {v['silent']}",
         f"- findings fired: {v['findings_fired']}; self-checks: findings_disagree {v.get('findings_disagree', 'n/a')}, route_mismatches {v.get('route_mismatches', 'n/a')}",
         "",
@@ -153,11 +179,14 @@ def _fields(data: Mapping[str, Any]) -> list[str]:
             verdict = "n/a"
         else:
             verdict = "ok"
-        rows.append([name, str(stated), str(correct), str(missing), str(wrong), "-" if rate is None else f"{rate:.1%}", verdict])
+        rows.append(
+            [name, str(stated), str(correct), str(missing), str(wrong), "-" if rate is None else f"{rate:.1%}", verdict]
+        )
     runs = len(data["runs"])
     by_column = ", ".join(f"{c} {sum(t['wrong'] for t in columns[c]['fields'].values())}" for c in COLUMNS)
     return [
-        "## Field accuracy", "",
+        "## Field accuracy",
+        "",
         (
             "The standard (A2.1-D1): a value the page states may be missing at most 10% of the time, and a wrong value never. "
             f"Raw column, summed over all {runs} {'run' if runs == 1 else 'runs'} in the file; image links are checked against the "
@@ -182,24 +211,47 @@ def _pages(data: Mapping[str, Any], labels: Mapping[str, PageLabel]) -> list[str
     for r in data["runs"]:
         label = labels.get(r["fixture"])
         gated = "?" if label is None else ("G" if label.gated else "i")
-        rows.append([
-            r["fixture"], gated, r.get("source") or "-", str(r["raw_score"]["labelled"]), _counts(r["raw_score"]),
-            _counts(r["validated_score"]), _counts(r["committed_score"]), str(r["attempt_count"]),
-            "yes" if r["escalated"] else "no", str(r["seconds"]),
-        ])
+        rows.append(
+            [
+                r["fixture"],
+                gated,
+                r.get("source") or "-",
+                str(r["raw_score"]["labelled"]),
+                _counts(r["raw_score"]),
+                _counts(r["validated_score"]),
+                _counts(r["committed_score"]),
+                str(r["attempt_count"]),
+                "yes" if r["escalated"] else "no",
+                str(r["seconds"]),
+            ]
+        )
     seconds = [r["seconds"] for r in data["runs"]]
     repeated = [
         f"- {name}: {'identical' if p['runs_identical'] else 'DIFFERENT'} across {p['runs']} runs"
-        for name, p in aggregate_per_fixture(data).items() if p["runs_identical"] is not None
+        for name, p in aggregate_per_fixture(data).items()
+        if p["runs_identical"] is not None
     ]
     return [
-        "## Pages", "",
-        "G = gated, i = informational (never gates), ? = no longer in the labels. Counts are missed/wrong acts/invented/leaks.", "",
-        *_table(["page", "G/i", "route", "labelled", "raw", "validated", "committed", "attempts", "escalated", "seconds"], rows),
+        "## Pages",
+        "",
+        "G = gated, i = informational (never gates), ? = no longer in the labels. Counts are missed/wrong acts/invented/leaks.",
+        "",
+        *_table(
+            ["page", "G/i", "route", "labelled", "raw", "validated", "committed", "attempts", "escalated", "seconds"],
+            rows,
+        ),
         "",
         f"Total {sum(seconds):.0f} s over {len(seconds)} runs.",
         "",
-        *(["Repeatability (the same page, run more than once; the model is not repeatable at temperature 0):", *repeated, ""] if repeated else []),
+        *(
+            [
+                "Repeatability (the same page, run more than once; the model is not repeatable at temperature 0):",
+                *repeated,
+                "",
+            ]
+            if repeated
+            else []
+        ),
     ]
 
 
@@ -211,13 +263,22 @@ def _attempts(data: Mapping[str, Any]) -> list[str]:
     for r in retried:
         for a in r["attempts"]:
             outcome = ("escalated" if r["escalated"] else "kept") if a["attempt"] == r["attempt_count"] else ""
-            rows.append([
-                r["fixture"], str(a["attempt"]), str(a["tier"]), str(a["verdict"]), ",".join(a["reasons"]) or "-",
-                _errors3(a["score"]), outcome,
-            ])
+            rows.append(
+                [
+                    r["fixture"],
+                    str(a["attempt"]),
+                    str(a["tier"]),
+                    str(a["verdict"]),
+                    ",".join(a["reasons"]) or "-",
+                    _errors3(a["score"]),
+                    outcome,
+                ]
+            )
     return [
-        "## Retried pages", "",
-        "Errors are missed/wrong acts/invented for that attempt's own extraction.", "",
+        "## Retried pages",
+        "",
+        "Errors are missed/wrong acts/invented for that attempt's own extraction.",
+        "",
         *_table(["page", "attempt", "tier", "verdict", "reasons", "errors", "end"], rows),
         "",
     ]
@@ -274,8 +335,15 @@ def render(data: Mapping[str, Any], labels: Mapping[str, PageLabel], *, show_err
     """The Markdown report for one results file. `labels` says which pages are gated (a page missing from it prints as '?')."""
     aggregate = data["aggregate"]
     lines = [
-        *_header(data), *_headline(aggregate), *_retry(aggregate), *_validation(aggregate), *_fields(data), *_pages(data, labels),
-        *_attempts(data), *_scenarios(data, show_errors), *_gate_failures(aggregate),
+        *_header(data),
+        *_headline(aggregate),
+        *_retry(aggregate),
+        *_validation(aggregate),
+        *_fields(data),
+        *_pages(data, labels),
+        *_attempts(data),
+        *_scenarios(data, show_errors),
+        *_gate_failures(aggregate),
     ]
     if show_errors:
         lines += _errors(data)
@@ -290,7 +358,10 @@ def render(data: Mapping[str, Any], labels: Mapping[str, PageLabel], *, show_err
 def compare_table(files: Mapping[str, Mapping[str, Any]]) -> str:
     """The headline numbers of saved runs side by side, one column per run, in the order `files` lists them."""
     width = 26
-    rows: list[tuple[str, Any]] = [("labels_sha", lambda f: str(f.get("labels_sha"))[:10]), ("started_at", lambda f: f.get("started_at"))]
+    rows: list[tuple[str, Any]] = [
+        ("labels_sha", lambda f: str(f.get("labels_sha"))[:10]),
+        ("started_at", lambda f: f.get("started_at")),
+    ]
     for column in COLUMNS:
         rows += [
             (f"{column}: recall", lambda f, c=column: round(f["aggregate"]["columns"][c]["rates"]["recall"], 3)),
@@ -313,7 +384,9 @@ def summary(aggregate: Mapping[str, Any]) -> str:
     for column in COLUMNS:
         rates = aggregate["columns"][column]["rates"]
         gate = aggregate["gate"][column]
-        lines.append(f"{column:10} recall {rates['recall']:.3f}  precision {rates['precision']:.3f}  gate {'PASS' if gate['passed'] else 'FAIL'}")
+        lines.append(
+            f"{column:10} recall {rates['recall']:.3f}  precision {rates['precision']:.3f}  gate {'PASS' if gate['passed'] else 'FAIL'}"
+        )
     lines.append(
         f"retry rate {aggregate['retry']['retry_rate']:.3f}; escalated {aggregate['retry']['escalated']}; "
         f"validation recall {aggregate['validation']['recall']:.3f} ({aggregate['validation']['silent']} silent)"

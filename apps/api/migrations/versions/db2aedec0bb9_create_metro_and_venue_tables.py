@@ -44,7 +44,7 @@ def upgrade() -> None:
         "metro",
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("name", sa.String, nullable=False),
-        sa.Column("timezone", sa.String, nullable=False)
+        sa.Column("timezone", sa.String, nullable=False),
     )
 
     # create the `venue` table with op.create_table().
@@ -62,7 +62,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("name", sa.String, nullable=False),
         sa.Column("metro_id", sa.Integer, sa.ForeignKey("metro.id"), nullable=False),
-        sa.Column("calendar_url", sa.String, nullable=False)
+        sa.Column("calendar_url", sa.String, nullable=False),
     )
 
 

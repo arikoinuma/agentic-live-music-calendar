@@ -131,9 +131,7 @@ class Venue(TimestampMixin, Base):
     seating: Mapped[Seating | None] = mapped_column(types.SEATING)
     # Server-side default so a raw INSERT (or the seed, or a future admin
     # tool) gets 'http' without having to know about it.
-    fetch_strategy: Mapped[FetchStrategy] = mapped_column(
-        types.FETCH_STRATEGY, server_default=FetchStrategy.HTTP.value
-    )
+    fetch_strategy: Mapped[FetchStrategy] = mapped_column(types.FETCH_STRATEGY, server_default=FetchStrategy.HTTP.value)
     extra_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
 
     # Read-only, never lazy (C2-D4, module docstring): the venue detail route names it in its query.
@@ -231,9 +229,7 @@ class Show(TimestampMixin, Base):
     original_url: Mapped[str | None] = mapped_column(Text)
     # Soft delete: a show absent from a later fetch, within the date range
     # that fetch covered, becomes 'removed' — never deleted.
-    status: Mapped[ShowStatus] = mapped_column(
-        types.SHOW_STATUS, server_default=ShowStatus.ACTIVE.value
-    )
+    status: Mapped[ShowStatus] = mapped_column(types.SHOW_STATUS, server_default=ShowStatus.ACTIVE.value)
 
     # Read-only, never lazy (C2-D4, module docstring). `lineup` is unordered here on purpose: the
     # read API sorts it in Python (C2-D5), because a database collation is not a rule the tests state.

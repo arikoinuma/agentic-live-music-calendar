@@ -92,6 +92,11 @@ omit = ["*/tests/*", "agent_worker/model_eval/*", "agent_worker/local_test.py"]
 show_missing = true
 skip_empty = true
 
+[tool.ruff]
+# The width the code is already written at. Without a setting ruff assumes 88, which would rewrap most of the
+# codebase; `ruff format` enforces this, and `make lint` and CI check it (PQR1-1).
+line-length = 120
+
 [tool.ruff.lint.per-file-ignores]
 # Broad except is deliberate here: one fixture/model failing outright
 # shouldn't stop the eval loop, and the failure itself is a result worth

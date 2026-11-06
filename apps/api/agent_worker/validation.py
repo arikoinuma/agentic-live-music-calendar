@@ -220,9 +220,14 @@ def is_excluded(show: ShowExtraction) -> bool:
 def check_blank_acts(show: ShowExtraction, index: int) -> list[Finding]:
     """Completeness: an act with no name can't become an Artist row."""
     if any(not act.name.strip() for act in show.acts):
-        return [Finding(
-            CheckCode.BLANK_ACT_NAME, Severity.ERROR, f"the show on {show.date} has an act with no name", index,
-        )]
+        return [
+            Finding(
+                CheckCode.BLANK_ACT_NAME,
+                Severity.ERROR,
+                f"the show on {show.date} has an act with no name",
+                index,
+            )
+        ]
     return []
 
 
@@ -231,10 +236,14 @@ def check_consistency(show: ShowExtraction, index: int) -> list[Finding]:
     Advance or Admission Day price being set" (requirements, Validation). The converse isn't a
     rule: a missing price never implies free, and a price with `free_admission` null is fine."""
     if show.free_admission is True and (show.admission_advance is not None or show.admission_day is not None):
-        return [Finding(
-            CheckCode.FREE_WITH_PRICE, Severity.ERROR,
-            f"the show on {show.date} is marked free but also has an admission price", index,
-        )]
+        return [
+            Finding(
+                CheckCode.FREE_WITH_PRICE,
+                Severity.ERROR,
+                f"the show on {show.date} is marked free but also has an admission price",
+                index,
+            )
+        ]
     return []
 
 
@@ -248,10 +257,14 @@ _MORNING_UNTIL = datetime.time(11, 0)
 
 def check_start_time(show: ShowExtraction, index: int) -> list[Finding]:
     if show.time is not None and _MORNING_FROM <= show.time < _MORNING_UNTIL:
-        return [Finding(
-            CheckCode.UNUSUAL_START_TIME, Severity.WARNING,
-            f"show {index} starts at {show.time:%H:%M}, which is unusual for live music", index,
-        )]
+        return [
+            Finding(
+                CheckCode.UNUSUAL_START_TIME,
+                Severity.WARNING,
+                f"show {index} starts at {show.time:%H:%M}, which is unusual for live music",
+                index,
+            )
+        ]
     return []
 
 
@@ -287,10 +300,14 @@ def check_possible_merge(show: ShowExtraction, index: int) -> list[Finding]:
     set times, so only a warning; A5's matching reads it."""
     starts = {act.start_time for act in show.acts if act.start_time is not None}
     if len(starts) > 1:
-        return [Finding(
-            CheckCode.POSSIBLE_MERGE, Severity.WARNING,
-            f"show {index}'s acts have different start times; it may be several shows merged", index,
-        )]
+        return [
+            Finding(
+                CheckCode.POSSIBLE_MERGE,
+                Severity.WARNING,
+                f"show {index}'s acts have different start times; it may be several shows merged",
+                index,
+            )
+        ]
     return []
 
 
@@ -302,10 +319,14 @@ def check_act_in_title(show: ShowExtraction, index: int, title: str) -> list[Fin
     folded_title = fold_text(title)
     missing = [a.name for a in show.acts if a.name.strip() and fold_text(a.name) not in folded_title]
     if missing:
-        return [Finding(
-            CheckCode.ACT_NOT_IN_TITLE, Severity.WARNING,
-            f"show {index}: {', '.join(repr(m) for m in missing)} not found in its title {title!r}", index,
-        )]
+        return [
+            Finding(
+                CheckCode.ACT_NOT_IN_TITLE,
+                Severity.WARNING,
+                f"show {index}: {', '.join(repr(m) for m in missing)} not found in its title {title!r}",
+                index,
+            )
+        ]
     return []
 
 
@@ -331,7 +352,8 @@ def verify_image_url(url: str, page_html: str, page_text: str) -> bool:
 # for the two that matter: "Doors: 6:00 pm" and "Music: 8:00 pm" (or "Show:", "Showtime:").
 _CLOCK = re.compile(r"\b(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\b\.?", re.IGNORECASE)
 _LABELED_CLOCK = re.compile(
-    r"\b(doors|music|show(?:time)?)\s*:\s*(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\b", re.IGNORECASE,
+    r"\b(doors|music|show(?:time)?)\s*:\s*(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\b",
+    re.IGNORECASE,
 )
 # How far past a date the listing's own times are looked for, cut short at the next date. A listing's
 # date is followed by its times in the layouts seen so far (Icehouse: date, Doors, Music, prices).
@@ -343,7 +365,9 @@ def _clock(hour: str, minute: str | None, meridiem: str) -> datetime.time:
     return datetime.time(int(hour) % 12 + (12 if meridiem.lower() == "p" else 0), int(minute or 0))
 
 
-def listing_times(page_text: str, day: datetime.date) -> tuple[set[datetime.time], set[datetime.time], set[datetime.time]]:
+def listing_times(
+    page_text: str, day: datetime.date
+) -> tuple[set[datetime.time], set[datetime.time], set[datetime.time]]:
     """The (music, doors, any) times the page states in the text that follows each mention of `day`.
 
     The text after a date mention runs to the next date mention or `_LISTING_REACH` characters. A date
@@ -352,7 +376,8 @@ def listing_times(page_text: str, day: datetime.date) -> tuple[set[datetime.time
     in the windows, labeled or not.
     """
     mentions = [
-        m for m in _MONTH_DAY.finditer(page_text)
+        m
+        for m in _MONTH_DAY.finditer(page_text)
         if _MONTH_NUMBER.get(m.group(1).lower()[:3]) == day.month and int(m.group(2)) == day.day
     ]
     all_starts = sorted(m.start() for m in _MONTH_DAY.finditer(page_text))
@@ -362,7 +387,7 @@ def listing_times(page_text: str, day: datetime.date) -> tuple[set[datetime.time
     for mention in mentions:
         later = [start for start in all_starts if start > mention.start()]
         end = min([mention.end() + _LISTING_REACH, *later[:1]])
-        window = page_text[mention.end():end]
+        window = page_text[mention.end() : end]
         for label, hour, minute, meridiem in _LABELED_CLOCK.findall(window):
             (doors if label.lower() == "doors" else music).add(_clock(hour, minute, meridiem))
         seen.update(_clock(h, mi, mer) for h, mi, mer in _CLOCK.findall(window))
@@ -392,8 +417,14 @@ def start_time_problem(show: ShowExtraction, page_text: str) -> str | None:
 
 
 def repair_show(
-    show: ShowExtraction, index: int, *, flags: PlausibilityFlags, source: Source, page_html: str,
-    page_text: str, titles: list[str] | None,
+    show: ShowExtraction,
+    index: int,
+    *,
+    flags: PlausibilityFlags,
+    source: Source,
+    page_html: str,
+    page_text: str,
+    titles: list[str] | None,
 ) -> tuple[ShowExtraction, list[Repair]]:
     """Drop the values that fail verification; return the show and what was dropped.
 
@@ -446,9 +477,7 @@ _MONTHS = (
 # captures' text names exactly the dates their JSON-LD events fall on (5 and 6 dates, no extras).
 _MONTH_DAY = re.compile(rf"\b({_MONTHS})\.?\s+(\d{{1,2}})(?:st|nd|rd|th)?\b(?!\d)", re.IGNORECASE)
 _MONTH_NUMBER = {
-    m: i for i, m in enumerate(
-        ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], 1
-    )
+    m: i for i, m in enumerate(["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], 1)
 }
 
 # How many dates the text may name that no extracted show falls on before the page is called
@@ -477,20 +506,21 @@ def upcoming_dates(page_text: str, fetched_on: datetime.date) -> set[tuple[int, 
     return found
 
 
-def check_under_reported(
-    extraction: VenuePageExtraction, page_text: str, fetched_on: datetime.date
-) -> list[Finding]:
+def check_under_reported(extraction: VenuePageExtraction, page_text: str, fetched_on: datetime.date) -> list[Finding]:
     """JSON-LD route only. The structured data lists fewer events than the page does when the
     visible text names MIN_UNMATCHED_DATES or more upcoming dates on which no extracted show falls.
     Compared against *all* extracted shows' dates, excluded ones included: the JSON-LD did list them."""
     shown = {(s.date.month, s.date.day) for s in extraction.shows}
     extra = upcoming_dates(page_text, fetched_on) - shown
     if len(extra) >= MIN_UNMATCHED_DATES:
-        return [Finding(
-            CheckCode.JSONLD_UNDER_REPORTED, Severity.ERROR,
-            f"the page names {len(extra)} upcoming dates with no event in its structured data "
-            "(its JSON-LD may list only some of the shows)",
-        )]
+        return [
+            Finding(
+                CheckCode.JSONLD_UNDER_REPORTED,
+                Severity.ERROR,
+                f"the page names {len(extra)} upcoming dates with no event in its structured data "
+                "(its JSON-LD may list only some of the shows)",
+            )
+        ]
     return []
 
 
@@ -504,16 +534,18 @@ def check_slug_dates(extraction: VenuePageExtraction, slugs: Sequence[str | None
     for index, (show, slug) in enumerate(zip(extraction.shows, slugs, strict=False)):
         named = slug_date(slug)
         if named is not None and named != show.date:
-            findings.append(Finding(
-                CheckCode.SLUG_DATE_DISAGREES, Severity.WARNING,
-                f"the show is dated {show.date} but its URL names {named}", index,
-            ))
+            findings.append(
+                Finding(
+                    CheckCode.SLUG_DATE_DISAGREES,
+                    Severity.WARNING,
+                    f"the show is dated {show.date} but its URL names {named}",
+                    index,
+                )
+            )
     return findings
 
 
-def check_empty_but_dated(
-    page_text: str, fetched_on: datetime.date, shown: set[tuple[int, int]]
-) -> list[Finding]:
+def check_empty_but_dated(page_text: str, fetched_on: datetime.date, shown: set[tuple[int, int]]) -> list[Finding]:
     """A3-D10: a page that yields no kept show but whose text names upcoming dates is not a confirmed
     empty calendar. An empty list is the most dangerous output (reconcile would soft-delete every
     stored show), so it needs more than the model's say-so. The price is a false alarm for a venue
@@ -526,16 +558,17 @@ def check_empty_but_dated(
     rule re-dated the shows into a plausible, wrong year (A2.1-D13 exists to stop exactly that)."""
     dates = upcoming_dates(page_text, fetched_on) - shown
     if len(dates) >= MIN_UNMATCHED_DATES:
-        return [Finding(
-            CheckCode.EMPTY_BUT_DATED, Severity.ERROR,
-            f"no shows were found, but the page text names {len(dates)} upcoming dates",
-        )]
+        return [
+            Finding(
+                CheckCode.EMPTY_BUT_DATED,
+                Severity.ERROR,
+                f"no shows were found, but the page text names {len(dates)} upcoming dates",
+            )
+        ]
     return []
 
 
-def aggregate_confidence(
-    shows: list[tuple[int, ShowExtraction]], source: Source, added: set[int]
-) -> float | None:
+def aggregate_confidence(shows: list[tuple[int, ShowExtraction]], source: Source, added: set[int]) -> float | None:
     """The model's confidence in the record: the minimum over the shows it judged (A3-D9).
 
     `shows` is (position in the extraction, show) for the kept shows. None when no model judged
@@ -555,8 +588,13 @@ def aggregate_confidence(
 
 
 def validate_extraction(
-    extraction: VenuePageExtraction, *, source: Source, notes: dict[str, Any],
-    fetched_on: datetime.date, page_html: str, page_text: str,
+    extraction: VenuePageExtraction,
+    *,
+    source: Source,
+    notes: dict[str, Any],
+    fetched_on: datetime.date,
+    page_html: str,
+    page_text: str,
 ) -> tuple[ValidationResult, list[ShowExtraction]]:
     """Run every check; return the evidence and the shows to keep (repaired, exclusions removed).
 
@@ -579,11 +617,14 @@ def validate_extraction(
     for index, show in enumerate(extraction.shows):
         if is_excluded(show):
             where = f" {titles[index]!r}" if titles is not None else ""
-            findings.append(Finding(
-                CheckCode.EXCLUDED_NO_ACTS, Severity.WARNING,
-                f"show {index}{where} names no act and was left out; it may be a real show the act splitter missed",
-                index,
-            ))
+            findings.append(
+                Finding(
+                    CheckCode.EXCLUDED_NO_ACTS,
+                    Severity.WARNING,
+                    f"show {index}{where} names no act and was left out; it may be a real show the act splitter missed",
+                    index,
+                )
+            )
             excluded.append(index)
             continue
         flags = check_plausibility(show, fetched_on)
@@ -591,18 +632,24 @@ def validate_extraction(
             if source == "structured":
                 # A3-D13: the date is the source's own, a retry can't change it, and the model route's
                 # year rule would re-date it into a plausible but wrong date. Excluded, visibly.
-                findings.append(Finding(
-                    CheckCode.DATE_OUT_OF_WINDOW, Severity.WARNING,
-                    f"show {index} is dated {show.date}, outside the plausible window around {fetched_on}; left out",
-                    index,
-                ))
+                findings.append(
+                    Finding(
+                        CheckCode.DATE_OUT_OF_WINDOW,
+                        Severity.WARNING,
+                        f"show {index} is dated {show.date}, outside the plausible window around {fetched_on}; left out",
+                        index,
+                    )
+                )
                 excluded.append(index)
                 continue
-            findings.append(Finding(
-                CheckCode.DATE_IMPLAUSIBLE, Severity.ERROR,
-                f"show {index} is dated {show.date}, which is not plausible for a page fetched on {fetched_on}",
-                index,
-            ))
+            findings.append(
+                Finding(
+                    CheckCode.DATE_IMPLAUSIBLE,
+                    Severity.ERROR,
+                    f"show {index} is dated {show.date}, which is not plausible for a page fetched on {fetched_on}",
+                    index,
+                )
+            )
         findings += check_blank_acts(show, index)
         findings += check_consistency(show, index)
         findings += check_start_time(show, index)
@@ -611,17 +658,27 @@ def validate_extraction(
         if titles is not None:
             findings += check_act_in_title(show, index, titles[index])
         show, show_repairs = repair_show(
-            show, index, flags=flags, source=source, page_html=page_html, page_text=page_text, titles=titles,
+            show,
+            index,
+            flags=flags,
+            source=source,
+            page_html=page_html,
+            page_text=page_text,
+            titles=titles,
         )
         repairs += show_repairs
         kept.append((index, show))
 
     # A title the splitter left out of its answer would otherwise look exactly like an exclusion.
     for missing in notes.get("missing_ids") or []:
-        findings.append(Finding(
-            CheckCode.SPLITTER_DROPPED, Severity.ERROR,
-            f"the act splitter returned no answer for listing {missing}", missing,
-        ))
+        findings.append(
+            Finding(
+                CheckCode.SPLITTER_DROPPED,
+                Severity.ERROR,
+                f"the act splitter returned no answer for listing {missing}",
+                missing,
+            )
+        )
 
     visible_unmatched: int | None = None
     if source == "structured" and notes.get("structured_source") == "astro-island":
@@ -639,7 +696,11 @@ def validate_extraction(
 
     confidence = aggregate_confidence(kept, source, set(notes.get("added_indices") or []))
     result = ValidationResult(
-        outcome=outcome, findings=findings, repairs=repairs, excluded=excluded, confidence=confidence,
+        outcome=outcome,
+        findings=findings,
+        repairs=repairs,
+        excluded=excluded,
+        confidence=confidence,
         visible_unmatched_dates=visible_unmatched,
     )
     return result, [show for _, show in kept]

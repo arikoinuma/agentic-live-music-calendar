@@ -82,7 +82,10 @@ def factory(db_conn: AsyncConnection) -> async_sessionmaker[AsyncSession]:
 
 @pytest_asyncio.fixture(loop_scope="session")
 async def two_runs(
-    factory: async_sessionmaker[AsyncSession], db_conn: AsyncConnection, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    factory: async_sessionmaker[AsyncSession],
+    db_conn: AsyncConnection,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> tuple[VenueGraphState, VenueGraphState, VenueFacts]:
     """Run 1 retries once and passes; run 2 fails all three attempts and escalates (venues 1 and 2)."""
     async with factory() as session:
@@ -90,15 +93,24 @@ async def two_runs(
         await session.commit()
         venues = await load_venues(session)
     ctx = WorkerContext(
-        audit=PostgresAuditWriter(factory), stager=RecordingStager(), reader=FakeReader(),
+        audit=PostgresAuditWriter(factory),
+        stager=RecordingStager(),
+        reader=FakeReader(),
         writer=PostgresCalendarWriter(factory),  # a real commit, so the trail holds real commit rows (A6)
     )
     page = tmp_path / "page.html"
     page.write_text(GOOD_PAGE)
 
-    monkeypatch.setattr(nodes, "instructor_client", scripted_client({
-        PAGE: [ValueError("the model server went away"), listings_answer(GOOD_LISTING)], SPLITTER: [NONA],
-    }))
+    monkeypatch.setattr(
+        nodes,
+        "instructor_client",
+        scripted_client(
+            {
+                PAGE: [ValueError("the model server went away"), listings_answer(GOOD_LISTING)],
+                SPLITTER: [NONA],
+            }
+        ),
+    )
     passed = await run_venue(venues[0], ctx, calendar_url=str(page), fetched_on=fakes.FETCHED)
 
     monkeypatch.setattr(nodes, "instructor_client", scripted_client({PAGE: [ValueError("still down")]}))
@@ -118,13 +130,20 @@ def test_the_file_has_the_seven_named_queries(queries: dict[str, str]) -> None:
     # database refused) and C6.1-D17's seventh (the listings validation left out) are all present under the names
     # the plans give them.
     assert set(queries) == {
-        "run_history", "escalated_runs", "show_history", "unfinished_runs", "artist_match_decisions", "failed_commits",
+        "run_history",
+        "escalated_runs",
+        "show_history",
+        "unfinished_runs",
+        "artist_match_decisions",
+        "failed_commits",
         "excluded_listings",
     }
 
 
 async def test_run_history_lists_a_runs_steps_in_order_with_the_retry(
-    db_conn: AsyncConnection, queries: dict[str, str], two_runs: Any,
+    db_conn: AsyncConnection,
+    queries: dict[str, str],
+    two_runs: Any,
 ) -> None:
     # Proves: "show me everything that happened in run N": one row per step in order, the retry as its own
     # rows (extract and validate for attempts 1 and 2), the failed attempt's error and verdict visible
@@ -132,8 +151,15 @@ async def test_run_history_lists_a_runs_steps_in_order_with_the_retry(
     passed, _, _ = two_runs
     rows = await run(db_conn, queries["run_history"], run_id=passed.run_id)
     assert [(r["step_type"], r["attempt_number"]) for r in rows] == [
-        ("fetch", 1), ("extract", 1), ("validate", 1), ("extract", 2), ("validate", 2), ("reconcile", 2),
-        ("commit", 2), ("commit", 2), ("commit", 2),  # A6: the new artist (Nona), the show, then the run's summary
+        ("fetch", 1),
+        ("extract", 1),
+        ("validate", 1),
+        ("extract", 2),
+        ("validate", 2),
+        ("reconcile", 2),
+        ("commit", 2),
+        ("commit", 2),
+        ("commit", 2),  # A6: the new artist (Nona), the show, then the run's summary
     ]
     extract1, validate1, validate2 = rows[1], rows[2], rows[4]
     assert "went away" in extract1["error"] and extract1["staging_id"] == "doc-1"
@@ -142,7 +168,9 @@ async def test_run_history_lists_a_runs_steps_in_order_with_the_retry(
 
 
 async def test_run_history_only_returns_that_run(
-    db_conn: AsyncConnection, queries: dict[str, str], two_runs: Any,
+    db_conn: AsyncConnection,
+    queries: dict[str, str],
+    two_runs: Any,
 ) -> None:
     # Proves: the :run_id filter works: the escalated run's history has no commit step.
     _, escalated, _ = two_runs
@@ -151,7 +179,9 @@ async def test_run_history_only_returns_that_run(
 
 
 async def test_escalated_runs_names_the_run_the_venue_and_the_reason(
-    db_conn: AsyncConnection, queries: dict[str, str], two_runs: Any,
+    db_conn: AsyncConnection,
+    queries: dict[str, str],
+    two_runs: Any,
 ) -> None:
     # Proves: "which runs escalated and why": exactly the escalated run (the passing one is absent), with
     # its venue's name, three attempts, and a reason that says what failed.
@@ -163,19 +193,32 @@ async def test_escalated_runs_names_the_run_the_venue_and_the_reason(
 
 
 async def test_show_history_finds_a_shows_rows_and_nothing_else(
-    db_conn: AsyncConnection, queries: dict[str, str], two_runs: Any,
+    db_conn: AsyncConnection,
+    queries: dict[str, str],
+    two_runs: Any,
 ) -> None:
     # Proves: "what changed about this show and when", against the row A6's commit really wrote (the passing run
     # inserted Nona's show on October 20 at 8 PM): one row, an insert, no previous value and the snapshot as the new
     # one, and no row for a show that doesn't exist. A hand-inserted row for another show must not appear.
     passed, _, _ = two_runs
-    show_id = (await db_conn.execute(text(
-        "SELECT entity_id FROM audit_log WHERE run_id = :r AND step_type = 'commit' AND entity_type = 'show'"),
-        {"r": passed.run_id})).scalar_one()
-    await db_conn.execute(insert(AuditLog).values(
-        run_id=passed.run_id, step_type=StepType.COMMIT, source=AuditSource.AGENT, entity_type=EntityType.SHOW,
-        entity_id=show_id + 1, outcome=AuditOutcome.UPDATED, previous_value={"time": "20:00"}, new_value={"time": "21:00"},
-    ))
+    show_id = (
+        await db_conn.execute(
+            text("SELECT entity_id FROM audit_log WHERE run_id = :r AND step_type = 'commit' AND entity_type = 'show'"),
+            {"r": passed.run_id},
+        )
+    ).scalar_one()
+    await db_conn.execute(
+        insert(AuditLog).values(
+            run_id=passed.run_id,
+            step_type=StepType.COMMIT,
+            source=AuditSource.AGENT,
+            entity_type=EntityType.SHOW,
+            entity_id=show_id + 1,
+            outcome=AuditOutcome.UPDATED,
+            previous_value={"time": "20:00"},
+            new_value={"time": "21:00"},
+        )
+    )
     rows = await run(db_conn, queries["show_history"], show_id=show_id)
     assert len(rows) == 1 and rows[0]["outcome"] == "inserted" and rows[0]["previous_value"] is None
     assert rows[0]["new_value"]["date"] == "2026-10-20" and rows[0]["new_value"]["start_time"] == "20:00:00"
@@ -184,28 +227,41 @@ async def test_show_history_finds_a_shows_rows_and_nothing_else(
 
 
 async def test_unfinished_runs_finds_open_runs_and_closed_runs_that_never_ended_properly(
-    db_conn: AsyncConnection, queries: dict[str, str], two_runs: Any,
+    db_conn: AsyncConnection,
+    queries: dict[str, str],
+    two_runs: Any,
 ) -> None:
     # Proves: neither scripted run is "unfinished" (the passing one reached commit, the other escalate,
     # and both closed). Then an open run (no finished_at) and a closed run with only a fetch row are added,
     # and both are found, each with its furthest step: the crash signature A4-D8 describes.
     passed, _, venue = two_runs
     assert await run(db_conn, queries["unfinished_runs"]) == []
-    open_id = (await db_conn.execute(text(
-        "INSERT INTO agent_run (venue_id, trigger) VALUES (:v, 'manual') RETURNING id"), {"v": venue.id})).scalar_one()
-    crashed_id = (await db_conn.execute(text(
-        "INSERT INTO agent_run (venue_id, trigger, finished_at) VALUES (:v, 'manual', now()) RETURNING id"),
-        {"v": venue.id})).scalar_one()
-    await db_conn.execute(text(
-        "INSERT INTO audit_log (run_id, step_type, source) VALUES (:r, 'fetch', 'agent')"), {"r": crashed_id})
+    open_id = (
+        await db_conn.execute(
+            text("INSERT INTO agent_run (venue_id, trigger) VALUES (:v, 'manual') RETURNING id"), {"v": venue.id}
+        )
+    ).scalar_one()
+    crashed_id = (
+        await db_conn.execute(
+            text("INSERT INTO agent_run (venue_id, trigger, finished_at) VALUES (:v, 'manual', now()) RETURNING id"),
+            {"v": venue.id},
+        )
+    ).scalar_one()
+    await db_conn.execute(
+        text("INSERT INTO audit_log (run_id, step_type, source) VALUES (:r, 'fetch', 'agent')"), {"r": crashed_id}
+    )
     rows = await run(db_conn, queries["unfinished_runs"])
     assert {r["run_id"]: r["furthest_step"] for r in rows} == {open_id: None, crashed_id: "fetch"}
     assert passed.run_id not in {r["run_id"] for r in rows}
 
 
 async def test_artist_match_decisions_lists_what_the_model_decided_and_nothing_else(
-    db_conn: AsyncConnection, factory: async_sessionmaker[AsyncSession], queries: dict[str, str], two_runs: Any,
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    db_conn: AsyncConnection,
+    factory: async_sessionmaker[AsyncSession],
+    queries: dict[str, str],
+    two_runs: Any,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves (A5-D11): after a run in which the model decided one artist ("Zhora Band" is the stored "Zhora", 0.9),
     # the query returns exactly that decision, with the venue, the artist it linked, the model, the confidence and the
@@ -214,44 +270,69 @@ async def test_artist_match_decisions_lists_what_the_model_decided_and_nothing_e
     async with factory() as session:
         venues = await load_venues(session)
     ctx = WorkerContext(
-        audit=PostgresAuditWriter(factory), stager=RecordingStager(),
-        reader=FakeReader(artists=[KnownArtist(8, "Zhora")]), writer=FakeWriter(),
+        audit=PostgresAuditWriter(factory),
+        stager=RecordingStager(),
+        reader=FakeReader(artists=[KnownArtist(8, "Zhora")]),
+        writer=FakeWriter(),
     )
     page = tmp_path / "zhora.html"
     page.write_text(jsonld_page(event("Zhora Band", "2026-10-20T20:00:00-05:00")))
-    monkeypatch.setattr(nodes, "instructor_client", scripted_client({
-        SPLITTER: [split_answer(("Zhora Band", ["Zhora Band"]))],
-        ARTIST_MATCH: [{"matched_artist_id": 8, "confidence": 0.9, "reason": "same band, longer name"}],
-    }))
+    monkeypatch.setattr(
+        nodes,
+        "instructor_client",
+        scripted_client(
+            {
+                SPLITTER: [split_answer(("Zhora Band", ["Zhora Band"]))],
+                ARTIST_MATCH: [{"matched_artist_id": 8, "confidence": 0.9, "reason": "same band, longer name"}],
+            }
+        ),
+    )
     state = await run_venue(venues[2], ctx, calendar_url=str(page), fetched_on=fakes.FETCHED)
     [row] = await run(db_conn, queries["artist_match_decisions"])
     assert (row["run_id"], row["venue"], row["artist_id"]) == (state.run_id, venues[2].name, 8)
-    assert (row["incoming_name"], row["outcome"], row["reason"]) == ("Zhora Band", "matched_by_model", "same band, longer name")
+    assert (row["incoming_name"], row["outcome"], row["reason"]) == (
+        "Zhora Band",
+        "matched_by_model",
+        "same band, longer name",
+    )
     assert row["model_used"] and float(row["confidence"]) == pytest.approx(0.9)
     assert "Zhora" in row["candidates"]
 
 
 async def test_a_run_that_crashed_mid_commit_is_unfinished(
-    db_conn: AsyncConnection, queries: dict[str, str], two_runs: Any,
+    db_conn: AsyncConnection,
+    queries: dict[str, str],
+    two_runs: Any,
 ) -> None:
     # Proves (A6-M5): `unfinished_runs` counts only commit's SUMMARY row (the venue-level one) as "reached the end of
     # commit". A run that wrote one show and then died has a per-show `commit` row but no summary, and must still be
     # listed, with `commit` as its furthest step. If the query counted any `commit` row (as it did before A6), the
     # crashed run would read as finished and this test would fail.
     _, _, venue = two_runs
-    run_id = (await db_conn.execute(text(
-        "INSERT INTO agent_run (venue_id, trigger, finished_at) VALUES (:v, 'manual', now()) RETURNING id"),
-        {"v": venue.id})).scalar_one()
-    await db_conn.execute(text(
-        "INSERT INTO audit_log (run_id, step_type, source, entity_type, entity_id, outcome) "
-        "VALUES (:r, 'commit', 'agent', 'show', 1, 'inserted')"), {"r": run_id})
+    run_id = (
+        await db_conn.execute(
+            text("INSERT INTO agent_run (venue_id, trigger, finished_at) VALUES (:v, 'manual', now()) RETURNING id"),
+            {"v": venue.id},
+        )
+    ).scalar_one()
+    await db_conn.execute(
+        text(
+            "INSERT INTO audit_log (run_id, step_type, source, entity_type, entity_id, outcome) "
+            "VALUES (:r, 'commit', 'agent', 'show', 1, 'inserted')"
+        ),
+        {"r": run_id},
+    )
     rows = await run(db_conn, queries["unfinished_runs"])
     assert {r["run_id"]: r["furthest_step"] for r in rows} == {run_id: "commit"}
 
 
 async def test_failed_commits_says_which_show_failed_and_why(
-    db_conn: AsyncConnection, factory: async_sessionmaker[AsyncSession], queries: dict[str, str], two_runs: Any,
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    db_conn: AsyncConnection,
+    factory: async_sessionmaker[AsyncSession],
+    queries: dict[str, str],
+    two_runs: Any,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves (A6-D2, A6-PR2-3): after a run whose only write was refused (an overflowing price, SQLSTATE 22003), the query
     # returns that show's failure row with its date, time and SQLSTATE: enough to tell WHICH show failed even though an
@@ -260,7 +341,9 @@ async def test_failed_commits_says_which_show_failed_and_why(
     async with factory() as session:
         venues = await load_venues(session)
     ctx = WorkerContext(
-        audit=PostgresAuditWriter(factory), stager=RecordingStager(), reader=FakeReader(),
+        audit=PostgresAuditWriter(factory),
+        stager=RecordingStager(),
+        reader=FakeReader(),
         writer=FakeWriter(fail={0: fakes.overflow()}),
     )
     page = tmp_path / "page.html"
@@ -275,7 +358,9 @@ async def test_failed_commits_says_which_show_failed_and_why(
 
 
 async def test_excluded_listings_shows_the_last_attempts_left_out_listings_with_the_venue(
-    db_conn: AsyncConnection, queries: dict[str, str], two_runs: Any,
+    db_conn: AsyncConnection,
+    queries: dict[str, str],
+    two_runs: Any,
 ) -> None:
     # Proves (C6.1-D17): the saved query answers "which listings did validation leave out". It reads the run's LAST
     # validate attempt only (an earlier attempt's exclusions were replaced by the retry), names the venue, and
@@ -284,16 +369,24 @@ async def test_excluded_listings_shows_the_last_attempts_left_out_listings_with_
     passed, _, _ = two_runs
 
     async def validate_row(attempt: int, listings: list[dict[str, Any]]) -> None:
-        await db_conn.execute(insert(AuditLog).values(
-            run_id=passed.run_id, attempt_number=attempt, step_type=StepType.VALIDATE, source=AuditSource.AGENT,
-            detail={"excluded_listings": listings},
-        ))
+        await db_conn.execute(
+            insert(AuditLog).values(
+                run_id=passed.run_id,
+                attempt_number=attempt,
+                step_type=StepType.VALIDATE,
+                source=AuditSource.AGENT,
+                detail={"excluded_listings": listings},
+            )
+        )
 
     await validate_row(8, [{"date": "2026-11-01", "time": None, "title": "old attempt", "reason": "excluded_no_acts"}])
-    await validate_row(9, [
-        {"date": "2026-11-07", "time": "20:00:00", "title": "The Rewind 7pm DJ", "reason": "excluded_no_acts"},
-        {"date": "2026-11-03", "time": None, "title": None, "reason": "date_out_of_window"},
-    ])
+    await validate_row(
+        9,
+        [
+            {"date": "2026-11-07", "time": "20:00:00", "title": "The Rewind 7pm DJ", "reason": "excluded_no_acts"},
+            {"date": "2026-11-03", "time": None, "title": None, "reason": "date_out_of_window"},
+        ],
+    )
     rows = [r for r in await run(db_conn, queries["excluded_listings"]) if r["run_id"] == passed.run_id]
     assert [(r["listing_date"], r["listing_time"], r["reason"], r["listing_text"]) for r in rows] == [
         ("2026-11-03", None, "date_out_of_window", None),

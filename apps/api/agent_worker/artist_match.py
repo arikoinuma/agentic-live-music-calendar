@@ -202,13 +202,23 @@ def _resolution(name: str, outcome: Outcome, **fields: Any) -> ArtistResolution:
 
 
 def _new(
-    name: str, options: RequestOptions, candidates: tuple[KnownArtist, ...], *, reason: str,
+    name: str,
+    options: RequestOptions,
+    candidates: tuple[KnownArtist, ...],
+    *,
+    reason: str,
     answer: ArtistMatchAnswer | None = None,
 ) -> ArtistResolution:
     """The conservative outcome (A5-D9): a new artist, decided by the model's step, with why."""
     return _resolution(
-        name, "new_after_model", artist_id=None, decided_by="model", model_used=options.model,
-        confidence=answer.confidence if answer else None, candidates=candidates, reason=reason,
+        name,
+        "new_after_model",
+        artist_id=None,
+        decided_by="model",
+        model_used=options.model,
+        confidence=answer.confidence if answer else None,
+        candidates=candidates,
+        reason=reason,
     )
 
 
@@ -217,13 +227,23 @@ def _matched(
 ) -> ArtistResolution:
     """The model's confident "same act": link the existing artist it named."""
     return _resolution(
-        name, "matched_by_model", artist_id=answer.matched_artist_id, decided_by="model", model_used=options.model,
-        confidence=answer.confidence, candidates=candidates, reason=answer.reason,
+        name,
+        "matched_by_model",
+        artist_id=answer.matched_artist_id,
+        decided_by="model",
+        model_used=options.model,
+        confidence=answer.confidence,
+        candidates=candidates,
+        reason=answer.reason,
     )
 
 
 def decide_ambiguous(
-    name: str, candidates: tuple[KnownArtist, ...], *, client: Any, options: RequestOptions,
+    name: str,
+    candidates: tuple[KnownArtist, ...],
+    *,
+    client: Any,
+    options: RequestOptions,
     policy: ArtistMatchPolicy = DEFAULT_ARTIST_POLICY,
 ) -> ArtistResolution:
     """Ask the model; link only on a confident answer naming an offered artist, else create a new one (A5-D9)."""
@@ -246,7 +266,11 @@ def decide_ambiguous(
 
 
 def resolve_artists(
-    names: Iterable[str], known: Iterable[KnownArtist], *, client: Any, options: RequestOptions,
+    names: Iterable[str],
+    known: Iterable[KnownArtist],
+    *,
+    client: Any,
+    options: RequestOptions,
     policy: ArtistMatchPolicy = DEFAULT_ARTIST_POLICY,
 ) -> dict[str, ArtistResolution]:
     """One resolution per distinct `artist_key` among `names`, keyed by it (the first spelling is kept).

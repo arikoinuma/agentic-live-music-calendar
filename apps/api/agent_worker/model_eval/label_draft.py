@@ -44,10 +44,14 @@ def candidate_lines(html: str, keep_repeats: bool = False) -> list[tuple[int, st
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="List a captured page's visible lines as candidate source lines for a label.")
+    parser = argparse.ArgumentParser(
+        description="List a captured page's visible lines as candidate source lines for a label."
+    )
     parser.add_argument("fixture", type=Path, help="the captured page (an .html file)")
     parser.add_argument(
-        "--all", action="store_true", dest="keep_repeats",
+        "--all",
+        action="store_true",
+        dest="keep_repeats",
         help="list repeated lines too (a title on several dates, the end time under each event); use it on a calendar of events",
     )
     args = parser.parse_args(argv)

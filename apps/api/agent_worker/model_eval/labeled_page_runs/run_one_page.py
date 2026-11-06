@@ -75,7 +75,9 @@ class AttemptResult:
     score: dict[str, Any] | None  # asdict(PageScore) of THIS attempt's extraction; None when the call produced nothing
     errors: list[dict[str, Any]] = field(default_factory=list)  # recomputed error findings
     warnings: list[dict[str, Any]] = field(default_factory=list)  # recomputed warnings (stored nowhere else)
-    recorded_errors: list[dict[str, Any]] = field(default_factory=list)  # what AttemptRecord.findings held, for the self-check
+    recorded_errors: list[dict[str, Any]] = field(
+        default_factory=list
+    )  # what AttemptRecord.findings held, for the self-check
 
 
 @dataclass
@@ -118,8 +120,13 @@ def score_dict(label: PageLabel, extraction: dict[str, Any] | None, page_html: s
 
 
 def column_scores(
-    label: PageLabel, *, raw: dict[str, Any] | None, validated: dict[str, Any] | None, committed: dict[str, Any],
-    page_html: str, fixture: str,
+    label: PageLabel,
+    *,
+    raw: dict[str, Any] | None,
+    validated: dict[str, Any] | None,
+    committed: dict[str, Any],
+    page_html: str,
+    fixture: str,
 ) -> dict[str, dict[str, Any]]:
     """The three scored columns of one run, keyed as `PageRun` names them (`raw_score`, `validated_score`, `committed_score`).
 
@@ -133,15 +140,26 @@ def column_scores(
 
 
 def _attempt_result(
-    document: dict[str, Any], record: AttemptRecord | None, label: PageLabel, page_html: str, fixture: str,
+    document: dict[str, Any],
+    record: AttemptRecord | None,
+    label: PageLabel,
+    page_html: str,
+    fixture: str,
 ) -> AttemptResult:
     """Score one staged attempt and recompute its findings. A call that produced no extraction has no score and no findings."""
     raw = document["raw_extraction"]
-    findings = recompute_findings(document, page_html=page_html, fetched_on=label.captured_on) if raw is not None else []
+    findings = (
+        recompute_findings(document, page_html=page_html, fetched_on=label.captured_on) if raw is not None else []
+    )
     return AttemptResult(
-        attempt=document["attempt"], tier=document["tier"], route=document["route"], model=document["model"],
-        larger_model_used=document["larger_model_used"], error=document["error"],
-        verdict=record.verdict.value if record else "none", reasons=[r.value for r in record.reasons] if record else [],
+        attempt=document["attempt"],
+        tier=document["tier"],
+        route=document["route"],
+        model=document["model"],
+        larger_model_used=document["larger_model_used"],
+        error=document["error"],
+        verdict=record.verdict.value if record else "none",
+        reasons=[r.value for r in record.reasons] if record else [],
         score=score_dict(label, raw, page_html, fixture) if raw is not None else None,
         errors=[finding_dict(f) for f in findings if f.severity is Severity.ERROR],
         warnings=[finding_dict(f) for f in findings if f.severity is Severity.WARNING],
@@ -150,8 +168,14 @@ def _attempt_result(
 
 
 async def run_page(
-    *, label: PageLabel, fixture: Path, venue: VenueFacts, ctx: WorkerContext,
-    committed_rows: Callable[[], Awaitable[dict[str, Any]]], policy: RetryPolicy | None = None, name: str | None = None,
+    *,
+    label: PageLabel,
+    fixture: Path,
+    venue: VenueFacts,
+    ctx: WorkerContext,
+    committed_rows: Callable[[], Awaitable[dict[str, Any]]],
+    policy: RetryPolicy | None = None,
+    name: str | None = None,
 ) -> PageRun:
     """Run `fixture` through the graph as `venue`, and score the raw, validated and committed results against `label`.
 
@@ -161,7 +185,9 @@ async def run_page(
     it differs from the file's name (a scenario feeds every capture of a venue from one fixed path, see `two_run_scenarios.run_scenario`).
     """
     stager = ctx.stager
-    assert isinstance(stager, InMemoryStager), "run_page records per-attempt documents; give the context an InMemoryStager"
+    assert isinstance(stager, InMemoryStager), (
+        "run_page records per-attempt documents; give the context an InMemoryStager"
+    )
     first_document = len(stager.documents)
     name = name or fixture.name
     is_image = fixture.suffix in IMAGE_SUFFIXES
@@ -169,7 +195,12 @@ async def run_page(
 
     started = time.perf_counter()
     state: VenueGraphState = await run_venue(
-        venue, ctx, trigger=RunTrigger.MANUAL, calendar_url=str(fixture), fetched_on=label.captured_on, policy=policy,
+        venue,
+        ctx,
+        trigger=RunTrigger.MANUAL,
+        calendar_url=str(fixture),
+        fetched_on=label.captured_on,
+        policy=policy,
     )
     seconds = round(time.perf_counter() - started, 1)
 
@@ -183,20 +214,33 @@ async def run_page(
     # included, so an escalated run must not report it: nothing from it was committed.
     validated = (
         state.validated_extraction.model_dump(mode="json")
-        if state.validated_extraction is not None and not escalated else None
+        if state.validated_extraction is not None and not escalated
+        else None
     )
     committed = await committed_rows()
     final_verdict = state.validation.verdict.value if state.validation and state.validation.verdict else None
     return PageRun(
-        fixture=name, venue_id=venue.id, run_id=state.run_id, seconds=seconds,
-        source=state.extraction_source, attempt_count=state.attempt_count, retried=state.attempt_count > 1,
+        fixture=name,
+        venue_id=venue.id,
+        run_id=state.run_id,
+        seconds=seconds,
+        source=state.extraction_source,
+        attempt_count=state.attempt_count,
+        retried=state.attempt_count > 1,
         recovered=state.attempt_count > 1 and not escalated and final_verdict != "failed",
-        escalated=escalated, escalation_reason=state.escalation_reason, final_verdict=final_verdict,
+        escalated=escalated,
+        escalation_reason=state.escalation_reason,
+        final_verdict=final_verdict,
         policy=dataclasses.asdict(state.policy),
         reconcile_counts=state.reconcile_plan.counts() if state.reconcile_plan else None,
         commit_written=dict(state.commit_result.written) if state.commit_result else None,
-        raw=raw, validated=validated, committed=committed,
+        raw=raw,
+        validated=validated,
+        committed=committed,
         **column_scores(label, raw=raw, validated=validated, committed=committed, page_html=page_html, fixture=name),
-        attempts=attempts, staged_documents=documents,
-        route_mismatch=bool(documents and state.extraction_source is not None and documents[-1]["route"] != state.extraction_source),
+        attempts=attempts,
+        staged_documents=documents,
+        route_mismatch=bool(
+            documents and state.extraction_source is not None and documents[-1]["route"] != state.extraction_source
+        ),
     )

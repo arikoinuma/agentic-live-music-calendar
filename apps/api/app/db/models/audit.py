@@ -59,9 +59,7 @@ class AgentRun(Base):
     venue_id: Mapped[int] = mapped_column(ForeignKey("venue.id"))
     # Why the run started: scheduled / manual / submission / flag_threshold.
     trigger: Mapped[RunTrigger] = mapped_column(types.RUN_TRIGGER)
-    started_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    started_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     # NULL while the run is in progress.
     finished_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
     # Which environment wrote this run ("local", "dev", "staging" or "prod"; C3-D5). A plain nullable string,
@@ -117,6 +115,4 @@ class AuditLog(Base):
     # `new_value`: that column is what a future revert restores, and mixing
     # evidence into it would make revert guess which keys are the row.
     detail: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
-    created_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

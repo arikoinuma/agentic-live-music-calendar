@@ -44,9 +44,16 @@ async def venue_id(factory: async_sessionmaker[AsyncSession]) -> int:
 def entry(run_id: int, **changes: Any) -> AuditEntry:
     """An extract-step `AuditEntry` for `run_id` with sensible defaults; a test overrides what it cares about."""
     fields: dict[str, Any] = {
-        "run_id": run_id, "attempt_number": 1, "step_type": StepType.EXTRACT, "source": AuditSource.AGENT,
-        "entity_type": EntityType.VENUE, "entity_id": 1, "outcome": None, "model_used": "m",
-        "confidence": None, "detail": {"route": "model"},
+        "run_id": run_id,
+        "attempt_number": 1,
+        "step_type": StepType.EXTRACT,
+        "source": AuditSource.AGENT,
+        "entity_type": EntityType.VENUE,
+        "entity_id": 1,
+        "outcome": None,
+        "model_used": "m",
+        "confidence": None,
+        "detail": {"route": "model"},
     }
     fields.update(changes)
     return AuditEntry(**fields)
@@ -55,7 +62,9 @@ def entry(run_id: int, **changes: Any) -> AuditEntry:
 async def rows(factory: async_sessionmaker[AsyncSession], run_id: int) -> list[AuditLog]:
     """The `audit_log` rows of one run, oldest first, read through a fresh session (as a query would)."""
     async with factory() as session:
-        return list((await session.execute(select(AuditLog).where(AuditLog.run_id == run_id).order_by(AuditLog.id))).scalars())
+        return list(
+            (await session.execute(select(AuditLog).where(AuditLog.run_id == run_id).order_by(AuditLog.id))).scalars()
+        )
 
 
 async def test_start_run_inserts_an_open_run(factory: async_sessionmaker[AsyncSession], venue_id: int) -> None:
@@ -70,7 +79,8 @@ async def test_start_run_inserts_an_open_run(factory: async_sessionmaker[AsyncSe
 
 
 async def test_start_run_records_the_environment_it_was_given(
-    factory: async_sessionmaker[AsyncSession], venue_id: int,
+    factory: async_sessionmaker[AsyncSession],
+    venue_id: int,
 ) -> None:
     # Proves (C3-D5): the run row carries the environment the writer was built with. The value is INJECTED
     # (`app_env="staging"`), not read from global settings, which are `local` in every test: a writer that
@@ -83,7 +93,8 @@ async def test_start_run_records_the_environment_it_was_given(
 
 
 async def test_a_writer_built_without_an_environment_writes_null(
-    factory: async_sessionmaker[AsyncSession], venue_id: int,
+    factory: async_sessionmaker[AsyncSession],
+    venue_id: int,
 ) -> None:
     # Proves (C3-D5): "unknown" is NULL, the same as a run recorded before C3, never a guessed "local". Callers
     # that do not know their environment (older tests, a one-off script) leave an honest gap.
@@ -104,7 +115,8 @@ async def test_finish_run_sets_finished_at(factory: async_sessionmaker[AsyncSess
 
 
 async def test_record_appends_one_row_per_call_and_never_updates(
-    factory: async_sessionmaker[AsyncSession], venue_id: int,
+    factory: async_sessionmaker[AsyncSession],
+    venue_id: int,
 ) -> None:
     # Proves: append-only (arch-initial.md §7): two writes of the same step and attempt make two rows with
     # distinct ids, and the first row is untouched by the second. A writer that upserted on
@@ -119,17 +131,24 @@ async def test_record_appends_one_row_per_call_and_never_updates(
 
 
 async def test_record_stores_every_field_including_jsonb_and_numeric(
-    factory: async_sessionmaker[AsyncSession], venue_id: int,
+    factory: async_sessionmaker[AsyncSession],
+    venue_id: int,
 ) -> None:
     # Proves: each AuditEntry field lands in its column: the enums as their labels, `detail` round-trips as
     # JSONB (nested values intact), and `Decimal("0.857")` fits `Numeric(4, 3)` unchanged.
     writer = PostgresAuditWriter(factory)
     run_id = await writer.start_run(venue_id, RunTrigger.MANUAL)
-    await writer.record(entry(
-        run_id, attempt_number=3, step_type=StepType.ESCALATE, outcome=AuditOutcome.ESCALATED,
-        model_used="gemma", confidence=decimal.Decimal("0.857"),
-        detail={"reason": "x", "nested": {"reasons": ["a", "b"]}, "none": None},
-    ))
+    await writer.record(
+        entry(
+            run_id,
+            attempt_number=3,
+            step_type=StepType.ESCALATE,
+            outcome=AuditOutcome.ESCALATED,
+            model_used="gemma",
+            confidence=decimal.Decimal("0.857"),
+            detail={"reason": "x", "nested": {"reasons": ["a", "b"]}, "none": None},
+        )
+    )
     [row] = await rows(factory, run_id)
     assert (row.attempt_number, row.step_type, row.source) == (3, StepType.ESCALATE, AuditSource.AGENT)
     assert (row.entity_type, row.entity_id, row.outcome) == (EntityType.VENUE, 1, AuditOutcome.ESCALATED)
@@ -148,7 +167,8 @@ async def test_a_null_confidence_is_stored_as_null(factory: async_sessionmaker[A
 
 
 async def test_each_call_commits_so_a_later_failure_cannot_undo_it(
-    factory: async_sessionmaker[AsyncSession], venue_id: int,
+    factory: async_sessionmaker[AsyncSession],
+    venue_id: int,
 ) -> None:
     # Proves: the writer commits per call (its docstring's reason: a crash later in the run must not roll
     # back the record of what led up to it). A second session, opened after the writer's own session
@@ -158,7 +178,9 @@ async def test_each_call_commits_so_a_later_failure_cannot_undo_it(
     run_id = await writer.start_run(venue_id, RunTrigger.MANUAL)
     await writer.record(entry(run_id))
     async with factory() as other:
-        count = (await other.execute(select(func.count()).select_from(AuditLog).where(AuditLog.run_id == run_id))).scalar_one()
+        count = (
+            await other.execute(select(func.count()).select_from(AuditLog).where(AuditLog.run_id == run_id))
+        ).scalar_one()
     assert count == 1
 
 
@@ -182,7 +204,8 @@ async def test_the_writer_works_with_a_default_session_factory(db_conn: AsyncCon
 
 
 async def test_finished_at_is_after_started_at_on_the_databases_own_clock(
-    factory: async_sessionmaker[AsyncSession], venue_id: int,
+    factory: async_sessionmaker[AsyncSession],
+    venue_id: int,
 ) -> None:
     # Proves (A4-CR1-5): both timestamps come from Postgres, so a run's duration is one clock's
     # difference and cannot go negative under worker/database clock skew. Inside the tests' one rolled-back

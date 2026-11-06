@@ -172,8 +172,11 @@ class Action(StrEnum):
     def outcome(self) -> AuditOutcome | None:
         """What A6's per-show audit row will call this (`SKIP` writes none)."""
         return {
-            Action.INSERT: AuditOutcome.INSERTED, Action.UPDATE: AuditOutcome.UPDATED,
-            Action.NO_OP: AuditOutcome.NO_OP, Action.REMOVE: AuditOutcome.REMOVED, Action.SKIP: None,
+            Action.INSERT: AuditOutcome.INSERTED,
+            Action.UPDATE: AuditOutcome.UPDATED,
+            Action.NO_OP: AuditOutcome.NO_OP,
+            Action.REMOVE: AuditOutcome.REMOVED,
+            Action.SKIP: None,
         }[self]
 
 
@@ -254,11 +257,16 @@ def listings_from(extraction: VenuePageExtraction | None) -> list[Listing]:
         return []
     return [
         Listing(
-            index=i, date=show.date, time=show.time, end_time=show.end_time,
+            index=i,
+            date=show.date,
+            time=show.time,
+            end_time=show.end_time,
             acts=tuple(ListedAct(a.name, a.start_time, a.sequence_number) for a in show.acts),
             status=getattr(show, "status", "scheduled"),
-            admission_advance=show.admission_advance, admission_day=show.admission_day,
-            free_admission=show.free_admission, image_url=show.image_url,
+            admission_advance=show.admission_advance,
+            admission_day=show.admission_day,
+            free_admission=show.free_admission,
+            image_url=show.image_url,
         )
         for i, show in enumerate(extraction.shows)
     ]
@@ -282,7 +290,9 @@ def excluded_listing_dates(
     return frozenset(
         extraction.shows[f.show_index].date
         for f in validation.findings
-        if f.code is CheckCode.EXCLUDED_NO_ACTS and f.show_index is not None and f.show_index < len(extraction.shows)
+        if f.code is CheckCode.EXCLUDED_NO_ACTS
+        and f.show_index is not None
+        and f.show_index < len(extraction.shows)
         and not check_plausibility(extraction.shows[f.show_index], fetched_on).date_out_of_window
     )
 
@@ -301,8 +311,10 @@ def covered_window(
 
 
 def prepare_inputs(
-    extraction: VenuePageExtraction | None, validated: VenuePageExtraction | None,
-    validation: ValidationResult | None, fetched_on: datetime.date,
+    extraction: VenuePageExtraction | None,
+    validated: VenuePageExtraction | None,
+    validation: ValidationResult | None,
+    fetched_on: datetime.date,
 ) -> ReconcileInputs:
     """Everything reconcile reads from the validated page, as plain data (the trace wrapper calls this too, to know
     which stored shows to load)."""
@@ -381,7 +393,8 @@ def _assign_by_acts(
             _overlap(other_l, other_s) == overlap
             for other_l, other_s in candidates
             if (other_l.index == listing.index) != (other_s.id == stored.id)
-            and other_l.index not in taken_listings and other_s.id not in taken_stored
+            and other_l.index not in taken_listings
+            and other_s.id not in taken_stored
         )
         taken_listings.add(listing.index)
         taken_stored.add(stored.id)
@@ -389,9 +402,7 @@ def _assign_by_acts(
     return out
 
 
-def _null_time_pairs(
-    listings: list[Listing], stored: list[StoredShow]
-) -> list[tuple[Listing, StoredShow, bool]]:
+def _null_time_pairs(listings: list[Listing], stored: list[StoredShow]) -> list[tuple[Listing, StoredShow, bool]]:
     """A5-K1: pair what the timed pass left over on one date, where a missing time is involved (A5-D3).
 
     Two different times never pair (that is a time change: a cancelled show plus a new one). A missing time on
@@ -430,7 +441,9 @@ def match_shows(listings: Sequence[Listing], stored: Sequence[StoredShow]) -> Ma
     ]
     for pool in pools:
         for day in sorted({listing.date for listing in listings}):
-            left_l = sorted((l for l in listings if l.date == day and l.index not in taken_listings), key=_order_listing)
+            left_l = sorted(
+                (l for l in listings if l.date == day and l.index not in taken_listings), key=_order_listing
+            )
             left_s = sorted((s for s in pool if s.date == day and s.id not in taken_stored), key=_order_stored)
             if not left_l or not left_s:
                 continue
@@ -456,7 +469,9 @@ def match_shows(listings: Sequence[Listing], stored: Sequence[StoredShow]) -> Ma
     unpaired_l = [l for l in listings if l.index not in taken_listings]
     unpaired_s = [s for s in stored if s.id not in taken_stored]
     review_stored: set[int] = set()
-    for day in {l.date for l in unpaired_l if l.is_scheduled} & {s.date for s in unpaired_s if s.status is ShowStatus.ACTIVE}:
+    for day in {l.date for l in unpaired_l if l.is_scheduled} & {
+        s.date for s in unpaired_s if s.status is ShowStatus.ACTIVE
+    }:
         day_l = [l for l in unpaired_l if l.date == day and l.is_scheduled]
         day_s = [s for s in unpaired_s if s.date == day and s.status is ShowStatus.ACTIVE]
         if any(l.time is None for l in day_l) or any(s.start_time is None for s in day_s):
@@ -510,7 +525,8 @@ def merge_lineup(lineup: tuple[LineupEntry, ...], stored: StoredShow) -> tuple[L
     stored_times = {e.artist_id: e.start_time for e in stored.lineup}
     return tuple(
         replace(entry, start_time=stored_times.get(entry.artist_id))
-        if entry.start_time is None and entry.artist_id is not None else entry
+        if entry.start_time is None and entry.artist_id is not None
+        else entry
         for entry in lineup
     )
 
@@ -586,9 +602,13 @@ def plan_for_listing(
     start = listing.time if listing.time is not None else stored.start_time
     if stored.status is ShowStatus.REMOVED:  # A5-D7: the same row comes back
         changes = {"status": (ShowStatus.REMOVED, ShowStatus.ACTIVE), **changes}
-        return decide(Action.UPDATE, "reappeared", start_time=start, stored_id=stored.id, changes=changes, lineup=merged)
+        return decide(
+            Action.UPDATE, "reappeared", start_time=start, stored_id=stored.id, changes=changes, lineup=merged
+        )
     if changes:
-        return decide(Action.UPDATE, "details changed", start_time=start, stored_id=stored.id, changes=changes, lineup=merged)
+        return decide(
+            Action.UPDATE, "details changed", start_time=start, stored_id=stored.id, changes=changes, lineup=merged
+        )
     return decide(Action.NO_OP, "unchanged", start_time=start, stored_id=stored.id, lineup=merged)
 
 
@@ -598,7 +618,9 @@ def plan_for_listing(
 
 
 def removed_by_absence(
-    stored: Iterable[StoredShow], matched_ids: set[int], coverage: Coverage | None,
+    stored: Iterable[StoredShow],
+    matched_ids: set[int],
+    coverage: Coverage | None,
     excluded_dates: Iterable[datetime.date],
 ) -> list[StoredShow]:
     """The stored shows the page no longer lists, inside the dates it reached (A5-D1, A5-D2)."""
@@ -610,7 +632,8 @@ def removed_by_absence(
         return []
     skipped = set(excluded_dates)
     return [
-        s for s in stored
+        s
+        for s in stored
         if s.status is ShowStatus.ACTIVE
         and coverage.contains(s.date)
         and s.id not in matched_ids
@@ -624,7 +647,9 @@ def withhold_if_mass_removal(
     """A5-D10: `(removals to do, removals withheld)`. A page that is merely truncated passes validation and would wipe
     most of the calendar silently, so a run that would remove at least `min_removals_to_guard` shows AND more than
     `max_removal_share` of the active shows in the window removes none of them, and the plan says so."""
-    if len(removals) >= policy.min_removals_to_guard and len(removals) > policy.max_removal_share * len(in_window_active):
+    if len(removals) >= policy.min_removals_to_guard and len(removals) > policy.max_removal_share * len(
+        in_window_active
+    ):
         return [], removals
     return removals, []
 
@@ -635,9 +660,15 @@ def withhold_if_mass_removal(
 
 
 def build_plan(
-    inputs: ReconcileInputs, stored: Sequence[StoredShow], known_artists: Sequence[KnownArtist], *,
-    original_url: str, client: Any, options: RequestOptions,
-    policy: ReconcilePolicy = DEFAULT_RECONCILE_POLICY, artist_policy: ArtistMatchPolicy = DEFAULT_ARTIST_POLICY,
+    inputs: ReconcileInputs,
+    stored: Sequence[StoredShow],
+    known_artists: Sequence[KnownArtist],
+    *,
+    original_url: str,
+    client: Any,
+    options: RequestOptions,
+    policy: ReconcilePolicy = DEFAULT_RECONCILE_POLICY,
+    artist_policy: ArtistMatchPolicy = DEFAULT_ARTIST_POLICY,
 ) -> ReconcilePlan:
     """Decide everything for one venue run, in the order each step needs the last:
 
@@ -652,8 +683,11 @@ def build_plan(
     twin = {listing.index: show for listing, show in matched.pairs}
     scheduled = [l for l in inputs.listings if l.is_scheduled]
     resolutions = resolve_artists(
-        [act.name for l in scheduled for act in l.acts], known_artists,
-        client=client, options=options, policy=artist_policy,
+        [act.name for l in scheduled for act in l.acts],
+        known_artists,
+        client=client,
+        options=options,
+        policy=artist_policy,
     )
 
     decisions: list[ShowDecision] = []
@@ -666,12 +700,18 @@ def build_plan(
 
     window = inputs.coverage
     absent = removed_by_absence(stored, {show.id for _, show in matched.pairs}, window, inputs.excluded_dates)
-    in_window_active = [s for s in stored if window is not None and s.status is ShowStatus.ACTIVE and window.contains(s.date)]
+    in_window_active = [
+        s for s in stored if window is not None and s.status is ShowStatus.ACTIVE and window.contains(s.date)
+    ]
     to_remove, held_back = withhold_if_mass_removal(absent, in_window_active, policy)
 
     def removal(show: StoredShow, reason: str) -> ShowDecision:
         return ShowDecision(
-            Action.REMOVE, show.date, show.start_time, reason, stored_id=show.id,
+            Action.REMOVE,
+            show.date,
+            show.start_time,
+            reason,
+            stored_id=show.id,
             needs_review=show.id in matched.review_stored,
         )
 

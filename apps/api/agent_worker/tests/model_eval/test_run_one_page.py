@@ -47,8 +47,12 @@ T = datetime.time
 VENUE = VenueFacts(id=1, name="The Test Venue", calendar_url="unused", metro_timezone="America/Chicago")
 TWO_EVENTS = jsonld_page(event("Nona", "2026-10-20T21:00:00-05:00"), event("Lent", "2026-10-21T21:00:00-05:00"))
 LABEL = PageLabel(
-    venue="test_venue", gated=True, captured_on=fakes.FETCHED, shows=(
-        LabelledShow(D(2026, 10, 20), ("Nona",), "Nona", T(21, 0)), LabelledShow(D(2026, 10, 21), ("Lent",), "Lent", T(21, 0)),
+    venue="test_venue",
+    gated=True,
+    captured_on=fakes.FETCHED,
+    shows=(
+        LabelledShow(D(2026, 10, 20), ("Nona",), "Nona", T(21, 0)),
+        LabelledShow(D(2026, 10, 21), ("Lent",), "Lent", T(21, 0)),
     ),
 )
 FULL = split_answer(("Nona", ["Nona"]), ("Lent", ["Lent"]))
@@ -61,8 +65,13 @@ async def no_rows() -> dict[str, Any]:
 
 
 async def run_scripted(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, html: str, label: PageLabel, script: dict[Any, list[Any]],
-    *, policy: Any = None,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    html: str,
+    label: PageLabel,
+    script: dict[Any, list[Any]],
+    *,
+    policy: Any = None,
 ) -> PageRun:
     """Write `html` as the fixture, script the model, and run the page through the real graph with recording stores."""
     page = tmp_path / "page.html"
@@ -71,7 +80,12 @@ async def run_scripted(
     audit = RecordingAudit()
     ctx = WorkerContext(audit=audit, stager=InMemoryStager(), reader=FakeReader(), writer=FakeWriter(audit))
     return await run_page(
-        label=label, fixture=page, venue=VENUE, ctx=ctx, committed_rows=no_rows, policy=policy,
+        label=label,
+        fixture=page,
+        venue=VENUE,
+        ctx=ctx,
+        committed_rows=no_rows,
+        policy=policy,
     )
 
 
@@ -88,7 +102,9 @@ async def test_a_clean_page_is_one_attempt_with_nothing_wrong(tmp_path: Path, mo
         assert (column["missed"], column["acts_wrong"], column["fabricated"], column["items"]) == (0, 0, 0, [])
 
 
-async def test_a_retry_that_recovers_is_scored_attempt_by_attempt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_a_retry_that_recovers_is_scored_attempt_by_attempt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # Proves: C5-D7 and C5-M4. Attempt 1's splitter drops Lent (an error, so a retry); attempt 2 answers in full. The run is
     # two attempts, retried and recovered; attempt 2 is the 'narrowed' tier; and the PER-ATTEMPT scores differ: attempt 1 missed
     # Lent, attempt 2 missed nothing. If only the last attempt were scored, "did the retry fix it" could not be asked.
@@ -102,7 +118,9 @@ async def test_a_retry_that_recovers_is_scored_attempt_by_attempt(tmp_path: Path
     assert len(run.staged_documents) == 2  # one staging document per attempt (A4)
 
 
-async def test_a_page_that_never_validates_escalates_at_the_cap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_a_page_that_never_validates_escalates_at_the_cap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # Proves: the escalation path. The splitter drops Lent on every attempt: three attempts (the default cap), escalated, no
     # validated extraction (nothing reaches reconcile), and every labelled show Lent... is counted missed in the validated column.
     run = await run_scripted(tmp_path, monkeypatch, TWO_EVENTS, LABEL, {SPLITTER: [DROPS_LENT]})
@@ -112,11 +130,18 @@ async def test_a_page_that_never_validates_escalates_at_the_cap(tmp_path: Path, 
     assert run.escalation_reason is not None
 
 
-async def test_a_policy_passed_to_the_harness_is_the_policy_the_run_uses(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_a_policy_passed_to_the_harness_is_the_policy_the_run_uses(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # Proves: C5-D5. `run_page(policy=...)` reaches the graph's routers: with a cap of 1 the same always-failing page makes
     # ONE attempt, not three. The expectation is the cap we passed.
     run = await run_scripted(
-        tmp_path, monkeypatch, TWO_EVENTS, LABEL, {SPLITTER: [DROPS_LENT]}, policy=replace(DEFAULT_POLICY, max_attempts=1),
+        tmp_path,
+        monkeypatch,
+        TWO_EVENTS,
+        LABEL,
+        {SPLITTER: [DROPS_LENT]},
+        policy=replace(DEFAULT_POLICY, max_attempts=1),
     )
     assert (run.attempt_count, run.escalated, run.retried) == (1, True, False)
     assert run.policy["max_attempts"] == 1
@@ -144,10 +169,19 @@ def test_the_committed_column_is_held_to_the_scheduled_shows_but_raw_and_validat
     # Proves: the column rule `run_page` and `--rescore` now share. The database cannot hold a cancelled show (reconcile skips
     # it), so with a cancelled show labelled, the raw and validated columns that return nothing miss both labelled shows while the
     # committed column that returns nothing misses only the scheduled one. Expected counts are read off the label below.
-    label = PageLabel(venue="v", gated=True, captured_on=datetime.date(2026, 10, 12), shows=(
-        LabelledShow(datetime.date(2026, 10, 20), ("Nona",), "Nona"),
-        LabelledShow(datetime.date(2026, 10, 21), ("Lent",), "Lent", status="cancelled"),
-    ))
+    label = PageLabel(
+        venue="v",
+        gated=True,
+        captured_on=datetime.date(2026, 10, 12),
+        shows=(
+            LabelledShow(datetime.date(2026, 10, 20), ("Nona",), "Nona"),
+            LabelledShow(datetime.date(2026, 10, 21), ("Lent",), "Lent", status="cancelled"),
+        ),
+    )
     scores = column_scores(label, raw=None, validated=None, committed={"shows": []}, page_html="", fixture="p.html")
     assert set(scores) == {"raw_score", "validated_score", "committed_score"}
-    assert (scores["raw_score"]["missed"], scores["validated_score"]["missed"], scores["committed_score"]["missed"]) == (2, 2, 1)
+    assert (
+        scores["raw_score"]["missed"],
+        scores["validated_score"]["missed"],
+        scores["committed_score"]["missed"],
+    ) == (2, 2, 1)

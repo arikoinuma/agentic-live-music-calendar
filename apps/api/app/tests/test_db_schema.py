@@ -117,9 +117,7 @@ async def test_models_and_migration_agree(migrated_engine: AsyncEngine) -> None:
     def diff(sync_conn: Any) -> list[Any]:
         # compare_type/compare_server_default turn on type and DEFAULT
         # comparison; compare_server_default is off by default in Alembic.
-        ctx = MigrationContext.configure(
-            sync_conn, opts={"compare_type": True, "compare_server_default": True}
-        )
+        ctx = MigrationContext.configure(sync_conn, opts={"compare_type": True, "compare_server_default": True})
         return compare_metadata(ctx, Base.metadata)
 
     async with migrated_engine.connect() as conn:
@@ -152,9 +150,7 @@ async def test_gin_indexes_and_the_check_constraint_exist(db_conn: AsyncConnecti
     # Proves: the two JSONB indexes really are GIN indexes, and the
     # free-admission CHECK constraint really exists in the database.
     # compare_metadata can't see either of these.
-    rows = await db_conn.execute(
-        sa.text("SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = 'public'")
-    )
+    rows = await db_conn.execute(sa.text("SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = 'public'"))
     idx: dict[str, str] = {name: definition for name, definition in rows}
     assert "USING gin" in idx["venue_extra_metadata_idx"]
     assert "USING gin" in idx["artist_extra_metadata_idx"]
@@ -205,9 +201,7 @@ async def _venue(conn: AsyncConnection) -> int:
     """Insert a throwaway metro + venue (the minimum a show needs) and
     return the venue's id."""
     metro_id = await _insert(conn, "metro", name="Test Metro", timezone="America/Chicago", slug="tst")
-    venue_id = await _insert(
-        conn, "venue", metro_id=metro_id, name="Test Venue", calendar_url="https://example.com"
-    )
+    venue_id = await _insert(conn, "venue", metro_id=metro_id, name="Test Venue", calendar_url="https://example.com")
     assert venue_id is not None
     return venue_id
 
@@ -228,9 +222,7 @@ async def test_free_admission_with_a_price_is_rejected(db_conn: AsyncConnection)
 
 
 @pytest.mark.parametrize("free", [False, None])
-async def test_a_price_is_fine_unless_free_admission_is_true(
-    db_conn: AsyncConnection, free: bool | None
-) -> None:
+async def test_a_price_is_fine_unless_free_admission_is_true(db_conn: AsyncConnection, free: bool | None) -> None:
     # Proves: the CHECK only rejects the contradictory case. A price with
     # free_admission False, or with it unstated (NULL), is accepted.
     # Guards a CHECK written backwards, or one that treats NULL as free:

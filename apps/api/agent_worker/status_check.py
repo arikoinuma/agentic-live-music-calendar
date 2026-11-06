@@ -109,8 +109,12 @@ def _on_page(acts: list[str], page_text: str) -> bool:
 
 
 def apply(
-    extraction: VenuePageExtraction, answer: StatusAnswer, *, page_text: str,
-    fetch_date: datetime.date | None, venue_name: str,
+    extraction: VenuePageExtraction,
+    answer: StatusAnswer,
+    *,
+    page_text: str,
+    fetch_date: datetime.date | None,
+    venue_name: str,
     split_titles: Callable[[list[str]], list[list[str]]] | None = None,
 ) -> tuple[VenuePageExtraction, dict[str, Any]]:
     """Merge the status answer into the extraction; return it in the status-carrying schema,
@@ -157,10 +161,16 @@ def apply(
     # 1.0 that no model judged, so validation leaves them out of the confidence minimum (A3).
     notes["added_indices"] = list(range(len(shows), len(shows) + len(to_add)))
     for listed, acts, status in to_add:
-        shows.append(show_cls(
-            venue=venue_name, date=listed, acts=[ActExtraction(name=a) for a in acts],
-            is_ambiguous=False, confidence=1.0, status=status,
-        ))
+        shows.append(
+            show_cls(
+                venue=venue_name,
+                date=listed,
+                acts=[ActExtraction(name=a) for a in acts],
+                is_ambiguous=False,
+                confidence=1.0,
+                status=status,
+            )
+        )
         notes["added"] += 1
     page_cls = page_model(status=True, split_acts=False)
     return page_cls(page_readable=extraction.page_readable, shows=shows), notes

@@ -17,14 +17,15 @@ Revises: 829af2c3f26f
 Create Date: 2026-10-29 09:00:00.000000-05:00
 
 """
+
 from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = 'c4a1e5b7d903'
-down_revision: str | Sequence[str] | None = '829af2c3f26f'
+revision: str = "c4a1e5b7d903"
+down_revision: str | Sequence[str] | None = "829af2c3f26f"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -32,17 +33,17 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     """Upgrade schema."""
     # Step 1: the column, nullable for the moment so the existing row survives the ADD.
-    op.add_column('metro', sa.Column('slug', sa.String(), nullable=True))
+    op.add_column("metro", sa.Column("slug", sa.String(), nullable=True))
     # Step 2: name the one metro that exists (Dep-D3). Matches how the seed finds it: by name.
     op.execute("UPDATE metro SET slug = 'msp' WHERE name = 'Minneapolis/St. Paul'")
     # Step 3: now require it. A metro Step 2 could not name makes this fail loudly (see the docstring).
-    op.alter_column('metro', 'slug', nullable=False)
-    op.create_unique_constraint(op.f('metro_slug_key'), 'metro', ['slug'])
-    op.create_check_constraint(op.f('metro_slug_format_check'), 'metro', "slug ~ '^[a-z][a-z0-9-]{1,30}[a-z0-9]$'")
+    op.alter_column("metro", "slug", nullable=False)
+    op.create_unique_constraint(op.f("metro_slug_key"), "metro", ["slug"])
+    op.create_check_constraint(op.f("metro_slug_format_check"), "metro", "slug ~ '^[a-z][a-z0-9-]{1,30}[a-z0-9]$'")
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_constraint(op.f('metro_slug_format_check'), 'metro', type_='check')
-    op.drop_constraint(op.f('metro_slug_key'), 'metro', type_='unique')
-    op.drop_column('metro', 'slug')
+    op.drop_constraint(op.f("metro_slug_format_check"), "metro", type_="check")
+    op.drop_constraint(op.f("metro_slug_key"), "metro", type_="unique")
+    op.drop_column("metro", "slug")
