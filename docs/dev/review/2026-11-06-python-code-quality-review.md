@@ -25,7 +25,7 @@ they keep reading, and it is cheap to fix.
 | Architecture and layering | Strong | Thin routers, a query layer, pure decision modules, enforced import direction |
 | Correctness discipline | Strong | 1,206 tests passing in 18 s against a real Postgres, 97% branch coverage, strict typing everywhere |
 | Modern idiom (FastAPI / Pydantic v2 / SQLAlchemy 2.0) | Strong | `Annotated` dependencies, async sessions, `lazy="raise"`, PEP 695 generics, `SecretStr` |
-| Security posture for a pre-alpha | Reasonable | No known-vulnerable dependencies, Bandit clean. Two latent risks to fix before community edits ship |
+| Security posture for a pre-alpha | Reasonable | pip-audit finds no vulnerable Python dependencies (23 open Dependabot alerts on `main` need triage), Bandit clean. Two latent risks to fix before community edits ship |
 | **Formatting and lint hygiene** | **Weak** | 125 of 167 files differ from `ruff format`; only ruff's default rules are on |
 | **Comments as an outsider reads them** | **Mixed** | The "why" is excellent. Tutorial leftovers, stale "not yet" notes and dense plan IDs undercut it |
 | Naming and layout | Good | Mostly self-explanatory; a handful of vague or misleading names |
@@ -57,7 +57,7 @@ they keep reading, and it is cheap to fix.
 | `uv run mypy` | Success: no issues in 152 source files |
 | `REQUIRE_DB=1 uv run pytest` | **1,206 passed, 16 skipped in 18.25 s**. Skips: gitignored eval fixtures (14), no MongoDB (1), no captured pages (1) |
 | `uv run coverage run -m pytest && coverage report` | **97% total** (branch coverage, `model_eval/` excluded by config) |
-| `uvx pip-audit` on the exported lockfile | No known vulnerabilities found |
+| `uvx pip-audit` on the exported Python lockfile (`uv.lock`) | No known vulnerabilities found. This covers the Python dependencies only: on November 6, 2026 GitHub reported 23 open Dependabot alerts on `main` (14 high, 8 moderate, 1 low), ecosystem not checked here. See section 6 |
 | `uvx bandit -r app agent_worker -ll` (tests excluded) | 0 high, 1 medium (a false positive in a test helper, `app/testing/sample_data.py:441`) |
 | `uvx pylint --enable=duplicate-code --min-similarity-lines=8` | One block: the frozen `model_eval/legacy.py` copy of the schema, which is deliberate |
 | `ruff check --select E,W,F,I,B,UP,SIM,RUF,N,ASYNC,S,DTZ,PT,C4,RET --statistics` | See PQR1-7. Almost all hits are line length and `assert` in tests |
@@ -98,7 +98,7 @@ These are concrete. Each one is something experienced reviewers look for, and ma
 | **Audit rows written in the same transaction as the change** | `calendar_writer.py` | A rolled-back write leaves no audit row; this is the correct design for an audit trail |
 | **LLM output is treated as untrusted** | Schema-validated extraction; `verify_image_url` drops a URL not found verbatim on the page (`validation.py:316`); the frontend runs `httpUrlOrNull` on `original_url` | Matches OWASP LLM05's main advice ("treat model output as untrusted input") |
 | **Modern Python** | PEP 695 generics (`def _inherit[T]`), `StrEnum`, `X \| Y` unions, frozen dataclasses | Up to date with Python 3.13 |
-| **Supply chain basics** | `uv.lock` committed, Dependabot and CodeQL workflows present, pip-audit clean | Many portfolio projects have none of these |
+| **Supply chain basics** | `uv.lock` committed, Dependabot and CodeQL workflows present, pip-audit clean on the Python lockfile | Many portfolio projects have none of these (but see the open Dependabot alerts, section 6) |
 
 The deliberate divergences in `apps/api/AGENTS.md` (flat `app/`, one `Settings`, returning models with a return-type
 annotation) are each defensible, and documenting them, rather than silently diverging, is itself a sign of maturity.
@@ -172,8 +172,8 @@ This is a pre-alpha read API with no confidential data, and no authentication ye
 C10). With that in mind:
 
 - **Already good:** no SQL built from strings in production code (Bandit's one hit is a test helper using table names
-  from code); secrets in `SecretStr`; no CORS surface (the BFF pattern); bounded date ranges; dependencies with no known
-  CVEs; CodeQL and Dependabot enabled; destructive test fixtures refuse non-local hosts and non-test database names.
+  from code); secrets in `SecretStr`; no CORS surface (the BFF pattern); bounded date ranges; Python dependencies with no known
+  CVEs (the open Dependabot alerts are an open item, section 6); CodeQL and Dependabot enabled; destructive test fixtures refuse non-local hosts and non-test database names.
 - **Fix now (small):** PQR1-5 (id bounds), PQR1-4 (fetch settings).
 - **Fix before the API is public (C10/C11):** the shared-secret check; PQR1-12 (docs off); rate limiting (then add
   `slowapi` back, PQR1-8); `/health` reporting `app_env` is a deliberate choice (C3-D6), and once the API is public it's
@@ -201,6 +201,10 @@ The cloud sandbox has no route to venue sites, no Ollama and no MongoDB, so thes
 4. **One worker run per venue** (`VENUE=<id> make worker`), then the saved audit queries in `docs/dev/audit-queries.sql`.
    Look for escalations whose reason starts with `HTTPStatusError: Redirect response`.
 5. **Model-call timeout behavior** (PQR1-14): stop Ollama mid-run and see how long the worker takes to give up.
+6. **Triage the open Dependabot alerts** (GitHub reported 23 on `main` on November 6, 2026: 14 high, 8 moderate, 1 low).
+   Check which ecosystem each is in (Python `uv.lock`, or the JS lockfile) at
+   `https://github.com/arikoinuma/agentic-live-music-calendar/security/dependabot`. The review's pip-audit found none in
+   the Python lockfile, so they are most likely JavaScript, but this sandbox could not read the alert list.
 
 ---
 
@@ -220,7 +224,7 @@ The cloud sandbox has no route to venue sites, no Ollama and no MongoDB, so thes
 
 - **Strong where it is hard to fake:** architecture, async SQLAlchemy discipline, time handling, configuration safety,
   audit-trail transactions, real-database tests, full strict typing. 1,206 tests pass in 18 s, coverage is 97%, mypy
-  is clean, and there are no known vulnerable dependencies.
+  is clean, and pip-audit finds no known vulnerable Python dependencies (GitHub's 23 open Dependabot alerts on `main` still need triage, section 6).
 - **Weak where it is easiest to see:** unformatted code (125 files), tutorial and stale comments in `main.py`,
   `config.py` and `state.py`, an empty `apps/api/README.md`, and a default-only lint configuration. Each is a small fix.
 - **One real bug found:** the fetch can't follow redirects (PQR1-4). **One unhandled 500:** out-of-range ids (PQR1-5).
