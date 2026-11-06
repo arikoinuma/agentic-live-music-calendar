@@ -12,7 +12,7 @@ area, a clear fix. The record takes the higher tier.
 **Reviewer model:** Claude Opus 5.5 (plan review round 1, November 6, 2026; cloud session); Claude Opus 5.5 (code review
 round 1, November 6, 2026; cloud session)
 **Branch / PR:** `claude/dazzling-dirac-aguwd0` (designated by the cloud session; no commits beyond `main`, so no restart
-was needed) / none yet
+was needed) / [PR 96](https://github.com/arikoinuma/agentic-live-music-calendar/pull/96)
 
 **Designations.** Review items here are bare (`CR1-2`, `PR1-1`). Outside this record they are `PQR1-5-CR1-2`,
 `PQR1-5-PR1-1` (`docs/dev/issues/README.md`, `docs/dev/conventions.md`). Decisions are written `D1`, `D2` here and
