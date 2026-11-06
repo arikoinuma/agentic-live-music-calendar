@@ -341,6 +341,70 @@ def test_the_end_time_check_is_scoped_to_the_listings_own_title_when_titles_line
     assert wide.repairs == []
 
 
+# A listing in the shape Icehouse uses: the date, then labelled "Doors:" and "Music:" lines.
+def _listing(day: str, doors: str, music: str) -> str:
+    return f"Some Band\nA description of the show.\n{day}\nDoors: {doors}\nMusic: {music}\n$15 adv / $20 door\nBuy Tickets"
+
+
+def test_a_start_time_that_is_the_doors_time_is_dropped_when_the_page_states_a_music_time() -> None:
+    # Proves (C6.1-D14): the model put the doors time (6:00 pm) in `time` where the page says the
+    # music starts at 8:00 pm. A doors time in the start-time field is a WRONG time, which the standard
+    # never tolerates, so the value is dropped (a missing time is tolerated) and the repair is recorded.
+    text = _listing("December 11, 2026", "6:00 pm", "8:00 pm")
+    result, kept = validate(page(show(datetime.date(2026, 12, 11), time="18:00")), text=text)
+    [repair] = result.repairs
+    assert repair.field == "time" and "doors" in repair.reason and kept[0].time is None
+
+
+def test_a_start_time_stated_nowhere_in_its_listing_is_dropped() -> None:
+    # Proves (C6.1-D14): Willy Porter came back at 19:00 against Doors 6:00 / Music 8:00. 19:00 is not
+    # the doors time either, so the doors rule can't see it; the page states no 7:00 pm in that
+    # listing, so the value is invented and is dropped.
+    text = _listing("December 4, 2026", "6:00 pm", "8:00 pm")
+    result, kept = validate(page(show(datetime.date(2026, 12, 4), time="19:00")), text=text)
+    [repair] = result.repairs
+    assert "listing" in repair.reason and kept[0].time is None
+
+
+def test_the_music_time_the_page_states_is_kept() -> None:
+    # Proves: the check drops only wrong times. The correct 20:00 survives, so the repair isn't a
+    # blanket "drop every time on a page that has a Doors line".
+    text = _listing("December 4, 2026", "6:00 pm", "8:00 pm")
+    result, kept = validate(page(show(datetime.date(2026, 12, 4), time="20:00")), text=text)
+    assert result.repairs == [] and kept[0].time is not None
+
+
+def test_a_time_check_does_nothing_when_the_listing_states_no_labelled_music_time() -> None:
+    # Proves: the check needs a labelled "Music:" or "Show:" time to compare with. A page that says
+    # "Oct 20 | 8:00 pm" has no label, so a model time there is never second-guessed (a false drop
+    # costs a correct value).
+    result, kept = validate(page(show(time="20:00")), text="The Band Oct 20 | 8:00 pm")
+    assert result.repairs == [] and kept[0].time is not None
+
+
+def test_two_shows_on_one_date_each_keep_the_time_their_listing_states() -> None:
+    # Proves: a date listed twice (Icehouse's Nov 11: a combined card naming 6:30 and 9:00, then the
+    # 9:00 show's own card) keeps both times. The 6:30 show's time appears in the date's text even
+    # though only the 9:00 card has a "Music:" label, so it is not called invented.
+    text = (
+        "Electrical Field of Love\nNovember 11, 2026\n6:30 PM Show \u2014 Doors 5:00 pm\n"
+        "9:00 PM Show \u2014 Doors 8:30 pm\n$30 adv / $40 door\nBuy Tickets\n"
+        "Electrical Field of Love\nNovember 11, 2026\nDoors: 8:30 pm\nMusic: 9:00 pm\n$25 adv / $35 door"
+    )
+    day = datetime.date(2026, 11, 11)
+    result, kept = validate(page(show(day, time="18:30"), show(day, time="21:00")), text=text)
+    assert result.repairs == [] and [k.time is not None for k in kept] == [True, True]
+
+
+def test_the_start_time_check_runs_on_the_model_route_only() -> None:
+    # Proves: it reads page text, so it must not run on JSON-LD (the time is the source's own) or a
+    # poster run (no page text), the same scoping as the other page-reading repairs.
+    text = _listing("December 4, 2026", "6:00 pm", "8:00 pm")
+    for source in ("structured", "image"):
+        result, kept = validate(page(show(datetime.date(2026, 12, 4), time="19:00")), source=source, text=text)
+        assert result.repairs == [] and kept[0].time is not None
+
+
 def test_a_poster_run_keeps_its_end_time_when_it_has_a_start() -> None:
     # Proves (A3-PR1-6): the image route has no page text, so the page-reading repairs must not run
     # on it — an `source != "structured"` implementation would drop every poster's valid end time.

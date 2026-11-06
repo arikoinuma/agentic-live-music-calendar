@@ -327,6 +327,70 @@ def verify_image_url(url: str, page_html: str, page_text: str) -> bool:
     return url in page_text or url in html_lib.unescape(page_html)
 
 
+# A clock time as a page writes it ("6:00 pm", "8pm", "9:30 P.M."), and the labelled form listings use
+# for the two that matter: "Doors: 6:00 pm" and "Music: 8:00 pm" (or "Show:", "Showtime:").
+_CLOCK = re.compile(r"\b(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\b\.?", re.IGNORECASE)
+_LABELLED_CLOCK = re.compile(
+    r"\b(doors|music|show(?:time)?)\s*:\s*(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\b", re.IGNORECASE,
+)
+# How far past a date the listing's own times are looked for, cut short at the next date. A listing's
+# date is followed by its times in the layouts seen so far (Icehouse: date, Doors, Music, prices).
+_LISTING_REACH = 240
+
+
+def _clock(hour: str, minute: str | None, meridiem: str) -> datetime.time:
+    """12-hour clock pieces -> a time (12 am is midnight, 12 pm noon)."""
+    return datetime.time(int(hour) % 12 + (12 if meridiem.lower() == "p" else 0), int(minute or 0))
+
+
+def listing_times(page_text: str, day: datetime.date) -> tuple[set[datetime.time], set[datetime.time], set[datetime.time]]:
+    """The (music, doors, any) times the page states in the text that follows each mention of `day`.
+
+    The text after a date mention runs to the next date mention or `_LISTING_REACH` characters. A date
+    listed twice (a combined card, then the show's own card) pools both windows. "music" holds the times
+    labelled `Music:`/`Show:`/`Showtime:`, "doors" the ones labelled `Doors:`, and "any" every clock time
+    in the windows, labelled or not.
+    """
+    mentions = [
+        m for m in _MONTH_DAY.finditer(page_text)
+        if _MONTH_NUMBER.get(m.group(1).lower()[:3]) == day.month and int(m.group(2)) == day.day
+    ]
+    all_starts = sorted(m.start() for m in _MONTH_DAY.finditer(page_text))
+    music: set[datetime.time] = set()
+    doors: set[datetime.time] = set()
+    seen: set[datetime.time] = set()
+    for mention in mentions:
+        later = [start for start in all_starts if start > mention.start()]
+        end = min([mention.end() + _LISTING_REACH, *later[:1]])
+        window = page_text[mention.end():end]
+        for label, hour, minute, meridiem in _LABELLED_CLOCK.findall(window):
+            (doors if label.lower() == "doors" else music).add(_clock(hour, minute, meridiem))
+        seen.update(_clock(h, mi, mer) for h, mi, mer in _CLOCK.findall(window))
+    return music, doors, seen
+
+
+def start_time_problem(show: ShowExtraction, page_text: str) -> str | None:
+    """Why the show's start time contradicts its own listing, or None when it doesn't.
+
+    Two cases, and only when the listing states a labelled music time to compare with (C6.1-D14). The
+    start time is the doors time and not the music time: a wrong time, the very mistake the `time` field
+    description warns against. Or the start time appears nowhere in the listing: invented. Both are
+    wrong values, which the standard never tolerates, and a missing time is tolerated, so the caller
+    drops it. A time that appears in the date's text unlabelled (a combined card's "6:30 PM Show") is not
+    invented, which is why the second case reads every clock time and not only the labelled ones.
+    """
+    if show.time is None:
+        return None
+    music, doors, seen = listing_times(page_text, show.date)
+    if not music or show.time in music:
+        return None
+    if show.time in doors:
+        return "the start time is the doors time; the listing states a different music time"
+    if show.time not in seen:
+        return "the listing doesn't state this start time"
+    return None
+
+
 def repair_show(
     show: ShowExtraction, index: int, *, flags: PlausibilityFlags, source: Source, page_html: str,
     page_text: str, titles: list[str] | None,
@@ -352,6 +416,10 @@ def repair_show(
         if show.image_url is not None and not verify_image_url(show.image_url, page_html, page_text):
             repairs.append(Repair(index, "image_url", show.image_url, "not found verbatim in the page"))
             show = _show_with(show, image_url=None)
+        problem = start_time_problem(show, page_text)
+        if problem is not None:
+            repairs.append(Repair(index, "time", str(show.time), problem))
+            show = _show_with(show, time=None)
         if show.end_time is not None:
             # Title-scoped when the verbatim titles line up with the shows (A2.1's own docstring:
             # page-wide lets another listing's "11:00 pm" vouch for a default end), page-wide otherwise.

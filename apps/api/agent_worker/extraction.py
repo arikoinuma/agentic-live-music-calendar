@@ -18,6 +18,7 @@ How to read it:
 """
 
 import datetime
+import re
 from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
@@ -90,6 +91,10 @@ class ExtractionConfig:
     # is appended to the page model's instruction, `splitter_hint` to the act splitter's.
     retry_hint: str = ""
     splitter_hint: str = ""
+    # C6.1-D15 (an experiment, not adopted): when above 0, the model route reads the page in pieces of about
+    # this many characters, one call each, and joins the answers, so the model has a few shows to attend to
+    # instead of 47. 0 sends the page whole, as every measured run did.
+    chunk_chars: int = 0
 
 
 # What the pipeline runs. The harness starts from this same pair and overrides one field per
@@ -238,6 +243,53 @@ def _apply_year_rule(extraction: VenuePageExtraction, fetch_date: datetime.date)
 # ---------------------------------------------------------------------------
 
 
+# A listing's link lines ("More Info →", "Buy Tickets →"): the last of them closes a card on the calendars
+# seen so far, which makes the line after them a safe place to cut a long page.
+_LINK_LINE = re.compile(r"^(more info|buy tickets|get tickets|tickets|rsvp|learn more)\b", re.IGNORECASE)
+
+
+def chunk_page_text(text: str, chunk_chars: int) -> list[str]:
+    """The cleaned text in pieces of about `chunk_chars` characters, cut only between listings (C6.1-D15).
+
+    A cut falls after the last of a run of link lines once a piece has reached the size, so a card is never
+    split between its title and its date. A page with no link lines is cut at the size on a line boundary
+    instead, so no text is lost either way: `"\\n".join(pieces)` is the original text. With `chunk_chars` of 0
+    the text comes back whole. This is venue-agnostic only in spirit: it relies on listings ending in link
+    lines, which is true of the pages captured so far and not a rule any page promises.
+    """
+    if chunk_chars <= 0:
+        return [text]
+    lines = text.split("\n")
+    pieces: list[str] = []
+    current: list[str] = []
+    size = 0
+    for i, line in enumerate(lines):
+        current.append(line)
+        size += len(line) + 1
+        ends_card = bool(_LINK_LINE.match(line.strip())) and not (
+            i + 1 < len(lines) and _LINK_LINE.match(lines[i + 1].strip())
+        )
+        # Cut at a card's end once the piece has the size; give up waiting for one at twice the size.
+        if (size >= chunk_chars and ends_card) or size >= 2 * chunk_chars:
+            pieces.append("\n".join(current))
+            current, size = [], 0
+    if current:
+        pieces.append("\n".join(current))
+    return pieces
+
+
+def _joined(answers: list[Any], config: ExtractionConfig) -> Any:
+    """One answer from the pieces' answers (C6.1-D15): the first piece's, with every piece's listings (title split)
+    or shows added in order. `page_readable` is true when any piece was readable. A single answer is returned as is."""
+    if len(answers) == 1:
+        return answers[0]
+    field_name = "listings" if config.title_split else "shows"
+    merged = answers[0].model_copy(deep=True)
+    setattr(merged, field_name, [item for a in answers for item in getattr(a, field_name)])
+    merged.page_readable = any(a.page_readable for a in answers)
+    return merged
+
+
 def _from_model(
     html: str, *, venue_name: str, fetch_date: datetime.date, client: Any, options: RequestOptions,
     splitter_options: RequestOptions, status_options: RequestOptions, config: ExtractionConfig, seed: int | None,
@@ -246,12 +298,16 @@ def _from_model(
     `options`; the act splitter (here and in the status merge) uses `splitter_options`; the status question uses
     `status_options` (C6-D2)."""
     text = clean_text(html, config.keep_line_breaks, config.keep_image_urls)
-    answer = client.chat.completions.create(
-        response_model=page_model_for(config),
-        messages=[{"role": "user", "content": instruction_for(config) + text}],
-        **request_kwargs(options, seed),
-    )
-    notes: dict[str, Any] = {}
+    answers = [
+        client.chat.completions.create(
+            response_model=page_model_for(config),
+            messages=[{"role": "user", "content": instruction_for(config) + piece}],
+            **request_kwargs(options, seed),
+        )
+        for piece in chunk_page_text(text, config.chunk_chars)
+    ]
+    answer = _joined(answers, config)
+    notes: dict[str, Any] = {"chunks": len(answers)} if len(answers) > 1 else {}
     if config.title_split:
         extraction = _shows_from_listings(
             answer, client=client, options=splitter_options, seed=seed, notes=notes, hint=config.splitter_hint
