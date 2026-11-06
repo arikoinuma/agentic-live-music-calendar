@@ -779,3 +779,30 @@ changes nothing on an existing deployment: an older preview URL kept the old pas
 its `__Host-gate` cookie, which looked like "the gate stopped working". Test on the newest deployment in a private window
 (`environments.md`, "As built"). Turborepo's strict env mode also warned that the variable was missing from `turbo.json`
 though the proxy reads it per request; it belongs in `globalPassThroughEnv` beside `APP_ENV`.
+
+## A page's visible dates can be a day late while its embedded events are right (C6.1)
+
+Found on Hook & Ladder (November 5, 2026). The fetched page prints each evening show's month and day one day late (34 of 41
+events), because the server renders them in UTC and a script corrects them in the browser; Ari's screenshot of the live site
+and the text the worker reads disagree for that reason. The page never says UTC: that is an inference from the arithmetic.
+The right dates are in the event URL slugs (`...-november-06-2026-730408`) and in an `<astro-island>` whose `props`
+attribute holds all 41 events as JSON with the metro's offset (`2026-11-06T18:30:00.000-06:00`). A model cannot fix a date the
+visible text states wrongly, so `sources/embedded_events.py` reads the island (the structured route, `structured_source`
+`"astro-island"`), and `validation.check_slug_dates` warns when a show's date disagrees with its slug. Three traps found
+while planning it: a timestamp is not a start time merely because it is one (a feed that writes `T00:00:00Z` for a date would
+move to the previous evening if converted, so a midnight in its own offset is read as a date, C6.1-D3); the `under reported`
+check compares the extraction with the visible dates and so fires on exactly this page (C6.1-D10); and the island's `title`
+omits the "with …" line the page prints, which carries the support acts (C6.1-D8). A browser fetch in the metro timezone is
+the general fix and is deferred (`arch-initial.md` Section 10).
+
+## The act splitter's empty list is both the exclusion rule and the miss (C6.1)
+
+Found on Icehouse (November 5, 2026). `act_split` returns `[]` for a title it judges not to be a music show, and validation
+leaves that listing out with an `excluded_no_acts` warning. The same `[]` correctly drops a karaoke night and wrongly drops
+"The 90's Rewind" (a themed night with a DJ and a showtime), a showcase presented by a promoter, and a `NAME PRESENTS: THE X
+SHOW` listing. Page size is not the cause (chunking changed nothing). A prompt rule that taught the splitter to keep themed
+nights fixed all three and took the gated set from 0 to 9 wrong acts, because it also made the splitter add the night's name
+as an extra act on listings that already name performers. It was reverted; the exact wording and the numbers are kept in
+`c6.1-embedded-events-reader.md` (Implementation log, Round 7) so it can be tried again in a narrower form. Meanwhile the
+validate step's audit row lists every excluded listing, and `excluded_listings` in `audit-queries.sql` reads them back, so a
+missed show can be found. The planned fix is detail-page extraction, which gives the model one show at a time.

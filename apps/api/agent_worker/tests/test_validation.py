@@ -202,7 +202,7 @@ def test_an_out_of_window_json_ld_event_is_excluded_with_a_warning_not_failed() 
     # model route's year rule would re-date it into a plausible, wrong date. So the show is left out,
     # visibly, and the page still passes.
     extraction = page(show(datetime.date(2026, 10, 20)), show(datetime.date(2027, 11, 30), "Festival Act"))
-    result, kept = validate(extraction, source="jsonld")
+    result, kept = validate(extraction, source="structured")
     assert result.excluded == [1] and len(kept) == 1
     assert CheckCode.DATE_OUT_OF_WINDOW in codes(result, Severity.WARNING)
     assert result.errors == []
@@ -222,12 +222,12 @@ def test_an_end_time_earlier_than_the_start_is_the_next_morning_and_raises_nothi
     # Proves (A3-K3): White Squirrel lists "Nona ... 9:00 pm - 12:00 am", which extracts correctly as
     # start 21:00, end 00:00 (requirements, Show: "an end time earlier than its start is the next
     # morning"). A naive `end <= start` check would flag or repair a correct record.
-    result, kept = validate(page(show(time="21:00", end="00:00")), source="jsonld")
+    result, kept = validate(page(show(time="21:00", end="00:00")), source="structured")
     assert result.findings == [] and result.repairs == []
     assert str(kept[0].end_time) == "00:00:00"
 
 
-@pytest.mark.parametrize("source", ["jsonld", "model", "image"])
+@pytest.mark.parametrize("source", ["structured", "model", "image"])
 def test_an_end_time_equal_to_the_start_is_dropped_as_a_repair_never_a_failure(source: validation.Source) -> None:
     # Proves (A3-PR2-4): a zero-length show is repaired on every source, not failed and not a reason
     # to change route. jsonld._end_time accepts it and end_time_is_stated is satisfied by the stated
@@ -307,7 +307,7 @@ def test_an_image_url_with_an_escaped_ampersand_in_the_page_is_still_verbatim() 
     assert result.repairs == [] and kept[0].image_url is not None
 
 
-@pytest.mark.parametrize("source", ["jsonld", "image"])
+@pytest.mark.parametrize("source", ["structured", "image"])
 def test_the_image_url_check_runs_on_the_model_route_only(source: validation.Source) -> None:
     # Proves: the URL on a JSON-LD show came from structured data, not a model (the eval's 225
     # "invented" URLs in a21-confirm were all this false alarm), and an image run has no page HTML at
@@ -341,9 +341,73 @@ def test_the_end_time_check_is_scoped_to_the_listings_own_title_when_titles_line
     assert wide.repairs == []
 
 
+# A listing in the shape Icehouse uses: the date, then labeled "Doors:" and "Music:" lines.
+def _listing(day: str, doors: str, music: str) -> str:
+    return f"Some Band\nA description of the show.\n{day}\nDoors: {doors}\nMusic: {music}\n$15 adv / $20 door\nBuy Tickets"
+
+
+def test_a_start_time_that_is_the_doors_time_is_dropped_when_the_page_states_a_music_time() -> None:
+    # Proves (C6.1-D14): the model put the doors time (6:00 pm) in `time` where the page says the
+    # music starts at 8:00 pm. A doors time in the start-time field is a WRONG time, which the standard
+    # never tolerates, so the value is dropped (a missing time is tolerated) and the repair is recorded.
+    text = _listing("December 11, 2026", "6:00 pm", "8:00 pm")
+    result, kept = validate(page(show(datetime.date(2026, 12, 11), time="18:00")), text=text)
+    [repair] = result.repairs
+    assert repair.field == "time" and "doors" in repair.reason and kept[0].time is None
+
+
+def test_a_start_time_stated_nowhere_in_its_listing_is_dropped() -> None:
+    # Proves (C6.1-D14): Willy Porter came back at 19:00 against Doors 6:00 / Music 8:00. 19:00 is not
+    # the doors time either, so the doors rule can't see it; the page states no 7:00 pm in that
+    # listing, so the value is invented and is dropped.
+    text = _listing("December 4, 2026", "6:00 pm", "8:00 pm")
+    result, kept = validate(page(show(datetime.date(2026, 12, 4), time="19:00")), text=text)
+    [repair] = result.repairs
+    assert "listing" in repair.reason and kept[0].time is None
+
+
+def test_the_music_time_the_page_states_is_kept() -> None:
+    # Proves: the check drops only wrong times. The correct 20:00 survives, so the repair isn't a
+    # blanket "drop every time on a page that has a Doors line".
+    text = _listing("December 4, 2026", "6:00 pm", "8:00 pm")
+    result, kept = validate(page(show(datetime.date(2026, 12, 4), time="20:00")), text=text)
+    assert result.repairs == [] and kept[0].time is not None
+
+
+def test_a_time_check_does_nothing_when_the_listing_states_no_labeled_music_time() -> None:
+    # Proves: the check needs a labeled "Music:" or "Show:" time to compare with. A page that says
+    # "Oct 20 | 8:00 pm" has no label, so a model time there is never second-guessed (a false drop
+    # costs a correct value).
+    result, kept = validate(page(show(time="20:00")), text="The Band Oct 20 | 8:00 pm")
+    assert result.repairs == [] and kept[0].time is not None
+
+
+def test_two_shows_on_one_date_each_keep_the_time_their_listing_states() -> None:
+    # Proves: a date listed twice (Icehouse's Nov 11: a combined card naming 6:30 and 9:00, then the
+    # 9:00 show's own card) keeps both times. The 6:30 show's time appears in the date's text even
+    # though only the 9:00 card has a "Music:" label, so it is not called invented.
+    text = (
+        "Electrical Field of Love\nNovember 11, 2026\n6:30 PM Show \u2014 Doors 5:00 pm\n"
+        "9:00 PM Show \u2014 Doors 8:30 pm\n$30 adv / $40 door\nBuy Tickets\n"
+        "Electrical Field of Love\nNovember 11, 2026\nDoors: 8:30 pm\nMusic: 9:00 pm\n$25 adv / $35 door"
+    )
+    day = datetime.date(2026, 11, 11)
+    result, kept = validate(page(show(day, time="18:30"), show(day, time="21:00")), text=text)
+    assert result.repairs == [] and [k.time is not None for k in kept] == [True, True]
+
+
+def test_the_start_time_check_runs_on_the_model_route_only() -> None:
+    # Proves: it reads page text, so it must not run on JSON-LD (the time is the source's own) or a
+    # poster run (no page text), the same scoping as the other page-reading repairs.
+    text = _listing("December 4, 2026", "6:00 pm", "8:00 pm")
+    for source in ("structured", "image"):
+        result, kept = validate(page(show(datetime.date(2026, 12, 4), time="19:00")), source=source, text=text)
+        assert result.repairs == [] and kept[0].time is not None
+
+
 def test_a_poster_run_keeps_its_end_time_when_it_has_a_start() -> None:
     # Proves (A3-PR1-6): the image route has no page text, so the page-reading repairs must not run
-    # on it — an `source != "jsonld"` implementation would drop every poster's valid end time.
+    # on it — an `source != "structured"` implementation would drop every poster's valid end time.
     result, kept = validate(page(show(time="20:00", end="23:00")), source="image")
     assert result.repairs == [] and kept[0].end_time is not None
 
@@ -373,7 +437,7 @@ def test_json_ld_that_lists_fewer_events_than_the_page_names_is_under_reported()
     # structured data is partial. Six dates named, two with shows, four unmatched -> error.
     text = "Oct 20 Oct 21 Oct 22 Oct 23 Oct 24 Oct 25"
     extraction = page(show(datetime.date(2026, 10, 20)), show(datetime.date(2026, 10, 21)))
-    on_jsonld, _ = validate(extraction, source="jsonld", text=text)
+    on_jsonld, _ = validate(extraction, source="structured", text=text)
     on_model, _ = validate(extraction, source="model", text=text)
     assert CheckCode.JSONLD_UNDER_REPORTED in codes(on_jsonld, Severity.ERROR)
     assert CheckCode.JSONLD_UNDER_REPORTED not in codes(on_model)  # a JSON-LD guard, on JSON-LD only
@@ -388,7 +452,7 @@ def test_a_json_ld_page_whose_dates_all_have_shows_is_not_under_reported() -> No
     shows.append(ShowExtraction.model_validate({
         "venue": "V", "date": datetime.date(2026, 10, 23), "acts": [], "is_ambiguous": False, "confidence": 1.0,
     }))
-    result, _ = validate(page(*shows), source="jsonld", text=text)
+    result, _ = validate(page(*shows), source="structured", text=text)
     assert CheckCode.JSONLD_UNDER_REPORTED not in codes(result)
 
 
@@ -397,7 +461,7 @@ def test_an_archive_of_recent_past_dates_is_not_counted_as_under_reporting() -> 
     # Dates in the 31 days before the fetch aren't upcoming events, so they can't make a page look
     # under-reported.
     text = "Oct 1 Oct 2 Oct 3 Oct 4 Oct 5"
-    result, _ = validate(page(show(datetime.date(2026, 10, 20))), source="jsonld", text=text)
+    result, _ = validate(page(show(datetime.date(2026, 10, 20))), source="structured", text=text)
     assert CheckCode.JSONLD_UNDER_REPORTED not in codes(result)
 
 
@@ -427,7 +491,7 @@ def test_a_json_ld_page_whose_every_event_is_out_of_window_passes_with_each_excl
     # the guard has to subtract the shows' own dates, not rely on "past dates are ignored".
     # (A3-K3: the window.)
     stale = [show(datetime.date(2026, 8, d), f"Band {d}") for d in (1, 2, 3)]
-    result, kept = validate(page(*stale), source="jsonld", text="Band 1 Aug 1 8 pm Band 2 Aug 2 8 pm Band 3 Aug 3 8 pm")
+    result, kept = validate(page(*stale), source="structured", text="Band 1 Aug 1 8 pm Band 2 Aug 2 8 pm Band 3 Aug 3 8 pm")
     assert kept == [] and result.excluded == [0, 1, 2]
     assert result.errors == []
     assert [f.code for f in result.warnings] == [CheckCode.DATE_OUT_OF_WINDOW] * 3
@@ -469,7 +533,7 @@ def test_confidence_is_the_minimum_over_the_kept_shows_a_model_judged() -> None:
 def test_json_ld_confidence_is_none_because_its_one_point_zero_is_a_placeholder() -> None:
     # Proves (A3-D9, A2.1-PR1-15): the JSON-LD route stamps `confidence=1.0` on every show,
     # claiming a certainty about acts the splitter doesn't have. It must not read as evidence.
-    result, _ = validate(page(show(confidence=1.0)), source="jsonld")
+    result, _ = validate(page(show(confidence=1.0)), source="structured")
     assert result.confidence is None
 
 
@@ -510,3 +574,58 @@ def test_the_kept_shows_keep_their_position_in_findings_after_an_exclusion() -> 
     result, kept = validate(page(excluded, show(free_admission=True, admission_day=5.0)))
     [finding] = [f for f in result.errors if f.code is CheckCode.FREE_WITH_PRICE]
     assert finding.show_index == 1 and len(kept) == 1
+
+
+# ---------------------------------------------------------------------------
+# Events read from a page's embedded data (C6.1)
+# ---------------------------------------------------------------------------
+
+SHIFTED_TEXT = "Oct 20 Oct 21 Oct 22 Oct 23 Oct 24 Oct 25"  # the page's visible (UTC-shifted) dates
+
+
+def test_visible_dates_that_embedded_events_overrule_do_not_make_the_page_under_reported() -> None:
+    # Proves (C6.1-D10): on Hook & Ladder the visible dates are the wrong ones, so four unmatched
+    # dates are expected, not a sign of a partial list. Without the skip the check fails the attempt
+    # and the policy falls back to the model route, which reads the wrong dates again
+    # (C6.1-PR1-1). The count is kept on the result instead of being thrown away.
+    extraction = page(show(datetime.date(2026, 10, 20)), show(datetime.date(2026, 10, 21)))
+    result, _ = validate(
+        extraction, source="structured", notes={"structured_source": "astro-island"}, text=SHIFTED_TEXT,
+    )
+    assert CheckCode.JSONLD_UNDER_REPORTED not in codes(result)
+    assert result.visible_unmatched_dates == 4
+
+
+def test_the_under_reported_check_still_guards_json_ld() -> None:
+    # Proves (C6.1-D10): the skip is for the embedded source only; the same page read from JSON-LD
+    # still fails the check, as in A2.1-E16.
+    extraction = page(show(datetime.date(2026, 10, 20)), show(datetime.date(2026, 10, 21)))
+    result, _ = validate(
+        extraction, source="structured", notes={"structured_source": "json-ld"}, text=SHIFTED_TEXT,
+    )
+    assert CheckCode.JSONLD_UNDER_REPORTED in codes(result, Severity.ERROR)
+    assert result.visible_unmatched_dates is None
+
+
+def test_a_show_whose_date_differs_from_its_slugs_date_is_a_warning() -> None:
+    # Proves (C6.1-D6): the venue's URL names the local date; a show dated otherwise means the feed
+    # contradicts itself. A warning on that show only (it reports, it does not repair or drop). The
+    # slugs are in show order, as `notes["slugs"]` is written.
+    extraction = page(show(datetime.date(2026, 11, 6)), show(datetime.date(2026, 11, 8)))
+    notes = {
+        "structured_source": "astro-island",
+        "slugs": ["a-band-november-06-2026-1", "b-band-november-07-2026-2"],
+    }
+    result, kept = validate(extraction, source="structured", notes=notes)
+    flagged = [f for f in result.findings if f.code is CheckCode.SLUG_DATE_DISAGREES]
+    assert [(f.severity, f.show_index) for f in flagged] == [(Severity.WARNING, 1)]
+    assert len(kept) == 2  # nothing is dropped
+
+
+def test_a_slug_that_agrees_or_names_no_date_raises_nothing() -> None:
+    # Proves (C6.1-D6): agreement is silent, and so is a slug with no date or a missing slug (None),
+    # so the check cannot invent a finding where it has no evidence.
+    extraction = page(show(datetime.date(2026, 11, 6)), show(datetime.date(2026, 11, 7)), show(datetime.date(2026, 11, 8)))
+    notes = {"structured_source": "astro-island", "slugs": ["a-band-november-06-2026-1", "no-date-here-9", None]}
+    result, _ = validate(extraction, source="structured", notes=notes)
+    assert CheckCode.SLUG_DATE_DISAGREES not in codes(result)

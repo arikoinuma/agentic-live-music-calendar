@@ -177,7 +177,7 @@ def _route_for(state: VenueGraphState, plan: AttemptPlan) -> Route:
     if Path(state.calendar_url).suffix in IMAGE_SUFFIXES:
         return "image"
     if plan.config.route == "auto" and usable_events(state.page_html or ""):
-        return "jsonld"
+        return "structured"
     return "model"
 
 

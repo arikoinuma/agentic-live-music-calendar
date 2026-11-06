@@ -114,7 +114,7 @@ async def test_mongo_stager_inserts_the_document_and_returns_the_id_as_a_string(
 def test_the_document_names_the_model_of_each_call_the_route_made() -> None:
     # Proves (C6-PR1-3): beside the page model the document says which model split the acts and which asked
     # the status question, and a call the route did not make is null. `model` keeps meaning the page model.
-    doc = document_for(state_with(route_attempted="jsonld"))
+    doc = document_for(state_with(route_attempted="structured"))
     model = extraction.PIPELINE_OPTIONS.model
     assert doc["models"] == {"page": None, "splitter": model, "status": None}
     assert doc["model"] == model

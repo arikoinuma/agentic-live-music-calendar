@@ -109,6 +109,8 @@ mypy, pytest) and is not in the pipeline.
   `docs/dev/conventions.md`. **`make designation-check`** lists the bare ones a branch adds; it is part of `make check` and a CI job on pull requests, so
   a bare one fails the PR. (Milestone branches that hold more than one milestone pass `BASE=<the diff base your Implementation
   log names>`.)
+- **Spell it "labeled", one L.** New text (code, comments, docs) uses the American spelling, including
+  "labeling". Existing code keeps its identifiers (`LabelledShow`) until a rename pass touches them.
 - **Commit attribution names the model.** Git commit messages end with the trailer
   `Co-Authored-By: Claude <model name>` (for example `Co-Authored-By: Claude Haiku 5.5`), with
   no email address. Model names are allowed in commits, PR titles and PR bodies.

@@ -10,14 +10,15 @@ How to read it:
 - `ExtractionConfig` holds the switches A2.1's experiment ladder flips one at a time. Each
   defaults to today's behaviour; `PIPELINE_CONFIG` / `PIPELINE_OPTIONS` are what the pipeline
   runs, and adopting a rung means changing a default there (plan, "Experiment protocol").
-- `extract_page` chooses a route (A2.1-K3): the venue's own JSON-LD when the page has
-  usable events, otherwise the full-page model extraction A2 built.
-- `_from_model` and `_from_jsonld` are the two routes; `PageExtractionResult` records which
+- `extract_page` chooses a route (A2.1-K3): the structured route (the venue's own
+  JSON-LD, or the events embedded in an `<astro-island>`; C6.1) when the page has usable events, otherwise the full-page model extraction A2 built.
+- `_from_model` and `_from_structured` are the two routes; `PageExtractionResult` records which
   one ran, the text sent, and anything worth noting, for the eval now and the audit trail
   (A4) later.
 """
 
 import datetime
+import re
 from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
@@ -42,7 +43,7 @@ from agent_worker.schemas import (
     page_model,
     show_model,
 )
-from agent_worker.sources import jsonld
+from agent_worker.sources import embedded_events, jsonld
 from app.config import settings
 
 __all__ = [
@@ -90,6 +91,10 @@ class ExtractionConfig:
     # is appended to the page model's instruction, `splitter_hint` to the act splitter's.
     retry_hint: str = ""
     splitter_hint: str = ""
+    # C6.1-D15 (an experiment, not adopted): when above 0, the model route reads the page in pieces of about
+    # this many characters, one call each, and joins the answers, so the model has a few shows to attend to
+    # instead of 47. 0 sends the page whole, as every measured run did.
+    chunk_chars: int = 0
 
 
 # What the pipeline runs. The harness starts from this same pair and overrides one field per
@@ -117,9 +122,9 @@ class PageExtractionResult:
     """One page's extraction, plus how it was produced."""
 
     extraction: VenuePageExtraction
-    source: Literal["jsonld", "model", "image"]
+    source: Literal["structured", "model", "image"]
     # What the model was actually given as the page (cleaned text, or the numbered titles on
-    # the JSON-LD route). Stored per eval run so a missed act boundary can be traced to "never
+    # the structured route). Stored per eval run so a missed act boundary can be traced to "never
     # sent" vs "sent and ignored" (plan, step 9).
     sent_text: str
     notes: dict[str, Any] = field(default_factory=dict)
@@ -183,12 +188,40 @@ def _base_instruction_for(config: ExtractionConfig) -> str:
 
 
 def usable_events(html: str) -> list[dict[str, Any]]:
-    """The page's JSON-LD events that can produce a show: they need a start (the date) and a name
+    """The page's structured events that can produce a show: they need a start (the date) and a name
     (what the act splitter reads). Every page carries SOME JSON-LD (WebSite, Restaurant…), so "the
     page has JSON-LD" is the wrong test, and an Event that can't produce a show doesn't count. The
-    routing condition, shared by `extract_page` and `extract_node` (which records the route an
-    attempt used even when the attempt fails)."""
-    return [e for e in jsonld.find_events(html) if e.get("startDate") and e.get("name")]
+    routing condition, shared by `extract_page`, `nodes._route_for` and `nodes._nothing_to_read`
+    (which records the route an attempt used even when the attempt fails).
+
+    Two readers supply events (C6.1-D1): the page's JSON-LD, and, only when that finds none, the
+    events embedded in an `<astro-island>` (C6.1-D2: a page with both lists the same events twice, and
+    keeping JSON-LD first leaves every JSON-LD page exactly as it was measured). Each event is tagged
+    with `_source` (`"json-ld"` or `"astro-island"`) so the route can say which reader it used."""
+    ld = [
+        {**e, "_source": "json-ld"} for e in jsonld.find_events(html) if e.get("startDate") and e.get("name")
+    ]
+    if ld:
+        return _without_repeats(ld)
+    return _without_repeats([e for e in embedded_events.find_events(html) if e.get("startDate") and e.get("name")])
+
+
+def _without_repeats(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep the first of any events that repeat name, start and url (C6.1-D11).
+
+    Dakota's JSON-LD lists 13 of its events twice (the same url and start; one copy has no "@id"), so
+    the pipeline committed 64 shows for 51 real ones and the calendar would show each of those twice.
+    Name AND start AND url, not less: two sets of one act on one night start at different times, and
+    the same act on two nights has two starts, and neither is a repeat. The first copy is kept because
+    the venue's own markup puts the fuller one (with its "@id") first."""
+    seen: set[tuple[Any, Any, Any]] = set()
+    kept = []
+    for event in events:
+        key = (event.get("name"), event.get("startDate"), event.get("url"))
+        if key not in seen:
+            seen.add(key)
+            kept.append(event)
+    return kept
 
 
 def page_model_for(config: ExtractionConfig) -> type[BaseModel]:
@@ -210,6 +243,53 @@ def _apply_year_rule(extraction: VenuePageExtraction, fetch_date: datetime.date)
 # ---------------------------------------------------------------------------
 
 
+# A listing's link lines ("More Info →", "Buy Tickets →"): the last of them closes a card on the calendars
+# seen so far, which makes the line after them a safe place to cut a long page.
+_LINK_LINE = re.compile(r"^(more info|buy tickets|get tickets|tickets|rsvp|learn more)\b", re.IGNORECASE)
+
+
+def chunk_page_text(text: str, chunk_chars: int) -> list[str]:
+    """The cleaned text in pieces of about `chunk_chars` characters, cut only between listings (C6.1-D15).
+
+    A cut falls after the last of a run of link lines once a piece has reached the size, so a card is never
+    split between its title and its date. A page with no link lines is cut at the size on a line boundary
+    instead, so no text is lost either way: `"\\n".join(pieces)` is the original text. With `chunk_chars` of 0
+    the text comes back whole. This is venue-agnostic only in spirit: it relies on listings ending in link
+    lines, which is true of the pages captured so far and not a rule any page promises.
+    """
+    if chunk_chars <= 0:
+        return [text]
+    lines = text.split("\n")
+    pieces: list[str] = []
+    current: list[str] = []
+    size = 0
+    for i, line in enumerate(lines):
+        current.append(line)
+        size += len(line) + 1
+        ends_card = bool(_LINK_LINE.match(line.strip())) and not (
+            i + 1 < len(lines) and _LINK_LINE.match(lines[i + 1].strip())
+        )
+        # Cut at a card's end once the piece has the size; give up waiting for one at twice the size.
+        if (size >= chunk_chars and ends_card) or size >= 2 * chunk_chars:
+            pieces.append("\n".join(current))
+            current, size = [], 0
+    if current:
+        pieces.append("\n".join(current))
+    return pieces
+
+
+def _joined(answers: list[Any], config: ExtractionConfig) -> Any:
+    """One answer from the pieces' answers (C6.1-D15): the first piece's, with every piece's listings (title split)
+    or shows added in order. `page_readable` is true when any piece was readable. A single answer is returned as is."""
+    if len(answers) == 1:
+        return answers[0]
+    field_name = "listings" if config.title_split else "shows"
+    merged = answers[0].model_copy(deep=True)
+    setattr(merged, field_name, [item for a in answers for item in getattr(a, field_name)])
+    merged.page_readable = any(a.page_readable for a in answers)
+    return merged
+
+
 def _from_model(
     html: str, *, venue_name: str, fetch_date: datetime.date, client: Any, options: RequestOptions,
     splitter_options: RequestOptions, status_options: RequestOptions, config: ExtractionConfig, seed: int | None,
@@ -218,12 +298,16 @@ def _from_model(
     `options`; the act splitter (here and in the status merge) uses `splitter_options`; the status question uses
     `status_options` (C6-D2)."""
     text = clean_text(html, config.keep_line_breaks, config.keep_image_urls)
-    answer = client.chat.completions.create(
-        response_model=page_model_for(config),
-        messages=[{"role": "user", "content": instruction_for(config) + text}],
-        **request_kwargs(options, seed),
-    )
-    notes: dict[str, Any] = {}
+    answers = [
+        client.chat.completions.create(
+            response_model=page_model_for(config),
+            messages=[{"role": "user", "content": instruction_for(config) + piece}],
+            **request_kwargs(options, seed),
+        )
+        for piece in chunk_page_text(text, config.chunk_chars)
+    ]
+    answer = _joined(answers, config)
+    notes: dict[str, Any] = {"chunks": len(answers)} if len(answers) > 1 else {}
     if config.title_split:
         extraction = _shows_from_listings(
             answer, client=client, options=splitter_options, seed=seed, notes=notes, hint=config.splitter_hint
@@ -282,13 +366,14 @@ def _shows_from_listings(
     return VenuePageExtraction(page_readable=listings.page_readable, shows=shows)
 
 
-def _from_jsonld(
+def _from_structured(
     events: list[dict[str, Any]], *, html: str, venue_name: str, metro_timezone: str, client: Any,
     options: RequestOptions, seed: int | None, hint: str = "",
 ) -> PageExtractionResult:
-    """Shows from the venue's JSON-LD; only the acts come from a model (act_split.py).
+    """Shows from the venue's structured events (JSON-LD, or an `<astro-island>`'s embedded events: C6.1-D1); only the
+    acts come from a model (act_split.py).
 
-    A title the splitter gives no acts (a non-music entry: JSON-LD lists the whole calendar)
+    A title the splitter gives no acts (a non-music entry: a structured source lists the whole calendar)
     is kept with `acts: []`, exactly as the model route does, so A3's completeness check sees
     the same shapes from both routes (A2 Design, "Consequences"). `confidence` 1.0 is a
     placeholder: it claims a certainty about acts the splitter doesn't have, and A3's decision
@@ -321,9 +406,15 @@ def _from_jsonld(
         "no_acts": [t for t, acts in zip(titles, split.acts, strict=True) if not acts],
         "missing_ids": split.missing_ids,
         "title_mismatches": split.title_mismatches,
+        # Which reader supplied the events (C6.1-D1): the audit trail and the checks that only make sense for
+        # one of them (the visible-dates guard, the slug cross-check) read this.
+        "structured_source": events[0].get("_source", "json-ld") if events else "json-ld",
     }
+    if notes["structured_source"] == embedded_events.SOURCE:
+        # The venue's URL slug per show, in show order, for validation.check_slug_dates (C6.1-D6).
+        notes["slugs"] = [e.get("_slug") for e in events]
     return PageExtractionResult(
-        extraction=page_cls(page_readable=True, shows=shows), source="jsonld",
+        extraction=page_cls(page_readable=True, shows=shows), source="structured",
         sent_text="\n".join(f"{i}: {t}" for i, t in enumerate(titles)), notes=notes,
     )
 
@@ -358,7 +449,7 @@ def extract_page(
         # needs a start (the date) and a name (what the splitter reads). `usable_events` applies that.
         events = usable_events(html)
         if events:
-            return _from_jsonld(events, html=html, venue_name=venue_name, metro_timezone=metro_timezone,
+            return _from_structured(events, html=html, venue_name=venue_name, metro_timezone=metro_timezone,
                                 client=client, options=splitter_options, seed=seed, hint=config.splitter_hint)
 
     return _from_model(

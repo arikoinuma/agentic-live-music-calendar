@@ -40,8 +40,10 @@ import contextvars
 import datetime
 import hashlib
 import json
+import re
 import time
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any
@@ -50,7 +52,7 @@ from urllib.parse import urlparse
 import httpx
 from pydantic import ValidationError
 
-from agent_worker import act_split, extraction, status_check, validation
+from agent_worker import act_split, extraction, policy, status_check, validation
 from agent_worker.llm import ModelRoles, RequestOptions, build_clients, request_kwargs
 from agent_worker.main import model_endpoint_problem
 from agent_worker.model_eval import labels, scoring
@@ -63,6 +65,7 @@ from agent_worker.model_eval.labels import (
     informational_fixtures,
 )
 from agent_worker.model_eval.reference import REFERENCE, FixtureReference, fixture_key
+from agent_worker.schemas import ShowExtraction
 from app.config import settings
 
 CAPTURED_PAGES_DIR = Path(__file__).parent / "captured_pages"
@@ -385,10 +388,10 @@ def score_extraction(
         "invented_price": 0 if ref.states_price else sum(fills[f] for f in _PRICE_FIELDS),
         # A model-route URL must appear verbatim in the page (the cleaned text, which carries
         # "[image: URL]" lines when keep_image_urls is on, or the unescaped HTML); one that doesn't is
-        # almost certainly made up. Not checked for jsonld or image runs (see the docstring).
+        # almost certainly made up. Not checked for structured or image runs (see the docstring).
         "image_urls": image_urls,
         "invented_image_urls": (
-            [] if source in ("jsonld", "image")
+            [] if source in ("structured", "image")
             else [u for u in image_urls if not validation.verify_image_url(u, page_html, page_text)]
         ),
     }
@@ -559,7 +562,7 @@ def gate_summary(runs: list[dict[str, Any]], route_when_failed: str = "any") -> 
         if label.gated:
             by_run.setdefault(r["run"], []).append(outcome)
     gates = {}
-    for scope in ("all", "jsonld", "model"):
+    for scope in ("all", "structured", "model"):
         result = scoring.gate(by_run, route=None if scope == "all" else scope)
         gates[scope] = {"passed": result.passed, "failures": result.failures, "pages": result.pages}
     return {"gate": gates, "pages": pages}
@@ -673,7 +676,7 @@ def rescore(label: str) -> None:
             page_score = scoring.score_page(
                 page_label, run["extraction"], "" if is_image else fixture.read_text(), run["fixture"]
             )
-            page_score.route = run.get("source", "model")
+            page_score.route = policy.stored_route(run.get("source", "model")) or "model"
             run["label_score"] = asdict(page_score)
     data["aggregate"] = aggregate(data["runs"])
     data["rescored_from"] = label
@@ -684,9 +687,56 @@ def rescore(label: str) -> None:
         print(f"  gate [{scope}]: {_gate_line(data, scope)}")
 
 
+def map_runs(fn: Any, jobs: list[Any], *, concurrency: int = 1) -> list[Any]:
+    """Run `fn` over `jobs`, `concurrency` at a time, and return the results in the order the jobs were given.
+
+    C6 Step 11 measures throughput with parallel requests. One worker means no threads at all, so a sequential
+    run is the code that ran before. Each job is one (fixture, run) pair with its own seed, so parallelism changes
+    only when a request is sent, not what it asks; the per-run counters are context variables (see
+    `RunCounters`), so two jobs on two threads cannot see each other's parse errors or token counts.
+    """
+    if concurrency <= 1:
+        return [fn(job) for job in jobs]
+    with ThreadPoolExecutor(max_workers=concurrency) as pool:
+        return list(pool.map(fn, jobs))
+
+
+def act_title_check(results: dict[str, Any]) -> dict[str, int]:
+    """C6-D6: how often `validation.check_act_in_title` would have flagged the splitter's act mistakes.
+
+    `run_eval` runs no validation, so the A2.1-E3 check ("every act name appears in its title") is replayed
+    here over a saved results file. A run's shows are matched to `notes["titles"]` by position, which is only
+    safe when the counts are equal; any other run is skipped and counted. Each flagged show is compared with
+    the label scorer's "acts wrong <date>" errors for the same run and date: a finding on an erroring date is
+    `caught`, a finding on a clean date is a `false_alarm`, and a label error with no finding was missed.
+    Matching by date is approximate when a page lists two shows on one date.
+    """
+    out = {"runs_checked": 0, "runs_skipped": 0, "flagged": 0, "label_errors": 0, "caught": 0, "false_alarms": 0}
+    for run in results["runs"]:
+        titles = (run.get("notes") or {}).get("titles") or []
+        shows = [ShowExtraction.model_validate(s) for s in (run.get("extraction") or {}).get("shows", [])]
+        if run.get("outcome") != "ok" or not titles or len(titles) != len(shows):
+            out["runs_skipped"] += 1
+            continue
+        out["runs_checked"] += 1
+        bad_dates = {m.group(1) for e in (run.get("label_score") or {}).get("errors", [])
+                     if (m := re.match(r"acts wrong (\d{4}-\d{2}-\d{2})", e))}
+        out["label_errors"] += len(bad_dates)
+        flagged_dates = {
+            str(s.date) for i, (s, t) in enumerate(zip(shows, titles, strict=True))
+            if validation.check_act_in_title(s, i, t)
+        }
+        out["flagged"] += len(flagged_dates)
+        out["caught"] += len(flagged_dates & bad_dates)
+        out["false_alarms"] += len(flagged_dates - bad_dates)
+    return out
+
+
 def _gate_line(results: dict[str, Any], scope: str) -> str:
     """'PASS' / 'FAIL (n)' for one scope of a results file's gate, or '-' if it has none."""
-    gate = results.get("aggregate", {}).get("gate", {}).get(scope)
+    gates = results.get("aggregate", {}).get("gate", {})
+    # A file written before C6.1 keys the structured route's gate "jsonld" (C6.1-D1); read it as today's name.
+    gate = gates.get(scope) or next((gates[old] for old, new in policy.LEGACY_ROUTE_NAMES.items() if new == scope and old in gates), None)
     if gate is None:
         return "-"
     if not gate.get("pages", 1):
@@ -716,7 +766,7 @@ def compare(labels: list[str]) -> None:
         "config": lambda f: {k: v for k, v in (f.get("config") or {}).items() if v not in (False, None)} or "-",
         "temperature": lambda f: (f.get("request_options") or {}).get("temperature"),
         "gate (all)": lambda f: _gate_line(f, "all"),
-        "gate (jsonld)": lambda f: _gate_line(f, "jsonld"),
+        "gate (structured)": lambda f: _gate_line(f, "structured"),
         "gate (model)": lambda f: _gate_line(f, "model"),
     }.items():
         print(name.ljust(width) + "".join(str(getter(files[lab])).ljust(34) for lab in labels))
@@ -777,8 +827,20 @@ def main() -> None:
     add_override_flags(parser)
     parser.add_argument("--compare", nargs="+", metavar="LABEL", help="print saved labels side by side")
     parser.add_argument("--rescore", metavar="LABEL", help="rescore a saved label into results/a21-rescore-<LABEL>.json")
+    parser.add_argument(
+        "--concurrency", type=int, default=1,
+        help="runs in flight at once (default 1, sequential); C6 Step 11 throughput measurement",
+    )
+    parser.add_argument(
+        "--act-check", nargs="+", metavar="LABEL",
+        help="replay the act-in-title check over saved labels and count what it catches (C6-D6)",
+    )
     args = parser.parse_args()
 
+    if args.act_check:
+        for label in args.act_check:
+            print(label, act_title_check(json.loads((RESULTS_DIR / f"{label}.json").read_text())))
+        return
     if args.compare:
         compare(args.compare)
         return
@@ -801,17 +863,25 @@ def main() -> None:
     fixtures = select_fixtures(args.set, args.only)
     request = request_record(config, args.legacy)
     started_at = datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds")
-    runs: list[dict[str, Any]] = []
-    for item in fixtures:
-        for run_index in range(args.runs):
-            record = run_once(item, run_index, options, config, args.legacy, roles=roles)
-            record["model"] = options.model
-            runs.append(record)
-            print(
-                f"{args.label} | {item.name[:34]:34} | run {run_index} | {record['outcome']:24} | "
-                f"shows {record.get('shows', '-')} | attempts {record['attempts_used']} | {record['seconds']}s",
-                flush=True,
-            )
+    jobs = [(item, run_index) for item in fixtures for run_index in range(args.runs)]
+
+    def do_job(job: tuple[Any, int]) -> dict[str, Any]:
+        """One (page, run index) pair: run the extraction, print its progress line, and return the run's record.
+        `map_runs` calls it once per job, on a worker thread when `--concurrency` is above 1."""
+        item, run_index = job
+        record = run_once(item, run_index, options, config, args.legacy, roles=roles)
+        record["model"] = options.model
+        print(
+            f"{args.label} | {item.name[:34]:34} | run {run_index} | {record['outcome']:24} | "
+            f"shows {record.get('shows', '-')} | attempts {record['attempts_used']} | {record['seconds']}s",
+            flush=True,
+        )
+        return record
+
+    wall_start = time.monotonic()
+    runs = map_runs(do_job, jobs, concurrency=args.concurrency)
+    wall_seconds = round(time.monotonic() - wall_start, 1)
+    print(f"{args.label} | wall clock {wall_seconds}s for {len(jobs)} runs at concurrency {args.concurrency}")
 
     RESULTS_DIR.mkdir(exist_ok=True)
     out_path = RESULTS_DIR / f"{args.label}.json"

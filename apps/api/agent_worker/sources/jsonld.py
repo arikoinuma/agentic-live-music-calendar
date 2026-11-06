@@ -172,6 +172,34 @@ def _offer_price(event: dict[str, Any]) -> float | None:
     return None
 
 
+# A price the description labels as the ticket price: "Tickets: $20", "Admission: $12.50", "Cover $5".
+_LABELED_PRICE = re.compile(r"\b(?:tickets?|admission|cover)\s*:?\s*\$\s*(\d+(?:\.\d{1,2})?)(?!\d)", re.IGNORECASE)
+# Wording that gives a price a meaning this fallback cannot represent (two prices, or door vs advance).
+_PRICE_QUALIFIER = re.compile(r"\b(?:advance|adv\.?|door|day[- ]of|presale|pre-sale|members?|students?)\b", re.IGNORECASE)
+
+
+def _described_price(event: dict[str, Any]) -> float | None:
+    """A ticket price the event's description states, when the structured `offers` field has none (C6.1-D12).
+
+    Ginkgo's JSON-LD carries no `offers`; the price is in the description, escaped markup around
+    "... Tickets: $20 ...". Without this the structured route lost a price the page states, on every
+    run. The rule is narrow on purpose, because a wrong price breaks the accuracy standard and a
+    missing one is tolerated: only a dollar amount right after a ticket/admission/cover label counts,
+    all labeled amounts must agree, and any advance/door/day-of/presale/member wording anywhere in
+    the description means the text says something this cannot represent, so nothing is returned."""
+    description = event.get("description")
+    if not isinstance(description, str):
+        return None
+    # The description is HTML inside JSON, escaped (sometimes twice): unescape, then drop the tags.
+    text = BeautifulSoup(html_lib.unescape(html_lib.unescape(description)), "html.parser").get_text(" ")
+    if _PRICE_QUALIFIER.search(text):
+        return None
+    amounts = {float(m) for m in _LABELED_PRICE.findall(text)}
+    # Any other dollar amount in the text ("$15 or $20") makes it unclear which is the ticket.
+    every_amount = {float(m) for m in re.findall(r"\$\s*(\d+(?:\.\d{1,2})?)", text)}
+    return amounts.pop() if len(amounts) == 1 and every_amount == amounts else None
+
+
 def _end_time(event: dict[str, Any], metro_timezone: str, start: str) -> datetime.time | None:
     """The end's clock time, only when it is a plausible stated end (A2.1-D10): within six hours
     after the start. Its date is ignored — "9:00 pm - 12:00 am" ends the next day, and A3's
@@ -264,6 +292,15 @@ def to_structured_show(
     ):
         end_time = None
     price = _offer_price(event)
+    # No priced offer: a price the description labels as the ticket price. Its wording names no advance
+    # or door, so it applies to both (Ari's rule on the Ginkgo label, A2.1-D5). `free_admission` stays None,
+    # as everywhere: false is never stored, "not free" is just a price (A2-F1). A2.1-D7's "an Offer is the advance price" is unchanged for the structured field.
+    described = _described_price(event) if price is None else None
+    if described:
+        return StructuredShow(
+            title=title, date=show_date, time=show_time, end_time=end_time, image_url=_image(event),
+            admission_advance=described, admission_day=described, free_admission=None, status=_status(event),
+        )
     return StructuredShow(
         title=title,
         date=show_date,

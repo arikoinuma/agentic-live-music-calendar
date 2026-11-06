@@ -113,11 +113,13 @@ async def run(conn: AsyncConnection, sql: str, **params: Any) -> list[Any]:
     return list(result.mappings())
 
 
-def test_the_file_has_the_six_named_queries(queries: dict[str, str]) -> None:
-    # Proves: the plan's four questions (A4), A5's fifth (the model's artist decisions) and A6's sixth (the shows the
-    # database refused) are all present under the names the plans give them.
+def test_the_file_has_the_seven_named_queries(queries: dict[str, str]) -> None:
+    # Proves: the plan's four questions (A4), A5's fifth (the model's artist decisions), A6's sixth (the shows the
+    # database refused) and C6.1-D17's seventh (the listings validation left out) are all present under the names
+    # the plans give them.
     assert set(queries) == {
         "run_history", "escalated_runs", "show_history", "unfinished_runs", "artist_match_decisions", "failed_commits",
+        "excluded_listings",
     }
 
 
@@ -270,3 +272,31 @@ async def test_failed_commits_says_which_show_failed_and_why(
     assert (row["run_id"], row["venue"], row["action"]) == (state.run_id, venues[2].name, "insert")
     assert (str(row["show_date"]), str(row["show_time"]), row["sqlstate"]) == ("2026-10-20", "21:00:00", "22003")
     assert "numeric field overflow" in row["error"]
+
+
+async def test_excluded_listings_shows_the_last_attempts_left_out_listings_with_the_venue(
+    db_conn: AsyncConnection, queries: dict[str, str], two_runs: Any,
+) -> None:
+    # Proves (C6.1-D17): the saved query answers "which listings did validation leave out". It reads the run's LAST
+    # validate attempt only (an earlier attempt's exclusions were replaced by the retry), names the venue, and
+    # carries the date, time, reason and listing text out of the JSONB. The rows are inserted with literal details,
+    # so the expected values come from this test and not from `audit.py`.
+    passed, _, _ = two_runs
+
+    async def validate_row(attempt: int, listings: list[dict[str, Any]]) -> None:
+        await db_conn.execute(insert(AuditLog).values(
+            run_id=passed.run_id, attempt_number=attempt, step_type=StepType.VALIDATE, source=AuditSource.AGENT,
+            detail={"excluded_listings": listings},
+        ))
+
+    await validate_row(8, [{"date": "2026-11-01", "time": None, "title": "old attempt", "reason": "excluded_no_acts"}])
+    await validate_row(9, [
+        {"date": "2026-11-07", "time": "20:00:00", "title": "The Rewind 7pm DJ", "reason": "excluded_no_acts"},
+        {"date": "2026-11-03", "time": None, "title": None, "reason": "date_out_of_window"},
+    ])
+    rows = [r for r in await run(db_conn, queries["excluded_listings"]) if r["run_id"] == passed.run_id]
+    assert [(r["listing_date"], r["listing_time"], r["reason"], r["listing_text"]) for r in rows] == [
+        ("2026-11-03", None, "date_out_of_window", None),
+        ("2026-11-07", "20:00:00", "excluded_no_acts", "The Rewind 7pm DJ"),
+    ]
+    assert all(r["venue"] for r in rows)

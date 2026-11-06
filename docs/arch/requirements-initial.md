@@ -208,7 +208,7 @@ Populated automatically from the venue's page, where available:
 * Artist(s) performing, including each artist's own start time and performance order. Many listings don't specify the order or the start time of each artist, but in that case make an assumption for an order based on the order in which the artists are listed. 
 
 * End Time: leave blank if unclear
-* Admission Advance / Admission Day / Free Admission: if a single admission price is shown on the calendar **without a label**, populate the Admission Day field and leave the Advance field blank. A price shown as an online ticket price ("Buy now $15.24", a ticketing link's price) goes in Admission Advance (Ari, October 10, 2026). Free Admission is true if the listing explicitly says free.  It's ok for neither admission prices nor free admission to be empty. 
+* Admission Advance / Admission Day / Free Admission: if a single admission price is shown on the calendar **without a label**, populate the Admission Day field and leave the Advance field blank. A price shown as an online ticket price ("Buy now $15.24", a ticketing link's price) goes in Admission Advance (Ari, October 10, 2026). A price the page labels advance goes only in Admission Advance and one it labels door or day of show goes only in Admission Day; a single unlabeled price goes in Admission Day, and also in Admission Advance when the listing has a ticket or order link (Ari, November 5, 2026; C6.1-D13). Free Admission is true if the listing explicitly says free.  It's ok for neither admission prices nor free admission to be empty. 
 * Image (poster link) of the Show. Do not populate Artist image link
 
 

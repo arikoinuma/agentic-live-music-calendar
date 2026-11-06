@@ -1,6 +1,6 @@
 # C6 — hosted inference and the extraction accuracy gate
 
-**Status:** Awaiting sign-off (Part 1 code built; Step 1 probe, Step 6 parity run and all of Part 2 are open)
+**Status:** Done (signed off by Ari, November 6, 2026; the accuracy gate is not met and Ari accepted the miss under Dep-D13, Round 10)
 **Date:** October 28, 2026
 **Author model:** Claude Sonnet 5.5
 **Reviewer model:** Claude Opus 5.5 (plan review round 1, October 28, 2026); Claude Opus 5.5 (code review round 1, October 28, 2026)
@@ -348,6 +348,55 @@ Ari approved fixing the prompt and the Flange case on the 26B model before any f
 - **Prompt rules changed** (`prompts._act_conventions`, shared by both routes; invented examples only). `splitter_instruction` and `image_instruction` are re-pinned in `test_retry_plumbing.py` (`CURRENT`); the historical 56/60 pins stay as the record.
 - **Rungs on hold:** the 31B and Qwen splitter candidates were measured under the old prompt rules, so their numbers are not comparable. With the gate passing on the 26B model, no further rung is run (D3's exit rule (a) now needs only the 5-run confirmation on both sets).
 
+### Round 8 — Steps 10 and 11 (Part 2 branch `c6-hosted-inference-gate`), Claude Sonnet 5.5 (run for Ari), November 5, 2026
+
+**Step 10 — the act-in-title check (C6-D6).** New `run_eval.act_title_check` and `--act-check LABEL…` replay `validation.check_act_in_title` over saved results (tests: `tests/model_eval/test_act_title_check.py`). Run over the five saved splitter labels, all rescored under the current labels, plus `c6-prompt-v4` (25 JSON-LD-route runs each, none skipped):
+
+| Label | Label errors ("acts wrong" dates) | Flagged by the check | Caught | False alarms |
+|---|---|---|---|---|
+| `c6-hosted-first` (26B) | 10 | 0 | 0 | 0 |
+| `c6-prompt-v2` (26B) | 5 | 0 | 0 | 0 |
+| `c6-prompt-v3` (26B) | 0 | 0 | 0 | 0 |
+| `c6-split-gemma-4-31B-it` | 10 | 0 | 0 | 0 |
+| `c6-split-qwen3-235b` | 15 | 1 | 1 | 0 |
+| `c6-prompt-v4` (26B) | 0 | 0 | 0 | 0 |
+
+- **Decision: leave it a warning (recommended; Ari may overrule).** The plan's rule is to promote it if it catches a labeled error without a false alarm, and it did once, with no false alarms. But that one catch was on the Qwen candidate, which is not the model being shipped. The 26B model's errors were convention and omission errors whose names are in the title, which the check cannot see (its limit: typos and invented names only), and in `c6-prompt-v4` there is nothing for it to catch. Promoting it would add a retry path that has fired once in about 150 runs. Revisit if the held-out capture shows typos. Matching by date is approximate for two shows on one date.
+
+**Step 11 — throughput and cost.** New `--concurrency N` (`run_eval.map_runs`, a thread pool; per-run counters were already per-thread from Step 4) with two tests (order preserved; one worker uses no threads).
+
+| Measure | Value |
+|---|---|
+| Sequential, `c6-prompt-v4`, 25 runs | mean 35 s a run, about 14.6 minutes in all (25 × 35 s; not timed as one wall clock) |
+| Concurrency 5, `c6-conc5`, 25 runs | **225 s wall clock** (3.9 times faster), mean 44 s a run, gate PASS, 0 parse failures |
+| Slowest pages (model route, many shows) | Seventh St about 73 s and Turf Club about 71 s a run, 3.5 to 4.7 thousand completion tokens each, about 65 tokens per second |
+| Tokens, 25 runs at concurrency 5 | 100,215 prompt + 50,946 completion |
+| Cost, same 25 runs | about **$0.024** at the 26B prices ($0.07 and $0.34 per million tokens), roughly $0.001 a page |
+
+- **Thinking:** no sign of hidden reasoning tokens (PLAUSIBLE, not proven): completion tokens per character of output are steady across pages (about 2.4 characters a token on Seventh St and Turf Club, 2.7 on Mortimers). No thinking switch was found, so no on/off comparison was run.
+- **Not done:** the cost is computed from recorded tokens at the prices Ari read off the DeepInfra pricing page; the plan asks for a cross-check against the account's actual spend for the run, which needs the dashboard and is Ari's to read. Not compared with `arch-initial.md` §10's estimate or the laptop's 1.5 to 7 minutes a page yet; that belongs to Step 13.
+
+### Round 9 — Step 8, the held-out run, and what the Hook & Ladder page showed, Claude Sonnet 5.5 (run for Ari), November 5, 2026
+
+**Result: `c6-heldout` (26B on every role, the two held-out pages, 5 runs) fails the gate, and the first thing it found is not a model error.** Ginkgo Coffee (JSON-LD route, 12 shows read, about 5 s a run) failed on every run; Hook & Ladder (model route, 37 shows read against 29 labeled, 87 to 114 s a run) failed on every run. Per run: Hook & Ladder 14 to 15 missed, 14 fabricated, 13 to 14 `acts_wrong`, 10 wrong times; Ginkgo Coffee 6 wrong end times and the one price missing.
+
+**A correction to my first reading.** Right after the run I told Ari the Hook & Ladder labels were a day early. That was wrong. Ari edited the dates in `labels.py` by hand (commit `c085f5d`) because the script-drafted labels had them wrong, and his labels match the live site (his screenshot, November 5). The page the pipeline fetches carries the shifted dates; the labels do not.
+
+**What the captured page holds** (checked in `model_eval/captured_pages/hook_ladder-2026-11-04.html`, 41 events):
+
+- The visible `event-row` markup shows a month, day and weekday that sit one day ahead of the local date for evening shows. 34 of the 41 events are affected.
+- The same page carries the right dates twice: in each event's slug (`paul-cebar-tomorrow-sound-november-06-2026-730408`) and in an `astro-island` whose HTML-escaped `props` attribute holds all 41 events as JSON, with ISO times and the metro offset (`2026-11-06T18:30:00.000-06:00`, `-06:00` on all 41). It also holds a `startTime` and `endTime`, the door time as `doorTime`, a price range, an age restriction, a `canceledAt`, and a `performers` list.
+- **The page never says UTC.** That the visible dates were rendered in UTC is an inference (PLAUSIBLE, strong): the shift is exactly what a UTC rendering of an evening Central time gives, it appears only on evening shows, and the live browser shows the local date. It is not stated anywhere in the markup.
+- So the model read the page faithfully and the page was wrong for it. A better model cannot fix a date the visible text states wrongly.
+
+**The remaining Hook & Ladder errors are real model errors**, and are not yet separated from the date effect: event names kept as acts (the honoree rule may be over-reaching: `C6-D2`'s prompt text), a comedy special kept as a show, two shows missed (Truthsgiving, Hipshaker MPLS), and one diacritic loss (`Imnížaska`). They are not tuned on, since these are the held-out pages, until Ari decides how to use them.
+
+**Ginkgo Coffee.** The invented end time is probably an artefact of the harness, not of the pipeline: `run_eval` runs no validation, and the real pipeline repairs an end time equal to the start (`validation.repair_show`). Not confirmed. The missing price on the Chuck Suchy show is not yet looked at.
+
+**Decision (Ari, November 5): build a reader for the embedded events, as its own milestone, C6.1** (`docs/dev/implementations/c6.1-embedded-events-reader.md`), reusing `jsonld.local_wall_clock`, with a cross-check between a show's slug date and its extracted date. The held-out pages are not scored again until C6.1 is built.
+
+**Deferred, same day** (`arch-initial.md` §10): the browser-based fetch in the metro timezone, the comparison with the rendered page, and a screenshot audit.
+
 ### Review of PR 80 — Ari's three comments, Claude Sonnet 5.5, November 5, 2026
 
 Ari's comments on the draft PR (`run_eval.py:136`, `config.py:114`). **Fixed, all three:**
@@ -356,6 +405,57 @@ Ari's comments on the draft PR (`run_eval.py:136`, `config.py:114`). **Fixed, al
 2. **`model_base_url` was a URL written in `config.py`; it should come from an environment variable.** It now has no default (`str | None = None`), so `MODEL_BASE_URL` is the only source. `.env.example` carries the local Ollama's line; `apps/api/.env` (git-ignored) got the same line so the laptop still works. The hosted API, which never sets it, still builds `Settings` (C6-PR1-1). `main.model_endpoint_problem` now also refuses a worker with no endpoint, and `llm.build_clients` points an unconfigured client at a reserved `.invalid` name, because the OpenAI client would otherwise default to api.openai.com. The same hard-code existed in `run_eval.py` (`OLLAMA_URL`, used for Ollama's `/api/ps`, `/api/version`, `/api/tags`); it is now derived from the configured URL (`ollama_root`). Tests: no default in `Settings`; no endpoint refused (None and empty); the unconfigured client avoids api.openai.com; the Ollama provenance asks the configured host. `environments.md` row updated.
 
 **Verification:** `uv run pytest agent_worker app` 1168 passed, ruff and mypy clean; `make check` is run before the push.
+
+### Round 10 — Steps 12 and 13, the 5-run confirmation and the record, Claude Sonnet 5.5 (run for Ari), November 5, 2026
+
+**Configuration confirmed:** `google/gemma-4-26B-A4B-it` on DeepInfra for every role (page, act splitter, status, matcher; no per-role override, no escalation model), temperature 0, code at the C6.1 branch (`c6.1-embedded-events-reader`, which contains Part 2). Labels as committed on November 5 (Icehouse labeled and Electrical Field of Love re-labeled $30/$40 before these runs).
+
+**Step 12, the gated set (`c6-confirm-gated`, 5 runs of the 5 gated pages): the gate fails in 1 of 5 runs.**
+
+| Page | Route | Runs clean | Seconds a run (mean) |
+|---|---|---|---|
+| White Squirrel archive (12 shows) | structured | 5 of 5 | 6 |
+| White Squirrel (11) | structured | 5 of 5 | 5 |
+| Mortimer's (7) | model | 5 of 5 | 15 |
+| 7th St Entry (30) | model | 5 of 5 | 62 |
+| Turf Club (17) | model | **4 of 5** | 47 |
+
+- The one failure is Turf Club, run 2: the second act, The Suburbs, is missing on the Nov 13 and Nov 14 shows (`acts_wrong` 2). Every field is correct in all 25 page-runs (time and end time 115 of 115, status 385 of 385, no wrong value). Recall and precision 0.995 (383 of 385 shows). The same page passed in the three runs of `c61-split-before` and 4 of these 5, so it is intermittent at temperature 0 on the hosted model, not a fixed error.
+- Mean time a page: 5.7 s on the structured route, 41.4 s on the model route.
+
+**Step 12, the held-out set (`c6-confirm-heldout`, 5 runs of 4 pages): the gate fails in every run.** The set is Dakota, Ginkgo Coffee, Hook & Ladder and Icehouse. Hook & Ladder is no longer held out (C6.1-D7) and Ginkgo and Icehouse are burned (C6-D8 (iii)), so this is a measurement of drift and new layouts, not a clean held-out claim.
+
+| Page | Route | Misses per run (raw column) |
+|---|---|---|
+| Dakota (50 shows) | structured | 2 wrong start times and 1 wrong end time, identical in all 5 runs; 1 non-music leak |
+| Ginkgo Coffee (6) | structured | none committed (6 raw end times wrong in every run: the harness runs no validation, committed and validated are 0) |
+| Hook & Ladder (29) | structured | 1 missed, 3 to 4 `acts_wrong`, 1 leak |
+| Icehouse (47) | model | 2 to 3 missed, 18 to 19 `acts_wrong`, 0 to 1 fabricated, 1 to 3 wrong start times, advance price missing on 17 of 42 shows |
+
+- Recall 0.805 and precision 0.812 over 660 labeled show-instances. Field accuracy (raw): start time 621 of 641 correct, door price 211 of 211, advance price 126 of 211 (85 missing, all Icehouse lone prices; see C6.1-D13), no wrong prices.
+- What each page's failures are, and what was tried: `c6.1-embedded-events-reader.md` Implementation log Rounds 3 to 7 (duplicate events, description prices, the lone-price rule, chunking, the start-time check, the splitter prompt trial).
+
+**The finding, as the plan asks for it: the honest accuracy number is the held-out one, and it is not at the standard.** The gated set passes in 4 of 5 runs. The held-out set fails in 5 of 5. D8 (iii) governs: the Icehouse errors were tuned on after scoring, so Icehouse is burned and Ari has chosen not to capture a replacement for now. D3 stopping condition (b) is met in spirit (several splitter experiments, the prompt trial included, did not close the gap) and condition (a) is not. **This is where Ari is asked under Dep-D13: continue with named further work, or accept the miss and go on. Ari accepted the miss on November 5, 2026 and chose to go on.** Recommendation, not a decision: go on to C8 (the worker on Railway) and C11 with the miss accepted, using the audit report of excluded listings (C6.1-D17) and the detail-page extraction (C6.1-D16) as the planned way to find and close them.
+
+**Step 13, the record.** Model per role and configuration: `arch-initial.md` §7 "Model selection". Cost and duration per page: `arch-initial.md` §10. Environment values: `environments.md`. Checkboxes and a dated status line: `alpha-deployment-plan.md` C6. The earlier claim about `gemma-4-e4b-it` in `arch-initial.md` §10 and the AI Gateway paragraph is corrected (Round 2, open point 4).
+
+| Measure | Value | Source |
+|---|---|---|
+| Mean seconds a page, structured route | 5.7 (gated), 15 (held-out: Dakota's 50 shows) | `c6-confirm-gated`, `c6-confirm-heldout` |
+| Mean seconds a page, model route | 41 (gated), 116 (held-out, almost all Icehouse's 47 shows) | same |
+| Cost a page | about $0.001 | Round 8: 25 runs, $0.024, from recorded tokens at $0.07 and $0.34 a million |
+| Account spend (Ari, November 5, 2026) | **$0.40 in total**, read off the DeepInfra dashboard and including usage from before C6; well under D3's $10 cap | DeepInfra dashboard |
+| Not measured | the cost of an Icehouse-sized page (no tokens are recorded in these results files) | |
+
+**Known remaining misses, for C7 and C11 (the burn-in sample):**
+
+1. **Listings the act splitter gives no acts** are left out (`excluded_no_acts`): Icehouse's The 90's Rewind, KION ROSE PRESENTS and Tofte Lake Center's showcase, in every run. The audit trail now lists them (`excluded_listings` query). A splitter prompt that fixes them regresses the gated set (C6.1-D16).
+2. **Description-only performers added as acts** on Icehouse (about 16 shows a run); Hook & Ladder's event names kept as acts (3 to 4 shows).
+3. **Start times:** the model sometimes takes the doors time or an unstated time (Icehouse). The pipeline's start-time check (C6.1-D14) drops these, but the harness's raw column does not run it, so the raw numbers above overstate it. Dakota's 2 wrong times and 1 end time are the same every run and are not diagnosed.
+4. **Lone prices:** the lone-price rule (C6.1-D13) did not change the model's behaviour (advance still empty); pricing is not just door versus advance, which is a deferred schema question.
+5. **Turf Club's intermittent second act** (1 run in 5).
+6. **One non-music leak a run on Dakota and Hook & Ladder.**
+7. **Not covered by any measurement:** per-act start times (D7: "still no page needs it" was not re-checked against the Icehouse and Dakota pages) and the `ACT_NOT_IN_TITLE` promotion (Step 10: left a warning).
 
 ## Code review
 

@@ -305,11 +305,11 @@ def test_the_gate_can_be_read_per_route() -> None:
     # their dates from JSON-LD (A2.1-PR1-15): the gate filters by route.
     lbl = page_label(label(9, "Lent"))
     good = score(lbl, returned(9, "Lent"))
-    good.route = "jsonld"
+    good.route = "structured"
     bad = score(lbl, returned(10, "Lent"))
     bad.route = "model"
     runs = {0: run_of(good, bad)}
-    assert scoring.gate(runs, route="jsonld").passed
+    assert scoring.gate(runs, route="structured").passed
     assert not scoring.gate(runs, route="model").passed
 
 
@@ -319,7 +319,7 @@ def test_a_gate_with_no_pages_does_not_pass() -> None:
     # read as evidence it works. Found smoke-testing the rescore of A2's results.
     lbl = page_label(label(9, "Lent"))
     page = score(lbl, returned(9, "Lent"))
-    result = scoring.gate({0: run_of(page)}, route="jsonld")
+    result = scoring.gate({0: run_of(page)}, route="structured")
     assert not result.passed
     assert result.pages == 0
 
@@ -355,10 +355,10 @@ def test_a_failed_page_counts_in_every_route_scope() -> None:
     # which a JSON-LD page crashed.
     lbl = page_label(label(9, "Lent"))
     good = score(lbl, returned(9, "Lent"))
-    good.route = "jsonld"
+    good.route = "structured"
     crashed = scoring.PageFailure(fixture="ws.html", error="InstructorRetryException")
     runs = {0: run_of(good, crashed)}
-    assert not scoring.gate(runs, route="jsonld").passed
+    assert not scoring.gate(runs, route="structured").passed
     assert not scoring.gate(runs, route="model").passed
 
 

@@ -27,13 +27,19 @@ export function formatPrice(price: string): string {
  *
  * A lone price is the day-of-show price when unlabelled (requirements,
  * "Agent Extraction: Fields"), so it is shown plain; only a price that is
- * known to be the advance/online one is labelled "adv".
+ * known to be the advance/online one is labeled "adv". When the listing
+ * sold one unlabeled price through a buy link, the extractor stores that
+ * price as both advance and day (C6.1-D13); the same price twice is shown
+ * once, plain, because "$10 adv / $10 door" would claim a split the venue
+ * never made. Compared as strings: money is never parsed (api-contract.md
+ * §4), and the API sends one normalised form.
  */
 export function formatAdmission(
   show: Pick<ShowSummary, "admission_advance" | "admission_day" | "free_admission">,
 ): string | null {
   if (show.free_admission) return "Free";
   const { admission_advance: advance, admission_day: day } = show;
+  if (advance && day && advance === day) return formatPrice(day);
   if (advance && day) return `${formatPrice(advance)} adv / ${formatPrice(day)} door`;
   if (advance) return `${formatPrice(advance)} adv`;
   if (day) return formatPrice(day);

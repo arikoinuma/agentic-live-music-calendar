@@ -128,6 +128,8 @@ audit trail are specified in `arch-initial.md` §7. The known gaps between that 
 current code are catalogued in `docs/dev/alpha-build-plan.md` §1.3 as v0.1-G1–v0.1-G10 — check there
 before treating something in `nodes.py` as intentional.
 
+The **structured route** (named `structured`, formerly `jsonld`; C6.1) has two sources of events, `sources/jsonld.py` (schema.org JSON-LD) and `sources/embedded_events.py` (an Astro `<astro-island>`'s props), chosen by `extraction.usable_events` (JSON-LD wins); `notes["structured_source"]` says which. Stored data (audit rows, saved eval results, baselines) still says `"jsonld"`: readers pass a stored route through `policy.stored_route`.
+
 Validation and retry (A3) live in two modules that nodes and graph only wire together:
 `validation.py` (pure checks; gathers evidence and decides nothing) and `policy.py` (the verdict,
 the router's decision, what each retry changes). Import order is `validation` ← `policy` ←

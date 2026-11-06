@@ -138,8 +138,11 @@ class ShowExtraction(BaseModel):
     )
 
     # Admission, replacing the old untyped `ticket_info` string (v0.1-G7). Rules from
-    # requirements-initial.md: a single price shown is the Day price (advance stays null);
-    # free admission is true only when the listing explicitly says free; it is fine for
+    # requirements-initial.md: a price the page labels "advance"/"adv" or "door"/"day of
+    # show" fills only that field; a single price with no label is the Day price, and when
+    # the same listing also offers a ticket or order link it is the Advance price too
+    # (C6.1-D13: a show you can buy ahead has an advance price, and a local act's lone
+    # price is otherwise the door price); free admission is true only when the listing explicitly says free; it is fine for
     # all three to be empty. Floats, not Decimal, at this layer: nothing here needs exact
     # money, and Decimal would put a regex-string branch into the schema the model reads
     # (twice per show). A6 converts with Decimal(str(value)) at the database write.
@@ -147,16 +150,19 @@ class ShowExtraction(BaseModel):
         default=None,
         ge=0,
         description=(
-            "Advance-purchase admission price in dollars, only if the page labels one "
-            "as advance; otherwise null"
+            "Advance-purchase admission price in dollars. Use the price the page labels "
+            "advance or adv. If the page shows a single price with no label and the "
+            "listing has a buy or order tickets link, use that price here as well; "
+            "otherwise null"
         ),
     )
     admission_day: float | None = Field(
         default=None,
         ge=0,
         description=(
-            "Day-of-show (door) admission price in dollars. If the page shows a single "
-            "price with no label, put it here; otherwise null"
+            "Day-of-show (door) admission price in dollars. Use the price the page labels "
+            "door or day of show. If the page shows a single price with no label, put it "
+            "here, whether or not the listing has a buy link; otherwise null"
         ),
     )
     # null, NOT false, when the page doesn't say: "free" is a positive claim, and the data

@@ -18,6 +18,7 @@ from collections.abc import Mapping
 from dataclasses import asdict
 from typing import Any
 
+from agent_worker import policy
 from agent_worker.model_eval import scoring, validation_recall
 from agent_worker.model_eval.labels import PageLabel
 
@@ -57,7 +58,7 @@ def _gate(records: list[dict[str, Any]], labels: Mapping[str, PageLabel], column
         if label is None or not label.gated:
             continue
         score = scoring.PageScore.from_dict(r[f"{column}_score"])
-        score.route = r.get("source") or "model"
+        score.route = policy.stored_route(r.get("source")) or "model"
         by_run.setdefault(r["run"], []).append(score)
     result = scoring.gate(by_run)
     return {"passed": result.passed, "failures": result.failures, "pages": result.pages}
@@ -127,7 +128,7 @@ def aggregate(records: list[dict[str, Any]], labels: Mapping[str, PageLabel]) ->
     """Everything the milestone reports, from the run records and the labels they were scored against."""
     seconds_by_source: dict[str, list[float]] = {}
     for r in records:
-        seconds_by_source.setdefault(r.get("source") or "none", []).append(r["seconds"])
+        seconds_by_source.setdefault(policy.stored_route(r.get("source")) or "none", []).append(r["seconds"])
     return {
         "runs": len(records),
         "columns": {c: _column([scoring.PageScore.from_dict(r[f"{c}_score"]) for r in _scored_in(records, c)]) for c in COLUMNS},

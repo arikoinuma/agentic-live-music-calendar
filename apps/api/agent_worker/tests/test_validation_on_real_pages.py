@@ -28,7 +28,7 @@ from typing import Any
 
 import pytest
 
-from agent_worker import validation
+from agent_worker import policy, validation
 from agent_worker.extraction import clean_text
 from agent_worker.model_eval import run_eval
 from agent_worker.model_eval.labels import PAGE_LABELS
@@ -84,11 +84,11 @@ def replay(run: dict[str, Any]) -> tuple[validation.ValidationResult, list[Any]]
     is_image = run["source"] == "image"
     html = "" if is_image else (FIXTURES / fixture).read_text()
     notes = dict(run["notes"]) if isinstance(run["notes"], dict) else {}
-    if run["source"] == "jsonld" and "titles" not in notes:
+    if policy.stored_route(run["source"]) == "structured" and "titles" not in notes:
         # The stored JSON-LD runs predate `notes["titles"]`; the numbered titles that were sent are the same list.
         notes["titles"] = [line.split(": ", 1)[1] for line in run["sent_text"].split("\n")]
     result, kept = validation.validate_extraction(
-        VenuePageExtraction.model_validate(run["extraction"]), source=run["source"], notes=notes,
+        VenuePageExtraction.model_validate(run["extraction"]), source=policy.stored_route(run["source"]), notes=notes,  # type: ignore[arg-type]  # a stored name; the old "jsonld" reads as "structured"
         fetched_on=label.captured_on, page_html=html, page_text="" if is_image else clean_text(html, False),
     )
     return combine(result, DEFAULT_POLICY), kept

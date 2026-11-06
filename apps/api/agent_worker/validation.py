@@ -30,6 +30,7 @@ Three ideas the checks share:
 import datetime
 import html as html_lib
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import Any, Literal
@@ -40,10 +41,11 @@ from agent_worker.normalize import (
     infer_year,
 )
 from agent_worker.schemas import ShowExtraction, VenuePageExtraction
+from agent_worker.sources.embedded_events import slug_date
 from agent_worker.sources.jsonld import end_time_is_stated
 
 # Which route produced the extraction (PageExtractionResult.source).
-Source = Literal["jsonld", "model", "image"]
+Source = Literal["structured", "model", "image"]
 
 # ---------------------------------------------------------------------------
 # Types
@@ -78,6 +80,7 @@ class CheckCode(StrEnum):
     # warnings
     EXCLUDED_NO_ACTS = "excluded_no_acts"
     DATE_OUT_OF_WINDOW = "date_out_of_window"
+    SLUG_DATE_DISAGREES = "slug_date_disagrees"
     ACT_NOT_IN_TITLE = "act_not_in_title"
     UNUSUAL_START_TIME = "unusual_start_time"
     POSSIBLE_MERGE = "possible_merge"
@@ -152,6 +155,10 @@ class ValidationResult:
     # None = no model judged the record (JSON-LD route), or nothing was kept to judge.
     confidence: float | None = None
     extraction_failed: bool = False
+    # Events read from a page's embedded data only (C6.1-D10): how many upcoming dates the visible text names that no
+    # extracted show falls on. The under-reported check is not run for that source, since its premise (the visible
+    # dates are the reliable list) is what the source overrules, so the count is kept as evidence instead of dropped.
+    visible_unmatched_dates: int | None = None
     verdict: Verdict | None = None
     reasons: list[FailureReason] = field(default_factory=list)
 
@@ -320,6 +327,70 @@ def verify_image_url(url: str, page_html: str, page_text: str) -> bool:
     return url in page_text or url in html_lib.unescape(page_html)
 
 
+# A clock time as a page writes it ("6:00 pm", "8pm", "9:30 P.M."), and the labeled form listings use
+# for the two that matter: "Doors: 6:00 pm" and "Music: 8:00 pm" (or "Show:", "Showtime:").
+_CLOCK = re.compile(r"\b(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\b\.?", re.IGNORECASE)
+_LABELED_CLOCK = re.compile(
+    r"\b(doors|music|show(?:time)?)\s*:\s*(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\b", re.IGNORECASE,
+)
+# How far past a date the listing's own times are looked for, cut short at the next date. A listing's
+# date is followed by its times in the layouts seen so far (Icehouse: date, Doors, Music, prices).
+_LISTING_REACH = 240
+
+
+def _clock(hour: str, minute: str | None, meridiem: str) -> datetime.time:
+    """12-hour clock pieces -> a time (12 am is midnight, 12 pm noon)."""
+    return datetime.time(int(hour) % 12 + (12 if meridiem.lower() == "p" else 0), int(minute or 0))
+
+
+def listing_times(page_text: str, day: datetime.date) -> tuple[set[datetime.time], set[datetime.time], set[datetime.time]]:
+    """The (music, doors, any) times the page states in the text that follows each mention of `day`.
+
+    The text after a date mention runs to the next date mention or `_LISTING_REACH` characters. A date
+    listed twice (a combined card, then the show's own card) pools both windows. "music" holds the times
+    labeled `Music:`/`Show:`/`Showtime:`, "doors" the ones labeled `Doors:`, and "any" every clock time
+    in the windows, labeled or not.
+    """
+    mentions = [
+        m for m in _MONTH_DAY.finditer(page_text)
+        if _MONTH_NUMBER.get(m.group(1).lower()[:3]) == day.month and int(m.group(2)) == day.day
+    ]
+    all_starts = sorted(m.start() for m in _MONTH_DAY.finditer(page_text))
+    music: set[datetime.time] = set()
+    doors: set[datetime.time] = set()
+    seen: set[datetime.time] = set()
+    for mention in mentions:
+        later = [start for start in all_starts if start > mention.start()]
+        end = min([mention.end() + _LISTING_REACH, *later[:1]])
+        window = page_text[mention.end():end]
+        for label, hour, minute, meridiem in _LABELED_CLOCK.findall(window):
+            (doors if label.lower() == "doors" else music).add(_clock(hour, minute, meridiem))
+        seen.update(_clock(h, mi, mer) for h, mi, mer in _CLOCK.findall(window))
+    return music, doors, seen
+
+
+def start_time_problem(show: ShowExtraction, page_text: str) -> str | None:
+    """Why the show's start time contradicts its own listing, or None when it doesn't.
+
+    Two cases, and only when the listing states a labeled music time to compare with (C6.1-D14). The
+    start time is the doors time and not the music time: a wrong time, the very mistake the `time` field
+    description warns against. Or the start time appears nowhere in the listing: invented. Both are
+    wrong values, which the standard never tolerates, and a missing time is tolerated, so the caller
+    drops it. A time that appears in the date's text unlabeled (a combined card's "6:30 PM Show") is not
+    invented, which is why the second case reads every clock time and not only the labeled ones.
+    """
+    if show.time is None:
+        return None
+    music, doors, seen = listing_times(page_text, show.date)
+    if not music or show.time in music:
+        return None
+    if show.time in doors:
+        return "the start time is the doors time; the listing states a different music time"
+    if show.time not in seen:
+        return "the listing doesn't state this start time"
+    return None
+
+
 def repair_show(
     show: ShowExtraction, index: int, *, flags: PlausibilityFlags, source: Source, page_html: str,
     page_text: str, titles: list[str] | None,
@@ -328,7 +399,7 @@ def repair_show(
 
     Which repair runs on which source (plan, §2): the two that read no page (a misplaced start,
     an end equal to the start) run everywhere; the image-URL and unstated-end-time checks read the
-    page, so they run on the `model` source only — not `jsonld` (its values come from structured
+    page, so they run on the `model` source only — not `structured` (its values come from structured
     data, not a model) and not `image` (a poster run has no page HTML).
     """
     repairs: list[Repair] = []
@@ -345,6 +416,10 @@ def repair_show(
         if show.image_url is not None and not verify_image_url(show.image_url, page_html, page_text):
             repairs.append(Repair(index, "image_url", show.image_url, "not found verbatim in the page"))
             show = _show_with(show, image_url=None)
+        problem = start_time_problem(show, page_text)
+        if problem is not None:
+            repairs.append(Repair(index, "time", str(show.time), problem))
+            show = _show_with(show, time=None)
         if show.end_time is not None:
             # Title-scoped when the verbatim titles line up with the shows (A2.1's own docstring:
             # page-wide lets another listing's "11:00 pm" vouch for a default end), page-wide otherwise.
@@ -419,6 +494,23 @@ def check_under_reported(
     return []
 
 
+def check_slug_dates(extraction: VenuePageExtraction, slugs: Sequence[str | None]) -> list[Finding]:
+    """Events read from a page's embedded data only (C6.1-D6): a show whose date differs from the date its URL slug
+    names in words is a WARNING for that show. The venue wrote the slug for people, in its own time, so it is evidence
+    that does not depend on any timestamp; a disagreement means the feed contradicts itself. It reports and repairs
+    nothing. `slugs` is in show order (the extraction's raw list, as `notes["slugs"]` is written); a missing slug or
+    one naming no date is silent, since there is no evidence either way."""
+    findings = []
+    for index, (show, slug) in enumerate(zip(extraction.shows, slugs, strict=False)):
+        named = slug_date(slug)
+        if named is not None and named != show.date:
+            findings.append(Finding(
+                CheckCode.SLUG_DATE_DISAGREES, Severity.WARNING,
+                f"the show is dated {show.date} but its URL names {named}", index,
+            ))
+    return findings
+
+
 def check_empty_but_dated(
     page_text: str, fetched_on: datetime.date, shown: set[tuple[int, int]]
 ) -> list[Finding]:
@@ -451,7 +543,7 @@ def aggregate_confidence(
     status merge's added shows carry the same placeholder (`added`), and a page with nothing kept
     has nothing to be confident about (`min([])` would raise).
     """
-    if source == "jsonld":
+    if source == "structured":
         return None
     judged = [s.confidence for i, s in shows if i not in added]
     return min(judged) if judged else None
@@ -496,7 +588,7 @@ def validate_extraction(
             continue
         flags = check_plausibility(show, fetched_on)
         if flags.date_out_of_window:
-            if source == "jsonld":
+            if source == "structured":
                 # A3-D13: the date is the source's own, a retry can't change it, and the model route's
                 # year rule would re-date it into a plausible but wrong date. Excluded, visibly.
                 findings.append(Finding(
@@ -531,7 +623,15 @@ def validate_extraction(
             f"the act splitter returned no answer for listing {missing}", missing,
         ))
 
-    if source == "jsonld":
+    visible_unmatched: int | None = None
+    if source == "structured" and notes.get("structured_source") == "astro-island":
+        # C6.1-D10: the embedded events overrule the page's visible dates (on Hook & Ladder those are a day late), so
+        # unmatched visible dates are expected here; failing the attempt would send it to the model route, which
+        # reads the wrong dates again (C6.1-PR1-1). The slug check below is the guard that remains.
+        shown = {(s.date.month, s.date.day) for s in extraction.shows}
+        visible_unmatched = len(upcoming_dates(page_text, fetched_on) - shown)
+        findings += check_slug_dates(extraction, notes.get("slugs") or [])
+    elif source == "structured":
         findings += check_under_reported(extraction, page_text, fetched_on)
     # A3-D10: no kept show (an empty list, or every show excluded) on a page whose text names dates.
     if not kept and outcome is not PageOutcome.UNREADABLE and source != "image":
@@ -540,5 +640,6 @@ def validate_extraction(
     confidence = aggregate_confidence(kept, source, set(notes.get("added_indices") or []))
     result = ValidationResult(
         outcome=outcome, findings=findings, repairs=repairs, excluded=excluded, confidence=confidence,
+        visible_unmatched_dates=visible_unmatched,
     )
     return result, [show for _, show in kept]

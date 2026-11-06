@@ -348,3 +348,53 @@ def test_a_status_written_in_the_title_counts_on_the_json_ld_route(name: str, st
     # leaves eventStatus at Scheduled (or absent) still gets the right status (A2.1-D12: a wrong
     # status is never acceptable).
     assert jsonld.to_structured_show(event(name), CHICAGO).status == status
+
+
+# ---------------------------------------------------------------------------
+# A price written in the description, not in `offers` (C6.1-D12)
+# ---------------------------------------------------------------------------
+
+
+def _described(text: str, **extra: Any) -> jsonld.StructuredShow:
+    """The mapped show for an event whose description is `text` (HTML-escaped, as WordPress event plugins write it)."""
+    return jsonld.to_structured_show(event(description=f"&lt;p&gt;{text}&lt;/p&gt;", **extra), CHICAGO)
+
+
+def test_a_labeled_price_in_the_description_is_read() -> None:
+    # Proves (C6.1-D12): Ginkgo's JSON-LD has no `offers`, but its description reads "... Tickets: $20 ...", and
+    # the structured route lost that price on every run. The invented text copies the shape (escaped markup, an
+    # order link, the price after a "Tickets:" label). A price the page states with no advance/door wording
+    # applies to both (Ari's rule on the Ginkgo label, A2.1-D5); free_admission stays None, because false is never
+    # stored (A2-F1).
+    show = _described("ORDER TICKETS: https://tickets.example/x Saturday, May 2, 2026 at 7:30 pm Tickets: $20 Corner Cafe, 1 Main St.")
+    assert (show.admission_advance, show.admission_day, show.free_admission) == (20.0, 20.0, None)
+
+
+def test_a_price_with_cents_is_read() -> None:
+    # Proves (C6.1-D12): "$12.50" is 12.5, not 12 and not 50.
+    assert _described("Admission: $12.50 at the door").admission_advance is None  # 'door' wording: see the next test
+    assert _described("Admission: $12.50").admission_advance == 12.5
+
+
+@pytest.mark.parametrize("text", [
+    "Tickets: $15 advance, $20 door",       # two prices with their own meanings
+    "Tickets: $15 / $20 at the door",       # door wording
+    "Tickets: $20 day of show",             # day-of wording
+    "Tickets: $15 or $20",                  # two different prices, no way to tell which
+    "Dinner for two $40 while you listen",  # a dollar amount that is not labeled as the ticket
+    "FREE TO join, tip jar on the stage",   # 'free' in prose is not a price (trivia night, open mic)
+    "Tickets: $",                           # a label with no number
+])
+def test_a_description_that_cannot_be_read_with_certainty_gives_no_price(text: str) -> None:
+    # Proves (C6.1-D12): the rule is deliberately narrow. A wrong price breaks the standard ("a wrong value
+    # never"), a missing one is tolerated up to 10%, so anything ambiguous is left empty, and a description
+    # never makes a show free.
+    show = _described(text)
+    assert (show.admission_advance, show.admission_day, show.free_admission) == (None, None, None)
+
+
+def test_an_offer_price_wins_over_the_description() -> None:
+    # Proves (C6.1-D12): the structured field is read first and keeps its A2.1-D7 meaning (an Offer is the
+    # advance price); the description is only the fallback when there is no priced offer.
+    show = _described("Tickets: $30", offers={"@type": "Offer", "price": "18"})
+    assert (show.admission_advance, show.admission_day, show.free_admission) == (18.0, None, None)

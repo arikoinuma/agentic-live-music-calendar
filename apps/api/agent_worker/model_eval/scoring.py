@@ -208,7 +208,7 @@ class PageScore:
 class PageFailure:
     """A page whose extraction raised. It fails the gate: a crash can't be skipped. A page that
     never finished took no route, so by default it counts in every route's scope ("any") —
-    `gate [jsonld]` can't pass a label in which a JSON-LD page crashed (A2.1-CR1-5)."""
+    `gate [structured]` can't pass a label in which a JSON-LD page crashed (A2.1-CR1-5)."""
 
     fixture: str
     error: str

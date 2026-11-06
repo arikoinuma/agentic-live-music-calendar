@@ -118,7 +118,7 @@ def test_a_page_with_dated_events_takes_the_json_ld_route() -> None:
         act_split.ActSplitItem(id=0, title="Nona", acts=["Nona"]),
     ]))
     result = run(html, client, route="auto")
-    assert result.source == "jsonld"
+    assert result.source == "structured"
     assert [c["response_model"] for c in client.chat.completions.calls] == [act_split.ActSplitAnswer]
 
 
@@ -581,3 +581,69 @@ def test_every_listing_field_carries_over_to_its_show() -> None:
     assert (show.admission_advance, show.admission_day, show.free_admission) == (12.5, 15.0, None)
     assert (show.image_url, show.is_ambiguous, show.confidence) == ("https://x.example/p.png", True, 0.7)
     assert [a.name for a in show.acts] == ["Lent", "Gills"]
+
+
+# ---------------------------------------------------------------------------
+# A page that lists the same event twice (C6.1-D11)
+# ---------------------------------------------------------------------------
+
+
+def test_an_event_a_page_lists_twice_is_one_show() -> None:
+    # Proves (C6.1-D11): Dakota's JSON-LD carries 13 events twice (same url and start, one copy without an
+    # "@id"), which committed 64 shows for 51 real ones and put every one of those on the calendar twice.
+    # The invented page repeats one event with and without an "@id"; `usable_events` keeps the first copy
+    # (the richer one) only.
+    first = ws_event("Ada Fox", "2026-11-05T19:00:00-06:00", url="https://x.example/ada-fox/", **{"@id": "https://x.example/ada-fox/#event"})
+    twin = ws_event("Ada Fox", "2026-11-05T19:00:00-06:00", url="https://x.example/ada-fox/")
+    events = extraction.usable_events(jsonld_page(first, ws_event("Ben Ode", "2026-11-06T19:00:00-06:00"), twin))
+    assert [e["name"] for e in events] == ["Ada Fox", "Ben Ode"]
+    assert events[0].get("@id") == "https://x.example/ada-fox/#event"
+
+
+def test_two_sets_the_same_night_are_not_repeats() -> None:
+    # Proves (C6.1-D11): the limit of the rule. Dakota runs two sets of one act on one date at different times,
+    # and the same act can play two nights; only an event that repeats name AND start AND url is dropped, or a
+    # real second set would vanish from the calendar.
+    early = ws_event("Ada Fox", "2026-11-05T18:00:00-06:00", url="https://x.example/ada-fox/")
+    late = ws_event("Ada Fox", "2026-11-05T20:30:00-06:00", url="https://x.example/ada-fox/")
+    next_night = ws_event("Ada Fox", "2026-11-06T18:00:00-06:00", url="https://x.example/ada-fox/")
+    assert len(extraction.usable_events(jsonld_page(early, late, next_night))) == 3
+
+
+# ---------------------------------------------------------------------------
+# Splitting a long page into chunks (C6.1-D15, an experiment: off by default)
+# ---------------------------------------------------------------------------
+
+
+def _card(n: int) -> str:
+    """One listing in the shape Icehouse uses: title, date, times, then its two link lines."""
+    return f"Band {n}\nNovember {n}, 2026\nDoors: 6:00 pm\nMusic: 8:00 pm\nMore Info \u2192\nBuy Tickets \u2192"
+
+
+def test_chunking_off_returns_the_text_whole() -> None:
+    # Proves: chunk_chars=0 (the default) changes nothing, so the pipeline's request is byte-identical to
+    # the one every earlier run measured.
+    text = "\n".join(_card(n) for n in range(1, 6))
+    assert extraction.chunk_page_text(text, 0) == [text]
+
+
+def test_chunks_never_split_a_listing_and_lose_nothing() -> None:
+    # Proves: every cut falls after a listing's last link line, so no card is cut between its title and
+    # its date, and the chunks joined back together are the original text. A cut inside a card would hand the
+    # model a title with no date, which it fills in by guessing.
+    text = "Venue header\n" + "\n".join(_card(n) for n in range(1, 13))
+    chunks = extraction.chunk_page_text(text, 200)
+    assert len(chunks) > 1
+    assert "\n".join(chunks) == text
+    for chunk in chunks:
+        # each chunk's cards are whole: as many titles as dates as Buy lines
+        assert chunk.count("Music:") == chunk.count("Buy Tickets")
+        assert chunk.count("November") == chunk.count("Buy Tickets")
+
+
+def test_a_page_with_no_link_lines_is_cut_at_the_size_not_dropped() -> None:
+    # Proves: with no boundary to cut at, the text is still split into pieces near the size and nothing
+    # is lost (a page whose layout has no link lines still gets all of its shows read).
+    text = "\n".join(f"line {n} of the page" for n in range(200))
+    chunks = extraction.chunk_page_text(text, 300)
+    assert len(chunks) > 1 and "\n".join(chunks) == text

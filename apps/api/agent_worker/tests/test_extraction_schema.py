@@ -227,6 +227,22 @@ def test_every_optional_field_tells_the_model_how_to_say_not_stated(
     assert "otherwise null" in description
 
 
+def test_the_price_descriptions_state_the_lone_price_rule() -> None:
+    # Proves: the two price descriptions tell the model the C6.1-D13 rule: a labeled price
+    # fills only its own field; a lone unlabeled price is the door price; and a lone
+    # unlabeled price whose listing has a buy link is the advance price too. The
+    # descriptions are the model's only instruction on this (the prompt says nothing about
+    # prices), so a rewording that dropped the buy-link clause would silently return to the
+    # old "lone price is door only" behaviour that left 17 Icehouse shows without an advance
+    # price. Expected wording comes from requirements-initial.md "Agent Extraction: Fields".
+    advance = (ShowExtraction.model_fields["admission_advance"].description or "").lower()
+    day = (ShowExtraction.model_fields["admission_day"].description or "").lower()
+    assert "labels advance" in advance and "buy or order tickets link" in advance
+    assert "single price with no label" in advance
+    assert "labels door" in day and "single price with no label" in day
+    assert "whether or not the listing has a buy link" in day
+
+
 @pytest.mark.parametrize(("model", "name"), TIME_FIELDS)
 def test_every_time_field_asks_for_24_hour_hh_mm(model: type[BaseModel], name: str) -> None:
     # Proves: the format instruction ("HH:MM") can't be silently dropped from a time

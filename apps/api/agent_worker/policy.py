@@ -40,8 +40,19 @@ from agent_worker.validation import (
 from app.config import settings
 
 # The route an attempt *used*: recorded even when the attempt failed, because `extraction_source`
-# is None for a failed attempt and the sticky route fallback must still see a failed JSON-LD one.
-Route = Literal["jsonld", "model", "image"]
+# is None for a failed attempt and the sticky route fallback must still see a failed structured one.
+Route = Literal["structured", "model", "image"]
+
+# What a record written before C6.1 calls the structured route. C6.1-D1 renamed the route from "jsonld" (it now
+# also covers events embedded in an Astro island, which are not JSON-LD). Nothing rewrites a stored record
+# (C5.1-D4's principle), so readers of saved results and audit rows pass the stored name through `stored_route`.
+LEGACY_ROUTE_NAMES = {"jsonld": "structured"}
+
+
+def stored_route(name: str | None) -> str | None:
+    """A route name read from stored data, in today's spelling: "jsonld" (before C6.1) is "structured"; every other
+    value, and None, is returned unchanged."""
+    return LEGACY_ROUTE_NAMES.get(name, name) if name is not None else None
 
 # ---------------------------------------------------------------------------
 # The settings
@@ -99,7 +110,7 @@ class AttemptPlan:
     def models_used(self, route: Route) -> dict[str, str | None]:
         """The model each kind of call uses on THIS route, and None for a call the route never makes (C6-PR1-3).
 
-        The JSON-LD route has no page call and no status question (status comes from the structured data); the
+        The structured route has no page call and no status question (status comes from the structured data); the
         poster route makes only the page call; the model route makes the page call, the splitter when the title
         split is on, and the status question when the status pass is on. Recorded so the audit trail credits the
         acts to the model that split them, not to the page model. The status question is asked only when the page
@@ -107,7 +118,7 @@ class AttemptPlan:
         status model is the one that WOULD have been used, not one that ran.
         """
         page = self.roles.page.model if route in ("model", "image") else None
-        splitter = self.roles.splitter.model if route == "jsonld" or (route == "model" and self.config.title_split) else None
+        splitter = self.roles.splitter.model if route == "structured" or (route == "model" and self.config.title_split) else None
         status = self.roles.status.model if route == "model" and self.config.status_pass else None
         return {"page": page, "splitter": splitter, "status": status}
 
@@ -249,10 +260,10 @@ def retry_hint(history: list[AttemptRecord], final: bool = False) -> tuple[str, 
 
 
 def route_falls_back(record: AttemptRecord) -> bool:
-    """True when this attempt used the JSON-LD route and failed for a reason a retry on that route
+    """True when this attempt used the structured route (JSON-LD or embedded events) and failed for a reason a retry on that route
     can't change.
 
-    On the JSON-LD route dates, times and prices come from code and the page hint has no consumer
+    On the structured route dates, times and prices come from code and the page hint has no consumer
     (only the act splitter calls a model), so only a failure that is *solely* about acts — and so
     reaches the splitter's hint — is worth retrying on the same route. Anything else (an
     under-report, an unreadable or empty-but-dated page, a malformed date that raised) repeats
@@ -260,7 +271,7 @@ def route_falls_back(record: AttemptRecord) -> bool:
     out-of-window date isn't here on purpose: it is excluded, not failed (A3-D13), because the model
     route's year rule would re-date it into a plausible, wrong date.
     """
-    if record.route != "jsonld" or record.verdict is not Verdict.FAILED:
+    if record.route != "structured" or record.verdict is not Verdict.FAILED:
         return False
     splitter_only = (
         record.reasons == [FailureReason.CHECK_ERRORS]
@@ -285,7 +296,7 @@ def plan_for_attempt(
     # (`retry_hint(history)`). The last attempt adds a sentence of its own, so it differs from
     # attempt 2 even when the same check failed twice and there is no larger model to swap in. The
     # route fallback is decided from the WHOLE history, so it is sticky: if attempt 2 failed for
-    # another reason, attempt 3 must not go back to the JSON-LD route that already failed. Without a
+    # another reason, attempt 3 must not go back to the structured route that already failed. Without a
     # configured escalation model, tier 3 still runs (with the full hint) and says it didn't escalate
     # the model (A3-D5).
     page_hint, splitter_hint = retry_hint(history, final=attempt >= 3)
