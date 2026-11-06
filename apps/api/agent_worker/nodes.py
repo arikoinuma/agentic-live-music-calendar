@@ -133,9 +133,10 @@ def fetch_html(url: str, *, reject_empty: bool = False) -> str:
 
 
 def _is_http_url(url: str) -> bool:
-    """True for an http or https URL. The scheme is parsed (and compared case-insensitively, as RFC 3986 says), not
-    prefix-matched: `startswith("http")` also matched `httpfoo://…` and missed `HTTPS://…` (GH-90)."""
-    return urlparse(url).scheme.lower() in {"http", "https"}
+    """True for an http or https URL. The scheme is parsed, not prefix-matched: `startswith("http")` also matched
+    `httpfoo://…` and missed `HTTPS://…` (GH-90). `urlparse` lowercases the scheme, which RFC 3986 §3.1 makes
+    case-insensitive, so `HTTPS://…` compares equal without further work."""
+    return urlparse(url).scheme in {"http", "https"}
 
 
 def fetch_node(state: VenueGraphState) -> VenueGraphState:

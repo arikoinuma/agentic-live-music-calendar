@@ -435,6 +435,17 @@ def test_the_fetch_names_the_project_not_python_httpx(monkeypatch: pytest.Monkey
     assert agent.startswith("agentic-live-music-calendar/") and "python-httpx" not in agent and "@" not in agent
 
 
+def test_the_fetch_waits_20_seconds_per_phase_not_httpx_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Proves (GH-90-CR1-1): the timeout is explicit at 20 s for each phase. Without it, httpx's implicit 5 s applies
+    # and a slow venue site times out. httpx records the effective timeout on the request it sends, so the test
+    # reads it there. The 20.0 is the value the GH-90 record's Approach and Implementation log chose, written here
+    # as a literal rather than read from `FETCH_SETTINGS`.
+    site = RedirectingSite()
+    monkeypatch.setattr(nodes.httpx, "get", site)
+    nodes.fetch_html(URL)
+    assert site.seen[0].extensions["timeout"] == {"connect": 20.0, "read": 20.0, "write": 20.0, "pool": 20.0}
+
+
 @pytest.mark.parametrize(
     ("calendar_url", "over_http"),
     [
