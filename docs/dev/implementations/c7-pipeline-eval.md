@@ -1,6 +1,6 @@
 # C7 — pipeline evaluation on the shipped model
 
-**Status:** Awaiting sign-off (approved by Ari November 6, 2026, with the recommendation accepted for every decision, D1 to D9; Steps 1 to 6 built, code review round 1 resolved, the three gaps filled by Ari and cleaned up; Steps 7 to 10, the local measurement runs and Ari's decision on the defaults, are next; C7-CR1-1's amendment to R3 awaits Ari's confirmation)
+**Status:** Awaiting decision on the defaults (Steps 1 to 6 built and code-reviewed, the gaps filled; Steps 7 to 9 run and read on November 6, 2026, Implementation log Round 4; Ari decides the threshold, the cap and the escalation model, then Step 10 applies and records; C7-CR1-1's amendment to R3 was confirmed by Ari November 6, 2026)
 **Date:** November 6, 2026
 **Author model:** Claude Opus 5.5 (plan, November 6, 2026; written in a local session, with the saved C5 and C6 results files on disk)
 **Reviewer model:** Claude Sonnet 5.5 (plan review round 1, November 6, 2026); code review round 1: Claude Sonnet 5.5 (November 6, 2026)
@@ -649,6 +649,383 @@ plan's Code lines. The cleanup pass (AGENTS.md, "[fill-in] tasks", step 4) then:
 **What is left of C7** is Steps 7 to 10: local only (the DeepInfra key, the gitignored captured pages, Postgres), with three things for Ari
 before or during them: confirm C7-CR1-1's floor on R3 (0.5 errors a run, D5), confirm `google/gemma-4-31B-it` is still served before Step 8
 (D2), and decide the defaults at Step 9.
+
+### Round 4 — Claude Sonnet 5.5, November 6, 2026 (Steps 7 to 9: the measurement runs, the readings and the recommendation; the build stops here for Ari's decision on the defaults)
+
+**Scope.** Diff base `a55aa87` (Round 3's commit). Commits since: `751543e` (the Step 7 snapshots `docs/dev/eval-baselines/c7-defaults.json`
+and `c7-defaults-icehouse.json`), `0a5d8a2` (the Step 8 snapshots `c7-forced.json`, `c7-forced-icehouse.json`, `c7-forced-escalated.json`,
+`c7-forced-escalated-icehouse.json`), and the merge of `main` (PR 96) described in Departure 1. No code or label change in the runs' own
+commits: every C7 run records harness commit `751543ef16` and `labels_sha` `e49e570663`. This round changes only this file.
+
+**Before any model call** (Ari, this session): confirmed the C7-CR1-1 floor on R3 (`MIN_EFFECT` = 0.5 stays; no code change); confirmed
+`google/gemma-4-31B-it` is still served on DeepInfra (D2); DeepInfra spend before C7 was "under $1" (no exact figure given). The dashboard
+spend after C7 has **not been read** (the author cannot); the token totals are at the end of Verification.
+
+**Departures from the plan and from the rules, each with its reason.**
+
+1. **The merge of `main` landed after Step 8, not during it.** Ari's pull of `main` (PR 96, which includes PQR1-1's `ruff format` at 120
+   columns) left a half-done merge in the working tree while the Step 8 chain was running, and it touched `labels.py`, `validation.py`,
+   `extraction.py`, `prompts.py` and `policy.py`. The last forced run would have started on the merged code, with a different `labels_sha`.
+   With Ari's go-ahead the unresolved merge was aborted, the six conflicts were resolved in a separate worktree (all layout: the C7 side
+   kept, then `ruff format`; the `Makefile` `.PHONY` line keeps `eval-policy` and `format`; one N806 lint fix in `policy_questions.py`, a
+   local constant renamed lowercase), and the result landed as `d536114` after the last run finished. **`labels.py` is reformatted by the
+   merge, so its hash changes, but no label's content did and none of the C7 results files was rescored: all seven carry `e49e570663`.**
+   The plan's "no edit to `labels.py` from Step 7 to Step 9" held for every run; the merge came after the last one. Checks on the merged
+   tree: the defaults report and the pooled forced report are byte-identical to the pre-merge ones; `uv run pytest` 1524 passed with no skips
+   (the real-page tests run here); `make lint typecheck` pass. `make check` (vitest, Playwright) has not been run since the merge.
+2. **C7-R1 does not say which labels it is read on, and its "no" does not cover a ratio between 1 and 2.** The plan's R1 reads "over the
+   wrong-show rows" without naming the default runs or the forced runs (R2 and the sweep name the default runs). Attempt 1 of a forced run
+   sends the same requests as a default run (forcing changes the verdict, not the extraction), so every label gives attempt-1 rows. I report
+   **every table, and do not pick one after seeing the numbers**: the Step 7 defaults table reads "not enough evidence"; every other table
+   reads "no"; no table reads "yes". And R1's text defines "no" as "flat or inverted" and "yes" as at least twice as high on two venues; a
+   pooled ratio in between (the forced pool: 0.26 against 0.20) fits neither, and `r1_verdict` returns "no" for it. I applied the code's
+   output and name the gap here for Ari.
+3. **The D9 secondary table was run on rescored files** (`c6-hosted-baseline`, `c61-icehouse`, `c61-icehouse-price`, `c61-split-before`,
+   `c61-split-after`) and, with the cross-check, was not written to a snapshot (the plan asks for snapshots of the C7 labels only). The
+   rescored files are gitignored.
+4. **R4 reads differently for the two forced configurations, and I recommend the one that ships.** See R4 below.
+5. **A fourth attempt was not run.** R4 says one is "not run in C7 unless" attempt 3 helps on two pages; that happens only in the escalated
+   configuration, which R3 rejects, so I did not spend a run on it. It is Ari's to ask for (Decisions for Ari, 3).
+
+**`TODO(Ari)` gaps:** none open (all three were filled in Round 3).
+
+**Runs** (one at a time, each in the background, the report header checked after each; `ESCALATION_MODEL=none` and the hosted settings as
+one-command overrides: `MODEL_BASE_URL=https://api.deepinfra.com/v1/openai MODEL_PROVIDER=openai_compatible
+MODEL_NAME=google/gemma-4-26B-A4B-it`, the key from `apps/api/.env`, never on a command line).
+
+| label | pages | runs | policy in the header | wall time (local) |
+|---|---|---|---|---|
+| `c7-smoke` (not kept) | Mortimer's | 1 | threshold 0.8, cap 3, escalation none | 14 s; attempt 1 carried tokens 3,529 / 974 and seconds 13.6, so the hook on the real client works |
+| `c7-defaults` | `SET=all`, 10 pages | 50 | threshold 0.8, cap 3, escalation none | about 15 min |
+| `c7-defaults-icehouse` | held-out Icehouse | 5 | same | about 14 min |
+| `c7-forced` | `SET=all` | 50 | threshold 1.01 (forced retries), cap 3, escalation none | about 54 min |
+| `c7-forced-icehouse` | Icehouse | 5 | same | about 27 min |
+| `c7-forced-escalated` | `SET=all` | 50 | forced, escalation model `google/gemma-4-31B-it` | about 70 min |
+| `c7-forced-escalated-icehouse` | Icehouse | 5 | same | about 81 min |
+
+Headers: `forced retries` appears on the four forced labels and on no other; `escalation_model` is None on the first two forced labels and
+`google/gemma-4-31B-it` on the last two; every attempt-3 record has tier `larger_model` in all four forced labels, but `larger_model_used` is true only in the two escalated
+labels (35 of 35 and 5 of 5 third attempts) and in no other label (Verification 6); `labels_sha` `e49e570663` on all seven. No `retried` page in either default
+label (0 retries in 55 page-runs).
+
+**The tables.** The `eval-policy` outputs, pasted from the files the commands wrote (headings demoted three levels).
+
+*Step 7, the default runs (`make eval-policy LABELS="c7-defaults c7-defaults-icehouse"`):*
+
+#### Policy questions: c7-defaults, c7-defaults-icehouse
+
+- c7-defaults: labels_sha e49e570663; set all; runs 50; model google/gemma-4-26B-A4B-it; policy: threshold 0.8, cap 3, escalation model none
+- c7-defaults-icehouse: labels_sha e49e570663; set held_out; runs 5; model google/gemma-4-26B-A4B-it; policy: threshold 0.8, cap 3, escalation model none
+
+##### Confidence and correctness (C7-Q4)
+
+Attempt 1 of each run; one row per show the record's confidence covers (kept, model-judged: not excluded, not a status-merge placeholder, not the structured route). Wrong = wrong acts, invented, a leak, a wrong field or image (C7-K1). A value is compared only with 10 or more rows.
+
+| confidence | rows | wrong | wrong rate | compared | per venue (wrong/rows) |
+|---|---|---|---|---|---|
+| 0.9 | 44 | 1 | 0.02 | yes | icehouse 0/4; mortimers 0/35; terminal 1/5 |
+| 0.95 | 4 | 0 | 0.00 | no | terminal 0/4 |
+| 1 | 549 | 117 | 0.21 | yes | icehouse 101/223; seventh_st_entry 0/150; terminal 16/91; turf_club 0/85 |
+
+- C7-R1: **not enough evidence** (17 wrong rows outside the largest contributor (icehouse); C7-R1 needs 20)
+- excluded shows' confidences, never in the buckets: 1.0: 27 correct, 13 missed
+
+##### Threshold sweep (C7-Q1)
+
+Attempt 1 of each model-judged run (model and image routes). Would retry = failed for a reason other than low confidence, or confidence under the threshold; should retry = attempt 1 fails the A2.1-D1 standard as `scoring.gate` judges it (C7-K2).
+
+| threshold | caught | false alarm | missed | quiet |
+|---|---|---|---|---|
+| 0.5 | 0 | 0 | 5 | 15 |
+| 0.6 | 0 | 0 | 5 | 15 |
+| 0.7 | 0 | 0 | 5 | 15 |
+| 0.8 | 0 | 0 | 5 | 15 |
+| 0.85 | 0 | 0 | 5 | 15 |
+| 0.9 | 0 | 0 | 5 | 15 |
+| 0.95 | 2 | 5 | 3 | 10 |
+| 1 | 2 | 5 | 3 | 10 |
+
+- informational pages (never gate), caught/false alarm/missed/quiet: 0.5: 0/0/9/11; 0.6: 0/0/9/11; 0.7: 0/0/9/11; 0.8: 0/0/9/11; 0.85: 0/0/9/11; 0.9: 0/0/9/11; 0.95: 1/4/8/7; 1: 1/8/8/3
+- structured-route pages (no confidence, so no threshold can catch their errors; C7-CR1-4), caught/false alarm/missed/quiet: 0.5: 0/0/5/10; 0.6: 0/0/5/10; 0.7: 0/0/5/10; 0.8: 0/0/5/10; 0.85: 0/0/5/10; 0.9: 0/0/5/10; 0.95: 0/0/5/10; 1: 0/0/5/10
+
+##### What each retry changed (C7-Q3, C7-Q2)
+
+No page made a second attempt.
+
+*Step 8, the forced runs, pooled over all four labels (`make eval-policy LABELS="c7-forced c7-forced-icehouse c7-forced-escalated
+c7-forced-escalated-icehouse"`; it prints both escalation groups and R3's escalated-against-unescalated line):*
+
+#### Policy questions: c7-forced, c7-forced-icehouse, c7-forced-escalated, c7-forced-escalated-icehouse
+
+- c7-forced: labels_sha e49e570663; set all; runs 50; model google/gemma-4-26B-A4B-it; policy: threshold 1.01 (forced retries), cap 3, escalation model none
+- c7-forced-icehouse: labels_sha e49e570663; set held_out; runs 5; model google/gemma-4-26B-A4B-it; policy: threshold 1.01 (forced retries), cap 3, escalation model none
+- c7-forced-escalated: labels_sha e49e570663; set all; runs 50; model google/gemma-4-26B-A4B-it; policy: threshold 1.01 (forced retries), cap 3, escalation model google/gemma-4-31B-it
+- c7-forced-escalated-icehouse: labels_sha e49e570663; set held_out; runs 5; model google/gemma-4-26B-A4B-it; policy: threshold 1.01 (forced retries), cap 3, escalation model google/gemma-4-31B-it
+
+##### Confidence and correctness (C7-Q4)
+
+Attempt 1 of each run; one row per show the record's confidence covers (kept, model-judged: not excluded, not a status-merge placeholder, not the structured route). Wrong = wrong acts, invented, a leak, a wrong field or image (C7-K1). A value is compared only with 10 or more rows.
+
+| confidence | rows | wrong | wrong rate | compared | per venue (wrong/rows) |
+|---|---|---|---|---|---|
+| 0.8 | 3 | 0 | 0.00 | no | icehouse 0/3 |
+| 0.9 | 98 | 25 | 0.26 | yes | icehouse 16/18; mortimers 0/70; terminal 9/10 |
+| 0.95 | 10 | 0 | 0.00 | yes | terminal 0/10 |
+| 1 | 1079 | 218 | 0.20 | yes | icehouse 182/429; seventh_st_entry 0/300; terminal 36/180; turf_club 0/170 |
+
+- C7-R1: **no** (pooled slope does not hold; venues where it holds: ['terminal', 'icehouse'])
+- excluded shows' confidences, never in the buckets: 0.8: 1 correct, 0 missed, 0.9: 2 correct, 2 missed, 1.0: 37 correct, 27 missed
+
+##### Threshold sweep (C7-Q1)
+
+Attempt 1 of each model-judged run (model and image routes). Would retry = failed for a reason other than low confidence, or confidence under the threshold; should retry = attempt 1 fails the A2.1-D1 standard as `scoring.gate` judges it (C7-K2).
+
+| threshold | caught | false alarm | missed | quiet |
+|---|---|---|---|---|
+| 0.5 | 0 | 0 | 10 | 30 |
+| 0.6 | 0 | 0 | 10 | 30 |
+| 0.7 | 0 | 0 | 10 | 30 |
+| 0.8 | 0 | 0 | 10 | 30 |
+| 0.85 | 2 | 0 | 8 | 30 |
+| 0.9 | 2 | 0 | 8 | 30 |
+| 0.95 | 2 | 10 | 8 | 20 |
+| 1 | 2 | 10 | 8 | 20 |
+
+- informational pages (never gate), caught/false alarm/missed/quiet: 0.5: 0/0/25/15; 0.6: 0/0/25/15; 0.7: 0/0/25/15; 0.8: 0/0/25/15; 0.85: 0/0/25/15; 0.9: 0/0/25/15; 0.95: 9/1/16/14; 1: 9/11/16/4
+- structured-route pages (no confidence, so no threshold can catch their errors; C7-CR1-4), caught/false alarm/missed/quiet: 0.5: 0/0/10/20; 0.6: 0/0/10/20; 0.7: 0/0/10/20; 0.8: 0/0/10/20; 0.85: 0/0/10/20; 0.9: 0/0/10/20; 0.95: 0/0/10/20; 1: 0/0/10/20
+
+##### What each retry changed (C7-Q3, C7-Q2)
+
+Errors are every kind but field_missing; an error is the same in two attempts when its kind, date and field match (C7-K3). Noise band = the population SD of attempt 1's errors across a page's runs; an attempt helps on a page when its mean is lower by more than the band, and a tier helps when it helps on two pages and hurts on none (C7-R3). On the shipped route a forced attempt 2 sends the splitter the same request, so this measures a generic hint plus a resample, not the specific-hint path.
+
+###### Escalation model: none
+
+| transition | runs | fixed | introduced | kept | mean seconds | tokens (prompt/completion) |
+|---|---|---|---|---|---|---|
+| 1 to 2 | 40 | 9 | 8 | 131 | 41.0 | 205918/113926 |
+| 2 to 3 (same model) | 40 | 14 | 22 | 125 | 39.3 | 207993/113758 |
+
+| page | noise band | churn | errors at 1 | at 2 | at 3 | 2 vs 1 | 3 vs 2 |
+|---|---|---|---|---|---|---|---|
+| Archives_ Events - The White Squirrel Bar.html | 0.00 | 0.00 | 0.0 | - | - | - | - |
+| Events — Zhora Darling.html | 0.00 | 0.00 | 2.0 | - | - | - | - |
+| Terminal Bar – The Terminal Bar.html | 0.00 | 0.00 | 3.0 | 3.0 | 3.0 | neither | neither |
+| icehouse-2026-11-05.html | 0.49 | 0.80 | 23.6 | 23.6 | 23.6 | neither | neither |
+| mortimers-2026-10-10.html | 0.00 | 0.00 | 0.0 | 0.0 | 0.0 | neither | neither |
+| seventh_st_entry-2026-10-10.html | 0.00 | 0.00 | 0.0 | 0.0 | 0.0 | neither | neither |
+| terminal-2026-10-10.html | 0.49 | 0.60 | 0.6 | 0.6 | 0.2 | neither | neither |
+| terminal_bar_show_1.png | 0.00 | 0.00 | 0.0 | 0.6 | 1.0 | hurts | neither |
+| terminal_bar_show_2.webp | 0.40 | 0.40 | 0.8 | 0.0 | 0.0 | helps | neither |
+| turf_club-2026-11-04.html | 0.00 | 0.00 | 0.0 | 0.0 | 1.6 | neither | hurts |
+| white_squirrel-2026-10-10.html | 0.00 | 0.00 | 0.0 | - | - | - | - |
+
+- C7-R3 tier 2: **does not help**; tier 3: **does not help**
+- C7-R4 (the cap): **2 (attempt 3 hurts on a page and helps on none)**
+
+###### Escalation model: google/gemma-4-31B-it
+
+| transition | runs | fixed | introduced | kept | mean seconds | tokens (prompt/completion) |
+|---|---|---|---|---|---|---|
+| 1 to 2 | 40 | 11 | 5 | 133 | 42.7 | 205694/109243 |
+| 2 to 3 (larger model) | 40 | 94 | 20 | 44 | 141.4 | 207975/131666 |
+
+| page | noise band | churn | errors at 1 | at 2 | at 3 | 2 vs 1 | 3 vs 2 |
+|---|---|---|---|---|---|---|---|
+| Archives_ Events - The White Squirrel Bar.html | 0.00 | 0.00 | 0.0 | - | - | - | - |
+| Events — Zhora Darling.html | 0.00 | 0.00 | 2.0 | - | - | - | - |
+| Terminal Bar – The Terminal Bar.html | 0.00 | 0.00 | 3.0 | 3.0 | 0.0 | neither | helps |
+| icehouse-2026-11-05.html | 0.40 | 2.60 | 24.2 | 23.8 | 12.0 | neither | helps |
+| mortimers-2026-10-10.html | 0.00 | 0.00 | 0.0 | 0.0 | 0.0 | neither | neither |
+| seventh_st_entry-2026-10-10.html | 0.00 | 0.00 | 0.0 | 0.0 | 0.8 | neither | hurts |
+| terminal-2026-10-10.html | 0.49 | 0.60 | 0.6 | 0.4 | 0.0 | neither | neither |
+| terminal_bar_show_1.png | 0.00 | 0.00 | 0.0 | 0.4 | 0.0 | neither | neither |
+| terminal_bar_show_2.webp | 0.00 | 0.00 | 1.0 | 0.0 | 0.0 | helps | neither |
+| turf_club-2026-11-04.html | 0.00 | 0.00 | 0.0 | 0.0 | 0.0 | neither | neither |
+| white_squirrel-2026-10-10.html | 0.00 | 0.00 | 0.0 | - | - | - | - |
+
+- C7-R3 tier 2: **does not help**; tier 3: **does not help**
+- C7-R4 (the cap): **4 (attempt 3 helps on two or more pages; a fourth attempt would need its own run)**
+
+- google/gemma-4-31B-it at attempt 3 against no escalation model: {'Terminal Bar – The Terminal Bar.html': 'helps', 'mortimers-2026-10-10.html': 'neither', 'seventh_st_entry-2026-10-10.html': 'hurts', 'terminal-2026-10-10.html': 'neither', 'terminal_bar_show_1.png': 'helps', 'terminal_bar_show_2.webp': 'neither', 'turf_club-2026-11-04.html': 'helps', 'icehouse-2026-11-05.html': 'helps'}; **does not help**
+
+*Supplementary, not in the plan: the confidence table over attempt 1 of all six labels (the two default and the four forced), since
+Departure 2 says R1 names no label. Same shape, 1,787 rows:*
+
+#### Policy questions: c7-defaults, c7-defaults-icehouse, c7-forced, c7-forced-icehouse, c7-forced-escalated, c7-forced-escalated-icehouse
+
+- c7-defaults: labels_sha e49e570663; set all; runs 50; model google/gemma-4-26B-A4B-it; policy: threshold 0.8, cap 3, escalation model none
+- c7-defaults-icehouse: labels_sha e49e570663; set held_out; runs 5; model google/gemma-4-26B-A4B-it; policy: threshold 0.8, cap 3, escalation model none
+- c7-forced: labels_sha e49e570663; set all; runs 50; model google/gemma-4-26B-A4B-it; policy: threshold 1.01 (forced retries), cap 3, escalation model none
+- c7-forced-icehouse: labels_sha e49e570663; set held_out; runs 5; model google/gemma-4-26B-A4B-it; policy: threshold 1.01 (forced retries), cap 3, escalation model none
+- c7-forced-escalated: labels_sha e49e570663; set all; runs 50; model google/gemma-4-26B-A4B-it; policy: threshold 1.01 (forced retries), cap 3, escalation model google/gemma-4-31B-it
+- c7-forced-escalated-icehouse: labels_sha e49e570663; set held_out; runs 5; model google/gemma-4-26B-A4B-it; policy: threshold 1.01 (forced retries), cap 3, escalation model google/gemma-4-31B-it
+
+##### Confidence and correctness (C7-Q4)
+
+Attempt 1 of each run; one row per show the record's confidence covers (kept, model-judged: not excluded, not a status-merge placeholder, not the structured route). Wrong = wrong acts, invented, a leak, a wrong field or image (C7-K1). A value is compared only with 10 or more rows.
+
+| confidence | rows | wrong | wrong rate | compared | per venue (wrong/rows) |
+|---|---|---|---|---|---|
+| 0.8 | 3 | 0 | 0.00 | no | icehouse 0/3 |
+| 0.9 | 142 | 26 | 0.18 | yes | icehouse 16/22; mortimers 0/105; terminal 10/15 |
+| 0.95 | 14 | 0 | 0.00 | yes | terminal 0/14 |
+| 1 | 1628 | 335 | 0.21 | yes | icehouse 283/652; seventh_st_entry 0/450; terminal 52/271; turf_club 0/255 |
+
+- C7-R1: **no** (pooled slope does not hold; venues where it holds: ['terminal'])
+- excluded shows' confidences, never in the buckets: 0.8: 1 correct, 0 missed, 0.9: 2 correct, 2 missed, 1.0: 64 correct, 40 missed
+
+*Step 7's cross-check, no model call: `--rescore c6-confirm-gated` and `--rescore c6-confirm-heldout`, then `eval-policy` over the two.
+It reproduces C7-F1 to C7-F4 (the third section, "No page made a second attempt", is omitted):*
+
+#### Policy questions: rescore-c6-confirm-gated, rescore-c6-confirm-heldout
+
+- rescore-c6-confirm-gated: labels_sha e49e570663; set gated; runs 25; model google/gemma-4-26B-A4B-it; policy: threshold 0.8, cap 3, escalation model none
+- rescore-c6-confirm-heldout: labels_sha e49e570663; set held_out; runs 20; model google/gemma-4-26B-A4B-it; policy: threshold 0.8, cap 3, escalation model none
+
+##### Confidence and correctness (C7-Q4)
+
+Attempt 1 of each run; one row per show the record's confidence covers (kept, model-judged: not excluded, not a status-merge placeholder, not the structured route). Wrong = wrong acts, invented, a leak, a wrong field or image (C7-K1). A value is compared only with 10 or more rows.
+
+| confidence | rows | wrong | wrong rate | compared | per venue (wrong/rows) |
+|---|---|---|---|---|---|
+| 0.9 | 142 | 2 | 0.01 | yes | mortimers 0/35; seventh_st_entry 0/90; turf_club 2/17 |
+| 1 | 352 | 98 | 0.28 | yes | icehouse 98/224; seventh_st_entry 0/60; turf_club 0/68 |
+
+- C7-R1: **not enough evidence** (2 wrong rows outside the largest contributor (icehouse); C7-R1 needs 20)
+- excluded shows' confidences, never in the buckets: 0.5: 6 correct, 0 missed, 0.8: 3 correct, 0 missed, 1.0: 23 correct, 14 missed
+
+##### Threshold sweep (C7-Q1)
+
+Attempt 1 of each model-judged run (model and image routes). Would retry = failed for a reason other than low confidence, or confidence under the threshold; should retry = attempt 1 fails the A2.1-D1 standard as `scoring.gate` judges it (C7-K2).
+
+| threshold | caught | false alarm | missed | quiet |
+|---|---|---|---|---|
+| 0.5 | 0 | 0 | 6 | 14 |
+| 0.6 | 0 | 0 | 6 | 14 |
+| 0.7 | 0 | 0 | 6 | 14 |
+| 0.8 | 0 | 0 | 6 | 14 |
+| 0.85 | 0 | 0 | 6 | 14 |
+| 0.9 | 0 | 0 | 6 | 14 |
+| 0.95 | 1 | 8 | 5 | 6 |
+| 1 | 1 | 8 | 5 | 6 |
+
+- informational pages (never gate), caught/false alarm/missed/quiet: 0.5: 0/0/0/0; 0.6: 0/0/0/0; 0.7: 0/0/0/0; 0.8: 0/0/0/0; 0.85: 0/0/0/0; 0.9: 0/0/0/0; 0.95: 0/0/0/0; 1: 0/0/0/0
+- structured-route pages (no confidence, so no threshold can catch their errors; C7-CR1-4), caught/false alarm/missed/quiet: 0.5: 0/0/15/10; 0.6: 0/0/15/10; 0.7: 0/0/15/10; 0.8: 0/0/15/10; 0.85: 0/0/15/10; 0.9: 0/0/15/10; 0.95: 0/0/15/10; 1: 0/0/15/10
+
+*D9's secondary table, own group, never pooled with the C7 labels (rescored `c6-hosted-baseline`, `c61-icehouse`, `c61-icehouse-price`,
+`c61-split-before`, `c61-split-after`; older prompts; the third section, "No page made a second attempt", is omitted):*
+
+#### Policy questions: rescore-c6-hosted-baseline, rescore-c61-icehouse, rescore-c61-icehouse-price, rescore-c61-split-before, rescore-c61-split-after
+
+- rescore-c6-hosted-baseline: labels_sha e49e570663; set all; runs 10; model google/gemma-4-26B-A4B-it; policy: threshold 0.8, cap 3, escalation model none
+- rescore-c61-icehouse: labels_sha e49e570663; set held_out; runs 5; model google/gemma-4-26B-A4B-it; policy: threshold 0.8, cap 3, escalation model none
+- rescore-c61-icehouse-price: labels_sha e49e570663; set held_out; runs 5; model google/gemma-4-26B-A4B-it; policy: threshold 0.8, cap 3, escalation model none
+- rescore-c61-split-before: labels_sha e49e570663; set gated; runs 15; model google/gemma-4-26B-A4B-it; policy: threshold 0.8, cap 3, escalation model none
+- rescore-c61-split-after: labels_sha e49e570663; set gated; runs 15; model google/gemma-4-26B-A4B-it; policy: threshold 0.8, cap 3, escalation model none
+
+##### Confidence and correctness (C7-Q4)
+
+Attempt 1 of each run; one row per show the record's confidence covers (kept, model-judged: not excluded, not a status-merge placeholder, not the structured route). Wrong = wrong acts, invented, a leak, a wrong field or image (C7-K1). A value is compared only with 10 or more rows.
+
+| confidence | rows | wrong | wrong rate | compared | per venue (wrong/rows) |
+|---|---|---|---|---|---|
+| 0.9 | 92 | 2 | 0.02 | yes | icehouse 0/4; mortimers 0/40; seventh_st_entry 0/30; terminal 0/1; turf_club 2/17 |
+| 0.95 | 1 | 1 | 1.00 | no | terminal 1/1 |
+| 1 | 757 | 200 | 0.26 | yes | icehouse 192/450; mortimers 0/7; seventh_st_entry 3/180; terminal 0/18; turf_club 5/102 |
+
+- C7-R1: **not enough evidence** (11 wrong rows outside the largest contributor (icehouse); C7-R1 needs 20)
+- excluded shows' confidences, never in the buckets: 0.9: 3 correct, 2 missed, 1.0: 41 correct, 24 missed
+
+##### Threshold sweep (C7-Q1)
+
+Attempt 1 of each model-judged run (model and image routes). Would retry = failed for a reason other than low confidence, or confidence under the threshold; should retry = attempt 1 fails the A2.1-D1 standard as `scoring.gate` judges it (C7-K2).
+
+| threshold | caught | false alarm | missed | quiet |
+|---|---|---|---|---|
+| 0.5 | 0 | 0 | 17 | 14 |
+| 0.6 | 0 | 0 | 17 | 14 |
+| 0.7 | 0 | 0 | 17 | 14 |
+| 0.8 | 0 | 0 | 17 | 14 |
+| 0.85 | 0 | 0 | 17 | 14 |
+| 0.9 | 0 | 0 | 17 | 14 |
+| 0.95 | 4 | 6 | 13 | 8 |
+| 1 | 4 | 6 | 13 | 8 |
+
+- informational pages (never gate), caught/false alarm/missed/quiet: 0.5: 0/0/1/3; 0.6: 0/0/1/3; 0.7: 0/0/1/3; 0.8: 0/0/1/3; 0.85: 0/0/1/3; 0.9: 0/0/1/3; 0.95: 0/1/1/2; 1: 1/1/0/2
+- structured-route pages (no confidence, so no threshold can catch their errors; C7-CR1-4), caught/false alarm/missed/quiet: 0.5: 0/0/2/13; 0.6: 0/0/2/13; 0.7: 0/0/2/13; 0.8: 0/0/2/13; 0.85: 0/0/2/13; 0.9: 0/0/2/13; 0.95: 0/0/2/13; 1: 0/0/2/13
+
+**The readings, applied as written.**
+
+| Reading | Outcome | How |
+|---|---|---|
+| **C7-R1** (Q4) | **Not enough evidence on the Step 7 default runs; "no" on every other table; "yes" on none.** | Defaults: 17 wrong kept rows outside Icehouse, 20 needed (Terminal Bar 16 of 91 at confidence 1.0 and 1 of 5 at 0.9). Forced pool: confidence 0.9 holds 98 rows at 0.26 wrong against 0.20 at 1.0; the pooled slope is under 2x and the code returns "no". All six labels' attempt 1: 0.9 holds 142 rows at 0.18 wrong against 0.21 at 1.0, which is flat or inverted: "no". See Departure 2. |
+| **C7-R2** (Q1) | **Confirm 0.8; document it as inert on the shipped model. Not tuned, and not lowered.** | Both sweeps catch nothing at any threshold up to 0.8 (default runs: 0 caught, 5 missed, 15 quiet; forced pool: 0 caught, 10 missed). Raising it to 0.85 to 1.0 would catch 2 of the 5 or 10 should-retry gated page-runs (the forced pool: 2 caught and 0 false alarms at 0.85 and 0.9, then 10 false alarms at 0.95 and 1), but R3 says a retry does not help, so by R2 no threshold is better. 0.8 sends no correct page to a retry (0 false alarms in both sweeps, at every threshold up to 0.9 in the defaults), so the "lower it to 0" clause does not apply. |
+| **C7-R3** (Q3) | **Tier 2 does not help. Tier 3 does not help, with no escalation model or with the 31B.** The escalated tier does not beat the unescalated one by the rule. | Per page, over the same runs, noise band and the 0.5 floor. **Tier 2, no escalation:** helps on `terminal_bar_show_2.webp` (0.8 to 0.0), hurts on `terminal_bar_show_1.png` (0.0 to 0.6), neither elsewhere. **Tier 2, 31B group:** helps on `terminal_bar_show_2.webp` (1.0 to 0.0) only. **Tier 3, no escalation:** hurts on `turf_club` (0.0 to 1.6), helps on none. **Tier 3, 31B:** helps on Terminal Bar (3.0 to 0.0) and Icehouse (23.8 to 12.0), **hurts on 7th St Entry (0.0 to 0.8)**; two pages helped, but "hurts on none" fails. **31B against none at attempt 3:** helps on Terminal Bar, `terminal_bar_show_1.png`, Turf Club and Icehouse, hurts on 7th St Entry: does not help for the same reason. |
+| **C7-R4** (Q2) | **2 for the configuration that ships (no escalation model): attempt 3 hurts on a page (Turf Club) and helps on none. For the 31B group the literal text gives 4** (attempt 3 helps on two pages), which R3 has rejected. | Taken as written. At the default threshold the cap matters only when a check error fires, and C7-F1 says that has not happened in 100 default page-runs (45 saved, 55 here). |
+
+**What changed and what it cost, as description (not a rule).** From the pooled forced report: with no escalation model, attempt 2 fixed
+9 errors and introduced 8 (131 kept), and attempt 3 fixed 14 and introduced 22 (125 kept). With the 31B at attempt 3 the counts are 94
+fixed, 20 introduced and 44 kept: the larger model changes far more than a resample does. Icehouse's mean errors a run halve (23.8 to 12.0)
+and Terminal Bar's go to 0. The price: 141.4 s a page-attempt against 39.3 s (3.6x), and 131,666 completion tokens over 40 runs against
+113,758 (the prompt tokens are about the same, 207,975 against 207,993). The one regression that fails R3 is systematic, not noise: in 4 of
+5 runs the 31B returns seven acts for 7th St Entry's 2026-10-31 listing where the label has four (it adds `INTERNET KIDS`, `Visa_Card` and
+`Wizard.Imma`; read from the saved attempts' error items), and the unescalated third attempt does not. Turf Club's tier-3 "hurt" without the
+larger model (0.0 to 1.6) is the same page that drops a second act in some runs (C6 Round 10, miss 5), so a resample explains part of it.
+A forced run commits nothing, so none of this says what a production retry would commit.
+
+**The recommendation for each default, worded within the Q3 scope the Context states** (a generic low-confidence hint plus a resample
+at tier 2, and at tier 3 the final-attempt sentence plus a larger model; the production path that retries on a specific check finding is
+not exercised, C7-F1):
+
+1. **Confidence threshold: confirm 0.8 and document it as inert on the shipped model.** It has never fired on this model; the data give no
+   threshold that is better; changing it would be tuning to noise. A comment in `policy.py` replaces "A8 checks whether the number is right".
+2. **Attempt cap: R4 reads 2 for the configuration that ships, because attempt 3 without an escalation model only adds the final-attempt
+   sentence and, in the forced runs, hurt Turf Club and helped nothing.** The figure is small (one page, a resample) and the cap is inert
+   at the default threshold, so keeping 3 costs nothing today; changing to 2 follows the rule and removes a tier that exists only for an
+   escalation model nobody has adopted. Ari decides, with a lean to the rule.
+3. **Escalation model: do not adopt one.** R3 does not clear `google/gemma-4-31B-it`: it does not help by the rule, although it halves
+   Icehouse's errors and clears Terminal Bar, and the one page that fails it, 7th St Entry, gets the same wrong act list in 4 of 5 runs.
+   The tier-3 answer is "this larger model, on a forced retry, does not recover the errors on net", **not** "a larger model cannot help".
+4. **Q4: confidence is not used to route** (R1 never reads "yes"; the page model's opinion covers the listing, and the splitter that makes
+   the dominant error reports none, C7-F5). This is the evidence arch-initial.md §11 asked for on the review flag: act-split uncertainty
+   belongs in the review flag, not the retry loop (D8), because a retry that triggers on a check does not help either (R3, tier 2).
+
+**Decisions for Ari (the build stops here).**
+
+1. **The three defaults:** threshold 0.8 (confirm, document as inert); cap 3 or 2 (R4 says 2); escalation model none.
+2. **R1's sample (Departure 2):** accept "no" on the forced and pooled tables and "not enough evidence" on the defaults, or ask for more
+   labeled model-route pages (D9, C5-D4). Terminal Bar's 0.9 rows (9 of 10 wrong in the forced pool) and Icehouse's (16 of 18) point the
+   expected way inside each venue, but each is a handful of rows and Mortimer's (70 rows, all right at 0.9) flattens the pool.
+3. **A second escalation candidate or a fourth attempt:** D2 allows a second candidate only if R3 says the first is close, and R4 allows
+   a fourth attempt only if attempt 3 helps on two pages. Neither was run. The 31B result is "two pages helped, one regressed
+   systematically", which is arguably close; each extra pair of escalated runs is about two and a half hours and, by the token counts, well under a
+   dollar. I did not decide this for you.
+4. **Read the DeepInfra dashboard** and tell me the spend. The runs used 1,508,565 prompt and 824,554 completion tokens in all (smoke
+   included), 31B calls among them; at DeepInfra's listed prices that is plausibly well under $1 (PLAUSIBLE, not read), against the $5 budget.
+
+**Verification.**
+
+- Every run's report header checked as listed above; the pooled forced report prints both escalation groups and R3's last line.
+- Cross-check (no model): the rescored `c6-confirm-gated` and `c6-confirm-heldout` reproduce C7-F1 to C7-F4 (Icehouse 98 wrong kept rows
+  at confidence 1.0, 14 dropped shows in the excluded line, no second attempts), as the dry run in Round 1 did.
+- The snapshots hold no API key: the first 8 characters of the key in `apps/api/.env`, searched with `grep -rl` over
+  `docs/dev/eval-baselines/` (after the Step 7 snapshots and again after the Step 8 ones), match nothing (exit 1). The snapshot-scan test
+  in the suite also passes.
+- After the merge: `uv run pytest` 1524 passed; `make lint` and `make typecheck` pass. Not run since the merge: vitest, Playwright
+  (`make check` in full), which Step 10 runs. `make designation-check` ran clean on the merge worktree before landing (`BASE=8c90a38`).
+- Token totals (prompt / completion): smoke 3,529 / 974; `c7-defaults` 172,537 / 70,537; `c7-defaults-icehouse` 53,317 / 48,542;
+  `c7-forced` 479,177 / 195,412; `c7-forced-icehouse` 160,570 / 150,753; `c7-forced-escalated` 478,827 / 205,680;
+  `c7-forced-escalated-icehouse` 160,608 / 152,656.
+
+**Where to look hardest.**
+
+- **Departure 2 (R1).** Whether "no" is the right word for a pooled ratio between 1 and 2, and which label R1 was meant to be read on.
+  Nothing in the code or the plan settles it; I reported all of it and chose none.
+- **R3's "hurts on none" clause against one page's systematic regression.** The verdict on the escalation model turns on 7th St Entry's
+  0.8, which crosses the 0.5 floor in four of five runs and so is not noise. Ari may judge that the clause is too strict for this case;
+  the rule says otherwise and I applied it.
+- **R4's two answers.** The recommendation of 2 rests on the unescalated group, one page (Turf Club) and a resample.
+- **Icehouse is a burned page** and dominates the error counts in every table.
 
 ## Code review
 
