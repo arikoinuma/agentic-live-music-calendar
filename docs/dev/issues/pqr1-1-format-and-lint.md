@@ -1,13 +1,13 @@
 # PQR1-1: auto-format the Python code and broaden the lint rules
 
-**Status:** Code review
+**Status:** PR open
 **Date:** November 6, 2026
 **Scope:** PQR1-1, PQR1-7
 **Sources:** both in `docs/dev/review/2026-11-06-python-code-quality-review.md`, §3 Details rows PQR1-1 and PQR1-7 (and §7 steps 1–2)
 **Tier:** T0 — formatting and lint configuration (the README's T0 list names both). The handful of lint fixes are
 local, behavior-preserving rewrites, and the full suite verifies them
 **Author model:** Claude Opus 5.5 (record, formatting, lint config and fixes, November 6, 2026; cloud session)
-**Reviewer model:** (code review round 1, pending)
+**Reviewer model:** Claude Sonnet 5.5 (code review round 1, November 6, 2026)
 **Branch / PR:** `claude/happy-knuth-edh3br` (designated by the cloud session, restarted from `main` after PR 94 merged; a fast-forward) / PR link once opened
 
 **Designations.** Review items here are bare (`CR1-2`). Outside this record they are `PQR1-1-CR1-2`
@@ -104,11 +104,50 @@ the waiver when those findings land. That keeps the rules on everywhere else.
 - **Noticed, not in scope:**
   - `mypy` doesn't set `warn_unused_ignores`, so a `type: ignore` that no longer suppresses anything goes unnoticed.
     Turning it on would have caught the formatter moving one.
-  - The old `"agent_worker/model_eval/run_eval.py" = ["BLE001"]` waiver refers to a rule (`BLE`) that isn't selected, so
-    it does nothing.
+  - (The dead `BLE001` waiver noticed here was removed in review, CR1-2.)
 - **Where to look hardest:**
   - whether any of the line waivers should be a fix instead, above all the five production `assert`s
   - whether the E501 and RUF001–003 global ignores are acceptable
   - the commit-1 AST claim (`1fc85ab` alone can be checked against `8c90a38`)
 
 ## Code review
+
+### Round 1
+
+**Scope:** commit range `8c90a38..HEAD` (`1fc85ab` formatting, `67a2c40` lint config, fixes, CI and this record). Reviewed
+against the record's Issues and Approach, the PQR1-1 and PQR1-7 rows of the review doc, and `docs/dev/issues/README.md`.
+
+**Checked, and how:**
+- Commit 1's formatting-only claim. I compared a docstring-insensitive AST of every `.py` file changed between `8c90a38`
+  and `1fc85ab` (107 files). Exactly one differs, `test_embedded_events_on_real_page.py`, which is the `plan` variable
+  the log declares. CONFIRMED.
+- The same comparison for `1fc85ab..HEAD` (17 `.py` files). Five differ, and each matches a declared fix:
+  `normalize.py` (SIM108), `test_commit_ops.py` (DTZ001), `test_scratch_database.py` (RUF043), `test_local_test_args.py`
+  (SIM300) and `test_reconcile_removal.py` (RUF005). The remaining changes are comments only. CONFIRMED.
+- Read the whole commit-2 code diff, including all `noqa` lines, `per-file-ignores`, the CI step and the Makefile.
+- In `apps/api`: `ruff check .` is clean, `ruff format --check .` reports 171 files formatted, `mypy` is clean (156 files),
+  and `pytest -q` gives 1280 passed, 20 skipped. `make designation-check BASE=8c90a38` exits 0. I did not rerun vitest or e2e;
+  commit 2 touches no JS, and I take that part of `make check` from the log.
+- The `python -O` claim behind the five production `assert` waivers: no `PYTHONOPTIMIZE`, `-O` or `-OO` in any config,
+  workflow, Makefile or Procfile, and the repo has no Dockerfile. CONFIRMED for what is in the repo. Railway's start
+  command lives outside it.
+- Experiments ran in a throwaway `git worktree`, which I removed afterwards. Nothing else was changed.
+
+**Counts:** 0 blockers, 1 should-fix, 4 nits. **Verdict: proceed after fixes** (the should-fix is bookkeeping, not code).
+
+| # | Sev | Finding | Evidence | What goes wrong | Resolution |
+|---|---|---|---|---|---|
+| CR1-1 | should-fix | The source is not closed yet. The review doc's Resolution tracker still reads `Open` for PQR1-1 and PQR1-7, and the diff touches no doc under `docs/dev/review/`. The README makes closing the loop with the source a never-optional step. | `docs/dev/review/2026-11-06-python-code-quality-review.md:230` and `:236` ("Open"); `git diff --stat 8c90a38..HEAD -- docs` lists only this record. CONFIRMED | The tracker keeps saying the two findings are open after the PR merges. The next review pass or `/resolve-issue` run would take them as unresolved. | **Rejected.** The skill closes the loop at step 7, after the PR exists, because the tracker row carries the PR link (`In PR`, PR link, record path). The update lands as a follow-up commit on this branch once the PR is open, as it did for PR 92 and PR 94. |
+| CR1-2 | nit | The stale `"agent_worker/model_eval/run_eval.py" = ["BLE001"]` waiver is still in `pyproject.toml`. The log notices it and leaves it. `BLE` isn't selected, so it does nothing, and this PR is the one that now curates `per-file-ignores`. | `apps/api/pyproject.toml:134`. CONFIRMED | A dead waiver reads as if `BLE001` were enforced, and someone later enabling `BLE` gets a surprise. | **Fixed.** Removed the dead `BLE001` waiver and its comment from `pyproject.toml`. No code refers to it (grep). |
+| CR1-3 | nit | The SIM300 fix reverses the operands to `assert datetime.date(2026, 8, 17) == FETCHED_ON`. A pytest failure then reads "expected" and "actual" the wrong way round, and the line now puts the literal on the left, which is the form the rule exists to avoid. Ruff flagged it because `FETCHED_ON` looks like a constant. | `apps/api/agent_worker/tests/test_local_test_args.py:13`. CONFIRMED | Only readability. A per-line `noqa: SIM300` with a reason, or comparing `args.fetched_on` to the literal, would keep the original direction. | **Fixed.** Restored `assert FETCHED_ON == datetime.date(2026, 8, 17)` with `# noqa: SIM300 - pins the constant; the literal is the expectation`. |
+| CR1-4 | nit | The five invariant-`assert` waivers all carry the same ~110-character `noqa` text, which pushes those lines to about 140 columns. The formatter leaves trailing comments alone and E501 is ignored, so nothing flags it, but it undercuts the 120-column rule the PR introduces. The waiver itself is sound (no `-O` anywhere in the repo), and a refactor to avoid the `assert` would be a bigger change than this T0 record warrants. | `calendar_writer.py:229`, `commit.py:97`, `commit.py:182`, `nodes.py:286`, `nodes.py:298`. CONFIRMED | Cosmetic. A shorter reason, such as `# noqa: S101 - type-narrowing invariant`, would fit in 120. | **Fixed.** The five waivers now read `# noqa: S101 - a type-narrowing invariant`, and the lines are 77–93 columns. The `python -O` reasoning stays in this record's log. |
+| CR1-5 | nit | The record's `**Branch / PR:**` line and the header's "committed as work in progress" wording in Round 1 are fine, but the E501 and RUF001-003 global ignores rest on the AGENTS.md comment-density rule alone. That is acceptable, since E501 is about long comments and the formatter owns code width, but the justification does not say how a genuinely over-long code line (one the formatter cannot split, such as a long string) would be caught. | `apps/api/pyproject.toml:109-118`. PLAUSIBLE | A long non-breakable code line is never flagged. This is a minor gap, and not worth blocking on. | **Fixed.** The `E501` comment in `pyproject.toml` now says that an over-long code line the formatter can't split isn't flagged, and is left to review. |
+
+Answers to the "where to look hardest" questions: the line waivers are acceptable as waivers, and I would not turn the
+production `assert`s into fixes in a T0 record (CR1-4 is style only). The global ignores are acceptable (CR1-5). The commit-1 AST
+claim holds.
+
+Rejected: CR1-1 (the tracker is updated at skill step 7, once the PR link exists).
+
+**After the fixes:** `make check` exit 0 (ruff clean, 171 files formatted; mypy clean; pytest 1280 passed, 20 skipped;
+vitest 525 passed; e2e 107 passed). `make designation-check BASE=8c90a38`: clean.

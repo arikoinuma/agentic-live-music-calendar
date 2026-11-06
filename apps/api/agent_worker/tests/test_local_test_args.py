@@ -10,7 +10,7 @@ def test_no_arguments_replays_the_original_capture() -> None:
     # so existing habits and docs that say `uv run python -m agent_worker.local_test` still mean the same thing.
     args = parse_args([])
     assert (args.fixture, args.fetched_on) == (FIXTURE, FETCHED_ON)
-    assert datetime.date(2026, 8, 17) == FETCHED_ON
+    assert FETCHED_ON == datetime.date(2026, 8, 17)  # noqa: SIM300 - pins the constant; the literal is the expectation
 
 
 def test_another_capture_and_date_can_be_named() -> None:

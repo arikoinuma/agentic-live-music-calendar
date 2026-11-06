@@ -104,7 +104,8 @@ line-length = 120
 select = ["E", "W", "F", "I", "B", "UP", "SIM", "C4", "RET", "RUF", "N", "ASYNC", "DTZ", "S"]
 ignore = [
     # The formatter owns line length for code. What it can't break is a long comment, string or URL, and this
-    # codebase's long why-comments are deliberate (AGENTS.md, Conventions).
+    # codebase's long why-comments are deliberate (AGENTS.md, Conventions). An over-long code line the formatter
+    # can't split (a long string literal) isn't flagged, so it is left to review.
     "E501",  # designation-ok: a ruff rule code
     # The prose deliberately uses typographic characters (an en dash, a multiplication sign, an arrow) in strings,
     # docstrings and comments. These rules read them as look-alikes of ASCII.
@@ -128,7 +129,3 @@ ignore = [
 "agent_worker/model_eval/labeled_page_runs/two_run_scenarios.py" = ["N818"]
 "agent_worker/reconcile.py" = ["E741"]  # designation-ok: ruff rule codes
 "agent_worker/tests/test_reconcile_removal.py" = ["E741"]  # designation-ok: ruff rule codes
-# Broad except is deliberate here: one fixture/model failing outright
-# shouldn't stop the eval loop, and the failure itself is a result worth
-# recording. See the comment above the try/except in run_eval.py.
-"agent_worker/model_eval/run_eval.py" = ["BLE001"]

@@ -283,7 +283,7 @@ def validate_node(state: VenueGraphState) -> VenueGraphState:
         kept: list[ShowExtraction] = []
     else:
         # Set together with the extraction.
-        assert state.extraction_source is not None  # noqa: S101 - an invariant that narrows the type; nothing here runs under python -O
+        assert state.extraction_source is not None  # noqa: S101 - a type-narrowing invariant
         page_html = state.page_html or ""
         result, kept = validate_extraction(
             state.extraction,
@@ -295,7 +295,7 @@ def validate_node(state: VenueGraphState) -> VenueGraphState:
         )
     result = combine(result, state.policy)
     # `combine` always sets one.
-    assert result.verdict is not None  # noqa: S101 - an invariant that narrows the type; nothing here runs under python -O
+    assert result.verdict is not None  # noqa: S101 - a type-narrowing invariant
     state.validation = result
     state.confidence = result.confidence
     state.validated_extraction = (
