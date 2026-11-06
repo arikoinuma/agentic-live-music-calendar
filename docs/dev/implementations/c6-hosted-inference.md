@@ -1,6 +1,6 @@
 # C6 — hosted inference and the extraction accuracy gate
 
-**Status:** Awaiting sign-off (Part 1 code built; Step 1 probe, Step 6 parity run and all of Part 2 are open)
+**Status:** Awaiting sign-off (Part 1 and Part 2 built and measured; the gate passes in 4 of 5 gated runs and fails the held-out set in every run; Ari decides under Dep-D13 whether to continue or accept the miss, Round 10)
 **Date:** October 28, 2026
 **Author model:** Claude Sonnet 5.5
 **Reviewer model:** Claude Opus 5.5 (plan review round 1, October 28, 2026); Claude Opus 5.5 (code review round 1, October 28, 2026)
@@ -405,6 +405,56 @@ Ari's comments on the draft PR (`run_eval.py:136`, `config.py:114`). **Fixed, al
 2. **`model_base_url` was a URL written in `config.py`; it should come from an environment variable.** It now has no default (`str | None = None`), so `MODEL_BASE_URL` is the only source. `.env.example` carries the local Ollama's line; `apps/api/.env` (git-ignored) got the same line so the laptop still works. The hosted API, which never sets it, still builds `Settings` (C6-PR1-1). `main.model_endpoint_problem` now also refuses a worker with no endpoint, and `llm.build_clients` points an unconfigured client at a reserved `.invalid` name, because the OpenAI client would otherwise default to api.openai.com. The same hard-code existed in `run_eval.py` (`OLLAMA_URL`, used for Ollama's `/api/ps`, `/api/version`, `/api/tags`); it is now derived from the configured URL (`ollama_root`). Tests: no default in `Settings`; no endpoint refused (None and empty); the unconfigured client avoids api.openai.com; the Ollama provenance asks the configured host. `environments.md` row updated.
 
 **Verification:** `uv run pytest agent_worker app` 1168 passed, ruff and mypy clean; `make check` is run before the push.
+
+### Round 10 — Steps 12 and 13, the 5-run confirmation and the record, Claude Sonnet 5.5 (run for Ari), November 5, 2026
+
+**Configuration confirmed:** `google/gemma-4-26B-A4B-it` on DeepInfra for every role (page, act splitter, status, matcher; no per-role override, no escalation model), temperature 0, code at the C6.1 branch (`c6.1-embedded-events-reader`, which contains Part 2). Labels as committed on November 5 (Icehouse labelled and Electrical Field of Love re-labelled $30/$40 before these runs).
+
+**Step 12, the gated set (`c6-confirm-gated`, 5 runs of the 5 gated pages): the gate fails in 1 of 5 runs.**
+
+| Page | Route | Runs clean | Seconds a run (mean) |
+|---|---|---|---|
+| White Squirrel archive (12 shows) | structured | 5 of 5 | 6 |
+| White Squirrel (11) | structured | 5 of 5 | 5 |
+| Mortimer's (7) | model | 5 of 5 | 15 |
+| 7th St Entry (30) | model | 5 of 5 | 62 |
+| Turf Club (17) | model | **4 of 5** | 47 |
+
+- The one failure is Turf Club, run 2: the second act, The Suburbs, is missing on the Nov 13 and Nov 14 shows (`acts_wrong` 2). Every field is correct in all 25 page-runs (time and end time 115 of 115, status 385 of 385, no wrong value). Recall and precision 0.995 (383 of 385 shows). The same page passed in the three runs of `c61-split-before` and 4 of these 5, so it is intermittent at temperature 0 on the hosted model, not a fixed error.
+- Mean time a page: 5.7 s on the structured route, 41.4 s on the model route.
+
+**Step 12, the held-out set (`c6-confirm-heldout`, 5 runs of 4 pages): the gate fails in every run.** The set is Dakota, Ginkgo Coffee, Hook & Ladder and Icehouse. Hook & Ladder is no longer held out (C6.1-D7) and Ginkgo and Icehouse are burned (C6-D8 (iii)), so this is a measurement of drift and new layouts, not a clean held-out claim.
+
+| Page | Route | Misses per run (raw column) |
+|---|---|---|
+| Dakota (50 shows) | structured | 2 wrong start times and 1 wrong end time, identical in all 5 runs; 1 non-music leak |
+| Ginkgo Coffee (6) | structured | none committed (6 raw end times wrong in every run: the harness runs no validation, committed and validated are 0) |
+| Hook & Ladder (29) | structured | 1 missed, 3 to 4 `acts_wrong`, 1 leak |
+| Icehouse (47) | model | 2 to 3 missed, 18 to 19 `acts_wrong`, 0 to 1 fabricated, 1 to 3 wrong start times, advance price missing on 17 of 42 shows |
+
+- Recall 0.805 and precision 0.812 over 660 labelled show-instances. Field accuracy (raw): start time 621 of 641 correct, door price 211 of 211, advance price 126 of 211 (85 missing, all Icehouse lone prices; see C6.1-D13), no wrong prices.
+- What each page's failures are, and what was tried: `c6.1-embedded-events-reader.md` Implementation log Rounds 3 to 7 (duplicate events, description prices, the lone-price rule, chunking, the start-time check, the splitter prompt trial).
+
+**The finding, as the plan asks for it: the honest accuracy number is the held-out one, and it is not at the standard.** The gated set passes in 4 of 5 runs. The held-out set fails in 5 of 5. D8 (iii) governs: the Icehouse errors were tuned on after scoring, so Icehouse is burned and Ari has chosen not to capture a replacement for now. D3 stopping condition (b) is met in spirit (several splitter experiments, the prompt trial included, did not close the gap) and condition (a) is not. **This is where Ari is asked under Dep-D13: continue with named further work, or accept the miss and go on.** Recommendation, not a decision: go on to C8 (the worker on Railway) and C11 with the miss accepted, using the audit report of excluded listings (C6.1-D17) and the detail-page extraction (C6.1-D16) as the planned way to find and close them.
+
+**Step 13, the record.** Model per role and configuration: `arch-initial.md` §7 "Model selection". Cost and duration per page: `arch-initial.md` §10. Environment values: `environments.md`. Checkboxes and a dated status line: `alpha-deployment-plan.md` C6. The earlier claim about `gemma-4-e4b-it` in `arch-initial.md` §10 and the AI Gateway paragraph is corrected (Round 2, open point 4).
+
+| Measure | Value | Source |
+|---|---|---|
+| Mean seconds a page, structured route | 5.7 (gated), 15 (held-out: Dakota's 50 shows) | `c6-confirm-gated`, `c6-confirm-heldout` |
+| Mean seconds a page, model route | 41 (gated), 116 (held-out, almost all Icehouse's 47 shows) | same |
+| Cost a page | about $0.001 | Round 8: 25 runs, $0.024, from recorded tokens at $0.07 and $0.34 a million |
+| Not measured | the cost of an Icehouse-sized page (no tokens are recorded in these results files); the account's actual spend, which is Ari's to read off the DeepInfra dashboard | |
+
+**Known remaining misses, for C7 and C11 (the burn-in sample):**
+
+1. **Listings the act splitter gives no acts** are left out (`excluded_no_acts`): Icehouse's The 90's Rewind, KION ROSE PRESENTS and Tofte Lake Center's showcase, in every run. The audit trail now lists them (`excluded_listings` query). A splitter prompt that fixes them regresses the gated set (C6.1-D16).
+2. **Description-only performers added as acts** on Icehouse (about 16 shows a run); Hook & Ladder's event names kept as acts (3 to 4 shows).
+3. **Start times:** the model sometimes takes the doors time or an unstated time (Icehouse). The pipeline's start-time check (C6.1-D14) drops these, but the harness's raw column does not run it, so the raw numbers above overstate it. Dakota's 2 wrong times and 1 end time are the same every run and are not diagnosed.
+4. **Lone prices:** the lone-price rule (C6.1-D13) did not change the model's behaviour (advance still empty); pricing is not just door versus advance, which is a deferred schema question.
+5. **Turf Club's intermittent second act** (1 run in 5).
+6. **One non-music leak a run on Dakota and Hook & Ladder.**
+7. **Not covered by any measurement:** per-act start times (D7: "still no page needs it" was not re-checked against the Icehouse and Dakota pages) and the `ACT_NOT_IN_TITLE` promotion (Step 10: left a warning).
 
 ## Code review
 
