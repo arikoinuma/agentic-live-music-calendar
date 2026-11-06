@@ -8,10 +8,7 @@ from typing import Any
 # TypeScript knows a miss is a real outcome rather than something the
 # frontend discovers in production.
 #
-# The annotation isn't decoration: inferred from the literal alone this
-# is dict[int, dict[str, str]], and FastAPI's parameter is typed
-# dict[int | str, dict[str, Any]] — a stricter key and value type than
-# it accepts, which mypy rejects. Worth knowing as a general Python
-# point: a dict literal's inferred type is often narrower than what you
-# want to pass it to.
+# The annotation is required, not decoration: inferred from the literal alone this is
+# dict[int, dict[str, str]], narrower than FastAPI's dict[int | str, dict[str, Any]] parameter, and mypy rejects
+# passing it (dict is invariant in its key and value types).
 NOT_FOUND: dict[int | str, dict[str, Any]] = {404: {"description": "Not found"}}

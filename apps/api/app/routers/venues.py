@@ -30,10 +30,8 @@ async def list_venues(session: Db, metro: LiveMetro) -> VenueListResponse:
 @router.get("/{venue_id}", responses=NOT_FOUND)
 async def get_venue(venue_id: int, session: Db, metro: LiveMetro) -> VenueDetail:
     venue = await queries.get_venue(session, metro, venue_id)
-    # `is None`, not `== None` and certainly not `== "None"` — None is a
-    # singleton, so identity is both the correct test and the faster one.
-    # Raising here also narrows the type from `VenueDetail | None` to
-    # `VenueDetail`, which is what lets the return below typecheck.
+    # A miss is a 404, declared in the route's `responses` so the generated TypeScript knows it can happen.
+    # Raising also narrows `VenueDetail | None` to `VenueDetail` for the return below.
     if venue is None:
         raise HTTPException(status_code=404, detail="Venue not found")
     return venue

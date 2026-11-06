@@ -1,12 +1,11 @@
 """Read-API response models — the contract between FastAPI and Next.js.
 
-These are the source of truth for the shapes the frontend consumes. No
-route returns them yet (the endpoints land in milestone A2/B2 of
-docs/dev/alpha-build-plan.md); they exist first, on purpose, so the two
-tracks have something fixed to build against. The JSON fixtures under
-apps/calendar/lib/fixtures/ are generated to match these exactly, which
-is what lets the calendar UI be built before the backend serves real
-rows. See docs/dev/api-contract.md for the reasoning behind the shapes.
+These are the source of truth for the shapes the frontend consumes: the
+routes in app/routers/ return them, `make types` turns them into
+apps/calendar/lib/api-types.ts, and the JSON fixtures under
+apps/calendar/lib/fixtures/ are generated to match them exactly, so the
+frontend's tests run against the same shapes the API serves. See
+docs/dev/api-contract.md for the reasoning behind the shapes.
 
 Three deliberate conventions, explained once here rather than repeated
 at every model:

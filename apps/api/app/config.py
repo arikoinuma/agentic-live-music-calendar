@@ -80,10 +80,8 @@ def environment_problem(
 
 
 class Settings(BaseSettings):
-    # model_config tells pydantic-settings where to load values from.
-    # Use SettingsConfigDict(env_file=".env") so it reads apps/api/.env
-    # (uv run executes with apps/api/ as the working directory, so a plain
-    # ".env" relative path is enough — no need for an absolute path).
+    # Real environment variables win over `.env`, which only fills in what isn't set. The relative path is
+    # `apps/api/.env`, because every entry point runs with `apps/api/` as its working directory (`uv run`).
     model_config = SettingsConfigDict(env_file='.env')
 
     # Which place this process believes it is in (C3-D3). Defaults to `local` so a hosted service that forgets
@@ -95,10 +93,8 @@ class Settings(BaseSettings):
     # and on Vercel.
     railway_environment_name: str | None = None
 
-    # declare a field named `database_url` typed as `str`.
-    # pydantic-settings matches env var names to field names case-insensitively
-    # by default, so a field called `database_url` will pick up the
-    # DATABASE_URL value from .env automatically — no extra config needed.
+    # The Postgres connection string (`DATABASE_URL`; pydantic-settings matches names case-insensitively).
+    # Required, with no default: a process that doesn't know its database should not start.
     database_url: str
 
     # The model the page call uses (and the default for every other call). Locally an Ollama tag; hosted, the
@@ -160,10 +156,7 @@ class Settings(BaseSettings):
         return self
 
 
-# instantiate the class once at module load time, e.g.:
-#   settings = Settings()
-# Other modules (like app/main.py) will import this `settings` object
-# rather than constructing their own — that's what makes it work like a
-# single shared source of config for the whole app.
+# The one shared instance. Every module imports this object rather than building its own, so the environment is
+# read and checked once, at import (see the module docstring).
 
 settings = Settings()

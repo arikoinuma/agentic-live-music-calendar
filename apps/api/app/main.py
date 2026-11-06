@@ -14,10 +14,8 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# Attaching a router copies its routes onto the app, prefix and all.
-# Every route in app/routers/ now appears in /openapi.json — which is
-# the whole reason these stub routes exist before the database does.
-# See docs/dev/api-contract.md.
+# Attaching a router copies its routes onto the app, prefix and all, so every route in app/routers/ appears in
+# /openapi.json. That schema is what `make types` turns into the frontend's TypeScript (docs/dev/api-contract.md).
 app.include_router(shows.router)
 app.include_router(venues.router)
 app.include_router(artists.router)
@@ -34,17 +32,8 @@ async def health():
 
 @app.get("/health/db")
 async def health_db():
-    # this route proves the app can actually reach Postgres.
-    # Steps:
-    #   1. Open a connection from the engine as an async context manager:
-    #        async with engine.connect() as conn:
-    #   2. Inside that block, run a trivial round-trip query:
-    #        await conn.execute(text("SELECT 1"))
-    #   3. Return something indicating success, e.g. a dict like the one
-    #      above.
-    # You don't need to catch exceptions yet — if the connection or query
-    # fails, SQLAlchemy raises, and FastAPI turns any uncaught exception
-    # into a 500 response on its own. That's a fine signal for this stage.
+    # Proves the app can reach Postgres with one round trip. A failure is deliberately not caught: SQLAlchemy
+    # raises, FastAPI turns it into a 500, and a 500 is exactly the signal a health check should give.
     async with engine.connect() as conn:
         await conn.execute(text("SELECT 1"))
         return {"message": "db connection up"}
