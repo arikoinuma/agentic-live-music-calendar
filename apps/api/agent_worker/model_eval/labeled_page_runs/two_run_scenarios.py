@@ -92,10 +92,16 @@ async def _perturb(factory: async_sessionmaker[AsyncSession], venue_id: int) -> 
     """
     async with factory() as session:
         rows = (
-            await session.execute(
-                select(Show).where(Show.venue_id == venue_id, Show.status == ShowStatus.ACTIVE).order_by(Show.date, Show.start_time, Show.id)
+            (
+                await session.execute(
+                    select(Show)
+                    .where(Show.venue_id == venue_id, Show.status == ShowStatus.ACTIVE)
+                    .order_by(Show.date, Show.start_time, Show.id)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         timed = next((s for s in rows if s.start_time is not None), None)
         others = [s for s in rows if timed is None or s.id != timed.id]
         if timed is None or not others:
@@ -105,7 +111,13 @@ async def _perturb(factory: async_sessionmaker[AsyncSession], venue_id: int) -> 
         await session.execute(update(Show).where(Show.id == timed.id).values(start_time=None))
         await session.execute(delete(ShowArtist).where(ShowArtist.show_id == victim.id))
         await session.execute(delete(Show).where(Show.id == victim.id))
-        stale = Show(venue_id=venue_id, date=max(s.date for s in rows), start_time=_STALE_TIME, status=ShowStatus.ACTIVE, original_url="stale")
+        stale = Show(
+            venue_id=venue_id,
+            date=max(s.date for s in rows),
+            start_time=_STALE_TIME,
+            status=ShowStatus.ACTIVE,
+            original_url="stale",
+        )
         session.add(stale)
         await session.flush()
         details["stale"] = stale.id
@@ -142,7 +154,9 @@ def _extracted_shows(run: PageRun) -> Any:
 
 
 def _compare_counts(
-    scenario: Scenario, first: PageRun, second: PageRun,
+    scenario: Scenario,
+    first: PageRun,
+    second: PageRun,
 ) -> tuple[dict[str, int] | None, list[str], bool]:
     """`(expected counts, differences, whether the model changed its answer)` for a scenario's second run.
 
@@ -171,17 +185,32 @@ def _compare_counts(
         else:
             what = f"the model extracted {first_run['insert']} shows both times, but not the same ones (an act or a field differs)"
         return expected, [f"{what}, so run 2's counts reflect a changed extraction, not reconcile"], True
-    return expected, [f"{action}: expected {want}, got {second_run.get(action)}" for action, want in expected.items() if second_run.get(action) != want], False
+    return (
+        expected,
+        [
+            f"{action}: expected {want}, got {second_run.get(action)}"
+            for action, want in expected.items()
+            if second_run.get(action) != want
+        ],
+        False,
+    )
 
 
 async def run_scenario(
-    scenario: Scenario, *, first: ScenarioPage, second: ScenarioPage | None, venue: VenueFacts, ctx: WorkerContext,
-    factory: async_sessionmaker[AsyncSession], policy: RetryPolicy | None = None,
+    scenario: Scenario,
+    *,
+    first: ScenarioPage,
+    second: ScenarioPage | None,
+    venue: VenueFacts,
+    ctx: WorkerContext,
+    factory: async_sessionmaker[AsyncSession],
+    policy: RetryPolicy | None = None,
 ) -> ScenarioResult:
     """Run a scenario's two graph runs on one venue, with no reset between them.
 
     repeat: `first` twice. sequence / overlap: `first`, then `second`. perturbed: `first`, damage the database, `first` again.
     """
+
     async def committed() -> dict[str, Any]:
         return await scratch_calendar_rows.committed_extraction(factory, venue.id)
 
@@ -190,11 +219,17 @@ async def run_scenario(
     # files would make every show they share look updated. Each run therefore reads its page from the same fixed path, copied in
     # just before it runs (the record still carries the capture's own name).
     with tempfile.TemporaryDirectory() as workdir:
+
         async def run(page: ScenarioPage) -> PageRun:
             staged = Path(workdir) / f"page{page.fixture.suffix}"
             shutil.copyfile(page.fixture, staged)
             return await run_page(
-                label=page.label, fixture=staged, venue=venue, ctx=ctx, committed_rows=committed, policy=policy,
+                label=page.label,
+                fixture=staged,
+                venue=venue,
+                ctx=ctx,
+                committed_rows=committed,
+                policy=policy,
                 name=page.fixture.name,
             )
 
@@ -239,18 +274,22 @@ def expected_rows(scenario: Scenario, first: PageLabel, second: PageLabel | None
         start, end = second.captured_on, max(dates)
         survivors = [s for s in first_live if not start <= s.date <= end]
         return [*survivors, *scoring.scheduled_only(second).shows]
-    return list(first_live)        # REPEAT and PERTURBED: the one page's live shows
+    return list(first_live)  # REPEAT and PERTURBED: the one page's live shows
 
 
 def score_database(
-    scenario: Scenario, first: PageLabel, second: PageLabel | None, rows: dict[str, Any],
+    scenario: Scenario,
+    first: PageLabel,
+    second: PageLabel | None,
+    rows: dict[str, Any],
 ) -> dict[str, Any]:
     """The final rows scored against `expected_rows`, with the same scorer and tiers as the extraction (as `asdict(PageScore)`).
 
     The expected shows become a label of their own (the first page's venue and capture date, both pages' non-show entries, so a
     stray row that looks like a listed non-show is still a tolerated leak and not an invented show)."""
     expected = replace(
-        first, shows=tuple(expected_rows(scenario, first, second)),
+        first,
+        shows=tuple(expected_rows(scenario, first, second)),
         non_shows=first.non_shows + (second.non_shows if second is not None else ()),
     )
     # The database holds rows from several pages, so there is no single page to check an image link against, and scoring them

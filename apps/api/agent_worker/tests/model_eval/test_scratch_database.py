@@ -41,5 +41,5 @@ def test_the_guard_refuses_a_host_that_is_not_this_machine() -> None:
     # Proves: a DATABASE_URL pointing at a hosted Neon branch would otherwise make `calendar_eval` a CREATE DATABASE on the
     # hosted server. The rule from AGENTS.md ("reach a hosted database only with a one-command override") applies: the harness
     # never does.
-    with pytest.raises(scratch_database.UnsafeEvalDatabaseError, match="neon.example"):
+    with pytest.raises(scratch_database.UnsafeEvalDatabaseError, match=r"neon\.example"):
         scratch_database.check_eval_database_url(make_url("postgresql+asyncpg://u:p@neon.example/calendar_eval"))

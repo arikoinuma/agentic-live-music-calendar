@@ -55,8 +55,17 @@ HOSTED_DB = "postgresql+asyncpg://calendar_prod:pw@ep-example-123456-pooler.us-e
 def isolate_from_the_shell(monkeypatch: pytest.MonkeyPatch) -> None:
     # Same reason as test_config.py: pydantic-settings still reads exported process variables.
     for name in (
-        "APP_ENV", "RAILWAY_ENVIRONMENT_NAME", "MONGODB_URI", "MODEL_NAME", "MODEL_BASE_URL", "MODEL_API_KEY",
-        "MODEL_PROVIDER", "SPLITTER_MODEL_NAME", "STATUS_MODEL_NAME", "MATCHER_MODEL_NAME", "ESCALATION_MODEL_NAME",
+        "APP_ENV",
+        "RAILWAY_ENVIRONMENT_NAME",
+        "MONGODB_URI",
+        "MODEL_NAME",
+        "MODEL_BASE_URL",
+        "MODEL_API_KEY",
+        "MODEL_PROVIDER",
+        "SPLITTER_MODEL_NAME",
+        "STATUS_MODEL_NAME",
+        "MATCHER_MODEL_NAME",
+        "ESCALATION_MODEL_NAME",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -80,8 +89,11 @@ def test_with_no_new_variable_every_role_is_todays_options_and_todays_request() 
     expected = RequestOptions(model="page-model", temperature=0.0)
     assert roles.page == roles.splitter == roles.status == roles.matcher == expected
     assert request_kwargs(roles.page) == {
-        "model": "page-model", "max_tokens": 16000, "max_retries": 1,
-        "extra_body": {"options": {"num_ctx": 32768}}, "temperature": 0.0,
+        "model": "page-model",
+        "max_tokens": 16000,
+        "max_retries": 1,
+        "extra_body": {"options": {"num_ctx": 32768}},
+        "temperature": 0.0,
     }
 
 
@@ -112,7 +124,10 @@ def test_the_hosted_api_builds_settings_without_any_model_endpoint() -> None:
     # Proves (C6-PR1-1): the API runs hosted with `APP_ENV=prod` and never sets a model endpoint, so the new
     # fields' defaults (a localhost URL) must not make `Settings` refuse to build there.
     settings = Settings(  # type: ignore[call-arg]
-        _env_file=None, app_env="prod", database_url=HOSTED_DB, model_name="placeholder",
+        _env_file=None,
+        app_env="prod",
+        database_url=HOSTED_DB,
+        model_name="placeholder",
         railway_environment_name="production",
     )
     assert settings.app_env == "prod"
@@ -174,7 +189,11 @@ FETCHED = datetime.date(2026, 10, 12)
 
 def run_with_roles(html: str, client: Any, **config: Any) -> extraction.PageExtractionResult:
     return extraction.extract_page(
-        html, venue_name="The Venue", metro_timezone="America/Chicago", fetch_date=FETCHED, client=client,
+        html,
+        venue_name="The Venue",
+        metro_timezone="America/Chicago",
+        fetch_date=FETCHED,
+        client=client,
         options=replace(extraction.PIPELINE_OPTIONS, model="page-m"),
         splitter_options=replace(extraction.PIPELINE_OPTIONS, model="split-m"),
         status_options=replace(extraction.PIPELINE_OPTIONS, model="status-m"),
@@ -185,11 +204,13 @@ def run_with_roles(html: str, client: Any, **config: Any) -> extraction.PageExtr
 def test_each_call_is_sent_its_own_roles_model() -> None:
     # Proves (C6-D2): the page call, the splitter call and the status call each carry the model of their role;
     # the page call does not get the splitter's.
-    client = scripted_client({
-        PAGE: [listings_answer(listing("2026-10-20", "Nona"))],
-        SPLITTER: [split_answer(("Nona", ["Nona"]))],
-        STATUS: [{"items": []}],
-    })
+    client = scripted_client(
+        {
+            PAGE: [listings_answer(listing("2026-10-20", "Nona"))],
+            SPLITTER: [split_answer(("Nona", ["Nona"]))],
+            STATUS: [{"items": []}],
+        }
+    )
     run_with_roles(text_page("Nona", "Oct 20", "cancelled shows are listed"), client)
     calls = completions(client)
     assert [c["model"] for c in calls.calls_for(PAGE)] == ["page-m"]
@@ -200,24 +221,34 @@ def test_each_call_is_sent_its_own_roles_model() -> None:
 def test_the_status_merges_own_splitter_call_uses_the_splitters_options() -> None:
     # Proves (C6-PR1-2c): the extra `split_titles` call the status merge makes for a listing it adds takes the
     # splitter role, not the page model, so a rung's change is attributable to the splitter on those rows too.
-    client = scripted_client({
-        PAGE: [listings_answer()],
-        STATUS: [{"items": [{"date": "2026-10-20", "acts": ["Ghost Band"], "status": "cancelled"}]}],
-        SPLITTER: [split_answer(("Ghost Band", ["Ghost Band"]))],
-    })
+    client = scripted_client(
+        {
+            PAGE: [listings_answer()],
+            STATUS: [{"items": [{"date": "2026-10-20", "acts": ["Ghost Band"], "status": "cancelled"}]}],
+            SPLITTER: [split_answer(("Ghost Band", ["Ghost Band"]))],
+        }
+    )
     run_with_roles(text_page("Ghost Band Oct 20 CANCELLED"), client)
     assert [c["model"] for c in completions(client).calls_for(SPLITTER)] == ["split-m"]
 
 
 def test_without_role_options_every_call_uses_the_page_options() -> None:
     # Proves: the old call shape (one `options`) is unchanged, so the eval and the older tests behave as before.
-    client = scripted_client({
-        PAGE: [listings_answer(listing("2026-10-20", "Nona"))], SPLITTER: [split_answer(("Nona", ["Nona"]))],
-        STATUS: [{"items": []}],
-    })
+    client = scripted_client(
+        {
+            PAGE: [listings_answer(listing("2026-10-20", "Nona"))],
+            SPLITTER: [split_answer(("Nona", ["Nona"]))],
+            STATUS: [{"items": []}],
+        }
+    )
     extraction.extract_page(
-        text_page("Nona", "Oct 20"), venue_name="The Venue", metro_timezone="America/Chicago", fetch_date=FETCHED,
-        client=client, options=replace(extraction.PIPELINE_OPTIONS, model="only-m"), config=extraction.PIPELINE_CONFIG,
+        text_page("Nona", "Oct 20"),
+        venue_name="The Venue",
+        metro_timezone="America/Chicago",
+        fetch_date=FETCHED,
+        client=client,
+        options=replace(extraction.PIPELINE_OPTIONS, model="only-m"),
+        config=extraction.PIPELINE_CONFIG,
     )
     assert {c["model"] for c in completions(client).calls} == {"only-m"}
 
@@ -229,13 +260,41 @@ def test_without_role_options_every_call_uses_the_page_options() -> None:
 ENDPOINT_CASES = [
     # (app_env, provider, base_url, api_key, a problem is expected, why)
     ("local", "ollama", "http://localhost:11434/v1", "ollama", False, "a laptop with Ollama is the default"),
-    ("local", "openai_compatible", "https://api.deepinfra.com/v1/openai", "real-key", False, "C6 runs hosted from a laptop"),
-    ("prod", "openai_compatible", "https://api.deepinfra.com/v1/openai", "real-key", False, "the hosted worker's shape"),
+    (
+        "local",
+        "openai_compatible",
+        "https://api.deepinfra.com/v1/openai",
+        "real-key",
+        False,
+        "C6 runs hosted from a laptop",
+    ),
+    (
+        "prod",
+        "openai_compatible",
+        "https://api.deepinfra.com/v1/openai",
+        "real-key",
+        False,
+        "the hosted worker's shape",
+    ),
     ("prod", "openai_compatible", "http://localhost:11434/v1", "real-key", True, "localhost doesn't exist on Railway"),
     ("staging", "ollama", "http://127.0.0.1:11434/v1", "ollama", True, "any hosted env, loopback spelled as an IP"),
     ("dev", "openai_compatible", "http://[::1]:11434/v1", "real-key", True, "IPv6 loopback"),
-    ("prod", "openai_compatible", "https://api.deepinfra.com/v1/openai", "ollama", True, "the placeholder key would 401"),
-    ("local", "openai_compatible", "https://api.deepinfra.com/v1/openai", "ollama", True, "a hosted URL with no key either"),
+    (
+        "prod",
+        "openai_compatible",
+        "https://api.deepinfra.com/v1/openai",
+        "ollama",
+        True,
+        "the placeholder key would 401",
+    ),
+    (
+        "local",
+        "openai_compatible",
+        "https://api.deepinfra.com/v1/openai",
+        "ollama",
+        True,
+        "a hosted URL with no key either",
+    ),
     ("local", "ollama", None, "ollama", True, "no endpoint is configured anywhere: there is no built-in default"),
     ("prod", "openai_compatible", "", "real-key", True, "an empty MODEL_BASE_URL counts as unset"),
 ]
@@ -276,8 +335,10 @@ def distinct_roles() -> ModelRoles:
     """Four roles that differ only in model name, so a test can tell which role a call was sent."""
     base = extraction.PIPELINE_OPTIONS
     return ModelRoles(
-        page=replace(base, model="page-m"), splitter=replace(base, model="split-m"),
-        status=replace(base, model="status-m"), matcher=replace(base, model="matcher-m"),
+        page=replace(base, model="page-m"),
+        splitter=replace(base, model="split-m"),
+        status=replace(base, model="status-m"),
+        matcher=replace(base, model="matcher-m"),
     )
 
 
@@ -285,18 +346,25 @@ def extract_state(**fields: Any) -> Any:
     from agent_worker.state import VenueGraphState
 
     return VenueGraphState(
-        venue_id=1, calendar_url="https://venue.example/events", venue_name="The Venue",
-        metro_timezone="America/Chicago", fetched_on=FETCHED, run_id=1,
-        page_html=text_page("Nona", "Oct 20"), **fields,
+        venue_id=1,
+        calendar_url="https://venue.example/events",
+        venue_name="The Venue",
+        metro_timezone="America/Chicago",
+        fetched_on=FETCHED,
+        run_id=1,
+        page_html=text_page("Nona", "Oct 20"),
+        **fields,
     )
 
 
 def _script() -> Any:
-    return scripted_client({
-        PAGE: [listings_answer(listing("2026-10-20", "Nona"))] * 3,
-        SPLITTER: [split_answer(("Nona", ["Nona"]))] * 3,
-        STATUS: [{"items": []}] * 3,
-    })
+    return scripted_client(
+        {
+            PAGE: [listings_answer(listing("2026-10-20", "Nona"))] * 3,
+            SPLITTER: [split_answer(("Nona", ["Nona"]))] * 3,
+            STATUS: [{"items": []}] * 3,
+        }
+    )
 
 
 def test_extract_node_sends_each_call_its_roles_model(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -322,15 +390,28 @@ def test_a_tier_three_attempt_sends_the_larger_model_on_the_extraction_calls(mon
     from agent_worker.validation import FailureReason, Verdict
 
     failed = AttemptRecord(
-        attempt=1, tier="initial", model="page-m", route="model", error=None, verdict=Verdict.FAILED,
-        reasons=[FailureReason.CHECK_ERRORS], findings=[], confidence=None, error_count=1, warning_count=0,
+        attempt=1,
+        tier="initial",
+        model="page-m",
+        route="model",
+        error=None,
+        verdict=Verdict.FAILED,
+        reasons=[FailureReason.CHECK_ERRORS],
+        findings=[],
+        confidence=None,
+        error_count=1,
+        warning_count=0,
     )
     client = _script()
     monkeypatch.setattr(nodes, "instructor_client", client)
     monkeypatch.setattr(nodes, "PIPELINE_ROLES", distinct_roles())
-    nodes.extract_node(extract_state(
-        attempt_count=2, attempt_history=[failed, replace(failed, attempt=2)], policy=RetryPolicy(escalation_model="big"),
-    ))
+    nodes.extract_node(
+        extract_state(
+            attempt_count=2,
+            attempt_history=[failed, replace(failed, attempt=2)],
+            policy=RetryPolicy(escalation_model="big"),
+        )
+    )
     calls = completions(client)
     assert [c["model"] for c in calls.calls_for(PAGE)] == ["big"]
     assert [c["model"] for c in calls.calls_for(SPLITTER)] == ["big"]

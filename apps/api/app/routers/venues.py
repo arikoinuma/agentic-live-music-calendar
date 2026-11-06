@@ -9,7 +9,7 @@ Contract: docs/dev/api-contract.md section 2.
 from fastapi import APIRouter, HTTPException
 
 from app import queries
-from app.dependencies import Db, LiveMetro
+from app.dependencies import Db, DbId, LiveMetro
 from app.routers.common import NOT_FOUND
 from app.schemas import VenueDetail, VenueListResponse
 
@@ -28,7 +28,7 @@ async def list_venues(session: Db, metro: LiveMetro) -> VenueListResponse:
 
 
 @router.get("/{venue_id}", responses=NOT_FOUND)
-async def get_venue(venue_id: int, session: Db, metro: LiveMetro) -> VenueDetail:
+async def get_venue(venue_id: DbId, session: Db, metro: LiveMetro) -> VenueDetail:
     venue = await queries.get_venue(session, metro, venue_id)
     # A miss is a 404, declared in the route's `responses` so the generated TypeScript knows it can happen.
     # Raising also narrows `VenueDetail | None` to `VenueDetail` for the return below.

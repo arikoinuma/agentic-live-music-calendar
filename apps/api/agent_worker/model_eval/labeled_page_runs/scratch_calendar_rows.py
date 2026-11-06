@@ -36,10 +36,16 @@ async def committed_extraction(factory: async_sessionmaker[AsyncSession], venue_
     """
     async with factory() as session:
         shows = (
-            await session.execute(
-                select(Show).where(Show.venue_id == venue_id, Show.status == ShowStatus.ACTIVE).order_by(Show.date, Show.start_time, Show.id)
+            (
+                await session.execute(
+                    select(Show)
+                    .where(Show.venue_id == venue_id, Show.status == ShowStatus.ACTIVE)
+                    .order_by(Show.date, Show.start_time, Show.id)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         lineups: dict[int, list[str]] = {show.id: [] for show in shows}
         if shows:
             rows = await session.execute(

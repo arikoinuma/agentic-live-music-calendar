@@ -59,7 +59,10 @@ async def read_calendar(state: VenueGraphState, reader: CalendarReader) -> Venue
     the page gave no dates (a confirmed-empty page): there is nothing to compare, and nothing will be removed (A5-D2).
     """
     inputs = prepare_inputs(
-        state.extraction, state.validated_extraction, state.validation, state.fetched_on or metro_today(state.metro_timezone),
+        state.extraction,
+        state.validated_extraction,
+        state.validation,
+        state.fetched_on or metro_today(state.metro_timezone),
     )
     wanted = load_request(inputs)
     if wanted is None:
@@ -106,8 +109,11 @@ def audited(step: StepType, node: Node) -> Callable[..., Awaitable[VenueGraphSta
         # written and the run is closed by `run_venue`'s finally (the `unfinished_runs` query finds it).
         if step is StepType.COMMIT:
             state.commit_result = await write_plan(
-                state.commit_ops, runtime.context.writer, runtime.context.audit,
-                run_id=state.run_id, attempt_number=attempt_number(step, state),
+                state.commit_ops,
+                runtime.context.writer,
+                runtime.context.audit,
+                run_id=state.run_id,
+                attempt_number=attempt_number(step, state),
             )
 
         # (4) The audit row. If the stager above raised, we never get here: a run whose raw record can't be

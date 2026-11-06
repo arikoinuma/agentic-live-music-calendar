@@ -20,8 +20,8 @@ _frozen_now = frozen_now_from(os.environ.get("E2E_API_FROZEN_NOW"))
 check_e2e_database_url(make_url(settings.database_url))
 
 # Imported after the checks on purpose: a refusal must not have touched the app.
-from app.clock import get_now
-from app.main import app
+from app.clock import get_now  # noqa: E402
+from app.main import app  # noqa: E402
 
 app.dependency_overrides[get_now] = lambda: _frozen_now
 

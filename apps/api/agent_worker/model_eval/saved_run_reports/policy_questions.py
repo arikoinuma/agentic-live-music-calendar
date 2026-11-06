@@ -82,7 +82,10 @@ def items_of(attempt: Mapping[str, Any]) -> list[ErrorItem]:
 
 
 def confidence_rows(
-    route: str | None, show_confidences: Sequence[float | None], judged_indices: Iterable[int], items: Iterable[ErrorItem],
+    route: str | None,
+    show_confidences: Sequence[float | None],
+    judged_indices: Iterable[int],
+    items: Iterable[ErrorItem],
 ) -> list[Row]:
     """The (confidence, correct) rows of one attempt: one per show the record's confidence covers."""
     # C7-Q4 asks whether the confidence the pipeline ROUTES on tracks correctness, so the rows are the shows that confidence covers:
@@ -93,8 +96,8 @@ def confidence_rows(
     # leak is wrong here although the gate tolerates one a page: the question is whether this row is right, not whether the page passes.
     if policy.stored_route(route) not in MODEL_JUDGED_ROUTES:
         return []
-    WRONG_KINDS = {"acts_wrong", "fabricated", "leak", "field_wrong", "image_wrong"}
-    wrong = {i.index for i in items if i.kind in WRONG_KINDS and i.index is not None}
+    wrong_kinds = {"acts_wrong", "fabricated", "leak", "field_wrong", "image_wrong"}
+    wrong = {i.index for i in items if i.kind in wrong_kinds and i.index is not None}
     return [(c, i not in wrong) for i in judged_indices if (c := show_confidences[i]) is not None]
 
 
@@ -115,7 +118,9 @@ def rows_by_venue(records: Iterable[Mapping[str, Any]], labels: Mapping[str, Pag
         attempt = first_attempt(record)
         if label is None or attempt is None or "show_confidences" not in attempt:
             continue
-        rows = confidence_rows(attempt["route"], attempt["show_confidences"], attempt["judged_indices"], items_of(attempt))
+        rows = confidence_rows(
+            attempt["route"], attempt["show_confidences"], attempt["judged_indices"], items_of(attempt)
+        )
         out.setdefault(label.venue, []).extend(rows)
     return out
 
@@ -160,7 +165,9 @@ def _slope_holds(compared: Sequence[Bucket]) -> bool:
 
 
 def r1_verdict(
-    rows_by_venue: Mapping[str, Sequence[Row]], min_size: int = MIN_BUCKET, min_wrong_outside: int = MIN_WRONG_OUTSIDE_LARGEST,
+    rows_by_venue: Mapping[str, Sequence[Row]],
+    min_size: int = MIN_BUCKET,
+    min_wrong_outside: int = MIN_WRONG_OUTSIDE_LARGEST,
 ) -> tuple[str, str]:
     """C7-R1, applied: "yes", "no" or "not enough evidence", with the reason in words.
 
@@ -176,14 +183,24 @@ def r1_verdict(
         )
     compared = [b for b in buckets(rows_by_venue, min_size) if b.compared]
     if len(compared) < 2:
-        return "not enough evidence", f"{len(compared)} confidence value(s) with {min_size} or more rows; C7-R1 needs two"
+        return (
+            "not enough evidence",
+            f"{len(compared)} confidence value(s) with {min_size} or more rows; C7-R1 needs two",
+        )
     venues_holding = [
-        v for v, rows in rows_by_venue.items()
+        v
+        for v, rows in rows_by_venue.items()
         if len(own := [b for b in buckets({v: rows}, min_size) if b.compared]) >= 2 and _slope_holds(own)
     ]
     if _slope_holds(compared) and len(venues_holding) >= 2:
-        return "yes", f"the lowest compared bucket is at least twice as wrong as the highest, pooled and on {venues_holding}"
-    return "no", f"pooled slope {'holds' if _slope_holds(compared) else 'does not hold'}; venues where it holds: {venues_holding or 'none'}"
+        return (
+            "yes",
+            f"the lowest compared bucket is at least twice as wrong as the highest, pooled and on {venues_holding}",
+        )
+    return (
+        "no",
+        f"pooled slope {'holds' if _slope_holds(compared) else 'does not hold'}; venues where it holds: {venues_holding or 'none'}",
+    )
 
 
 def excluded_confidences(records: Iterable[Mapping[str, Any]]) -> dict[float | None, dict[str, int]]:
@@ -220,7 +237,10 @@ def would_fail(reasons: Sequence[str], confidence: float | None, t: float) -> bo
 
 
 def sweep_cell(
-    reasons: Sequence[str], confidence: float | None, first_attempt_score: scoring.PageScore | scoring.PageFailure, t: float,
+    reasons: Sequence[str],
+    confidence: float | None,
+    first_attempt_score: scoring.PageScore | scoring.PageFailure,
+    t: float,
 ) -> str:
     """One page-run's cell at threshold `t`: caught, false_alarm, missed or quiet (`CELLS`)."""
     # "Should retry" is the A2.1-D1 standard on attempt 1, as the scorer's own gate judges it (any missed, wrong-acts or invented
@@ -228,7 +248,9 @@ def sweep_cell(
     # C7-PR1-2). Would and should together are the confusion table C7-R2 reads.
     would = would_fail(reasons, confidence, t)
     should = not scoring.gate({0: [first_attempt_score]}).passed
-    return {(True, True): "caught", (True, False): "false_alarm", (False, True): "missed", (False, False): "quiet"}[(would, should)]
+    return {(True, True): "caught", (True, False): "false_alarm", (False, True): "missed", (False, False): "quiet"}[
+        (would, should)
+    ]
 
 
 def _first_score(record: Mapping[str, Any], attempt: Mapping[str, Any]) -> scoring.PageScore | scoring.PageFailure:
@@ -239,7 +261,9 @@ def _first_score(record: Mapping[str, Any], attempt: Mapping[str, Any]) -> scori
 
 
 def sweep(
-    records: Iterable[Mapping[str, Any]], labels: Mapping[str, PageLabel], thresholds: Sequence[float] = DEFAULT_THRESHOLDS,
+    records: Iterable[Mapping[str, Any]],
+    labels: Mapping[str, PageLabel],
+    thresholds: Sequence[float] = DEFAULT_THRESHOLDS,
 ) -> dict[str, dict[float, dict[str, int]]]:
     """The four cells at each threshold, from attempt 1 of every run, gated and informational pages kept apart (A2.1-D2:
     informational pages never gate), and structured-route pages on a line of their own: they have no confidence, so no threshold can
@@ -287,7 +311,11 @@ def transition(first: Iterable[ErrorItem], second: Iterable[ErrorItem]) -> Trans
     # field_missing counts, so a retry that makes a field wrong shows as one that hurt.
     before = Counter((i.kind, i.date, i.field) for i in first if i.kind != "field_missing")
     after = Counter((i.kind, i.date, i.field) for i in second if i.kind != "field_missing")
-    return Transition(fixed=sum((before - after).values()), introduced=sum((after - before).values()), kept=sum((before & after).values()))
+    return Transition(
+        fixed=sum((before - after).values()),
+        introduced=sum((after - before).values()),
+        kept=sum((before & after).values()),
+    )
 
 
 def error_count(items: Iterable[ErrorItem]) -> int:
@@ -363,7 +391,9 @@ def page_effects(records: Sequence[Mapping[str, Any]], before: int, after: int) 
     return {page: _effect(first[page], second[page], band.get(page, 0.0)) for page in second if page in first}
 
 
-def escalation_effects(unescalated: Sequence[Mapping[str, Any]], escalated: Sequence[Mapping[str, Any]], n: int = 3) -> dict[str, str]:
+def escalation_effects(
+    unescalated: Sequence[Mapping[str, Any]], escalated: Sequence[Mapping[str, Any]], n: int = 3
+) -> dict[str, str]:
     """C7-R3's last clause: attempt `n` with the escalation model against attempt `n` without it, per page, by the same rule (the
     band from the unescalated runs' attempt 1, and the same `MIN_EFFECT` floor). The two are different runs, so nothing is paired."""
     band = noise_band(unescalated)
@@ -406,17 +436,24 @@ def retry_effect(records: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
             before, after = _attempt(record, n - 1), _attempt(record, n)
             if before is None or after is None:
                 continue
-            name = "1 to 2" if n == 2 else f"2 to 3 ({'larger model' if after.get('larger_model_used') else 'same model'})"
+            name = (
+                "1 to 2" if n == 2 else f"2 to 3 ({'larger model' if after.get('larger_model_used') else 'same model'})"
+            )
             groups.setdefault(name, []).append((before, after))
     rows = []
     for name in sorted(groups):
         pairs = groups[name]
         moved = [transition(items_of(a), items_of(b)) for a, b in pairs]
         seconds = [b["seconds"] for _, b in pairs if b.get("seconds") is not None]
-        rows.append({
-            "transition": name, "runs": len(pairs),
-            "fixed": sum(t.fixed for t in moved), "introduced": sum(t.introduced for t in moved), "kept": sum(t.kept for t in moved),
-            "mean_seconds": round(sum(seconds) / len(seconds), 1) if seconds else None,
-            "tokens": _summed_tokens([b for _, b in pairs]),
-        })
+        rows.append(
+            {
+                "transition": name,
+                "runs": len(pairs),
+                "fixed": sum(t.fixed for t in moved),
+                "introduced": sum(t.introduced for t in moved),
+                "kept": sum(t.kept for t in moved),
+                "mean_seconds": round(sum(seconds) / len(seconds), 1) if seconds else None,
+                "tokens": _summed_tokens([b for _, b in pairs]),
+            }
+        )
     return rows

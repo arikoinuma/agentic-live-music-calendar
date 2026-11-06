@@ -10,12 +10,19 @@ def test_no_arguments_replays_the_original_capture() -> None:
     # so existing habits and docs that say `uv run python -m agent_worker.local_test` still mean the same thing.
     args = parse_args([])
     assert (args.fixture, args.fetched_on) == (FIXTURE, FETCHED_ON)
-    assert FETCHED_ON == datetime.date(2026, 8, 17)
+    assert FETCHED_ON == datetime.date(2026, 8, 17)  # noqa: SIM300 - pins the constant; the literal is the expectation
 
 
 def test_another_capture_and_date_can_be_named() -> None:
     # Proves: the October capture can be replayed with its own date. Expected values are the October capture's name and
     # date as agent_worker/model_eval/labels.py records them (`white_squirrel-2026-10-10.html`, captured 2026-10-10).
-    args = parse_args(["--fixture", "agent_worker/model_eval/captured_pages/white_squirrel-2026-10-10.html", "--fetched-on", "2026-10-10"])
+    args = parse_args(
+        [
+            "--fixture",
+            "agent_worker/model_eval/captured_pages/white_squirrel-2026-10-10.html",
+            "--fetched-on",
+            "2026-10-10",
+        ]
+    )
     assert args.fixture.endswith("white_squirrel-2026-10-10.html")
     assert args.fetched_on == datetime.date(2026, 10, 10)

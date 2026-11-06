@@ -57,9 +57,14 @@ def page_of(*islands: str, text: str = "Shows") -> str:
 def event(title: str = "Mara Lind", date: str = "2026-11-06T19:00:00.000-06:00", **extra: Any) -> dict[str, Any]:
     """One embedded event in the site's shape (only the fields the reader may use, plus a slug)."""
     return {
-        "title": title, "date": date, "showSlug": "mara-lind-november-06-2026-100",
-        "image": "https://example.test/a.jpg", "priceRange": "$20.00", "canceledAt": None,
-        "performers": [{"name": title, "actType": "headline"}], **extra,
+        "title": title,
+        "date": date,
+        "showSlug": "mara-lind-november-06-2026-100",
+        "image": "https://example.test/a.jpg",
+        "priceRange": "$20.00",
+        "canceledAt": None,
+        "performers": [{"name": title, "actType": "headline"}],
+        **extra,
     }
 
 
@@ -215,8 +220,11 @@ def test_the_image_comes_through() -> None:
 def test_an_end_time_is_read_but_dropped_when_the_page_does_not_state_it() -> None:
     # Proves (C6.1-D4): `endTime` goes through the JSON-LD rules unchanged. Plausible (4 h after the
     # start) so kept by the mapper; A2.1-D10 then drops it unless the visible text states it.
-    ev = event(date="2026-11-06T18:30:00.000-06:00", startTime="2026-11-06T19:30:00.000-06:00",
-               endTime="2026-11-06T22:30:00.000-06:00")
+    ev = event(
+        date="2026-11-06T18:30:00.000-06:00",
+        startTime="2026-11-06T19:30:00.000-06:00",
+        endTime="2026-11-06T22:30:00.000-06:00",
+    )
     events = embedded_events.find_events(page_of(island([ev])))
     assert jsonld.to_structured_show(events[0], CHICAGO).end_time == datetime.time(22, 30)
     assert jsonld.to_structured_show(events[0], CHICAGO, "Mara Lind doors 6:30 pm").end_time is None
@@ -249,9 +257,13 @@ def test_slug_date_is_none_for_a_slug_without_one() -> None:
 
 def one_act(name: str) -> Any:
     """A fake model client whose act splitter answers that the single listing is one act, `name`."""
-    return fake_client(split_answer=act_split.ActSplitAnswer(items=[
-        act_split.ActSplitItem(id=0, title=name, acts=[name]),
-    ]))
+    return fake_client(
+        split_answer=act_split.ActSplitAnswer(
+            items=[
+                act_split.ActSplitItem(id=0, title=name, acts=[name]),
+            ]
+        )
+    )
 
 
 def jsonld_block(name: str) -> str:
@@ -282,7 +294,7 @@ def test_a_page_with_neither_still_goes_to_the_model() -> None:
 def test_a_script_shell_with_only_an_island_is_not_nothing_to_read() -> None:
     # Proves (C6.1-PR1-6): the fetch's empty-page guard must not reject a page whose only content is
     # an island; the structured route can serve it, exactly as for a JSON-LD shell.
-    shell = '<html><body>' + island([event()]) + '</body></html>'
+    shell = "<html><body>" + island([event()]) + "</body></html>"
     assert extraction.clean_text(shell, False).strip() == ""
     assert nodes._nothing_to_read(shell) is False
 
@@ -294,8 +306,13 @@ def test_the_route_is_structured_and_the_notes_name_the_source_and_slugs() -> No
     html = page_of(island([event("Ada Fox")]))
     client = one_act("Ada Fox")
     result = extraction.extract_page(
-        html, venue_name="The Hook", metro_timezone=CHICAGO, fetch_date=FETCHED, client=client,
-        options=extraction.PIPELINE_OPTIONS, config=replace(extraction.PIPELINE_CONFIG, route="auto"),
+        html,
+        venue_name="The Hook",
+        metro_timezone=CHICAGO,
+        fetch_date=FETCHED,
+        client=client,
+        options=extraction.PIPELINE_OPTIONS,
+        config=replace(extraction.PIPELINE_CONFIG, route="auto"),
     )
     assert result.source == "structured"
     assert result.notes["structured_source"] == "astro-island"
@@ -307,13 +324,17 @@ def test_json_ld_pages_report_json_ld_as_their_source() -> None:
     # Proves (C6.1-D1): the new note is set on the existing source too, so an audit can tell the two apart.
     client = one_act("Ada Fox")
     result = extraction.extract_page(
-        page_of(jsonld_block("Ada Fox")), venue_name="V", metro_timezone=CHICAGO, fetch_date=FETCHED,
-        client=client, options=extraction.PIPELINE_OPTIONS, config=replace(extraction.PIPELINE_CONFIG, route="auto"),
+        page_of(jsonld_block("Ada Fox")),
+        venue_name="V",
+        metro_timezone=CHICAGO,
+        fetch_date=FETCHED,
+        client=client,
+        options=extraction.PIPELINE_OPTIONS,
+        config=replace(extraction.PIPELINE_CONFIG, route="auto"),
     )
     assert result.source == "structured"
     assert result.notes["structured_source"] == "json-ld"
     assert "slugs" not in result.notes
-
 
 
 def test_a_midnight_start_time_with_an_evening_date_uses_the_date() -> None:
@@ -336,7 +357,9 @@ def test_route_for_agrees_with_the_extraction_route() -> None:
     from agent_worker.state import VenueGraphState
 
     def route(html: str) -> str:
-        state = VenueGraphState(venue_id=1, venue_name="V", calendar_url="https://v.example/", metro_timezone=CHICAGO, page_html=html)
+        state = VenueGraphState(
+            venue_id=1, venue_name="V", calendar_url="https://v.example/", metro_timezone=CHICAGO, page_html=html
+        )
         return nodes._route_for(state, SimpleNamespace(config=replace(extraction.PIPELINE_CONFIG, route="auto")))  # type: ignore[arg-type]
 
     assert route(page_of(island([event()]))) == "structured"

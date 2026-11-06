@@ -196,7 +196,9 @@ def test_a_tools_error_message_is_scrubbed_of_the_password() -> None:
     # Proves: if a failing command echoes the connection string it was given (SQLAlchemy and asyncpg errors sometimes
     # do), neither the raw password nor its URL-encoded form reaches the terminal. Catches a rehearsal that prints a
     # tool's stderr as it came. Expected: the visible text keeps the useful part ("boom") and loses the secret.
-    leak = "could not connect to postgresql+asyncpg://calendar_staging:p%40ss%2Fw%3Ard%231@ep-child-456 with p@ss/w:rd#1"
+    leak = (
+        "could not connect to postgresql+asyncpg://calendar_staging:p%40ss%2Fw%3Ard%231@ep-child-456 with p@ss/w:rd#1"
+    )
     runner = FakeRunner(fail_on="upgrade head", leak=leak)
     code, said = go(runner)
     assert code == 1
@@ -209,7 +211,10 @@ def test_a_tools_error_message_is_scrubbed_of_the_password() -> None:
 def test_a_login_failure_leads_with_its_cause_and_a_hint() -> None:
     # Proves: the cause (the last line of a traceback) is the first thing said after FAILED, not buried under forty
     # lines of stack, and a wrong or missing role password gets a hint that names where the right one lives.
-    runner = FakeRunner(fail_on="upgrade head", leak='asyncpg.InvalidPasswordError: password authentication failed for user "calendar_staging"')
+    runner = FakeRunner(
+        fail_on="upgrade head",
+        leak='asyncpg.InvalidPasswordError: password authentication failed for user "calendar_staging"',
+    )
     code, said = go(runner)
     assert code == 1
     failed = next(line for line in said if line.startswith("FAILED:"))
@@ -472,7 +477,14 @@ def test_check_select_accepts_a_single_select(sql: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "sql", ["delete from metro", "select 1; drop table metro", "update metro set slug='x'", "", "with x as (select 1) select * from x"]
+    "sql",
+    [
+        "delete from metro",
+        "select 1; drop table metro",
+        "update metro set slug='x'",
+        "",
+        "with x as (select 1) select * from x",
+    ],
 )
 def test_check_select_refuses_anything_else(sql: str) -> None:
     # Proves: the check cannot be used to change data, even on a throwaway branch (and a CTE is refused too: the rule

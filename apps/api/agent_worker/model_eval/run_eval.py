@@ -183,7 +183,6 @@ def load_image_fixture(path: Path) -> str:
     return base64_bytes.decode()
 
 
-
 def extract(
     fixture_path: Path,
     *,
@@ -210,7 +209,10 @@ def extract(
         if is_image:
             content: Any = [
                 {"type": "text", "text": legacy_config.LEGACY_INSTRUCTION},
-                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{load_image_fixture(fixture_path)}"}},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{load_image_fixture(fixture_path)}"},
+                },
             ]
         else:
             content = legacy_config.LEGACY_INSTRUCTION + load_text_fixture(fixture_path)
@@ -229,13 +231,25 @@ def extract(
         # NOTE: every image is labelled image/png, including the .webp fixture — the pipeline
         # does the same. Pre-existing, equal across labels (a2-extraction-schema.md, Step 1).
         return extraction.extract_image(
-            load_image_fixture(fixture_path), mime="image/png", fetch_date=fetch_date,
-            client=instructor_client, options=options, config=config, seed=seed,
+            load_image_fixture(fixture_path),
+            mime="image/png",
+            fetch_date=fetch_date,
+            client=instructor_client,
+            options=options,
+            config=config,
+            seed=seed,
         )
     return extraction.extract_page(
-        fixture_path.read_text(), venue_name=venue_name, metro_timezone=metro_timezone,
-        fetch_date=fetch_date, client=instructor_client, options=options, config=config, seed=seed,
-        splitter_options=splitter_options, status_options=status_options,
+        fixture_path.read_text(),
+        venue_name=venue_name,
+        metro_timezone=metro_timezone,
+        fetch_date=fetch_date,
+        client=instructor_client,
+        options=options,
+        config=config,
+        seed=seed,
+        splitter_options=splitter_options,
+        status_options=status_options,
     )
 
 
@@ -250,26 +264,72 @@ def add_override_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--temperature", type=float, default=None, help="sampling temperature (rung a21-temp0)")
     # Model overrides (C6): one flag per role, so a rung changes one model and a change is attributable to it.
     parser.add_argument("--model", dest="model", default=None, help="the page model (default MODEL_NAME)")
-    parser.add_argument("--splitter-model", dest="splitter_model", default=None, help="the act splitter's model (rung c6-split-*)")
+    parser.add_argument(
+        "--splitter-model", dest="splitter_model", default=None, help="the act splitter's model (rung c6-split-*)"
+    )
     parser.add_argument("--status-model", dest="status_model", default=None, help="the status question's model")
-    parser.add_argument("--route", choices=["auto", "model"], default=None, help="auto = JSON-LD first (rung a21-structured)")
+    parser.add_argument(
+        "--route", choices=["auto", "model"], default=None, help="auto = JSON-LD first (rung a21-structured)"
+    )
     # Typed as Any-valued so `**flag` is accepted for every add_argument parameter (inferred as dict[str, object],
     # it matches none of them).
     flag: dict[str, Any] = {"action": "store_const", "const": True, "default": None}
-    parser.add_argument("--line-breaks", dest="keep_line_breaks", help="clean with line breaks (rung a21-newlines)", **flag)
-    parser.add_argument("--status", dest="status_field", help="status field + cancelled sentence (rung a21-cancelled)", **flag)
+    parser.add_argument(
+        "--line-breaks", dest="keep_line_breaks", help="clean with line breaks (rung a21-newlines)", **flag
+    )
+    parser.add_argument(
+        "--status", dest="status_field", help="status field + cancelled sentence (rung a21-cancelled)", **flag
+    )
     parser.add_argument("--year-rule", dest="year_rule", help="years from the fetch date (rung a21-year)", **flag)
-    parser.add_argument("--act-conventions", dest="act_conventions", help="D5's conventions on the model route (rung a21-act-conventions)", **flag)
-    parser.add_argument("--acts-desc", dest="acts_split_description", help="the split-acts description (rung a21-acts-desc)", **flag)
-    parser.add_argument("--status-pass", dest="status_pass", help="the separate cancelled/postponed question (rung a21-status-pass)", **flag)
-    parser.add_argument("--title-split", dest="title_split", help="verbatim titles + the act splitter on the model route (rung a21-title-split)", **flag)
-    parser.add_argument("--image-urls", dest="keep_image_urls", help="keep <img> URLs in the cleaned text (rung a3-image-urls, G25)", **flag)
-    parser.add_argument("--old-rules", dest="include_new_rules", action="store_const", const=False, default=None,
-                        help="extraction_instruction(include_new_rules=False): A2's schema-only label")
+    parser.add_argument(
+        "--act-conventions",
+        dest="act_conventions",
+        help="D5's conventions on the model route (rung a21-act-conventions)",  # designation-ok: string literal, a known exception (docs/dev/conventions.md)
+        **flag,
+    )
+    parser.add_argument(
+        "--acts-desc", dest="acts_split_description", help="the split-acts description (rung a21-acts-desc)", **flag
+    )
+    parser.add_argument(
+        "--status-pass",
+        dest="status_pass",
+        help="the separate cancelled/postponed question (rung a21-status-pass)",
+        **flag,
+    )
+    parser.add_argument(
+        "--title-split",
+        dest="title_split",
+        help="verbatim titles + the act splitter on the model route (rung a21-title-split)",
+        **flag,
+    )
+    parser.add_argument(
+        "--image-urls",
+        dest="keep_image_urls",
+        help="keep <img> URLs in the cleaned text (rung a3-image-urls, G25)",  # designation-ok: string literal, a known exception (docs/dev/conventions.md)
+        **flag,
+    )
+    parser.add_argument(
+        "--old-rules",
+        dest="include_new_rules",
+        action="store_const",
+        const=False,
+        default=None,
+        help="extraction_instruction(include_new_rules=False): A2's schema-only label",
+    )
 
 
-_CONFIG_FIELDS = ("route", "keep_line_breaks", "status_field", "year_rule", "act_conventions",
-                  "acts_split_description", "include_new_rules", "status_pass", "title_split", "keep_image_urls")
+_CONFIG_FIELDS = (
+    "route",
+    "keep_line_breaks",
+    "status_field",
+    "year_rule",
+    "act_conventions",
+    "acts_split_description",
+    "include_new_rules",
+    "status_pass",
+    "title_split",
+    "keep_image_urls",
+)
 
 
 def overrides_from(args: argparse.Namespace) -> dict[str, Any]:
@@ -328,8 +388,12 @@ def _act_name(act: Any) -> str:
 
 
 def score_extraction(
-    extraction: dict[str, Any], ref: FixtureReference, page_text: str, *,
-    source: str = "model", page_html: str = "",
+    extraction: dict[str, Any],
+    ref: FixtureReference,
+    page_text: str,
+    *,
+    source: str = "model",
+    page_html: str = "",
 ) -> dict[str, Any]:
     """Count what one run filled in and what it got wrong, against the hand reference.
 
@@ -391,7 +455,8 @@ def score_extraction(
         # almost certainly made up. Not checked for structured or image runs (see the docstring).
         "image_urls": image_urls,
         "invented_image_urls": (
-            [] if source in ("structured", "image")
+            []
+            if source in ("structured", "image")
             else [u for u in image_urls if not validation.verify_image_url(u, page_html, page_text)]
         ),
     }
@@ -444,7 +509,9 @@ def model_provenance(options: RequestOptions, base_url: str | None) -> dict[str,
     """
     if options.provider != "ollama":
         return {
-            "provider": options.provider, "base_url_host": urlparse(base_url or "").hostname, "model": options.model,
+            "provider": options.provider,
+            "base_url_host": urlparse(base_url or "").hostname,
+            "model": options.model,
         }
     model, num_ctx = options.model, options.num_ctx
     root = ollama_root(base_url)
@@ -472,8 +539,12 @@ def labels_sha() -> str:
 
 
 def run_once(
-    item: Path, run_index: int, options: RequestOptions, config: extraction.ExtractionConfig,
-    legacy: bool = False, roles: ModelRoles | None = None,
+    item: Path,
+    run_index: int,
+    options: RequestOptions,
+    config: extraction.ExtractionConfig,
+    legacy: bool = False,
+    roles: ModelRoles | None = None,
 ) -> dict[str, Any]:
     """One extraction of one fixture, recorded as a plain dict (no extraction exception escapes).
 
@@ -495,9 +566,15 @@ def run_once(
     # not stop the loop, and *how* it failed — its exception class — is a result.
     try:
         result = extract(
-            item, options=options, config=config, seed=run_index, legacy=legacy,
-            splitter_options=roles.splitter if roles else None, status_options=roles.status if roles else None,
-            venue_name=facts.name if facts else "", metro_timezone=facts.metro_timezone if facts else "",
+            item,
+            options=options,
+            config=config,
+            seed=run_index,
+            legacy=legacy,
+            splitter_options=roles.splitter if roles else None,
+            status_options=roles.status if roles else None,
+            venue_name=facts.name if facts else "",
+            metro_timezone=facts.metro_timezone if facts else "",
             fetch_date=label.captured_on if label else None,
         )
         record["outcome"] = "ok"
@@ -514,7 +591,11 @@ def run_once(
         record["sent_text"] = result.sent_text
         record["notes"] = result.notes
         record["score"] = score_extraction(
-            dump, ref, page_text, source=result.source, page_html="" if is_image else item.read_text(),
+            dump,
+            ref,
+            page_text,
+            source=result.source,
+            page_html="" if is_image else item.read_text(),
         )
         record["extraction"] = dump
         # Scored outside the try above: a scoring bug must surface, not be recorded as a
@@ -551,8 +632,12 @@ def gate_summary(runs: list[dict[str, Any]], route_when_failed: str = "any") -> 
         elif "label_score" in r:
             outcome = scoring.PageScore.from_dict(r["label_score"])
             counts = {
-                "run": r["run"], "route": outcome.route,
-                **{k: getattr(outcome, k) for k in ("missed", "acts_wrong", "fabricated", "leaks", "unsplit", "dropped_empty")},
+                "run": r["run"],
+                "route": outcome.route,
+                **{
+                    k: getattr(outcome, k)
+                    for k in ("missed", "acts_wrong", "fabricated", "leaks", "unsplit", "dropped_empty")
+                },
                 "fields_wrong": {n: t.wrong for n, t in outcome.fields.items() if t.wrong},
                 "fields_missing": {n: f"{t.missing}/{t.stated}" for n, t in outcome.fields.items() if t.missing},
             }
@@ -597,9 +682,7 @@ def aggregate(runs: list[dict[str, Any]]) -> dict[str, Any]:
         "empty_acts": sum(r["score"]["empty_acts"] for r in ok),
         "borderline": sum(len(r["score"]["borderline"]) for r in ok),
         "fills": dict(sum((Counter(r["score"]["fills"]) for r in ok), Counter())),
-        "is_ambiguous_true": sum(
-            1 for r in ok for s in r["extraction"]["shows"] if s["is_ambiguous"]
-        ),
+        "is_ambiguous_true": sum(1 for r in ok for s in r["extraction"]["shows"] if s["is_ambiguous"]),
         "shows_total": sum(r["shows"] for r in ok),
     }
     per_fixture: dict[str, dict[str, Any]] = {}
@@ -638,11 +721,15 @@ def request_record(config: extraction.ExtractionConfig, legacy: bool) -> dict[st
     # Every prompt the label can send, not only the page model's (A2.1-CR2-3): the
     # act splitter's (it carries the conventions on the JSON-LD and title-split routes), the
     # status question's, and the image route's (which never uses title split).
-    others = {} if legacy else {
-        "splitter_instruction": act_split._act_split_instruction(),
-        "status_instruction": status_check._instruction(),
-        "image_instruction": extraction.instruction_for(replace(config, title_split=False)),
-    }
+    others = (
+        {}
+        if legacy
+        else {
+            "splitter_instruction": act_split._act_split_instruction(),
+            "status_instruction": status_check._instruction(),
+            "image_instruction": extraction.instruction_for(replace(config, title_split=False)),
+        }
+    )
     return {
         **others,
         "legacy_pre_a2": legacy,
@@ -719,11 +806,15 @@ def act_title_check(results: dict[str, Any]) -> dict[str, int]:
             out["runs_skipped"] += 1
             continue
         out["runs_checked"] += 1
-        bad_dates = {m.group(1) for e in (run.get("label_score") or {}).get("errors", [])
-                     if (m := re.match(r"acts wrong (\d{4}-\d{2}-\d{2})", e))}
+        bad_dates = {
+            m.group(1)
+            for e in (run.get("label_score") or {}).get("errors", [])
+            if (m := re.match(r"acts wrong (\d{4}-\d{2}-\d{2})", e))
+        }
         out["label_errors"] += len(bad_dates)
         flagged_dates = {
-            str(s.date) for i, (s, t) in enumerate(zip(shows, titles, strict=True))
+            str(s.date)
+            for i, (s, t) in enumerate(zip(shows, titles, strict=True))
             if validation.check_act_in_title(s, i, t)
         }
         out["flagged"] += len(flagged_dates)
@@ -736,7 +827,9 @@ def _gate_line(results: dict[str, Any], scope: str) -> str:
     """'PASS' / 'FAIL (n)' for one scope of a results file's gate, or '-' if it has none."""
     gates = results.get("aggregate", {}).get("gate", {})
     # A file written before C6.1 keys the structured route's gate "jsonld" (C6.1-D1); read it as today's name.
-    gate = gates.get(scope) or next((gates[old] for old, new in policy.LEGACY_ROUTE_NAMES.items() if new == scope and old in gates), None)
+    gate = gates.get(scope) or next(
+        (gates[old] for old, new in policy.LEGACY_ROUTE_NAMES.items() if new == scope and old in gates), None
+    )
     if gate is None:
         return "-"
     if not gate.get("pages", 1):
@@ -772,9 +865,21 @@ def compare(labels: list[str]) -> None:
         print(name.ljust(width) + "".join(str(getter(files[lab])).ljust(34) for lab in labels))
     print()
     rows = [
-        "runs", "ok", "outcomes", "mean_attempts_used", "parse_failures", "mean_seconds",
-        "shows_total", "invented_time", "invented_end_time", "invented_price",
-        "invented_image_urls", "leaks", "empty_acts", "borderline", "is_ambiguous_true",
+        "runs",
+        "ok",
+        "outcomes",
+        "mean_attempts_used",
+        "parse_failures",
+        "mean_seconds",
+        "shows_total",
+        "invented_time",
+        "invented_end_time",
+        "invented_price",
+        "invented_image_urls",
+        "leaks",
+        "empty_acts",
+        "borderline",
+        "is_ambiguous_true",
     ]
     print("metric".ljust(width) + "".join(lab.ljust(34) for lab in labels))
     for row in rows:
@@ -788,16 +893,22 @@ def compare(labels: list[str]) -> None:
         for lab in labels:
             pf = data[lab]["per_fixture"].get(key)
             if pf:
-                print(f"{key:18} [{lab}] ok {pf['ok']} shows {pf['shows']} (≈{pf['approx_expected']}) "
-                      f"secs {pf['seconds']} leaks {pf['leaks']} identical {pf.get('runs_identical')}")
+                print(
+                    f"{key:18} [{lab}] ok {pf['ok']} shows {pf['shows']} (≈{pf['approx_expected']}) "
+                    f"secs {pf['seconds']} leaks {pf['leaks']} identical {pf.get('runs_identical')}"
+                )
 
 
 def select_fixtures(which: str, only: str | None) -> list[Path]:
     """The fixtures a label runs: drawn only from `labels.PAGE_LABELS` (so an unlabelled file,
     such as the Uptown Art House .ics feed with no reader yet, is never run as a page — A2.1-PR2-10), filtered by set and by `--only`, and present on disk (fixtures are git-ignored)."""
     # `held_out` (C5-D3) is its own set: "all" does not include it, so a run that scores everything else never sees those pages.
-    names = {"gated": gated_fixtures(), "informational": informational_fixtures(),
-             "all": gated_fixtures() + informational_fixtures(), "held_out": held_out_fixtures()}[which]
+    names = {
+        "gated": gated_fixtures(),
+        "informational": informational_fixtures(),
+        "all": gated_fixtures() + informational_fixtures(),
+        "held_out": held_out_fixtures(),
+    }[which]
     chosen = []
     for name in sorted(names):
         path = CAPTURED_PAGES_DIR / name
@@ -817,22 +928,33 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--label", help="name for this run set; results go to results/<label>.json")
     parser.add_argument("--runs", type=int, default=5, help="runs per fixture (default 5, seeds 0..n-1; A2.1 D1)")
-    parser.add_argument("--set", choices=["gated", "informational", "all", "held_out"], default="all",
-                        help="which labelled fixtures to run (labels.py; D2)")
+    parser.add_argument(
+        "--set",
+        choices=["gated", "informational", "all", "held_out"],
+        default="all",
+        help="which labelled fixtures to run (labels.py; D2)",  # designation-ok: string literal, a known exception (docs/dev/conventions.md)
+    )
     parser.add_argument("--only", help="only fixtures whose file name contains this text")
     parser.add_argument(
-        "--legacy", action="store_true",
+        "--legacy",
+        action="store_true",
         help="use the frozen pre-A2 schema and prompt (model_eval/legacy.py): the baseline label",
     )
     add_override_flags(parser)
     parser.add_argument("--compare", nargs="+", metavar="LABEL", help="print saved labels side by side")
-    parser.add_argument("--rescore", metavar="LABEL", help="rescore a saved label into results/a21-rescore-<LABEL>.json")
     parser.add_argument(
-        "--concurrency", type=int, default=1,
+        "--rescore", metavar="LABEL", help="rescore a saved label into results/a21-rescore-<LABEL>.json"
+    )
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=1,
         help="runs in flight at once (default 1, sequential); C6 Step 11 throughput measurement",
     )
     parser.add_argument(
-        "--act-check", nargs="+", metavar="LABEL",
+        "--act-check",
+        nargs="+",
+        metavar="LABEL",
         help="replay the act-in-title check over saved labels and count what it catches (C6-D6)",
     )
     args = parser.parse_args()
@@ -886,31 +1008,40 @@ def main() -> None:
     RESULTS_DIR.mkdir(exist_ok=True)
     out_path = RESULTS_DIR / f"{args.label}.json"
     aggregate_data = aggregate(runs)
-    out_path.write_text(json.dumps(
-        {
-            "label": args.label,
-            "started_at": started_at,
-            "set": args.set,
-            "config": asdict(config),
-            "request_options": asdict(options),
-            "role_options": asdict(roles),
-            "labels_sha": labels_sha(),
-            "include_new_rules": config.include_new_rules,
-            "request": request,
-            "options": {"num_ctx": options.num_ctx, "max_tokens": options.max_tokens, "max_retries": options.max_retries,
-                        "seed": "run index, top-level argument",
-                        "temperature": "model default" if options.temperature is None else options.temperature},
-            # One entry per distinct model any role used, so a local splitter rung's model build is recorded too
-            # (C6-CR1-7); the page model is first.
-            "provenance": {
-                m: model_provenance(replace(options, model=m), settings.model_base_url)
-                for m in dict.fromkeys([options.model, roles.splitter.model, roles.status.model, roles.matcher.model])
+    out_path.write_text(
+        json.dumps(
+            {
+                "label": args.label,
+                "started_at": started_at,
+                "set": args.set,
+                "config": asdict(config),
+                "request_options": asdict(options),
+                "role_options": asdict(roles),
+                "labels_sha": labels_sha(),
+                "include_new_rules": config.include_new_rules,
+                "request": request,
+                "options": {
+                    "num_ctx": options.num_ctx,
+                    "max_tokens": options.max_tokens,
+                    "max_retries": options.max_retries,
+                    "seed": "run index, top-level argument",
+                    "temperature": "model default" if options.temperature is None else options.temperature,
+                },
+                # One entry per distinct model any role used, so a local splitter rung's model build is recorded too
+                # (C6-CR1-7); the page model is first.
+                "provenance": {
+                    m: model_provenance(replace(options, model=m), settings.model_base_url)
+                    for m in dict.fromkeys(
+                        [options.model, roles.splitter.model, roles.status.model, roles.matcher.model]
+                    )
+                },
+                "aggregate": aggregate_data,
+                "runs": runs,
             },
-            "aggregate": aggregate_data,
-            "runs": runs,
-        },
-        indent=2, ensure_ascii=False,
-    ))
+            indent=2,
+            ensure_ascii=False,
+        )
+    )
     print(f"\nwrote {out_path}")
     for scope, result in aggregate_data["gate"].items():
         print(f"gate [{scope}]: {_gate_line({'aggregate': aggregate_data}, scope)}")

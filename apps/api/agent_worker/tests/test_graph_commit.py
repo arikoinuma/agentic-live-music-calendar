@@ -48,7 +48,11 @@ TWO_NONAS = split_answer(("Nona", ["Nona"]), ("Nona", ["Nona"]))
 
 
 async def run_commit(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, html: str, script: dict[Any, list[Any]], reader: FakeReader,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    html: str,
+    script: dict[Any, list[Any]],
+    reader: FakeReader,
     writer: FakeWriter | None = None,
 ) -> tuple[VenueGraphState, RecordingAudit, FakeWriter]:
     """Run the real graph on `html`, with `reader` as the stored calendar and a fake writer that appends to the audit."""
@@ -59,8 +63,12 @@ async def run_commit(
     writer = writer or FakeWriter(audit)
     writer.audit = writer.audit or audit
     state = VenueGraphState(
-        venue_id=1, calendar_url=str(page), venue_name="The Venue", metro_timezone="America/Chicago",
-        fetched_on=fakes.FETCHED, run_id=RUN_ID,
+        venue_id=1,
+        calendar_url=str(page),
+        venue_name="The Venue",
+        metro_timezone="America/Chicago",
+        fetched_on=fakes.FETCHED,
+        run_id=RUN_ID,
     )
     context = WorkerContext(audit=audit, stager=RecordingStager(), reader=reader, writer=writer)
     return VenueGraphState(**await compiled_graph.ainvoke(state, context=context)), audit, writer
@@ -70,7 +78,12 @@ def stored_nona(tmp_path: Path, day: int = 20, show_id: int = 1, **fields: Any) 
     """A stored twin of a page show, as a previous run would have left it. `original_url` is the page's own path,
     because that is what reconcile compares against (the calendar URL of the run)."""
     return stored(
-        show_id, datetime.date(2026, 10, day), at(20), acts=[(7, "Nona")], original_url=str(tmp_path / "page.html"), **fields
+        show_id,
+        datetime.date(2026, 10, day),
+        at(20),
+        acts=[(7, "Nona")],
+        original_url=str(tmp_path / "page.html"),
+        **fields,
     )
 
 
@@ -90,7 +103,9 @@ async def test_the_first_run_hands_the_writer_an_insert_and_writes_the_artist_th
     assert op.action is Action.INSERT and op.new_artist_names == {"nona": "Nona"}
     rows = commit_rows(audit)
     assert [(r.entity_type, r.outcome) for r in rows] == [
-        (EntityType.ARTIST, AuditOutcome.INSERTED), (EntityType.SHOW, AuditOutcome.INSERTED), (EntityType.VENUE, None),
+        (EntityType.ARTIST, AuditOutcome.INSERTED),
+        (EntityType.SHOW, AuditOutcome.INSERTED),
+        (EntityType.VENUE, None),
     ]
     assert audit.entries[-1] is rows[-1]
     summary = rows[-1].detail
@@ -132,7 +147,8 @@ async def test_a_withheld_removal_is_not_written_and_the_summary_counts_it(
     # Proves (A5-D10, A6): four stored shows in the window that the page does not list are all withheld by the guard; commit
     # writes only the page's own new show, and the summary says four removals were held back.
     reader = FakeReader(
-        [stored_nona(tmp_path, day=d, show_id=d) for d in (13, 14, 15, 16)], [KnownArtist(7, "Nona")],
+        [stored_nona(tmp_path, day=d, show_id=d) for d in (13, 14, 15, 16)],
+        [KnownArtist(7, "Nona")],
     )
     state, audit, writer = await run_commit(tmp_path, monkeypatch, NONA_PAGE, {SPLITTER: [NONA]}, reader)
     assert [op.action for op in writer.ops] == [Action.INSERT]
@@ -171,14 +187,21 @@ async def test_a_lost_connection_propagates_and_no_summary_row_is_written(
     page.write_text(TWO_SHOWS)
     monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [TWO_NONAS]}))
     state = VenueGraphState(
-        venue_id=1, calendar_url=str(page), venue_name="The Venue", metro_timezone="America/Chicago",
-        fetched_on=fakes.FETCHED, run_id=RUN_ID,
+        venue_id=1,
+        calendar_url=str(page),
+        venue_name="The Venue",
+        metro_timezone="America/Chicago",
+        fetched_on=fakes.FETCHED,
+        run_id=RUN_ID,
     )
     context = WorkerContext(audit=audit_holder, stager=RecordingStager(), reader=FakeReader(), writer=writer)
     with pytest.raises(InterfaceError):
         await compiled_graph.ainvoke(state, context=context)
     rows = commit_rows(audit_holder)
-    assert [r.entity_type for r in rows] == [EntityType.ARTIST, EntityType.SHOW]  # the first show only; no venue-level summary
+    assert [r.entity_type for r in rows] == [
+        EntityType.ARTIST,
+        EntityType.SHOW,
+    ]  # the first show only; no venue-level summary
     assert len(writer.ops) == 2
 
 
@@ -186,7 +209,10 @@ async def test_an_escalated_run_never_reaches_commit(tmp_path: Path, monkeypatch
     # Proves: a run that escalates (every model attempt fails) has no reconcile and no commit: the writer is never called
     # and no commit row is written. Commit is reached only through a passed or confirmed-empty validation.
     state, audit, writer = await run_commit(
-        tmp_path, monkeypatch, fakes.text_page("Nona", "Oct 20", "8 pm"), {fakes.PAGE: [ValueError("still down")]},
+        tmp_path,
+        monkeypatch,
+        fakes.text_page("Nona", "Oct 20", "8 pm"),
+        {fakes.PAGE: [ValueError("still down")]},
         FakeReader(),
     )
     assert state.escalation_reason is not None and writer.ops == [] and commit_rows(audit) == []

@@ -71,9 +71,7 @@ def _show_loads() -> Sequence[ExecutableOption]:
     )
 
 
-def _apply_filters(
-    stmt: Select[Any], venue_ids: Sequence[int] | None, artist_ids: Sequence[int] | None
-) -> Select[Any]:
+def _apply_filters(stmt: Select[Any], venue_ids: Sequence[int] | None, artist_ids: Sequence[int] | None) -> Select[Any]:
     """Narrow a show query by the `venue_id` / `artist_id` parameters.
 
     The rule is the contract's (`api-contract.md` section 2, "Filtering"): several ids of one kind mean
@@ -271,9 +269,7 @@ async def list_months(session: AsyncSession, metro: Metro, today: datetime.date)
 async def list_venues(session: AsyncSession, metro: Metro) -> list[VenueSummary]:
     """Every venue in this metro, alphabetical (case-insensitive, then id)."""
     venues = (await session.execute(select(Venue).where(Venue.metro_id == metro.id))).scalars().all()
-    return [
-        VenueSummary(id=v.id, name=v.name) for v in sorted(venues, key=lambda v: (v.name.casefold(), v.id))
-    ]
+    return [VenueSummary(id=v.id, name=v.name) for v in sorted(venues, key=lambda v: (v.name.casefold(), v.id))]
 
 
 async def get_venue(session: AsyncSession, metro: Metro, venue_id: int) -> VenueDetail | None:
@@ -286,9 +282,7 @@ async def get_venue(session: AsyncSession, metro: Metro, venue_id: int) -> Venue
 async def list_artists(session: AsyncSession) -> list[ArtistSummary]:
     """Every artist, alphabetical. Artists are global, not metro-scoped: acts tour between markets."""
     artists = (await session.execute(select(Artist))).scalars().all()
-    return [
-        ArtistSummary(id=a.id, name=a.name) for a in sorted(artists, key=lambda a: (a.name.casefold(), a.id))
-    ]
+    return [ArtistSummary(id=a.id, name=a.name) for a in sorted(artists, key=lambda a: (a.name.casefold(), a.id))]
 
 
 async def get_artist(session: AsyncSession, artist_id: int) -> ArtistDetail | None:

@@ -53,9 +53,7 @@ from app.enums import ShowStatus
 def test_a_stored_show_the_page_dropped_inside_the_reached_dates_is_removed() -> None:
     # Proves (A5-D1): the page lists through October 31 and the stored October 20 show is not on it, so the venue
     # dropped it. This is the soft delete: status `removed`, never deleted.
-    plan = plan_for(
-        [listed(0, day(31), at(20), acts=["Prince"])], [stored(1, day(20), at(20), acts=[(8, "Zhora")])]
-    )
+    plan = plan_for([listed(0, day(31), at(20), acts=["Prince"])], [stored(1, day(20), at(20), acts=[(8, "Zhora")])])
     [removed] = only(plan, Action.REMOVE)
     assert removed.stored_id == 1 and removed.reason == "absent from the page"
 
@@ -65,7 +63,8 @@ def test_a_stored_show_beyond_the_last_listed_date_is_left_alone() -> None:
     # November 14, so a show stored for November 14 is out of sight, not gone. Without the window bound, a venue
     # that lists two weeks would have every show booked further out removed on every run.
     plan = plan_for(
-        [listed(0, day(31), at(20), acts=["Prince"])], [stored(1, datetime.date(2026, 11, 14), at(20), acts=[(8, "Zhora")])]
+        [listed(0, day(31), at(20), acts=["Prince"])],
+        [stored(1, datetime.date(2026, 11, 14), at(20), acts=[(8, "Zhora")])],
     )
     assert only(plan, Action.REMOVE) == []
 
@@ -73,9 +72,7 @@ def test_a_stored_show_beyond_the_last_listed_date_is_left_alone() -> None:
 def test_a_stored_show_before_today_is_left_alone() -> None:
     # Proves (A5-D1): past shows fall off venue pages naturally; a show from October 3 missing from today's page is
     # not a removal.
-    plan = plan_for(
-        [listed(0, day(31), at(20), acts=["Prince"])], [stored(1, day(3), at(20), acts=[(8, "Zhora")])]
-    )
+    plan = plan_for([listed(0, day(31), at(20), acts=["Prince"])], [stored(1, day(3), at(20), acts=[(8, "Zhora")])])
     assert only(plan, Action.REMOVE) == []
 
 
@@ -115,19 +112,27 @@ def test_a_no_act_listing_with_an_impossible_date_does_not_stretch_the_window() 
     # before it ever checks the date, so it must not count as evidence the page reached 2028: that would remove every
     # stored show between the page's real last date and 2028, and the A5-D10 guard does not stop it (the matched shows
     # count toward its denominator). Goes through real validation and `prepare_inputs`, the path the pipeline takes.
-    raw, kept, result = validated([
-        extracted(day(20), ["Nona"]), extracted(datetime.date(2028, 3, 1), []), extracted(day(25), ["Zhora"]),
-    ])
+    raw, kept, result = validated(
+        [
+            extracted(day(20), ["Nona"]),
+            extracted(datetime.date(2028, 3, 1), []),
+            extracted(day(25), ["Zhora"]),
+        ]
+    )
     inputs = prepare_inputs(raw, kept, result, FETCHED)
     assert inputs.coverage is not None and inputs.coverage.end == day(25)
     plan = build_plan(
         inputs,
         [
-            stored(1, day(20), at(20), acts=[(7, "Nona")]), stored(2, day(25), at(20), acts=[(8, "Zhora")]),
+            stored(1, day(20), at(20), acts=[(7, "Nona")]),
+            stored(2, day(25), at(20), acts=[(8, "Zhora")]),
             stored(3, datetime.date(2026, 12, 5), at(20), acts=[(9, "Prince")]),
             stored(4, datetime.date(2027, 2, 5), at(20), acts=[(9, "Prince")]),
         ],
-        KNOWN, original_url=URL, client=scripted_client({}), options=OPTIONS,
+        KNOWN,
+        original_url=URL,
+        client=scripted_client({}),
+        options=OPTIONS,
     )
     assert only(plan, Action.REMOVE) == []
 
@@ -136,16 +141,22 @@ def test_a_no_act_listing_with_a_plausible_date_still_counts_as_reach() -> None:
     # Proves (A5-D1): the other half. A listing left out for naming no act, on a plausible date, IS evidence the page
     # reached that date (it is on the page), so the window runs to it.
     raw, kept, result = validated([extracted(day(20), ["Nona"]), extracted(day(28), [])])
-    assert prepare_inputs(raw, kept, result, FETCHED).coverage == covered_window([listed(0, day(20))], [day(28)], FETCHED)
+    assert prepare_inputs(raw, kept, result, FETCHED).coverage == covered_window(
+        [listed(0, day(20))], [day(28)], FETCHED
+    )
 
 
 def test_excluded_dates_come_from_the_raw_list_not_the_validated_one() -> None:
     # Proves (notes.md, the index trap): `Finding.show_index` is a position in the RAW extraction. The show left out
     # sits in the MIDDLE (index 1), so the validated list is [Oct 20, Oct 25] and index 1 there is Oct 25. Reading
     # the wrong list would protect October 25 instead of October 22, silently.
-    raw, kept, result = validated([
-        extracted(day(20), ["Nona"]), extracted(day(22), []), extracted(day(25), ["Zhora"]),
-    ])
+    raw, kept, result = validated(
+        [
+            extracted(day(20), ["Nona"]),
+            extracted(day(22), []),
+            extracted(day(25), ["Zhora"]),
+        ]
+    )
     inputs = prepare_inputs(raw, kept, result, FETCHED)
     assert inputs.excluded_dates == frozenset({day(22)})
     assert [(l.index, l.date) for l in inputs.listings] == [(0, day(20)), (1, day(25))]
@@ -156,7 +167,12 @@ def test_a_listing_carries_its_status_when_the_schema_has_one_and_is_scheduled_w
     # and the image route has none. `listings_from` reads it with a default, so a plain show is "scheduled" and a
     # status-carrying one keeps "cancelled".
     with_status = show_model(status=True, split_acts=False)(
-        venue="The Venue", date=day(20), time=at(20), acts=[{"name": "Nona"}], is_ambiguous=False, confidence=0.9,
+        venue="The Venue",
+        date=day(20),
+        time=at(20),
+        acts=[{"name": "Nona"}],
+        is_ambiguous=False,
+        confidence=0.9,
         status="cancelled",
     )
     page = VenuePageExtraction(page_readable=True, shows=[extracted(day(21)), with_status])
@@ -168,9 +184,13 @@ def test_no_extraction_or_no_validation_means_no_listings_and_no_protected_dates
     # gives no listings, and no extraction or no validation result gives no protected dates, so a missing input can
     # never raise or protect a stored show from the soft delete by accident. The control uses the same page as the
     # test above (an excluded show on Oct 22), so the empty answers are not simply what the helper always returns.
-    raw, _kept, result = validated([
-        extracted(day(20), ["Nona"]), extracted(day(22), []), extracted(day(25), ["Zhora"]),
-    ])
+    raw, _kept, result = validated(
+        [
+            extracted(day(20), ["Nona"]),
+            extracted(day(22), []),
+            extracted(day(25), ["Zhora"]),
+        ]
+    )
     assert excluded_listing_dates(raw, result, FETCHED) == frozenset({day(22)})
 
     assert listings_from(None) == []
@@ -301,7 +321,7 @@ def test_the_guard_does_not_withhold_cancellations() -> None:
     # three shows even though that is most of the window.
     shows = _venue(4)
     page = [listed(i - 1, day(12 + i), at(20), acts=["Zhora"], status="cancelled") for i in (1, 2, 3)]
-    plan = plan_for(page + [listed(3, day(16), at(20), acts=["Zhora"])], shows)
+    plan = plan_for([*page, listed(3, day(16), at(20), acts=["Zhora"])], shows)
     assert len([d for d in only(plan, Action.REMOVE) if d.reason == "cancelled"]) == 3
 
 

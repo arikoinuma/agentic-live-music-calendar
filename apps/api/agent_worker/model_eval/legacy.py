@@ -23,15 +23,9 @@ class ShowExtraction(BaseModel):
     venue: str = Field(description="The venue name as it appears on the page")
     date: datetime.date = Field(description="The date of the show")
     time: datetime.time = Field(description="The start time of the show")
-    acts: list[str] = Field(
-        description="The name(s) of the act(s) performing, in listed order"
-    )
-    is_ambiguous: bool = Field(
-        description="True if the page's listing order or timing was unclear or ambiguous"
-    )
-    ticket_info: str | None = Field(
-        default=None, description="Ticket price or purchase info, if present on the page"
-    )
+    acts: list[str] = Field(description="The name(s) of the act(s) performing, in listed order")
+    is_ambiguous: bool = Field(description="True if the page's listing order or timing was unclear or ambiguous")
+    ticket_info: str | None = Field(default=None, description="Ticket price or purchase info, if present on the page")
     confidence: float = Field(
         ge=0,
         le=1,

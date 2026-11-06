@@ -101,16 +101,16 @@ def findings_fired(findings: Iterable[Finding]) -> dict[str, int]:
 def finding_dict(finding: Finding) -> dict[str, Any]:
     """A finding as JSON-friendly data, for the results file."""
     return {
-        "code": finding.code.value, "severity": finding.severity.value, "message": finding.message,
+        "code": finding.code.value,
+        "severity": finding.severity.value,
+        "message": finding.message,
         "show_index": finding.show_index,
     }
 
 
 def findings_from_dicts(stored: Iterable[dict[str, Any]]) -> list[Finding]:
     """The inverse of `finding_dict`, so coverage can be computed from a stored file."""
-    return [
-        Finding(CheckCode(f["code"]), Severity(f["severity"]), f["message"], f.get("show_index")) for f in stored
-    ]
+    return [Finding(CheckCode(f["code"]), Severity(f["severity"]), f["message"], f.get("show_index")) for f in stored]
 
 
 def recompute_validation(document: dict[str, Any], *, page_html: str, fetched_on: datetime.date) -> ValidationResult:
@@ -126,8 +126,12 @@ def recompute_validation(document: dict[str, Any], *, page_html: str, fetched_on
     extraction = VenuePageExtraction.model_validate(document["raw_extraction"])
     result, _kept = validate_extraction(
         # A stored route name: "jsonld" (before C6.1) reads as "structured".
-        extraction, source=cast(Source, stored_route(document["route"])), notes=document["notes"], fetched_on=fetched_on,
-        page_html=page_html, page_text=clean_text(page_html, False) if page_html else "",
+        extraction,
+        source=cast(Source, stored_route(document["route"])),
+        notes=document["notes"],
+        fetched_on=fetched_on,
+        page_html=page_html,
+        page_text=clean_text(page_html, False) if page_html else "",
     )
     return result
 

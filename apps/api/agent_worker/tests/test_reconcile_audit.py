@@ -29,8 +29,13 @@ from app.enums import AuditOutcome, AuditSource, EntityType, StepType
 
 def state_with(plan: ReconcilePlan | None) -> VenueGraphState:
     return VenueGraphState(
-        venue_id=4, calendar_url="https://venue.example/events", venue_name="The Venue",
-        metro_timezone="America/Chicago", fetched_on=datetime.date(2026, 10, 12), run_id=9, attempt_count=2,
+        venue_id=4,
+        calendar_url="https://venue.example/events",
+        venue_name="The Venue",
+        metro_timezone="America/Chicago",
+        fetched_on=datetime.date(2026, 10, 12),
+        run_id=9,
+        attempt_count=2,
         reconcile_plan=plan,
     )
 
@@ -42,8 +47,15 @@ def decision(action: Action, **fields: object) -> ShowDecision:
 
 def matched(confidence: float | None = 0.9) -> ArtistResolution:
     return ArtistResolution(
-        name="Zhora Band", key="zhora band", outcome="matched_by_model", artist_id=8, decided_by="model",
-        model_used="test-model", confidence=confidence, candidates=(KnownArtist(8, "Zhora"),), reason="same band",
+        name="Zhora Band",
+        key="zhora band",
+        outcome="matched_by_model",
+        artist_id=8,
+        decided_by="model",
+        model_used="test-model",
+        confidence=confidence,
+        candidates=(KnownArtist(8, "Zhora"),),
+        reason="same band",
     )
 
 
@@ -89,11 +101,16 @@ def test_a_model_decision_has_its_own_row_with_model_and_confidence() -> None:
     plan = ReconcilePlan(None, (), artists=(rule, matched(0.9)))
     [entry] = model_decision_entries(state_with(plan))
     assert (entry.step_type, entry.source, entry.entity_type, entry.entity_id) == (
-        StepType.RECONCILE, AuditSource.AGENT, EntityType.ARTIST, 8,
+        StepType.RECONCILE,
+        AuditSource.AGENT,
+        EntityType.ARTIST,
+        8,
     )
     assert entry.model_used == "test-model" and entry.confidence == Decimal("0.900") and entry.outcome is None
     assert entry.detail == {
-        "name": "Zhora Band", "outcome": "matched_by_model", "reason": "same band",
+        "name": "Zhora Band",
+        "outcome": "matched_by_model",
+        "reason": "same band",
         "candidates": [{"id": 8, "name": "Zhora"}],
     }
 
@@ -103,8 +120,15 @@ def test_a_fallback_after_a_failed_call_is_a_row_with_no_confidence_not_zero() -
     # 0.000 (which A8 would read as "the model was certain it was wrong"). The row exists anyway: the fallback is
     # visible, with the failure in the reason, and `entity_id` is None because the artist doesn't exist yet.
     failed = ArtistResolution(
-        "Zhora Band", "zhora band", "new_after_model", None, "model", model_used="test-model", confidence=None,
-        candidates=(KnownArtist(8, "Zhora"),), reason="model call failed: ValueError: no",
+        "Zhora Band",
+        "zhora band",
+        "new_after_model",
+        None,
+        "model",
+        model_used="test-model",
+        confidence=None,
+        candidates=(KnownArtist(8, "Zhora"),),
+        reason="model call failed: ValueError: no",
     )
     [entry] = model_decision_entries(state_with(ReconcilePlan(None, (), artists=(failed,))))
     assert entry.confidence is None and entry.entity_id is None and "failed" in entry.detail["reason"]
@@ -123,7 +147,8 @@ def test_every_reconcile_row_is_json_serialisable() -> None:
     plan = ReconcilePlan(
         Coverage(day(12), day(31)),
         (decision(Action.UPDATE, stored_id=stored_show.id, needs_review=True, listing=listed(0, day(20), at(20))),),
-        artists=(matched(),), withheld=(decision(Action.REMOVE, stored_id=3),),
+        artists=(matched(),),
+        withheld=(decision(Action.REMOVE, stored_id=3),),
     )
     state = state_with(plan)
     json.dumps(entry_for(StepType.RECONCILE, state).detail)
@@ -135,5 +160,9 @@ def test_each_action_maps_to_the_audit_outcome_commit_will_write() -> None:
     # Proves: `Action.outcome` is the name A6's per-show audit rows will use (`audit_outcome` in
     # data-model-initial.md §4): insert, update, remove and no-op map one to one, and `skip` writes no row at all.
     assert [a.outcome for a in (Action.INSERT, Action.UPDATE, Action.REMOVE, Action.NO_OP, Action.SKIP)] == [
-        AuditOutcome.INSERTED, AuditOutcome.UPDATED, AuditOutcome.REMOVED, AuditOutcome.NO_OP, None,
+        AuditOutcome.INSERTED,
+        AuditOutcome.UPDATED,
+        AuditOutcome.REMOVED,
+        AuditOutcome.NO_OP,
+        None,
     ]

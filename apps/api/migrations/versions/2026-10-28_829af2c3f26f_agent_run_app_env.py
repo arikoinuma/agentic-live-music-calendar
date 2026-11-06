@@ -11,23 +11,24 @@ Revises: 67609c405218
 Create Date: 2026-10-28 10:37:02.908398-05:00
 
 """
+
 from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = '829af2c3f26f'
-down_revision: str | Sequence[str] | None = '67609c405218'
+revision: str = "829af2c3f26f"
+down_revision: str | Sequence[str] | None = "67609c405218"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
     """Upgrade schema."""
-    op.add_column('agent_run', sa.Column('app_env', sa.String(length=16), nullable=True))
+    op.add_column("agent_run", sa.Column("app_env", sa.String(length=16), nullable=True))
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_column('agent_run', 'app_env')
+    op.drop_column("agent_run", "app_env")

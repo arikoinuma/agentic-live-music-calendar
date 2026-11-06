@@ -110,8 +110,7 @@ def check_test_database_url(url: URL, *, derived: bool) -> None:
     # Check 1: the database must be literally `calendar_test`.
     if url.database != TEST_DB_NAME:
         raise UnsafeTestDatabaseError(
-            f"Refusing to run destructive test fixtures against database "
-            f"{url.database!r}; it must be {TEST_DB_NAME!r}."
+            f"Refusing to run destructive test fixtures against database {url.database!r}; it must be {TEST_DB_NAME!r}."
         )
     # Check 2: a guessed URL must point at this machine.
     if derived and url.host not in LOCAL_HOSTS:
@@ -126,9 +125,7 @@ def _maintenance_dsn(url: URL) -> str:
     # Two traps in one line. str(url) masks the password as "***" in
     # SQLAlchemy 2.0, so it must be rendered explicitly; and raw asyncpg
     # rejects the "+asyncpg" driver suffix SQLAlchemy URLs carry.
-    return url.set(drivername="postgresql", database="postgres").render_as_string(
-        hide_password=False
-    )
+    return url.set(drivername="postgresql", database="postgres").render_as_string(hide_password=False)
 
 
 def _db_required() -> bool:
@@ -254,21 +251,9 @@ async def migrated_engine(database_url_for_tests: URL) -> AsyncIterator[AsyncEng
     # and no enum types: those are exactly what a sloppy downgrade() leaves.
     async with engine.connect() as conn:
         tables = (
-            (
-                await conn.execute(
-                    text(
-                        "SELECT tablename FROM pg_tables WHERE schemaname = 'public'"
-                    )
-                )
-            )
-            .scalars()
-            .all()
+            (await conn.execute(text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'"))).scalars().all()
         )
-        enums = (
-            (await conn.execute(text("SELECT typname FROM pg_type WHERE typtype = 'e'")))
-            .scalars()
-            .all()
-        )
+        enums = (await conn.execute(text("SELECT typname FROM pg_type WHERE typtype = 'e'"))).scalars().all()
     assert set(tables) <= {"alembic_version"}, f"downgrade left tables: {tables}"
     assert not enums, f"downgrade left enum types behind: {enums}"
     # Now build it for real, for the tests to use.
@@ -299,7 +284,5 @@ async def db_session(db_conn: AsyncConnection) -> AsyncIterator[AsyncSession]:
     # releases a savepoint instead of ending the outer transaction, so the
     # rollback in db_conn still undoes everything. (The seed itself only
     # flushes, but later code under test, e.g. commit_node, will commit.)
-    async with AsyncSession(
-        bind=db_conn, join_transaction_mode="create_savepoint", expire_on_commit=False
-    ) as session:
+    async with AsyncSession(bind=db_conn, join_transaction_mode="create_savepoint", expire_on_commit=False) as session:
         yield session

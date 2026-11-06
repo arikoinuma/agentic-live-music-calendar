@@ -29,16 +29,17 @@ T = datetime.time
 def label(day: int, *acts: str, **fields: Any) -> LabelledShow:
     """A labelled show on October `day`, 2026. Fields the page states are passed by keyword;
     anything not passed is "the page doesn't state it" (None)."""
-    return LabelledShow(
-        date=D(2026, 10, day), acts=tuple(acts), source_line=" / ".join(acts), **fields
-    )
+    return LabelledShow(date=D(2026, 10, day), acts=tuple(acts), source_line=" / ".join(acts), **fields)
 
 
 def page_label(*shows: LabelledShow, non_shows: tuple[NonShow, ...] = ()) -> PageLabel:
     """A gated page holding the given labelled shows and non-show entries."""
     return PageLabel(
-        venue="test_venue", gated=True, captured_on=D(2026, 10, 10),
-        shows=tuple(shows), non_shows=non_shows,
+        venue="test_venue",
+        gated=True,
+        captured_on=D(2026, 10, 10),
+        shows=tuple(shows),
+        non_shows=non_shows,
     )
 
 
@@ -46,10 +47,17 @@ def returned(day: int, *acts: str, **fields: Any) -> dict[str, Any]:
     """One show as an extraction dump carries it (`model_dump(mode="json")`), with only the
     fields a test cares about; the rest are null, as a model's "not stated" would be."""
     show: dict[str, Any] = {
-        "venue": "Test", "date": D(2026, 10, day).isoformat(), "time": None, "end_time": None,
+        "venue": "Test",
+        "date": D(2026, 10, day).isoformat(),
+        "time": None,
+        "end_time": None,
         "acts": [{"name": a, "start_time": None, "sequence_number": None} for a in acts],
-        "is_ambiguous": False, "admission_advance": None, "admission_day": None,
-        "free_admission": None, "image_url": None, "confidence": 0.9,
+        "is_ambiguous": False,
+        "admission_advance": None,
+        "admission_day": None,
+        "free_admission": None,
+        "image_url": None,
+        "confidence": 0.9,
     }
     for key, value in fields.items():
         show[key] = value.isoformat() if isinstance(value, T) else value
@@ -112,7 +120,8 @@ def test_two_untimed_shows_on_one_date_and_a_same_date_leak() -> None:
     # non-show on the same date: both shows correct, the extra is a tolerated leak, not a
     # fabrication (A2.1-PR2-3).
     lbl = page_label(
-        label(31, "MARIS"), label(31, "Internet Kids"),
+        label(31, "MARIS"),
+        label(31, "Internet Kids"),
         non_shows=(NonShow(title="Halloween Karaoke", date=D(2026, 10, 31), weekday=None, reason="karaoke"),),
     )
     s = score(lbl, returned(31, "Halloween Karaoke"), returned(31, "Internet Kids"), returned(31, "MARIS"))
@@ -164,7 +173,10 @@ def test_an_alternative_reading_is_accepted() -> None:
     # Proves: a genuinely ambiguous title (A2.1-D5: "Slashfire w. Dread Spell & Couch Potato
     # Massacre") is correct under any reading the label lists, and wrong under any other.
     slashfire = label(
-        9, "Slashfire", "Dread Spell", "Couch Potato Massacre",
+        9,
+        "Slashfire",
+        "Dread Spell",
+        "Couch Potato Massacre",
         alternatives=(("Slashfire", "Dread Spell & Couch Potato Massacre"),),
     )
     ok = score(page_label(slashfire), returned(9, "Slashfire", "Dread Spell & Couch Potato Massacre"))
@@ -223,8 +235,12 @@ def test_an_image_url_not_in_the_page_is_wrong() -> None:
     # Proves: an image link is checked against the page itself (labels don't list images);
     # A2 saw a model invent "N/A (Source Image Poster)".
     html = '<img src="https://venue.example/poster.png">'
-    ok = score(page_label(label(9, "Lent")), returned(9, "Lent", image_url="https://venue.example/poster.png"), page_html=html)
-    bad = score(page_label(label(9, "Lent")), returned(9, "Lent", image_url="N/A (Source Image Poster)"), page_html=html)
+    ok = score(
+        page_label(label(9, "Lent")), returned(9, "Lent", image_url="https://venue.example/poster.png"), page_html=html
+    )
+    bad = score(
+        page_label(label(9, "Lent")), returned(9, "Lent", image_url="N/A (Source Image Poster)"), page_html=html
+    )
     assert (ok.fields["image_url"].wrong, bad.fields["image_url"].wrong) == (0, 1)
 
 
@@ -243,7 +259,13 @@ def test_an_extra_on_a_non_show_date_or_weekday_is_a_leak() -> None:
             NonShow(title="OPEN MIC", date=None, weekday=0, reason="open mic, every Monday"),
         ),
     )
-    s = score(lbl, returned(9, "Lent"), returned(12, "Autotune Karaoke"), returned(19, "Open Mic Host"), returned(14, "Nobody Listed This"))
+    s = score(
+        lbl,
+        returned(9, "Lent"),
+        returned(12, "Autotune Karaoke"),
+        returned(19, "Open Mic Host"),
+        returned(14, "Nobody Listed This"),
+    )
     assert s.leaks == 2  # Oct 12 (dated entry) and Oct 19 (a Monday)
     assert s.fabricated == 1  # Oct 14, a Wednesday, matches nothing on the page
 
@@ -398,13 +420,19 @@ def test_every_counted_error_has_a_structured_item() -> None:
     # wrong-acts show, one fabricated show, one leak, one wrong time and one missing time. Expected kinds are the tiers of
     # A2.1-D1, counted by hand from the case.
     lbl = page_label(
-        label(1, "Missed Band"), label(2, "Right Band"), label(3, "Timed Band", time=T(20, 0)),
+        label(1, "Missed Band"),
+        label(2, "Right Band"),
+        label(3, "Timed Band", time=T(20, 0)),
         label(4, "Stated Time Band", time=T(21, 0)),
         non_shows=(NonShow(title="Karaoke Night", date=D(2026, 10, 8), weekday=None, reason="karaoke"),),
     )
     result = score(
-        lbl, returned(2, "Wrong Band"), returned(3, "Timed Band", time=T(19, 0)), returned(4, "Stated Time Band"),
-        returned(6, "Invented Band"), returned(8, "Karaoke Night"),
+        lbl,
+        returned(2, "Wrong Band"),
+        returned(3, "Timed Band", time=T(19, 0)),
+        returned(4, "Stated Time Band"),
+        returned(6, "Invented Band"),
+        returned(8, "Karaoke Night"),
     )
     assert sorted(i.kind for i in result.items) == sorted(
         ["missed", "acts_wrong", "field_wrong", "field_missing", "fabricated", "leak"]
@@ -457,7 +485,9 @@ def test_scheduled_only_drops_cancelled_and_postponed_shows_from_a_label() -> No
     # Proves: C5-PR1-5. A cancelled or postponed listing is labelled with its status (A2.1-D12) but reconcile skips it and
     # `ShowStatus` has no such value, so the rows left cannot hold it. Scored against the full label, every run of a page
     # like 7th St Entry's would report those shows missed for correct behaviour.
-    lbl = page_label(label(1, "Live Band"), label(2, "Gone Band", status="cancelled"), label(3, "Later Band", status="postponed"))
+    lbl = page_label(
+        label(1, "Live Band"), label(2, "Gone Band", status="cancelled"), label(3, "Later Band", status="postponed")
+    )
     assert [s.acts for s in scoring.scheduled_only(lbl).shows] == [("Live Band",)]
     assert len(lbl.shows) == 3  # the original is untouched
 
@@ -472,7 +502,8 @@ def k2_page_score() -> scoring.PageScore:
     misses one, gives one the wrong acts, adds one invented show and one listed non-show (a leak)."""
     shows = tuple(label(day, f"Band {day}") for day in range(1, 11))
     lbl = page_label(
-        *shows, non_shows=(NonShow(title="Karaoke Night", date=D(2026, 10, 20), weekday=None, reason="karaoke"),),
+        *shows,
+        non_shows=(NonShow(title="Karaoke Night", date=D(2026, 10, 20), weekday=None, reason="karaoke"),),
     )
     returned_shows = [returned(day, f"Band {day}") for day in range(3, 11)]  # shows 1 and 2 not returned yet
     returned_shows[0] = returned(3, "Wrong Band")  # show 3: wrong acts
@@ -489,7 +520,14 @@ def test_headline_rates_count_found_as_labelled_minus_missed_minus_wrong_acts() 
     # + 1 leak = 11. Recall 8/10. Strict precision 8/11 counts the leak against; lenient 8/10 does not. The likeliest mistake
     # is `found = labelled - missed` (counting the wrong-acts show as found).
     base = k2_page_score()
-    assert (base.labelled, base.returned, base.missed, base.acts_wrong, base.fabricated, base.leaks) == (10, 11, 1, 1, 1, 1)
+    assert (base.labelled, base.returned, base.missed, base.acts_wrong, base.fabricated, base.leaks) == (
+        10,
+        11,
+        1,
+        1,
+        1,
+        1,
+    )
     rates = scoring.headline_rates(base)
     assert rates.found == 8
     assert rates.recall == 8 / 10
@@ -513,7 +551,10 @@ def test_summed_adds_every_count_and_field_tally_across_pages() -> None:
     # Proves: C5-M2 (`scoring.summed`, the sum the aggregate divides once). Two pages' counts and their per-field tallies are
     # added, so a rate taken from the sum weighs every show equally. Expected numbers are worked by hand from the two scores
     # below: 5 + 10 labelled, 1 + 0 missed, 2 + 3 time values stated, 1 + 3 of them correct.
-    first, second = scoring.PageScore(labelled=5, returned=4, missed=1), scoring.PageScore(labelled=10, returned=10, leaks=2)
+    first, second = (
+        scoring.PageScore(labelled=5, returned=4, missed=1),
+        scoring.PageScore(labelled=10, returned=10, leaks=2),
+    )
     first.fields["time"].stated, first.fields["time"].correct = 2, 1
     second.fields["time"].stated, second.fields["time"].correct = 3, 3
     total = scoring.summed([first, second])
@@ -525,8 +566,12 @@ def test_summed_adds_every_count_and_field_tally_across_pages() -> None:
 def test_summed_names_every_count_field_of_a_page_score() -> None:
     # Proves: `summed` cannot silently skip a count added to `PageScore` later. Every integer count field must be summed, which
     # is checked by giving each its own value and reading it back; a new count that the list in `summed` misses reads 0 here.
-    counts = [f.name for f in dataclasses.fields(scoring.PageScore) if isinstance(getattr(scoring.PageScore(), f.name), int)
-              and not isinstance(getattr(scoring.PageScore(), f.name), bool)]
+    counts = [
+        f.name
+        for f in dataclasses.fields(scoring.PageScore)
+        if isinstance(getattr(scoring.PageScore(), f.name), int)
+        and not isinstance(getattr(scoring.PageScore(), f.name), bool)
+    ]
     page = scoring.PageScore()
     for i, name in enumerate(counts):
         setattr(page, name, i + 1)

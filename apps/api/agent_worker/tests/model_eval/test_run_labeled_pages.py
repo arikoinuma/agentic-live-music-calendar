@@ -39,6 +39,7 @@ from agent_worker.tests.model_eval.test_aggregate_scores import record, score_di
 D = datetime.date
 T = datetime.time
 
+
 def test_the_policy_flags_build_on_the_default_policy_so_the_escalation_model_survives() -> None:
     # Proves: C5-PR1-12 (c), C5-D5. `--threshold`/`--max-attempts` change only those fields of the default policy; a fresh
     # `RetryPolicy(...)` would drop the configured `escalation_model`. No flags means no policy (the default is used).
@@ -66,14 +67,22 @@ def test_scenario_pairs_are_consecutive_captures_of_one_venue_in_date_order() ->
     assert not any("mortimers" in a for a, _ in pairs)  # one capture only
 
 
-@pytest.mark.parametrize(("argv", "expected"), [
-    (["--label", "x"], {"set": "all", "runs": 1, "scenario": None, "threshold": None, "max_attempts": None, "keep_db": False}),
-    (["--label", "x", "--set", "held_out", "--runs", "2"], {"set": "held_out", "runs": 2}),
-    (["--label", "x", "--scenario", "perturbed", "--threshold", "0.99", "--max-attempts", "2", "--keep-db"],
-     {"scenario": "perturbed", "threshold": 0.99, "max_attempts": 2, "keep_db": True}),
-    (["--rescore", "old"], {"rescore": "old"}),
-    (["--compare", "a", "b"], {"compare": ["a", "b"]}),
-])
+@pytest.mark.parametrize(
+    ("argv", "expected"),
+    [
+        (
+            ["--label", "x"],
+            {"set": "all", "runs": 1, "scenario": None, "threshold": None, "max_attempts": None, "keep_db": False},
+        ),
+        (["--label", "x", "--set", "held_out", "--runs", "2"], {"set": "held_out", "runs": 2}),
+        (
+            ["--label", "x", "--scenario", "perturbed", "--threshold", "0.99", "--max-attempts", "2", "--keep-db"],
+            {"scenario": "perturbed", "threshold": 0.99, "max_attempts": 2, "keep_db": True},
+        ),
+        (["--rescore", "old"], {"rescore": "old"}),
+        (["--compare", "a", "b"], {"compare": ["a", "b"]}),
+    ],
+)
 def test_the_command_line(argv: list[str], expected: dict[str, Any]) -> None:
     # Proves: the flags the plan names (--label, --set, --runs, --scenario, --threshold, --max-attempts, --keep-db, --rescore,
     # --compare) parse to the values the run reads, with the plan's defaults (all pages, one run, no scenario, default policy).
@@ -88,7 +97,8 @@ def test_the_command_line(argv: list[str], expected: dict[str, Any]) -> None:
 
 
 def test_rescore_rebuilds_scores_from_the_stored_extractions_and_leaves_the_original_alone(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves: the A2.1-PR1-13 rule, for the graph file. A label corrected after a run (here: one more labelled show) changes
     # the scores on --rescore with no model call; the rescored data goes to a NEW file and the original is byte-identical.
@@ -96,18 +106,34 @@ def test_rescore_rebuilds_scores_from_the_stored_extractions_and_leaves_the_orig
     page.write_text("<html></html>")
     monkeypatch.setattr(results_file, "RESULTS_DIR", tmp_path)
     monkeypatch.setattr(run_labeled_pages.run_eval, "CAPTURED_PAGES_DIR", tmp_path)
-    extraction = {"page_readable": True, "shows": [{
-        "venue": "V", "date": "2026-10-20", "time": None, "end_time": None, "acts": [{"name": "A"}],
-        "admission_advance": None, "admission_day": None, "free_admission": None, "image_url": None,
-    }]}
-    original_label = PageLabel(venue="v", gated=True, captured_on=D(2026, 10, 12), shows=(LabelledShow(D(2026, 10, 20), ("A",), "A"),))
+    extraction = {
+        "page_readable": True,
+        "shows": [
+            {
+                "venue": "V",
+                "date": "2026-10-20",
+                "time": None,
+                "end_time": None,
+                "acts": [{"name": "A"}],
+                "admission_advance": None,
+                "admission_day": None,
+                "free_admission": None,
+                "image_url": None,
+            }
+        ],
+    }
+    original_label = PageLabel(
+        venue="v", gated=True, captured_on=D(2026, 10, 12), shows=(LabelledShow(D(2026, 10, 20), ("A",), "A"),)
+    )
     run = record("page.html", raw=extraction)
     run["validated"], run["committed"] = extraction, extraction
     run["staged_documents"] = []
     source = tmp_path / "graph-old.json"
     source.write_text(json.dumps({"label": "old", "runs": [run], "aggregate": {}}))
     before = source.read_bytes()
-    corrected = dataclasses.replace(original_label, shows=(*original_label.shows, LabelledShow(D(2026, 10, 21), ("B",), "B")))
+    corrected = dataclasses.replace(
+        original_label, shows=(*original_label.shows, LabelledShow(D(2026, 10, 21), ("B",), "B"))
+    )
     monkeypatch.setitem(labels.PAGE_LABELS, "page.html", corrected)
     out = run_labeled_pages.rescore("old")
     assert source.read_bytes() == before
@@ -128,7 +154,9 @@ def factory(db_conn: AsyncConnection) -> async_sessionmaker[AsyncSession]:
 
 
 async def test_run_pages_runs_each_page_alone_on_an_empty_calendar(
-    factory: async_sessionmaker[AsyncSession], tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    factory: async_sessionmaker[AsyncSession],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves: C5-D2 and the reset between pages. Two independent pages of one venue are run in turn; the second page's committed
     # rows hold ONLY its own show, because the harness cleared the first page's before it ran (otherwise the second page's
@@ -137,10 +165,21 @@ async def test_run_pages_runs_each_page_alone_on_an_empty_calendar(
     first.write_text(jsonld_page(event("Nona", "2026-10-20T21:00:00-05:00")))
     second.write_text(jsonld_page(event("Lent", "2026-10-21T21:00:00-05:00")))
     facts = LabelVenueFacts("The Test Venue", "https://example.test/calendar")
-    label_one = PageLabel(venue="v", gated=True, captured_on=D(2026, 10, 12), shows=(LabelledShow(D(2026, 10, 20), ("Nona",), "Nona", T(21, 0)),))
+    label_one = PageLabel(
+        venue="v",
+        gated=True,
+        captured_on=D(2026, 10, 12),
+        shows=(LabelledShow(D(2026, 10, 20), ("Nona",), "Nona", T(21, 0)),),
+    )
     label_two = dataclasses.replace(label_one, shows=(LabelledShow(D(2026, 10, 21), ("Lent",), "Lent", T(21, 0)),))
-    monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [split_answer(("Nona", ["Nona"])), split_answer(("Lent", ["Lent"]))]}))
-    records = await run_labeled_pages.run_pages([(first, label_one, facts), (second, label_two, facts)], factory=factory, runs=1, policy=None)
+    monkeypatch.setattr(
+        nodes,
+        "instructor_client",
+        scripted_client({SPLITTER: [split_answer(("Nona", ["Nona"])), split_answer(("Lent", ["Lent"]))]}),
+    )
+    records = await run_labeled_pages.run_pages(
+        [(first, label_one, facts), (second, label_two, facts)], factory=factory, runs=1, policy=None
+    )
     assert [(r["fixture"], r["run"]) for r in records] == [("one.html", 0), ("two.html", 0)]
     assert [len(r["committed"]["shows"]) for r in records] == [1, 1]
     assert records[1]["committed"]["shows"][0]["acts"] == [{"name": "Lent"}]
@@ -163,18 +202,42 @@ def test_rescore_also_rescores_the_scenarios_database_score(tmp_path: Path, monk
     monkeypatch.setattr(results_file, "RESULTS_DIR", tmp_path)
     monkeypatch.setattr(run_labeled_pages.run_eval, "CAPTURED_PAGES_DIR", tmp_path)
     (tmp_path / "page.html").write_text("<html></html>")
-    rows = {"page_readable": True, "shows": [{
-        "date": "2026-10-20", "time": None, "end_time": None, "acts": [{"name": "A"}], "admission_advance": None,
-        "admission_day": None, "free_admission": None, "image_url": None, "status": "scheduled",
-    }]}
-    label = PageLabel(venue="v", gated=True, captured_on=D(2026, 10, 12), shows=(LabelledShow(D(2026, 10, 20), ("A",), "A"),))
+    rows = {
+        "page_readable": True,
+        "shows": [
+            {
+                "date": "2026-10-20",
+                "time": None,
+                "end_time": None,
+                "acts": [{"name": "A"}],
+                "admission_advance": None,
+                "admission_day": None,
+                "free_admission": None,
+                "image_url": None,
+                "status": "scheduled",
+            }
+        ],
+    }
+    label = PageLabel(
+        venue="v", gated=True, captured_on=D(2026, 10, 12), shows=(LabelledShow(D(2026, 10, 20), ("A",), "A"),)
+    )
     run = record("page.html", raw=rows)
     run["raw"] = run["validated"] = run["committed"] = rows
     scenario = {
-        "pages": ["page.html"], "database_score": score_dict(labelled=1),
-        "result": {"scenario": "repeat", "runs": [run, run], "expected_counts": None, "count_differences": [], "perturbation": None, "not_run": None},
+        "pages": ["page.html"],
+        "database_score": score_dict(labelled=1),
+        "result": {
+            "scenario": "repeat",
+            "runs": [run, run],
+            "expected_counts": None,
+            "count_differences": [],
+            "perturbation": None,
+            "not_run": None,
+        },
     }
-    (tmp_path / "graph-old.json").write_text(json.dumps({"label": "old", "scenario": "repeat", "runs": [run], "scenarios": [scenario]}))
+    (tmp_path / "graph-old.json").write_text(
+        json.dumps({"label": "old", "scenario": "repeat", "runs": [run], "scenarios": [scenario]})
+    )
     monkeypatch.setattr(two_run_scenarios, "expected_rows", lambda sc, first, second: list(first.shows))
     corrected = dataclasses.replace(label, shows=(*label.shows, LabelledShow(D(2026, 10, 21), ("B",), "B")))
     monkeypatch.setitem(labels.PAGE_LABELS, "page.html", corrected)
@@ -195,9 +258,16 @@ def test_only_the_second_run_of_a_sequence_or_overlap_is_left_out_of_the_committ
     def scenario(kind: str) -> dict[str, Any]:
         return {"result": {"scenario": kind, "runs": [record("a.html"), record("b.html")]}}
 
-    flags = {kind: [r["committed_scored"] for r in run_labeled_pages.scenario_records([scenario(kind)])] for kind in
-             ("repeat", "sequence", "overlap", "perturbed")}
-    assert flags == {"repeat": [True, True], "sequence": [True, False], "overlap": [True, False], "perturbed": [True, True]}
+    flags = {
+        kind: [r["committed_scored"] for r in run_labeled_pages.scenario_records([scenario(kind)])]
+        for kind in ("repeat", "sequence", "overlap", "perturbed")
+    }
+    assert flags == {
+        "repeat": [True, True],
+        "sequence": [True, False],
+        "overlap": [True, False],
+        "perturbed": [True, True],
+    }
     tagged = run_labeled_pages.scenario_records([scenario("sequence")])
     assert [(r["run"], r["scenario"]) for r in tagged] == [(0, "sequence"), (1, "sequence")]
 
@@ -215,7 +285,9 @@ def test_force_retries_sets_the_forced_threshold_and_keeps_the_rest_of_the_defau
     )
     from agent_worker.policy import DEFAULT_POLICY
 
-    assert run_labeled_pages.build_policy(None, None, force=True) == dataclasses.replace(DEFAULT_POLICY, confidence_threshold=FORCED_THRESHOLD)
+    assert run_labeled_pages.build_policy(None, None, force=True) == dataclasses.replace(
+        DEFAULT_POLICY, confidence_threshold=FORCED_THRESHOLD
+    )
     assert FORCED_THRESHOLD > 1  # the schema caps confidence at 1, so every model-judged attempt is under it
     with pytest.raises(ValueError, match="force-retries"):
         run_labeled_pages.build_policy(0.9, None, force=True)
@@ -249,7 +321,8 @@ def test_force_retries_with_a_threshold_is_refused_before_anything_runs() -> Non
 
 
 async def test_rescore_fills_the_c7_fields_of_an_older_file_and_leaves_tokens_absent(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves (C7, Test approach §4 "--rescore"): a file recorded before C7 (`c6-confirm-*`) can be read without a rerun. A fresh,
     # scripted model-route run is stored with the C7 fields removed; the rescore fills `confidence`, `show_confidences`,
@@ -266,9 +339,22 @@ async def test_rescore_fills_the_c7_fields_of_an_older_file_and_leaves_tokens_ab
     monkeypatch.setattr(results_file, "RESULTS_DIR", tmp_path)
     monkeypatch.setattr(run_labeled_pages.run_eval, "CAPTURED_PAGES_DIR", tmp_path)
     policy = run_labeled_pages.build_policy(None, None, force=True)
-    fresh = dataclasses.asdict(await run_scripted(tmp_path, monkeypatch, MODEL_PAGE, MODEL_LABEL, MODEL_SCRIPT, policy=policy))
-    c7_keys = ("confidence", "show_confidences", "judged_indices", "excluded_indices", "recorded_confidence", "seconds", "tokens")
-    expected = [{k: a[k] for k in ("confidence", "show_confidences", "judged_indices", "excluded_indices")} for a in fresh["attempts"]]
+    fresh = dataclasses.asdict(
+        await run_scripted(tmp_path, monkeypatch, MODEL_PAGE, MODEL_LABEL, MODEL_SCRIPT, policy=policy)
+    )
+    c7_keys = (
+        "confidence",
+        "show_confidences",
+        "judged_indices",
+        "excluded_indices",
+        "recorded_confidence",
+        "seconds",
+        "tokens",
+    )
+    expected = [
+        {k: a[k] for k in ("confidence", "show_confidences", "judged_indices", "excluded_indices")}
+        for a in fresh["attempts"]
+    ]
     old = json.loads(json.dumps({**fresh, "run": 0}))
     for a in old["attempts"]:
         for key in c7_keys:
@@ -285,7 +371,9 @@ async def test_rescore_fills_the_c7_fields_of_an_older_file_and_leaves_tokens_ab
 
 
 def test_the_policy_report_refuses_runs_scored_against_different_labels(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     # Proves (C7-PR1-9): `make eval-policy` pools only runs scored against the same labels; `labels_sha` hashes the whole label file,
     # so runs scored before and after a label edit carry different shas and pooling them would mix two answer keys. Exit 2, and

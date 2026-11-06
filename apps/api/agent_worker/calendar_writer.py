@@ -104,8 +104,13 @@ def failure_for(op: ShowOp, err: BaseException) -> ShowFailure:
         sqlstate, message = None, str(err)
     first_line = message.splitlines()[0] if message else ""
     return ShowFailure(
-        action=op.action.value, date=op.decision.date, time=op.decision.start_time, stored_id=op.stored_id,
-        reconcile_reason=op.reconcile_reason, sqlstate=sqlstate, error=f"{type(err).__name__}: {first_line}",
+        action=op.action.value,
+        date=op.decision.date,
+        time=op.decision.start_time,
+        stored_id=op.stored_id,
+        reconcile_reason=op.reconcile_reason,
+        sqlstate=sqlstate,
+        error=f"{type(err).__name__}: {first_line}",
     )
 
 
@@ -206,8 +211,9 @@ class PostgresCalendarWriter:
         if row is None:
             raise ShowGone(f"show {show_id} is not in the calendar")
         links = await session.execute(
-            select(ShowArtist.artist_id, ShowArtist.start_time, ShowArtist.sequence_number)
-            .where(ShowArtist.show_id == show_id)
+            select(ShowArtist.artist_id, ShowArtist.start_time, ShowArtist.sequence_number).where(
+                ShowArtist.show_id == show_id
+            )
         )
         lineup = [{"artist_id": a, "start_time": s, "sequence_number": n} for a, s, n in links.all()]
         return snapshot_of({column: getattr(row, column) for column in SNAPSHOT_COLUMNS}, lineup)
@@ -220,7 +226,7 @@ class PostgresCalendarWriter:
             row = Show(**op.values)
             session.add(row)
         else:
-            assert op.stored_id is not None
+            assert op.stored_id is not None  # noqa: S101 - a type-narrowing invariant
             found = await session.get(Show, op.stored_id)  # already in the session: the locked read loaded it
             if found is None:
                 raise ShowGone(f"show {op.stored_id} is not in the calendar")
@@ -233,8 +239,10 @@ class PostgresCalendarWriter:
             await session.execute(delete(ShowArtist).where(ShowArtist.show_id == row.id))
             session.add_all(
                 ShowArtist(
-                    show_id=row.id, artist_id=entry.artist_id if entry.artist_id is not None else artist_ids[entry.key],
-                    start_time=entry.start_time, sequence_number=entry.sequence_number,
+                    show_id=row.id,
+                    artist_id=entry.artist_id if entry.artist_id is not None else artist_ids[entry.key],
+                    start_time=entry.start_time,
+                    sequence_number=entry.sequence_number,
                 )
                 for entry in op.lineup
             )
@@ -242,19 +250,36 @@ class PostgresCalendarWriter:
         return row.id
 
     def _audit_rows(
-        self, op: ShowOp, created: Mapping[str, int], show_id: int, previous: dict[str, Any] | None,
-        new: dict[str, Any], run_id: int | None, attempt_number: int,
+        self,
+        op: ShowOp,
+        created: Mapping[str, int],
+        show_id: int,
+        previous: dict[str, Any] | None,
+        new: dict[str, Any],
+        run_id: int | None,
+        attempt_number: int,
     ) -> list[AuditEntry]:
         """The rows that record this write: one per artist it created (they exist before the show), then the show's."""
         rows = [
             artist_created_entry(
-                run_id=run_id, attempt_number=attempt_number, artist_id=artist_id, name=op.new_artist_names[key], key=key,
+                run_id=run_id,
+                attempt_number=attempt_number,
+                artist_id=artist_id,
+                name=op.new_artist_names[key],
+                key=key,
             )
             for key, artist_id in created.items()
         ]
-        rows.append(show_write_entry(
-            op, run_id=run_id, attempt_number=attempt_number, show_id=show_id, previous=previous, new=new,
-        ))
+        rows.append(
+            show_write_entry(
+                op,
+                run_id=run_id,
+                attempt_number=attempt_number,
+                show_id=show_id,
+                previous=previous,
+                new=new,
+            )
+        )
         return rows
 
 
@@ -271,7 +296,9 @@ async def write_plan(
     A show the database refuses (`is_decision_error`) is recorded and skipped (A6-D2); the run goes on. Anything else
     propagates: a lost connection or a bug in our code is not about one show.
     """
-    artist_ids: dict[str, int] = {}  # key -> id of artists created so far in this run, extended only after a write returns
+    artist_ids: dict[
+        str, int
+    ] = {}  # key -> id of artists created so far in this run, extended only after a write returns
     tally = {"inserted": 0, "updated": 0, "removed": 0}
     failures: list[ShowFailure] = []
     for op in ops:
@@ -295,6 +322,7 @@ async def write_plan(
     if result.all_failed:
         log.error(
             "every write in this commit failed; that looks like a bug in the writes, not bad listings",
-            writes=len(ops), sqlstates=sorted({f.sqlstate or "none" for f in failures}),
+            writes=len(ops),
+            sqlstates=sorted({f.sqlstate or "none" for f in failures}),
         )
     return result

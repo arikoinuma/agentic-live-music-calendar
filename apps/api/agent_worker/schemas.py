@@ -126,16 +126,12 @@ class ShowExtraction(BaseModel):
     # after A5 writes `show_artist` rows. The point of the nesting: each act can carry its own start
     # time and order.
     # Cite: a2-extraction-schema.md (Design › Schema, "Consequences"), build plan v0.1-G7.
-    acts: list[ActExtraction] = Field(
-        description="The act(s) performing, in the order the page lists them"
-    )
+    acts: list[ActExtraction] = Field(description="The act(s) performing, in the order the page lists them")
 
     # is_ambiguous — true when the page's own listing order or timing wasn't clear enough
     # to be confident about. Meaning unchanged by A2; note that because most multi-act
     # listings state no order, it may now fire often — the eval records how often.
-    is_ambiguous: bool = Field(
-        description="True if the page's listing order or timing was unclear or ambiguous"
-    )
+    is_ambiguous: bool = Field(description="True if the page's listing order or timing was unclear or ambiguous")
 
     # Admission, replacing the old untyped `ticket_info` string (v0.1-G7). Rules from
     # requirements-initial.md: a price the page labels "advance"/"adv" or "door"/"day of
@@ -241,9 +237,7 @@ ShowStatus = Literal["scheduled", "cancelled", "postponed"]
 
 # A2.1-D12 (decided by Ari, October 10): a cancelled or postponed listing is still extracted, with
 # its status, because reconcile must match it to a show stored before it was cancelled.
-STATUS_DESCRIPTION = (
-    "Whether the listing says the show is cancelled or postponed; otherwise scheduled"
-)
+STATUS_DESCRIPTION = "Whether the listing says the show is cancelled or postponed; otherwise scheduled"
 
 # A2-F9 (A2's act-splitting regression): the pre-A2 description said "The name(s) of the act(s)";
 # A2's lost the plural and the model stopped splitting. This says it outright. Rung
@@ -330,4 +324,3 @@ class VenueListingsExtraction(BaseModel):
 
     page_readable: bool = Field(description=VenuePageExtraction.model_fields["page_readable"].description)
     listings: list[ListingExtraction] = Field(description="Every listing found on this venue's page")
-

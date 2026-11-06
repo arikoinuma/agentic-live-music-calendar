@@ -41,29 +41,58 @@ def item(kind: str, date: str | None = "2026-11-13", index: int | None = None, f
 
 
 def attempt_dict(
-    n: int = 1, *, route: str = "model", items: list[ErrorItem] | None = None, confidences: list[float | None] | None = None,
-    judged: list[int] | None = None, excluded: list[int] | None = None, reasons: list[str] | None = None,
-    confidence: float | None = None, score: dict[str, Any] | None = None, larger: bool = False, seconds: float | None = None,
-    tokens: dict[str, int] | None = None, tier: str | None = None,
+    n: int = 1,
+    *,
+    route: str = "model",
+    items: list[ErrorItem] | None = None,
+    confidences: list[float | None] | None = None,
+    judged: list[int] | None = None,
+    excluded: list[int] | None = None,
+    reasons: list[str] | None = None,
+    confidence: float | None = None,
+    score: dict[str, Any] | None = None,
+    larger: bool = False,
+    seconds: float | None = None,
+    tokens: dict[str, int] | None = None,
+    tier: str | None = None,
 ) -> dict[str, Any]:
     """One attempt as a results file stores it (`asdict(AttemptResult)`), with only the fields a test pins filled in."""
     confidences = confidences if confidences is not None else []
     stored = score if score is not None else score_dict()
     stored["items"] = [dataclasses.asdict(i) for i in (items or [])]
     return {
-        "attempt": n, "tier": tier or {1: "initial", 2: "narrowed", 3: "larger_model"}.get(n, "larger_model"), "route": route,
-        "model": "m", "larger_model_used": larger, "error": None, "verdict": "failed" if reasons else "passed",
-        "reasons": reasons or [], "score": stored, "errors": [], "warnings": [], "recorded_errors": [],
-        "confidence": confidence, "show_confidences": confidences,
+        "attempt": n,
+        "tier": tier or {1: "initial", 2: "narrowed", 3: "larger_model"}.get(n, "larger_model"),
+        "route": route,
+        "model": "m",
+        "larger_model_used": larger,
+        "error": None,
+        "verdict": "failed" if reasons else "passed",
+        "reasons": reasons or [],
+        "score": stored,
+        "errors": [],
+        "warnings": [],
+        "recorded_errors": [],
+        "confidence": confidence,
+        "show_confidences": confidences,
         "judged_indices": judged if judged is not None else list(range(len(confidences))),
-        "excluded_indices": excluded or [], "recorded_confidence": None, "seconds": seconds, "tokens": tokens,
+        "excluded_indices": excluded or [],
+        "recorded_confidence": None,
+        "seconds": seconds,
+        "tokens": tokens,
     }
 
 
-def run(fixture: str, attempts: list[dict[str, Any]], *, n: int = 0, escalation_model: str | None = None) -> dict[str, Any]:
+def run(
+    fixture: str, attempts: list[dict[str, Any]], *, n: int = 0, escalation_model: str | None = None
+) -> dict[str, Any]:
     """A run record with the given attempts; `policy` carries the escalation model the report groups by."""
     return {
-        "fixture": fixture, "run": n, "source": attempts[0]["route"], "attempts": attempts, "attempt_count": len(attempts),
+        "fixture": fixture,
+        "run": n,
+        "source": attempts[0]["route"],
+        "attempts": attempts,
+        "attempt_count": len(attempts),
         "policy": {"confidence_threshold": 0.8, "max_attempts": 3, "escalation_model": escalation_model},
     }
 
@@ -84,8 +113,15 @@ def test_confidence_rows_are_the_judged_shows_and_only_errors_make_a_row_wrong()
     # is tolerated, A2.1-D1); the `missed` items, one at the excluded index 3 and one with no index, give no row. Expected rows are
     # read off that list.
     rows = pq.confidence_rows(
-        "model", [1.0, 0.9, 0.9, 0.5, 1.0], [0, 1, 2, 4],
-        [item("acts_wrong", index=1), item("field_missing", index=2, field="time"), item("missed", index=3), item("missed", index=None)],
+        "model",
+        [1.0, 0.9, 0.9, 0.5, 1.0],
+        [0, 1, 2, 4],
+        [
+            item("acts_wrong", index=1),
+            item("field_missing", index=2, field="time"),
+            item("missed", index=3),
+            item("missed", index=None),
+        ],
     )
     assert rows == [(1.0, True), (0.9, False), (0.9, True), (1.0, True)]
 
@@ -155,8 +191,10 @@ def test_r1_needs_two_compared_buckets() -> None:
 def two_buckets(low_wrong: int, high_wrong: int) -> list[tuple[float, bool]]:
     """One venue's rows: 20 at 0.5 with `low_wrong` wrong, and 20 at 1.0 with `high_wrong` wrong."""
     return (
-        [(0.5, False)] * low_wrong + [(0.5, True)] * (20 - low_wrong)
-        + [(1.0, False)] * high_wrong + [(1.0, True)] * (20 - high_wrong)
+        [(0.5, False)] * low_wrong
+        + [(0.5, True)] * (20 - low_wrong)
+        + [(1.0, False)] * high_wrong
+        + [(1.0, True)] * (20 - high_wrong)
     )
 
 
@@ -177,10 +215,15 @@ def test_r1_reads_no_when_flat_or_inverted() -> None:
 def test_rows_by_venue_reads_attempt_one_of_each_run_and_maps_fixtures_to_venues() -> None:
     # Proves (C7-K1 through the records): Q4 is read on attempt 1, the request production sends first. A forced attempt 2 at 0.5
     # (wrong) is not read. Expected: venue v's one row from attempt 1.
-    records = [run("gated.html", [
-        attempt_dict(1, confidences=[0.9], items=[]),
-        attempt_dict(2, confidences=[0.5], items=[item("acts_wrong", index=0)]),
-    ])]
+    records = [
+        run(
+            "gated.html",
+            [
+                attempt_dict(1, confidences=[0.9], items=[]),
+                attempt_dict(2, confidences=[0.5], items=[item("acts_wrong", index=0)]),
+            ],
+        )
+    ]
     assert pq.rows_by_venue(records, {"gated.html": GATED}) == {"v": [(0.9, True)]}
 
 
@@ -189,9 +232,17 @@ def test_excluded_confidences_are_reported_apart_and_split_by_whether_the_exclus
     # exclusion. Show 2 (0.8) was excluded and the scorer reports a labeled show `missed` at that index: a wrong one. Show 3 is a
     # status-merge placeholder (not judged, not excluded): not counted. Structured-route attempts give nothing.
     records = [
-        run("gated.html", [attempt_dict(
-            confidences=[0.9, 0.5, 0.8, 1.0], judged=[0], excluded=[1, 2], items=[item("missed", index=2)],
-        )]),
+        run(
+            "gated.html",
+            [
+                attempt_dict(
+                    confidences=[0.9, 0.5, 0.8, 1.0],
+                    judged=[0],
+                    excluded=[1, 2],
+                    items=[item("missed", index=2)],
+                )
+            ],
+        ),
         run("s.html", [attempt_dict(route="structured", confidences=[1.0], judged=[], excluded=[0])]),
     ]
     assert pq.excluded_confidences(records) == {0.5: {"correct": 1, "missed": 0}, 0.8: {"correct": 0, "missed": 1}}
@@ -214,14 +265,19 @@ PASSES = scoring.PageScore.from_dict(score_dict(labelled=2, returned=2))
 FAILS = scoring.PageScore.from_dict(score_dict(labelled=2, returned=2, acts_wrong=1))
 
 
-@pytest.mark.parametrize(("reasons", "confidence", "score", "at_095", "at_08"), [
-    ([], 0.9, FAILS, "caught", "missed"),
-    ([], 0.9, PASSES, "false_alarm", "quiet"),
-    ([], None, FAILS, "missed", "missed"),
-    (["check_errors"], 1.0, FAILS, "caught", "caught"),
-    ([], 0.5, PASSES, "false_alarm", "false_alarm"),
-])
-def test_sweep_cells(reasons: list[str], confidence: float | None, score: scoring.PageScore, at_095: str, at_08: str) -> None:
+@pytest.mark.parametrize(
+    ("reasons", "confidence", "score", "at_095", "at_08"),
+    [
+        ([], 0.9, FAILS, "caught", "missed"),
+        ([], 0.9, PASSES, "false_alarm", "quiet"),
+        ([], None, FAILS, "missed", "missed"),
+        (["check_errors"], 1.0, FAILS, "caught", "caught"),
+        ([], 0.5, PASSES, "false_alarm", "false_alarm"),
+    ],
+)
+def test_sweep_cells(
+    reasons: list[str], confidence: float | None, score: scoring.PageScore, at_095: str, at_08: str
+) -> None:
     # Proves (C7-K2): the plan's §2 table. "Would retry" = failed for a reason other than low confidence, or confidence under t
     # (None never fails, A3-K4); "should retry" = attempt 1 fails the standard. The cells at t = 0.95 and t = 0.8 are worked by hand.
     assert pq.sweep_cell(reasons, confidence, score, 0.95) == at_095
@@ -260,7 +316,9 @@ def _result(errors: bool, failed: bool, unreadable: bool, confidence: float | No
 @pytest.mark.parametrize("unreadable", [False, True])
 @pytest.mark.parametrize("confidence", [None, 0.79, 0.8, 0.81])
 @pytest.mark.parametrize("t", [0.5, 0.8, 0.81, 1.01])
-def test_sweep_mirror_agrees_with_combine(errors: bool, failed: bool, unreadable: bool, confidence: float | None, t: float) -> None:
+def test_sweep_mirror_agrees_with_combine(
+    errors: bool, failed: bool, unreadable: bool, confidence: float | None, t: float
+) -> None:
     # Proves (C7-K2, C7-M3, C7-PR1-5): `would_fail` mirrors `policy.combine`, the production rule. The reasons `combine` gives at
     # threshold 0 never include low confidence (nothing is under 0), which is what a stored record looks like once that reason is set
     # aside; `would_fail` must then agree with `combine` at threshold t on every row. A `<=` in the mirror fails at confidence 0.8 and
@@ -369,9 +427,19 @@ def test_escalation_effects_compare_attempt_three_with_and_without_the_larger_mo
     # Proves: C7-R3's last clause, the escalated tier must beat the unescalated one by the same rule. Unescalated attempt 3 has 10
     # errors in every run (band 0 from attempt 1's constant 10); escalated attempt 3 has 8: helps on that page.
     def runs(third: int, model: str | None) -> list[dict[str, Any]]:
-        return [run("p.html", [attempt_dict(1, items=errors_on(10)), attempt_dict(2, items=errors_on(10)),
-                               attempt_dict(3, items=errors_on(third), larger=model is not None)], n=i, escalation_model=model)
-                for i in range(3)]
+        return [
+            run(
+                "p.html",
+                [
+                    attempt_dict(1, items=errors_on(10)),
+                    attempt_dict(2, items=errors_on(10)),
+                    attempt_dict(3, items=errors_on(third), larger=model is not None),
+                ],
+                n=i,
+                escalation_model=model,
+            )
+            for i in range(3)
+        ]
 
     assert pq.escalation_effects(runs(10, None), runs(8, "big")) == {"p.html": "helps"}
 
@@ -381,11 +449,16 @@ def test_retry_effect_reports_each_transition_with_seconds_and_tokens() -> None:
     # used). 1 to 2 fixes the 13th; 2 to 3 introduces the 15th. Seconds and tokens are the later attempt's own. Expected rows are read
     # off the attempts.
     a, b, c = item("acts_wrong", "2026-11-13"), item("acts_wrong", "2026-11-14"), item("acts_wrong", "2026-11-15")
-    records = [run("p.html", [
-        attempt_dict(1, items=[a, b], seconds=10.0, tokens={"prompt": 100, "completion": 10}),
-        attempt_dict(2, items=[b], seconds=12.0, tokens={"prompt": 120, "completion": 12}),
-        attempt_dict(3, items=[b, c], seconds=20.0, tokens=None, larger=True),
-    ])]
+    records = [
+        run(
+            "p.html",
+            [
+                attempt_dict(1, items=[a, b], seconds=10.0, tokens={"prompt": 100, "completion": 10}),
+                attempt_dict(2, items=[b], seconds=12.0, tokens={"prompt": 120, "completion": 12}),
+                attempt_dict(3, items=[b, c], seconds=20.0, tokens=None, larger=True),
+            ],
+        )
+    ]
     rows = {r["transition"]: r for r in pq.retry_effect(records)}
     assert set(rows) == {"1 to 2", "2 to 3 (larger model)"}
     assert (rows["1 to 2"]["fixed"], rows["1 to 2"]["introduced"], rows["1 to 2"]["kept"]) == (1, 0, 1)
@@ -408,7 +481,11 @@ def test_labels_map_fixtures_and_unknown_fixtures_are_skipped() -> None:
 def two_attempt_runs(first: list[int], second: list[int | None]) -> list[dict[str, Any]]:
     """Runs of one page with the given attempt-1 and attempt-2 error counts; None means the run stopped after attempt 1."""
     return [
-        run("p.html", [attempt_dict(1, items=errors_on(a)), *([attempt_dict(2, items=errors_on(b))] if b is not None else [])], n=i)
+        run(
+            "p.html",
+            [attempt_dict(1, items=errors_on(a)), *([attempt_dict(2, items=errors_on(b))] if b is not None else [])],
+            n=i,
+        )
         for i, (a, b) in enumerate(zip(first, second, strict=True))
     ]
 
@@ -430,7 +507,9 @@ def test_an_attempt_is_compared_with_attempt_one_of_the_same_runs() -> None:
     # not change the comparison. Four runs pass attempt 1 with 0 errors and stop; one run has 5 errors at attempts 1 and 2. Over the
     # same run, 5 against 5 is "neither"; comparing attempt 2 with attempt 1 over ALL runs (mean 1.0) would read "hurts" (4 over a
     # band of 2.0).
-    assert pq.page_effects(two_attempt_runs([0, 0, 0, 0, 5], [None, None, None, None, 5]), 1, 2) == {"p.html": "neither"}
+    assert pq.page_effects(two_attempt_runs([0, 0, 0, 0, 5], [None, None, None, None, 5]), 1, 2) == {
+        "p.html": "neither"
+    }
 
 
 def test_the_sweep_puts_structured_route_pages_on_their_own_line() -> None:
