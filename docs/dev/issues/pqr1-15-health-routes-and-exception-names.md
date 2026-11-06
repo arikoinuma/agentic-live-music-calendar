@@ -10,7 +10,7 @@ choice, no repo-wide convention (the `Error` suffix is PEP 8, and ruff's `N818` 
 **Author model:** Claude Sonnet 5.5 (record, fix and resolution, November 6, 2026; cloud session)
 **Reviewer model:** Claude Opus 5.5 (code review round 1, November 6, 2026)
 **Branch / PR:** `claude/vigilant-ritchie-hsdqq0` (designated by the cloud session; its last PR, #96, had merged, so the
-branch was restarted from `origin/main`) / (PR link once opened)
+branch was restarted from `origin/main`) / [PR 97](https://github.com/arikoinuma/agentic-live-music-calendar/pull/97)
 
 **Designations.** Review items here are bare (`CR1-2`). Outside this record they are `PQR1-15-CR1-2`
 (`docs/dev/issues/README.md`, `docs/dev/conventions.md`).
