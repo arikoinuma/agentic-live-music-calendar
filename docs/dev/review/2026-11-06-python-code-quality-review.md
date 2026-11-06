@@ -231,13 +231,13 @@ each one. `/resolve-issue` updates a row when its PR opens (`docs/dev/issues/REA
 | PQR1-2 | High | S | Tutorial scaffolding and stale "not yet" comments remain in the most-read files | In PR | [PR 94](https://github.com/arikoinuma/agentic-live-music-calendar/pull/94) | `docs/dev/issues/pqr1-2-documentation-cleanup.md` |
 | PQR1-3 | High | S | `apps/api/README.md` is an empty file | In PR | [PR 94](https://github.com/arikoinuma/agentic-live-music-calendar/pull/94) | `docs/dev/issues/pqr1-2-documentation-cleanup.md` |
 | PQR1-4 | High (latent bug) | S | The fetch does not follow redirects, so a venue page that redirects can never be fetched | In PR (also GH-90) | [PR 92](https://github.com/arikoinuma/agentic-live-music-calendar/pull/92) | `docs/dev/issues/gh-90-fetch-redirects.md` |
-| PQR1-5 | Medium | S | An out-of-range id is a 500, not a 404 or 422 | Open | | |
+| PQR1-5 | Medium | S | An out-of-range id is a 500, not a 404 or 422 | In PR (int32 bounds done; the id-list length cap deferred by Ari's decision) | [PR 96](https://github.com/arikoinuma/agentic-live-music-calendar/pull/96) | `docs/dev/issues/pqr1-5-id-bounds-and-error-shape.md` |
 | PQR1-6 | Medium | S | Four modules break the repo's own "every module opens with a docstring" rule | Open | | |
 | PQR1-7 | Medium | S | Only ruff's default rules are on | In PR | [PR 95](https://github.com/arikoinuma/agentic-live-music-calendar/pull/95) | `docs/dev/issues/pqr1-1-format-and-lint.md` |
 | PQR1-8 | Medium | S | Declared but unused runtime dependencies | Open | | |
 | PQR1-9 | Medium | S | Small duplications of one concept | Open | | |
 | PQR1-10 | Medium | L | Comment density, and internal plan IDs, make the code hard to read for someone outside the project | Open | | |
-| PQR1-11 | Low | M | Two error-body shapes for a 422 | Open | | |
+| PQR1-11 | Low | M | Two error-body shapes for a 422 | In PR | [PR 96](https://github.com/arikoinuma/agentic-live-music-calendar/pull/96) | `docs/dev/issues/pqr1-5-id-bounds-and-error-shape.md` |
 | PQR1-12 | Low | S | `/docs`, `/redoc` and `/openapi.json` are served in every environment | Open | | |
 | PQR1-13 | Low | S | No lifespan hook, and import-time side effects | Open | | |
 | PQR1-14 | Medium | S | Model-call timeout and retries are implicit | Open | | |

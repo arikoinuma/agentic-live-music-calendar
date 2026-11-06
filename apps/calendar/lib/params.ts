@@ -60,9 +60,9 @@ export type ShowsQuery = {
 // --- path params ---------------------------------------------------------------
 
 // Database ids are Postgres `integer` (int4) — Mapped[int] in
-// app/db/models/calendar.py. A bigger number can only ever be an
-// out-of-range error from the database (a 500 once the routers are
-// DB-backed), where "no such record" -> 404 is the right answer.
+// app/db/models/calendar.py. The API now answers a bigger number with a
+// 422 (PQR1-5), which a page would show as the error page; "no such
+// record" -> 404 is the right answer, so the page refuses it first.
 const MAX_ID = 2147483647;
 
 /**

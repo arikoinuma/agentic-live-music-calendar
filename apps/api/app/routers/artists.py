@@ -9,7 +9,7 @@ Contract: docs/dev/api-contract.md section 2.
 from fastapi import APIRouter, HTTPException
 
 from app import queries
-from app.dependencies import Db
+from app.dependencies import Db, DbId
 from app.routers.common import NOT_FOUND
 from app.schemas import ArtistDetail, ArtistListResponse
 
@@ -34,7 +34,7 @@ async def list_artists(session: Db) -> ArtistListResponse:
 
 
 @router.get("/{artist_id}", responses=NOT_FOUND)
-async def get_artist(artist_id: int, session: Db) -> ArtistDetail:
+async def get_artist(artist_id: DbId, session: Db) -> ArtistDetail:
     artist = await queries.get_artist(session, artist_id)
     if artist is None:
         raise HTTPException(status_code=404, detail="Artist not found")
