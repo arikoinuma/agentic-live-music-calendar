@@ -20,6 +20,8 @@ Repo conventions this follows: AGENTS.md ("Implementation plans" and
 - Milestone:
 - Plan file:
 - Plan status (if applicable):
+- Issues (issue track only, e.g. PQR1-4, GH-17; add `Closes #17` per GitHub issue):
+- Issue record (`docs/dev/issues/…`):
 
 ## Changes
 

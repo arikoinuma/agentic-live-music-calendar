@@ -38,6 +38,8 @@ approach — most "what should we do about X" questions have an answer with reas
 | What does each hosted service actually look like today? | `docs/dev/implementations/c1-env-revalidation.md` |
 | What non-obvious thing bit us before? | `docs/dev/notes.md` |
 | How is a given milestone being implemented? | `docs/dev/implementations/` |
+| How was a review finding, GitHub issue or reported bug resolved? (one record per `/resolve-issue` run) | `docs/dev/issues/` (rules and template in its `README.md`) |
+| What did a code quality review find, and which findings are resolved? | `docs/dev/review/` (each doc ends with a Resolution tracker) |
 | What does a designation like `A2.1-D5` or `v0.1-G6` mean, and how do I write one? | `docs/dev/conventions.md` |
 | How do I add a venue, or a new capture, to the hand-labelled evaluation pool (and mark pages held out)? | `docs/dev/adding-eval-venues.md` |
 | How do I measure the model and the pipeline, read the results, and compare runs (local now, hosted in C6)? | `docs/dev/evaluating-model-performance.md` |
@@ -297,6 +299,23 @@ build plan §3) and whether the `TODO(Ari)` gaps are the right ones.
   - **Where to look hardest:** what the author is least sure of.
 
 A second implementation pass after code review gets its own log round, scoped to the fixes.
+
+## Issue resolution track — for issue-sized work, not milestones
+
+Review findings (`PQR1-4`), GitHub issues and bugs Ari describes go through **`/resolve-issue <items>`**, a lighter
+version of the cycle above. The full rules, the tiers and the record template are in `docs/dev/issues/README.md`.
+In short:
+
+- **Scope is set at the start.** Whatever Ari names in one run is one record (`docs/dev/issues/<lead id>-<slug>.md`),
+  one branch and one PR, whether that's one issue or several.
+- **IDs come from the source:** `PQR1-4` stays `PQR1-4`, a GitHub issue is `GH-<number>`, a described bug is the next `FX<n>`.
+- **Risk decides the gates, not file count.** T0 (mechanical) and T1 (a contained fix) get no plan review and no
+  approval gate. T2 (contract, migration, security design, a repo-wide convention, or a decision marked Ari's) gets a
+  plan, a plan review by default, and stops at `Awaiting approval`.
+- **Never optional:** a test or check that fails first, the Implementation log, a code review by `plan-reviewer` on a
+  different model, and closing the loop with the source (the review doc's Resolution tracker, or a comment on the GitHub issue).
+- **The PR opens automatically** once the code review is resolved, as a draft, with a subscription. Merging is Ari's
+  sign-off. No `TODO(Ari)` gaps on this track.
 
 ## Cloud sessions — what runs there, and how it hands work back
 
