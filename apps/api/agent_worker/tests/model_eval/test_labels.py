@@ -17,8 +17,8 @@ from agent_worker.model_eval import labels, run_eval
 
 # A2.1-D2 as revised by Ari on October 11, 2026: Terminal Bar moved to informational (an outlier layout —
 # a date line then one line per act — that no rung fixed without breaking other pages).
-# Dakota joined on November 5, 2026 as a held-out page (gated: a plain GET reaches it).
-GATED_VENUES = {"white_squirrel", "seventh_st_entry", "mortimers", "ginkgo_coffee", "hook_ladder", "turf_club", "dakota"}
+# Dakota and Icehouse joined on November 5, 2026 as held-out pages (gated: a plain GET reaches them).
+GATED_VENUES = {"white_squirrel", "seventh_st_entry", "mortimers", "ginkgo_coffee", "hook_ladder", "turf_club", "dakota", "icehouse"}
 
 
 def test_every_page_label_has_shows() -> None:
