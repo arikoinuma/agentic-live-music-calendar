@@ -1,6 +1,6 @@
 # PQR1-5: out-of-range ids are a 500, and a 422 has two body shapes
 
-**Status:** Awaiting approval
+**Status:** Code review
 **Date:** November 6, 2026
 **Scope:** PQR1-5, PQR1-11
 **Sources:** PQR1-5 → `docs/dev/review/2026-11-06-python-code-quality-review.md` §3 Details row PQR1-5;
@@ -257,5 +257,61 @@ existing `test_invalid_ranges_are_rejected`, `test_upcoming_rejects_contradictor
 Rejected: none. All six findings were accepted. (PR1-3 was then overtaken by Ari's decision of no list cap, recorded in D2.)
 
 ## Implementation log
+
+### Round 1
+
+- **Author:** Claude Sonnet 5.5, November 6, 2026, cloud session. Ari approved D1 and D2a in chat ("D1 and D2a are
+  approved"); D2b/D2c (no list cap) he had decided earlier. Status was set to `Approved` by the author on that message.
+- **Scope:** diff base `1bb52299cc8124434fa9ba0146d6911566b0caa8`; the work is **uncommitted until this round is
+  written**, then committed as one commit before the review, so the reviewer reads `git diff 1bb5229` plus the record.
+  Files: `apps/api/app/dependencies.py`, `apps/api/app/routers/{shows,venues,artists,common}.py`,
+  `apps/api/app/tests/test_routers.py`, `apps/calendar/lib/params.ts` and `params.test.ts` (comments only),
+  `docs/dev/api-contract.md`, and this record.
+- **PQR1-5 (ids):** `DbId = Annotated[int, Path(ge=1, le=MAX_DB_ID)]` and
+  `IdFilter = Annotated[list[Annotated[int, Field(ge=1, le=MAX_DB_ID)]] | None, Query()]` in `app/dependencies.py`;
+  the three detail routes use `DbId`, `/shows` uses `IdFilter` for `venue_id` and `artist_id`. No list length cap (D2).
+- **PQR1-11 (422 shape):** `unprocessable(param, message, value)` in `app/routers/common.py` returns a
+  `RequestValidationError` with one item; the four hand-raised 422s in `shows.py` use it, with the `loc`/`input` table
+  from step 4. The `HTTPException` import stays for the 404.
+- **Failed first (before any fix):** 26 of the new tests failed, 9 passed. The 12 `test_ids_outside_int32_are_422_not_500`
+  cases: 6 raised `asyncpg DataError` wrapped in `DBAPIError` (`2147483648` and `99999999999` on all three routes) and 6
+  answered 404 (`0`, `-1`) where 422 is expected. The 4 `test_id_filters_outside_int32_are_422` cases: 2 `DBAPIError`, 2
+  answered 200 (`venue_id=0`, `artist_id=-1`). The 5 `test_every_422_has_the_same_body_shape` cases and the 5
+  `test_a_hand_raised_422_names_its_parameter` cases failed on the string `detail`. The 9 that passed are the boundary guards
+  (`test_the_largest_int32_id_is_still_a_404` ×3, `test_the_largest_int32_id_filter_is_an_empty_200`), the two
+  FastAPI-raised queries in the shape test (`start=notadate`, `venue_id=abc`), and existing tests matching the `-k`
+  filter. All 35 selected pass after the fix.
+- **Departures from the approach:**
+  1. Test 3 grew to four filter cases (both filters, both bounds) plus a separate inclusive-bound test; the plan named
+     `venue_id=2147483648`, `artist_id=0` and one inclusive case. More coverage, same intent.
+  2. Test 4 and 5 share one `HAND_RAISED_422` table, with a fifth query (`end=2030-01-01`, a range too wide from the
+     server's default `start`) so the "name `end`, not `start`" rule in step 4 is pinned.
+  3. The contract's new "Errors" subsection also lists the 404 and 503 rows as a table, which the plan described in prose.
+  4. Two stale references the plan did not list were fixed in passing: the `test_invalid_ranges_are_rejected` comment
+     (named `HTTPException(422)` and said the contract mentions `MAX_RANGE` only for `upcoming`) and the `Query()` comment in
+     `shows.py`.
+- **Verification (all run in this cloud session):**
+  - `make check BASE=1bb52299cc8124434fa9ba0146d6911566b0caa8`: exit 0. ruff check and `ruff format --check` clean, mypy
+    "no issues found in 156 source files", pytest 1312 passed and 20 skipped (the skips are the real-page and Mongo tests
+    that need the local machine), vitest 525 passed (36 files), `Generated contract output is current.`
+    (so `api-types.ts` and `lib/fixtures/` needed no change, as step 7 predicted), `next build`, and Playwright 107 passed.
+  - `make designation-check BASE=1bb52299cc8124434fa9ba0146d6911566b0caa8`: exit 0.
+  - The frontend change is comments only: `git diff -U0 apps/calendar` shows no changed line that is not a `//` comment; the
+    vitest and build stages above then pass. (No AST tool was run for TypeScript; the line check plus `tsc` inside
+    `next build` is the evidence.)
+  - Re-ran the original probe against the fixed app: `/shows|venues|artists/99999999999`, `/shows?venue_id=99999999999` and
+    `/shows/0` are now 422; `?start=2026-01-01&end=2025-01-01` is 422 with `loc ["query","end"]`.
+  - Node is 22 here and 24 in CI, so the JS stages are not quite CI.
+  - **No local check pending:** nothing in this change touches the model, the venue sites or the gitignored fixtures.
+- **Where to look hardest:**
+  1. `IdFilter` in `app/dependencies.py`: per-item `Field` inside a `Query()` list, and `Query()` with no constraints.
+     Confirm `/shows` still lists the filters in OpenAPI as arrays of integers with `minimum`/`maximum`.
+  2. That a router-raised `RequestValidationError` inside a route body passes through the `get_db` yield dependency without
+     leaving the session in a bad state (the plan reviewer checked one request; the suite's later requests on a shared
+     client are the further evidence).
+  3. The contract text in `api-contract.md` §3 "Errors" against what the code does, especially the `loc` for the range-too-wide
+     rule and the `ctx` note.
+  4. Whether `/shows/0` becoming a 422 (it was a 404) breaks anything outside this repo's tests; the frontend never sends it.
+- **Noticed, not in scope:** none beyond the items already in "Out of scope, noticed".
 
 ## Code review

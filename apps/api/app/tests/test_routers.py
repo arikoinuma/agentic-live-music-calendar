@@ -209,8 +209,8 @@ async def test_shows_are_ordered_by_date_then_time(sample_client: AsyncClient) -
 )
 async def test_invalid_ranges_are_rejected(sample_client: AsyncClient, query: str) -> None:
     # Proves: an end before the start, and a range wider than `MAX_RANGE`, are each a 422 rather than an empty or an
-    # unbounded answer. The rules are the router's (`app/routers/shows.py`, the two `HTTPException(422)` checks), not
-    # the contract's, which mentions `MAX_RANGE` only for `upcoming=true` (§2). Both queries are written out above.
+    # unbounded answer. The rules are the router's (`app/routers/shows.py`, the two `unprocessable()` range checks), and
+    # api-contract.md §3 "Errors" lists them. Both queries are written out above.
     assert (await sample_client.get(f"/shows?{query}")).status_code == 422
 
 
@@ -692,3 +692,79 @@ async def test_artists_are_global_not_metro_scoped(sample_client: AsyncClient, d
     await _settle(db_session)
     names = [a["name"] for a in (await sample_client.get("/artists")).json()["artists"]]
     assert "Touring Act" in names
+
+
+# ---------------------------------------------------------------------
+# The edge of the API: id bounds and the shape of a 422 (PQR1-5, PQR1-11)
+# ---------------------------------------------------------------------
+# The expected values below are written out from the rules, never read from the code under test: the database column is
+# a Postgres `integer`, so the largest id is 2,147,483,647 (2**31 - 1), and a 422 body is FastAPI's own
+# `{"detail": [{type, loc, msg, input}]}` (the `HTTPValidationError` in the generated `api-types.ts`).
+
+DETAIL_ROUTES = ["/shows", "/venues", "/artists"]
+
+
+@pytest.mark.parametrize("prefix", DETAIL_ROUTES)
+@pytest.mark.parametrize("raw_id", [0, -1, 2147483648, 99999999999])
+async def test_ids_outside_int32_are_422_not_500(sample_client: AsyncClient, prefix: str, raw_id: int) -> None:
+    # Proves (PQR1-5): a path id outside 1..2,147,483,647 is a 422 at the edge and never reaches the database. Before the
+    # fix, 2**31 and above raised an unhandled `DBAPIError` (asyncpg rejects a value outside int32), which is a 500 in
+    # production, and 0 / -1 answered 404. A parametrized sweep over all three detail routes catches one route that
+    # forgets the shared alias.
+    assert (await sample_client.get(f"{prefix}/{raw_id}")).status_code == 422
+
+
+@pytest.mark.parametrize("prefix", DETAIL_ROUTES)
+async def test_the_largest_int32_id_is_still_a_404(sample_client: AsyncClient, prefix: str) -> None:
+    # Proves (PQR1-5): the upper bound is inclusive. 2,147,483,647 is the column's own maximum, so it is a valid id with no
+    # row (404), not a 422. This guards the fix from being off by one; it passes before the fix and must keep passing.
+    assert (await sample_client.get(f"{prefix}/2147483647")).status_code == 404
+
+
+@pytest.mark.parametrize("query", ["venue_id=2147483648", "artist_id=2147483648", "venue_id=0", "artist_id=-1"])
+async def test_id_filters_outside_int32_are_422(sample_client: AsyncClient, query: str) -> None:
+    # Proves (PQR1-5): the `venue_id` / `artist_id` filters take the same bounds as a path id, item by item, so one bad
+    # value in a repeated list is refused. Before the fix the large values were a 500 and 0 / -1 were an empty 200.
+    assert (await sample_client.get(f"/shows?{query}")).status_code == 422
+
+
+async def test_the_largest_int32_id_filter_is_an_empty_200(sample_client: AsyncClient) -> None:
+    # Proves (PQR1-5): the filter's upper bound is inclusive too, and a valid id with no shows is an empty list, not an
+    # error. Passes before the fix; guards the bound from being off by one. (The no-cap decision, PQR1-5-D2, is why no
+    # test sends a long list.)
+    response = await sample_client.get("/shows?venue_id=2147483647")
+    assert response.status_code == 200
+    assert response.json()["shows"] == []
+
+
+# Each query below is refused with a 422 and the `loc` the contract promises for it (PQR1-5-D1, the table in the record).
+# Three are the router's own rules; the last two are FastAPI's own validation, which already had the list shape.
+HAND_RAISED_422 = [
+    ("start=2026-10-10&end=2026-10-01", ["query", "end"]),  # end before start
+    ("start=2020-01-01&end=2030-01-01", ["query", "end"]),  # wider than MAX_RANGE
+    ("end=2030-01-01", ["query", "end"]),  # wider than MAX_RANGE from the server's default start
+    ("artist_id=1&upcoming=true&start=2026-10-01", ["query", "upcoming"]),  # contradicts "from today"
+    ("upcoming=true", ["query", "upcoming"]),  # unbounded: no venue or artist
+]
+
+
+@pytest.mark.parametrize("query", [q for q, _ in HAND_RAISED_422] + ["start=notadate", "venue_id=abc"])
+async def test_every_422_has_the_same_body_shape(sample_client: AsyncClient, query: str) -> None:
+    # Proves (PQR1-11): a 422 is always `{"detail": [{type, loc, msg, ...}]}`, whether the router raised it or FastAPI's
+    # validation did. Before the fix the router's four rules answered `{"detail": "<string>"}`, so a client had to handle
+    # two shapes under one status. The last two queries are FastAPI's own and pass before the fix.
+    response = await sample_client.get(f"/shows?{query}")
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert isinstance(detail, list)
+    assert detail
+    assert all({"type", "loc", "msg"} <= item.keys() for item in detail)
+
+
+@pytest.mark.parametrize(("query", "loc"), HAND_RAISED_422)
+async def test_a_hand_raised_422_names_its_parameter(sample_client: AsyncClient, query: str, loc: list[str]) -> None:
+    # Proves (PQR1-5-D1): the router's own 422s say which parameter they are about, so a client can point at the field.
+    # That is why the router raises `RequestValidationError` rather than a handler wrapping a string: a handler would
+    # have no parameter to name. Expected `loc` values come from the table in the record (they are the contract).
+    detail = (await sample_client.get(f"/shows?{query}")).json()["detail"]
+    assert detail[0]["loc"] == loc

@@ -60,8 +60,8 @@ describe("parseIdParam", () => {
   ])("rejects %j", (raw) => {
     // Proves: anything that isn't a canonical positive int4 is null, so
     // the page can answer 404 instead of sending the API a value it
-    // would 422 on, or that Postgres would reject as out of range once
-    // the routers are DB-backed (B2-PR1-9).
+    // would 422 on (an id outside 1..2147483647 is a 422 since PQR1-5,
+    // and was a Postgres out-of-range 500 before; B2-PR1-9).
     expect(parseIdParam(raw)).toBeNull();
   });
 });
