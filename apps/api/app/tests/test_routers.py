@@ -22,6 +22,7 @@ statement count.
 
 import datetime
 from collections.abc import Sequence
+from unittest.mock import ANY
 
 import pytest
 from httpx import AsyncClient
@@ -737,18 +738,19 @@ async def test_the_largest_int32_id_filter_is_an_empty_200(sample_client: AsyncC
     assert response.json()["shows"] == []
 
 
-# Each query below is refused with a 422 and the `loc` the contract promises for it (PQR1-5-D1, the table in the record).
-# Three are the router's own rules; the last two are FastAPI's own validation, which already had the list shape.
+# The router's four rules, as five queries (the range-too-wide rule twice, once from the server's default `start`), each with
+# the `loc` and `input` the contract promises for it (PQR1-5-D1; the table in the record and api-contract.md §3 "Errors").
+# FastAPI's own 422s are added in the shape test below. `input` is JSON-encoded: a date becomes a string, `True` becomes `true`.
 HAND_RAISED_422 = [
-    ("start=2026-10-10&end=2026-10-01", ["query", "end"]),  # end before start
-    ("start=2020-01-01&end=2030-01-01", ["query", "end"]),  # wider than MAX_RANGE
-    ("end=2030-01-01", ["query", "end"]),  # wider than MAX_RANGE from the server's default start
-    ("artist_id=1&upcoming=true&start=2026-10-01", ["query", "upcoming"]),  # contradicts "from today"
-    ("upcoming=true", ["query", "upcoming"]),  # unbounded: no venue or artist
+    ("start=2026-10-10&end=2026-10-01", ["query", "end"], "2026-10-01"),  # end before start
+    ("start=2020-01-01&end=2030-01-01", ["query", "end"], "2030-01-01"),  # wider than MAX_RANGE
+    ("end=2030-01-01", ["query", "end"], "2030-01-01"),  # wider than MAX_RANGE from the server's default start
+    ("artist_id=1&upcoming=true&start=2026-10-01", ["query", "upcoming"], True),  # contradicts "from today"
+    ("upcoming=true", ["query", "upcoming"], True),  # unbounded: no venue or artist
 ]
 
 
-@pytest.mark.parametrize("query", [q for q, _ in HAND_RAISED_422] + ["start=notadate", "venue_id=abc"])
+@pytest.mark.parametrize("query", [q for q, _, _ in HAND_RAISED_422] + ["start=notadate", "venue_id=abc"])
 async def test_every_422_has_the_same_body_shape(sample_client: AsyncClient, query: str) -> None:
     # Proves (PQR1-11): a 422 is always `{"detail": [{type, loc, msg, ...}]}`, whether the router raised it or FastAPI's
     # validation did. Before the fix the router's four rules answered `{"detail": "<string>"}`, so a client had to handle
@@ -761,10 +763,15 @@ async def test_every_422_has_the_same_body_shape(sample_client: AsyncClient, que
     assert all({"type", "loc", "msg"} <= item.keys() for item in detail)
 
 
-@pytest.mark.parametrize(("query", "loc"), HAND_RAISED_422)
-async def test_a_hand_raised_422_names_its_parameter(sample_client: AsyncClient, query: str, loc: list[str]) -> None:
-    # Proves (PQR1-5-D1): the router's own 422s say which parameter they are about, so a client can point at the field.
-    # That is why the router raises `RequestValidationError` rather than a handler wrapping a string: a handler would
-    # have no parameter to name. Expected `loc` values come from the table in the record (they are the contract).
+@pytest.mark.parametrize(("query", "loc", "value"), HAND_RAISED_422)
+async def test_a_hand_raised_422_names_its_parameter(
+    sample_client: AsyncClient, query: str, loc: list[str], value: object
+) -> None:
+    # Proves (PQR1-5-D1): the router's own 422s say which parameter they are about, so a client can point at the field, and
+    # carry exactly what api-contract.md §3 "Errors" documents: one item, type `value_error`, the `loc`, a message, the
+    # offending `input` (JSON-encoded), and no `ctx` (only FastAPI-raised items have one). That is why the router raises
+    # `RequestValidationError` rather than a handler wrapping a string: a handler would have no parameter to name. Expected
+    # `loc` and `input` values come from the table above (they are the contract); the message text is not pinned.
     detail = (await sample_client.get(f"/shows?{query}")).json()["detail"]
-    assert detail[0]["loc"] == loc
+    assert detail == [{"type": "value_error", "loc": loc, "msg": ANY, "input": value}]
+    assert detail[0]["msg"]

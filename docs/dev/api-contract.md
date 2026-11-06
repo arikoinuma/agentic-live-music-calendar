@@ -97,7 +97,9 @@ Render with `Temporal.PlainDate` / `Temporal.PlainTime`. Not `new Date("2026-09-
   appears only on items FastAPI raised (for example `{"le": 2147483647}`); a rule the router checks has none. The `input`
   of a router-raised item is JSON-encoded (`true`, `"2025-01-01"`), where FastAPI echoes the raw string.
 - **Ids are bounded (`PQR1-5-D2`).** A path id or a `venue_id` / `artist_id` filter value outside 1..2,147,483,647 (the
-  database's `integer`) is a 422, not a 500; `/shows/0` and `/shows/-1` are 422 too (they were 404). The id lists have **no
+  database's `integer`) is a 422, not a 500; `/shows/0` and `/shows/-1` are 422 too (they were 404). For a repeated filter the `loc` of a bad
+  value ends with its position in the list: the second `venue_id` in `?venue_id=1&venue_id=0` is `["query","venue_id",1]`, so
+  match on the first two elements. The id lists have **no
   length cap**: the metro is nowhere near a size where one is needed, and the URL length already limits a request. Revisit
   if a "select all" appears in the filter UI or artists reach the hundreds.
 - 404 and 503 keep a string `detail`. Only the 422 is unified; making every error one shape is a separate decision.

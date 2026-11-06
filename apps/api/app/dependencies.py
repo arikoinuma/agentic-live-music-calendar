@@ -24,7 +24,7 @@ Db = Annotated[AsyncSession, Depends(get_db)]
 
 # The largest id a row can have: every primary and foreign key is a Postgres `integer` (int32). asyncpg refuses a bigger
 # value with a `DBAPIError`, which nothing catches, so before PQR1-5 `GET /shows/99999999999` was a 500. Bounding the
-# parameter makes it a 422 at the edge, and the same limits as the Next.js app, which already refuses ids outside this
+# parameter makes it a 422 at the edge, with the same limits as the Next.js app, which already refuses ids outside this
 # range before it calls the API (`MAX_ID` in apps/calendar/lib/params.ts).
 MAX_DB_ID = 2**31 - 1
 

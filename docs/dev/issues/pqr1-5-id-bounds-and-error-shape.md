@@ -1,6 +1,6 @@
 # PQR1-5: out-of-range ids are a 500, and a 422 has two body shapes
 
-**Status:** Code review
+**Status:** PR open
 **Date:** November 6, 2026
 **Scope:** PQR1-5, PQR1-11
 **Sources:** PQR1-5 → `docs/dev/review/2026-11-06-python-code-quality-review.md` §3 Details row PQR1-5;
@@ -9,7 +9,8 @@ PQR1-11 → the same table, row PQR1-11 (the row says "Either … or …" and as
 two fixes the source offers are a design choice that no document settles (D1 below). PQR1-5 alone would be T1: one
 area, a clear fix. The record takes the higher tier.
 **Author model:** Claude Sonnet 5.5 (record and plan, November 6, 2026; cloud session)
-**Reviewer model:** Claude Opus 5.5 (plan review round 1, November 6, 2026; cloud session)
+**Reviewer model:** Claude Opus 5.5 (plan review round 1, November 6, 2026; cloud session); Claude Opus 5.5 (code review
+round 1, November 6, 2026; cloud session)
 **Branch / PR:** `claude/dazzling-dirac-aguwd0` (designated by the cloud session; no commits beyond `main`, so no restart
 was needed) / none yet
 
@@ -315,3 +316,70 @@ Rejected: none. All six findings were accepted. (PR1-3 was then overtaken by Ari
 - **Noticed, not in scope:** none beyond the items already in "Out of scope, noticed".
 
 ## Code review
+
+### Round 1 (Claude Opus 5.5, November 6, 2026)
+
+**Scope:** Implementation log round 1: `git diff 1bb52299cc8124434fa9ba0146d6911566b0caa8` at `HEAD` `a1506ed`
+(`apps/api/app/dependencies.py`, `apps/api/app/routers/{shows,venues,artists,common}.py`,
+`apps/api/app/tests/test_routers.py`, `apps/calendar/lib/params.ts`, `params.test.ts`, `docs/dev/api-contract.md`, this
+record). Judged against the approved plan (D1-A, D2a: 422 for ids outside 1..2147483647, D2: no list cap by Ari's
+decision, so the missing cap is not a finding), `AGENTS.md`, `apps/api/AGENTS.md`, the FastAPI style guide's
+Anti-patterns table and the `Proves:` rule.
+
+**What was checked and how.**
+
+- `make check BASE=1bb52299cc8124434fa9ba0146d6911566b0caa8` on `HEAD`: exit 0 (ruff clean, mypy "no issues found in 156
+  source files", pytest 1312 passed / 20 skipped, vitest 525 passed, "Generated contract output is current.", Playwright
+  107 passed). `make designation-check BASE=1bb52299cc8124434fa9ba0146d6911566b0caa8`: exit 0. CONFIRMED; matches the log.
+- Where to look hardest 1: `app.openapi()` on `HEAD` shows `/shows` `venue_id` / `artist_id` as `anyOf [array of
+  integer {minimum 1, maximum 2147483647}, null]`, and the three path ids as `integer {minimum 1, maximum 2147483647}`
+  with responses `200, 404, 422`. CONFIRMED. No other router (`calendar`, `metro`) takes an id, and no
+  `HTTPException(422…)` remains in `app/` (grep). CONFIRMED.
+- Where to look hardest 2 and 3: a probe test through `sample_client` in a throwaway `git worktree` (under the session
+  scratchpad, removed afterwards) printed the bodies: `/shows/2147483648` → `less_than_equal`, `loc ["path","show_id"]`,
+  `ctx {"le": 2147483647}`; `/venues/0` → `greater_than_equal`, `ctx {"ge": 1}`; `?venue_id=1&venue_id=0` → 422 with
+  `loc ["query","venue_id",1]`; `start=2026-10-10&end=2026-10-01` → `value_error`, `loc ["query","end"]`, `input
+  "2026-10-01"`, no `ctx`; `upcoming=true` → `loc ["query","upcoming"]`, `input true`; `end=2030-01-01` → `loc
+  ["query","end"]`, "maximum is 366 days"; `venue_id=1&venue_id=2147483647` → 200; then `/shows/1` on the same client →
+  200. Every claim in `api-contract.md` §3 "Errors" (shape, `loc` per rule, `ctx` only on FastAPI items, JSON-encoded
+  `input`, 366 days, ids bounded, `/shows/0` 422) matches. CONFIRMED. `get_db` is a plain `async with … yield`, so a
+  `RequestValidationError` from the body closes the session like any other exception (read, PLAUSIBLE beyond the probe).
+- Where to look hardest 4: nothing in `apps/calendar` sends an id outside 1..2147483647 (`parseIdParam`, `MAX_ID`), and
+  the e2e suite passes. Clients outside the repo can't be checked; the change is documented in the contract. PLAUSIBLE.
+- **Mutation tests** (same worktree, `pytest app/tests/test_routers.py`, each mutation reverted before the next; 81 pass
+  unmutated):
+
+  | Mutation | Result |
+  |---|---|
+  | `venues.py`: `venue_id: DbId` back to `int` | 4 failed (the four out-of-range sweeps for `/venues`) |
+  | `upcoming` with no filter back to `HTTPException(422, detail="x")` | 2 failed (shape and `loc` tests for `upcoming=true`) |
+  | range-too-wide `unprocessable("end", …)` → `"start"` | 2 failed (both too-wide queries in the `loc` test) |
+  | `IdFilter` bounds moved onto `Query(ge=1, le=MAX_DB_ID)` on `list[int]` | 18 failed (PR1-2's guard works) |
+  | `MAX_DB_ID = 2**31 - 2` (off by one) | 4 failed (the three inclusive 404s and the inclusive filter 200) |
+  | `artist_id` filter back to a plain `list[int]` | 2 failed |
+  | `Path(ge=0, …)` | 3 failed (the `0` case on each route) |
+
+  Every mutation is caught. CONFIRMED.
+- Failed-first claims in the log (26 failed, 9 passed of 35 selected) are consistent with the tests as written (12 + 4 +
+  5 + 5 failing; 3 + 1 + 2 new plus 3 existing passing). Not re-run on the pre-fix tree; PLAUSIBLE.
+- The frontend diff is comment-only (`git diff` shows only `//` lines changed in `params.ts`, `params.test.ts`), and both
+  comments now describe the 422. CONFIRMED by reading.
+- Not a finding, noted for the author: step 6 (the review doc's §8 tracker to `In PR`) is not in the diff; the plan puts it
+  at PR time, so it is still to do. The log says the author set `Approved` on Ari's chat message; the reviewer can't see
+  that chat, so Ari should confirm it at sign-off.
+
+**Counts:** 0 blocker, 0 should-fix, 4 nit. **Verdict: proceed** (the nits are comment and coverage polish).
+
+| # | Sev | Finding | Evidence | What goes wrong | Resolution |
+|---|---|---|---|---|---|
+| CR1-1 | nit | The comment above `HAND_RAISED_422` says "Three are the router's own rules; the last two are FastAPI's own validation". Every entry in that table is router-raised (four rules, five queries); the two FastAPI-raised queries (`start=notadate`, `venue_id=abc`) are appended in `test_every_422_has_the_same_body_shape`'s parametrize, not in the table. Suggest: "Five queries covering the router's four rules (the range-too-wide rule twice, once from the server's default `start`); FastAPI's own 422s are added in the shape test below." | CONFIRMED: `apps/api/app/tests/test_routers.py:741-748`; `test_a_hand_raised_422_names_its_parameter` iterates the table and all five pass with `value_error` items from `unprocessable` (probe above). | A reader takes two of the hand-raised cases for FastAPI's and concludes the router's `loc` is only pinned for three; the test comment states where its expected values come from wrongly, against the `Proves:`/source rule. | **Fixed.** The comment above `HAND_RAISED_422` (`test_routers.py`) now says the table holds the router's four rules as five queries and that FastAPI's own 422s are added in the shape test. |
+| CR1-2 | nit | The `MAX_DB_ID` comment's last sentence is missing a verb: "Bounding the parameter makes it a 422 at the edge, and the same limits as the Next.js app, which already refuses …". Suggest "…makes it a 422 at the edge, with the same limits as the Next.js app, which already refuses …". | CONFIRMED: `apps/api/app/dependencies.py:26-28`. | The why-comment reads as garbled; minor. | **Fixed.** `app/dependencies.py` `MAX_DB_ID` comment: "and the same limits" became "with the same limits". |
+| CR1-3 | nit | `test_a_hand_raised_422_names_its_parameter` pins only `detail[0]["loc"]`. The contract (§3 "Errors") also promises, for a router-raised item, one item, `type` `value_error`, no `ctx`, and a JSON-encoded `input` (`true`, `"2025-01-01"`); none of that is pinned, so a change to `unprocessable` (say, dropping `input`, or a second item) passes the suite. Consider asserting `detail == [{"type": "value_error", "loc": loc, "msg": ANY, "input": <expected>}]`, with the expected `input` written in the table. | CONFIRMED by reading `test_routers.py:764-770` and the probe bodies above; that dropping `input` would pass is PLAUSIBLE (the shape test checks only `type`, `loc`, `msg`). | The contract documents behavior no test holds, so it can drift from the code silently. | **Fixed.** `HAND_RAISED_422` now carries the expected `input` per query (`"2026-10-01"`, `"2030-01-01"`, `true`), and `test_a_hand_raised_422_names_its_parameter` asserts the whole body: `detail == [{"type": "value_error", "loc": loc, "msg": ANY, "input": value}]`. The code already behaved this way, so the test could not fail first; instead it was shown to catch the regression: with `"input"` removed from `unprocessable`, 5 cases failed, and restored they pass. |
+| CR1-4 | nit | The contract's 422 bullet explains `loc` for the router's rules but not that a bad item in a repeated filter has an index as its last element (`["query","venue_id",1]` for the second value). A client "pointing at the field", which is D1-A's stated benefit, needs to know `loc` can be three long. One clause in the "Ids are bounded" bullet would do. | CONFIRMED: probe `GET /shows?venue_id=1&venue_id=0` → `loc ["query","venue_id",1]`; `docs/dev/api-contract.md:84-103` does not mention it. | A client that matches `loc` against `["query","venue_id"]` exactly misses the error on its filter control. | **Fixed.** `api-contract.md` §3 "Errors", "Ids are bounded" bullet: a bad value in a repeated filter has its list position as the last `loc` element (`["query","venue_id",1]`), so a client should match on the first two elements. |
+
+Rejected: none. All four findings were accepted.
+
+After the fixes: `make check BASE=1bb52299cc8124434fa9ba0146d6911566b0caa8` exit 0 (ruff and format clean, mypy clean, pytest 1312
+passed / 20 skipped, vitest 525 passed, contract output current, Playwright 107 passed) and `make designation-check
+BASE=1bb52299cc8124434fa9ba0146d6911566b0caa8` exit 0. The fixes changed a test, two comments and the contract text only, so
+no second review round is needed.
