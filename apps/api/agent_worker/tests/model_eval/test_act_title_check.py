@@ -2,7 +2,7 @@
 
 Milestone C6, Step 10 (docs/dev/implementations/c6-hosted-inference.md, C6-D6). `validation.check_act_in_title`
 (A2.1-E3) warns when an act name is not found in the verbatim title it was split from. C6-D6 asks how many of
-the splitter's labelled mistakes that check would catch before it is promoted from a warning to an error.
+the splitter's labeled mistakes that check would catch before it is promoted from a warning to an error.
 `run_eval` runs no validation, so `act_title_check` replays the check over a saved results file.
 
 How to read it: each test builds a tiny results file by hand and works out the expected counts from the case,
@@ -48,7 +48,7 @@ def test_a_convention_error_is_not_caught_because_the_name_is_in_the_title() -> 
     assert (out["flagged"], out["label_errors"], out["caught"]) == (0, 1, 0)
 
 
-def test_a_finding_on_a_correctly_labelled_show_is_a_false_alarm() -> None:
+def test_a_finding_on_a_correctly_labeled_show_is_a_false_alarm() -> None:
     # Proves: a finding on a date the labels scored as correct is counted as a false alarm. This is what
     # stops C6-D6 promoting a check that would retry correct pages. Expected: 1 finding, 0 label errors, 1 false alarm.
     results = {"runs": [run(["Lent w. Gills"], [show("Gills Band")])]}

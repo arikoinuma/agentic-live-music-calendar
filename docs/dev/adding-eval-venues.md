@@ -55,7 +55,7 @@ uv run python -m agent_worker.model_eval.capture                # every venue th
 
 ### 5. Write the label
 
-> **A venue whose page embeds its events** (an `<astro-island>`, as Hook & Ladder's does; C6.1) is read by the structured route from that data, not from the visible text. Label what the *venue* states, and note that the listed time on such a page may be the doors: the reader uses the event's `startTime` when it has one (`C6.1-D3`), so a label written from the printed time can disagree with it. Check the page's embedded data (`agent_worker/sources/embedded_events.py`) before labelling times.
+> **A venue whose page embeds its events** (an `<astro-island>`, as Hook & Ladder's does; C6.1) is read by the structured route from that data, not from the visible text. Label what the *venue* states, and note that the listed time on such a page may be the doors: the reader uses the event's `startTime` when it has one (`C6.1-D3`), so a label written from the printed time can disagree with it. Check the page's embedded data (`agent_worker/sources/embedded_events.py`) before labeling times.
 
 Add one entry to `PAGE_LABELS`, keyed by the **exact fixture file name**, at the end of the dict. The whole page goes in, every real show it lists; a partial label makes the scorer count the shows you skipped as invented.
 

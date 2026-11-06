@@ -159,8 +159,8 @@ export function eventEndDateTime(
  * didn't say. Mirrors `formatAdmission` (lib/show-format.ts) so the page and
  * the JSON-LD never disagree: `free_admission` true -> free; an advance and
  * a day price -> two labelled offers; a lone advance price is labelled
- * "Advance"; a lone price is the unlabelled day price; the same price in
- * both fields (C6.1-D13) is that one unlabelled offer. The prices are the
+ * "Advance"; a lone price is the unlabeled day price; the same price in
+ * both fields (C6.1-D13) is that one unlabeled offer. The prices are the
  * API's STRINGS ("18.00"), passed through — never `parseFloat`.
  */
 function offersFor(show: ShowSummary): JsonLdOffer[] {

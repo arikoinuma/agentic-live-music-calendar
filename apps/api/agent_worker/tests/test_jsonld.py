@@ -360,7 +360,7 @@ def _described(text: str, **extra: Any) -> jsonld.StructuredShow:
     return jsonld.to_structured_show(event(description=f"&lt;p&gt;{text}&lt;/p&gt;", **extra), CHICAGO)
 
 
-def test_a_labelled_price_in_the_description_is_read() -> None:
+def test_a_labeled_price_in_the_description_is_read() -> None:
     # Proves (C6.1-D12): Ginkgo's JSON-LD has no `offers`, but its description reads "... Tickets: $20 ...", and
     # the structured route lost that price on every run. The invented text copies the shape (escaped markup, an
     # order link, the price after a "Tickets:" label). A price the page states with no advance/door wording
@@ -381,7 +381,7 @@ def test_a_price_with_cents_is_read() -> None:
     "Tickets: $15 / $20 at the door",       # door wording
     "Tickets: $20 day of show",             # day-of wording
     "Tickets: $15 or $20",                  # two different prices, no way to tell which
-    "Dinner for two $40 while you listen",  # a dollar amount that is not labelled as the ticket
+    "Dinner for two $40 while you listen",  # a dollar amount that is not labeled as the ticket
     "FREE TO join, tip jar on the stage",   # 'free' in prose is not a price (trivia night, open mic)
     "Tickets: $",                           # a label with no number
 ])

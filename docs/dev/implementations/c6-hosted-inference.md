@@ -1,6 +1,6 @@
 # C6 — hosted inference and the extraction accuracy gate
 
-**Status:** Awaiting sign-off (Part 1 and Part 2 built and measured; the gate passes in 4 of 5 gated runs and fails the held-out set in every run; Ari decides under Dep-D13 whether to continue or accept the miss, Round 10)
+**Status:** Done (signed off by Ari, November 6, 2026; the accuracy gate is not met and Ari accepted the miss under Dep-D13, Round 10)
 **Date:** October 28, 2026
 **Author model:** Claude Sonnet 5.5
 **Reviewer model:** Claude Opus 5.5 (plan review round 1, October 28, 2026); Claude Opus 5.5 (code review round 1, October 28, 2026)
@@ -361,7 +361,7 @@ Ari approved fixing the prompt and the Flange case on the 26B model before any f
 | `c6-split-qwen3-235b` | 15 | 1 | 1 | 0 |
 | `c6-prompt-v4` (26B) | 0 | 0 | 0 | 0 |
 
-- **Decision: leave it a warning (recommended; Ari may overrule).** The plan's rule is to promote it if it catches a labelled error without a false alarm, and it did once, with no false alarms. But that one catch was on the Qwen candidate, which is not the model being shipped. The 26B model's errors were convention and omission errors whose names are in the title, which the check cannot see (its limit: typos and invented names only), and in `c6-prompt-v4` there is nothing for it to catch. Promoting it would add a retry path that has fired once in about 150 runs. Revisit if the held-out capture shows typos. Matching by date is approximate for two shows on one date.
+- **Decision: leave it a warning (recommended; Ari may overrule).** The plan's rule is to promote it if it catches a labeled error without a false alarm, and it did once, with no false alarms. But that one catch was on the Qwen candidate, which is not the model being shipped. The 26B model's errors were convention and omission errors whose names are in the title, which the check cannot see (its limit: typos and invented names only), and in `c6-prompt-v4` there is nothing for it to catch. Promoting it would add a retry path that has fired once in about 150 runs. Revisit if the held-out capture shows typos. Matching by date is approximate for two shows on one date.
 
 **Step 11 — throughput and cost.** New `--concurrency N` (`run_eval.map_runs`, a thread pool; per-run counters were already per-thread from Step 4) with two tests (order preserved; one worker uses no threads).
 
@@ -378,7 +378,7 @@ Ari approved fixing the prompt and the Flange case on the 26B model before any f
 
 ### Round 9 — Step 8, the held-out run, and what the Hook & Ladder page showed, Claude Sonnet 5.5 (run for Ari), November 5, 2026
 
-**Result: `c6-heldout` (26B on every role, the two held-out pages, 5 runs) fails the gate, and the first thing it found is not a model error.** Ginkgo Coffee (JSON-LD route, 12 shows read, about 5 s a run) failed on every run; Hook & Ladder (model route, 37 shows read against 29 labelled, 87 to 114 s a run) failed on every run. Per run: Hook & Ladder 14 to 15 missed, 14 fabricated, 13 to 14 `acts_wrong`, 10 wrong times; Ginkgo Coffee 6 wrong end times and the one price missing.
+**Result: `c6-heldout` (26B on every role, the two held-out pages, 5 runs) fails the gate, and the first thing it found is not a model error.** Ginkgo Coffee (JSON-LD route, 12 shows read, about 5 s a run) failed on every run; Hook & Ladder (model route, 37 shows read against 29 labeled, 87 to 114 s a run) failed on every run. Per run: Hook & Ladder 14 to 15 missed, 14 fabricated, 13 to 14 `acts_wrong`, 10 wrong times; Ginkgo Coffee 6 wrong end times and the one price missing.
 
 **A correction to my first reading.** Right after the run I told Ari the Hook & Ladder labels were a day early. That was wrong. Ari edited the dates in `labels.py` by hand (commit `c085f5d`) because the script-drafted labels had them wrong, and his labels match the live site (his screenshot, November 5). The page the pipeline fetches carries the shifted dates; the labels do not.
 
@@ -408,7 +408,7 @@ Ari's comments on the draft PR (`run_eval.py:136`, `config.py:114`). **Fixed, al
 
 ### Round 10 — Steps 12 and 13, the 5-run confirmation and the record, Claude Sonnet 5.5 (run for Ari), November 5, 2026
 
-**Configuration confirmed:** `google/gemma-4-26B-A4B-it` on DeepInfra for every role (page, act splitter, status, matcher; no per-role override, no escalation model), temperature 0, code at the C6.1 branch (`c6.1-embedded-events-reader`, which contains Part 2). Labels as committed on November 5 (Icehouse labelled and Electrical Field of Love re-labelled $30/$40 before these runs).
+**Configuration confirmed:** `google/gemma-4-26B-A4B-it` on DeepInfra for every role (page, act splitter, status, matcher; no per-role override, no escalation model), temperature 0, code at the C6.1 branch (`c6.1-embedded-events-reader`, which contains Part 2). Labels as committed on November 5 (Icehouse labeled and Electrical Field of Love re-labeled $30/$40 before these runs).
 
 **Step 12, the gated set (`c6-confirm-gated`, 5 runs of the 5 gated pages): the gate fails in 1 of 5 runs.**
 
@@ -432,7 +432,7 @@ Ari's comments on the draft PR (`run_eval.py:136`, `config.py:114`). **Fixed, al
 | Hook & Ladder (29) | structured | 1 missed, 3 to 4 `acts_wrong`, 1 leak |
 | Icehouse (47) | model | 2 to 3 missed, 18 to 19 `acts_wrong`, 0 to 1 fabricated, 1 to 3 wrong start times, advance price missing on 17 of 42 shows |
 
-- Recall 0.805 and precision 0.812 over 660 labelled show-instances. Field accuracy (raw): start time 621 of 641 correct, door price 211 of 211, advance price 126 of 211 (85 missing, all Icehouse lone prices; see C6.1-D13), no wrong prices.
+- Recall 0.805 and precision 0.812 over 660 labeled show-instances. Field accuracy (raw): start time 621 of 641 correct, door price 211 of 211, advance price 126 of 211 (85 missing, all Icehouse lone prices; see C6.1-D13), no wrong prices.
 - What each page's failures are, and what was tried: `c6.1-embedded-events-reader.md` Implementation log Rounds 3 to 7 (duplicate events, description prices, the lone-price rule, chunking, the start-time check, the splitter prompt trial).
 
 **The finding, as the plan asks for it: the honest accuracy number is the held-out one, and it is not at the standard.** The gated set passes in 4 of 5 runs. The held-out set fails in 5 of 5. D8 (iii) governs: the Icehouse errors were tuned on after scoring, so Icehouse is burned and Ari has chosen not to capture a replacement for now. D3 stopping condition (b) is met in spirit (several splitter experiments, the prompt trial included, did not close the gap) and condition (a) is not. **This is where Ari is asked under Dep-D13: continue with named further work, or accept the miss and go on. Ari accepted the miss on November 5, 2026 and chose to go on.** Recommendation, not a decision: go on to C8 (the worker on Railway) and C11 with the miss accepted, using the audit report of excluded listings (C6.1-D17) and the detail-page extraction (C6.1-D16) as the planned way to find and close them.

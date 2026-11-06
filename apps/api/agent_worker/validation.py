@@ -327,10 +327,10 @@ def verify_image_url(url: str, page_html: str, page_text: str) -> bool:
     return url in page_text or url in html_lib.unescape(page_html)
 
 
-# A clock time as a page writes it ("6:00 pm", "8pm", "9:30 P.M."), and the labelled form listings use
+# A clock time as a page writes it ("6:00 pm", "8pm", "9:30 P.M."), and the labeled form listings use
 # for the two that matter: "Doors: 6:00 pm" and "Music: 8:00 pm" (or "Show:", "Showtime:").
 _CLOCK = re.compile(r"\b(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\b\.?", re.IGNORECASE)
-_LABELLED_CLOCK = re.compile(
+_LABELED_CLOCK = re.compile(
     r"\b(doors|music|show(?:time)?)\s*:\s*(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\b", re.IGNORECASE,
 )
 # How far past a date the listing's own times are looked for, cut short at the next date. A listing's
@@ -348,8 +348,8 @@ def listing_times(page_text: str, day: datetime.date) -> tuple[set[datetime.time
 
     The text after a date mention runs to the next date mention or `_LISTING_REACH` characters. A date
     listed twice (a combined card, then the show's own card) pools both windows. "music" holds the times
-    labelled `Music:`/`Show:`/`Showtime:`, "doors" the ones labelled `Doors:`, and "any" every clock time
-    in the windows, labelled or not.
+    labeled `Music:`/`Show:`/`Showtime:`, "doors" the ones labeled `Doors:`, and "any" every clock time
+    in the windows, labeled or not.
     """
     mentions = [
         m for m in _MONTH_DAY.finditer(page_text)
@@ -363,7 +363,7 @@ def listing_times(page_text: str, day: datetime.date) -> tuple[set[datetime.time
         later = [start for start in all_starts if start > mention.start()]
         end = min([mention.end() + _LISTING_REACH, *later[:1]])
         window = page_text[mention.end():end]
-        for label, hour, minute, meridiem in _LABELLED_CLOCK.findall(window):
+        for label, hour, minute, meridiem in _LABELED_CLOCK.findall(window):
             (doors if label.lower() == "doors" else music).add(_clock(hour, minute, meridiem))
         seen.update(_clock(h, mi, mer) for h, mi, mer in _CLOCK.findall(window))
     return music, doors, seen
@@ -372,12 +372,12 @@ def listing_times(page_text: str, day: datetime.date) -> tuple[set[datetime.time
 def start_time_problem(show: ShowExtraction, page_text: str) -> str | None:
     """Why the show's start time contradicts its own listing, or None when it doesn't.
 
-    Two cases, and only when the listing states a labelled music time to compare with (C6.1-D14). The
+    Two cases, and only when the listing states a labeled music time to compare with (C6.1-D14). The
     start time is the doors time and not the music time: a wrong time, the very mistake the `time` field
     description warns against. Or the start time appears nowhere in the listing: invented. Both are
     wrong values, which the standard never tolerates, and a missing time is tolerated, so the caller
-    drops it. A time that appears in the date's text unlabelled (a combined card's "6:30 PM Show") is not
-    invented, which is why the second case reads every clock time and not only the labelled ones.
+    drops it. A time that appears in the date's text unlabeled (a combined card's "6:30 PM Show") is not
+    invented, which is why the second case reads every clock time and not only the labeled ones.
     """
     if show.time is None:
         return None

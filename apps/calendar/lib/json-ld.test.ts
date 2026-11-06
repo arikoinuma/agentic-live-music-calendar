@@ -191,7 +191,7 @@ describe("showJsonLd", () => {
       ]);
     });
 
-    it("is one unlabelled offer when advance and day are the same price", () => {
+    it("is one unlabeled offer when advance and day are the same price", () => {
       // Proves: C6.1-D13's both-fields price is one offer, matching what
       // formatAdmission shows, not an "Advance" and a "Door" at one price.
       expect(

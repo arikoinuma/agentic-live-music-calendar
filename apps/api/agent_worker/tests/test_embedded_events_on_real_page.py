@@ -35,26 +35,26 @@ def read_events() -> list[dict[str, object]]:
     return embedded_events.find_events(_PATH.read_text())
 
 
-def test_the_reader_finds_every_event_and_the_labelled_dates() -> None:
+def test_the_reader_finds_every_event_and_the_labeled_dates() -> None:
     # Proves (C6.1): 41 events are on the page (counted by the plan reviewer from the island), and
-    # every labelled show's date is one an embedded event carries. The expected dates come from Ari's
+    # every labeled show's date is one an embedded event carries. The expected dates come from Ari's
     # labels, written from the live site — not from this reader and not from the page's visible text,
     # which is the part that is wrong.
     events = read_events()
     assert len(events) == 41
     shows = [jsonld.to_structured_show(e, CHICAGO) for e in events]
-    for labelled in labels.PAGE_LABELS[PAGE_NAME].shows:
+    for labeled in labels.PAGE_LABELS[PAGE_NAME].shows:
         # The label's first act is a name the event's title contains (the event name may come first, as in
         # 'Sleepy Weekend with ...'), so pair on date AND that name, not on the date alone.
-        first = labelled.acts[0].lower()
-        same = [s for s in shows if s.date == labelled.date and first in s.title.lower()]
-        assert same, f"{labelled.date} {labelled.acts[0]!r} has no embedded event"
+        first = labeled.acts[0].lower()
+        same = [s for s in shows if s.date == labeled.date and first in s.title.lower()]
+        assert same, f"{labeled.date} {labeled.acts[0]!r} has no embedded event"
 
 
 def test_the_start_time_is_the_start_time_not_the_doors() -> None:
     # Proves (C6.1-D3): Paul Cebar & Tomorrow Sound is listed at 6:30 pm (doors) with a startTime of
     # 7:30 pm. The expected 19:30 is what the page's data says the show starts, by Ari's rule (use
-    # startTime when present). The label still holds the printed 6:30 pm; relabelling is Ari's.
+    # startTime when present). The label still holds the printed 6:30 pm; relabeling is Ari's.
     events = [e for e in read_events() if str(e["name"]).startswith("Paul Cebar")]
     show = jsonld.to_structured_show(events[0], CHICAGO)
     assert (show.date, show.time) == (datetime.date(2026, 11, 6), datetime.time(19, 30))

@@ -173,7 +173,7 @@ def _offer_price(event: dict[str, Any]) -> float | None:
 
 
 # A price the description labels as the ticket price: "Tickets: $20", "Admission: $12.50", "Cover $5".
-_LABELLED_PRICE = re.compile(r"\b(?:tickets?|admission|cover)\s*:?\s*\$\s*(\d+(?:\.\d{1,2})?)(?!\d)", re.IGNORECASE)
+_LABELED_PRICE = re.compile(r"\b(?:tickets?|admission|cover)\s*:?\s*\$\s*(\d+(?:\.\d{1,2})?)(?!\d)", re.IGNORECASE)
 # Wording that gives a price a meaning this fallback cannot represent (two prices, or door vs advance).
 _PRICE_QUALIFIER = re.compile(r"\b(?:advance|adv\.?|door|day[- ]of|presale|pre-sale|members?|students?)\b", re.IGNORECASE)
 
@@ -185,7 +185,7 @@ def _described_price(event: dict[str, Any]) -> float | None:
     "... Tickets: $20 ...". Without this the structured route lost a price the page states, on every
     run. The rule is narrow on purpose, because a wrong price breaks the accuracy standard and a
     missing one is tolerated: only a dollar amount right after a ticket/admission/cover label counts,
-    all labelled amounts must agree, and any advance/door/day-of/presale/member wording anywhere in
+    all labeled amounts must agree, and any advance/door/day-of/presale/member wording anywhere in
     the description means the text says something this cannot represent, so nothing is returned."""
     description = event.get("description")
     if not isinstance(description, str):
@@ -194,7 +194,7 @@ def _described_price(event: dict[str, Any]) -> float | None:
     text = BeautifulSoup(html_lib.unescape(html_lib.unescape(description)), "html.parser").get_text(" ")
     if _PRICE_QUALIFIER.search(text):
         return None
-    amounts = {float(m) for m in _LABELLED_PRICE.findall(text)}
+    amounts = {float(m) for m in _LABELED_PRICE.findall(text)}
     # Any other dollar amount in the text ("$15 or $20") makes it unclear which is the ticket.
     every_amount = {float(m) for m in re.findall(r"\$\s*(\d+(?:\.\d{1,2})?)", text)}
     return amounts.pop() if len(amounts) == 1 and every_amount == amounts else None

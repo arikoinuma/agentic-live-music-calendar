@@ -341,7 +341,7 @@ def test_the_end_time_check_is_scoped_to_the_listings_own_title_when_titles_line
     assert wide.repairs == []
 
 
-# A listing in the shape Icehouse uses: the date, then labelled "Doors:" and "Music:" lines.
+# A listing in the shape Icehouse uses: the date, then labeled "Doors:" and "Music:" lines.
 def _listing(day: str, doors: str, music: str) -> str:
     return f"Some Band\nA description of the show.\n{day}\nDoors: {doors}\nMusic: {music}\n$15 adv / $20 door\nBuy Tickets"
 
@@ -374,8 +374,8 @@ def test_the_music_time_the_page_states_is_kept() -> None:
     assert result.repairs == [] and kept[0].time is not None
 
 
-def test_a_time_check_does_nothing_when_the_listing_states_no_labelled_music_time() -> None:
-    # Proves: the check needs a labelled "Music:" or "Show:" time to compare with. A page that says
+def test_a_time_check_does_nothing_when_the_listing_states_no_labeled_music_time() -> None:
+    # Proves: the check needs a labeled "Music:" or "Show:" time to compare with. A page that says
     # "Oct 20 | 8:00 pm" has no label, so a model time there is never second-guessed (a false drop
     # costs a correct value).
     result, kept = validate(page(show(time="20:00")), text="The Band Oct 20 | 8:00 pm")
