@@ -1,6 +1,6 @@
 # C7 — pipeline evaluation on the shipped model
 
-**Status:** Awaiting sign-off (Steps 1 to 10 done; the defaults decided by Ari November 6, 2026 (threshold 0.8, cap 2, no escalation model), applied and code-reviewed in two rounds with every finding resolved; Ari also decided November 6 to keep the final-attempt sentence off the cap's last attempt, as shipped; the DeepInfra spend for C7 was about $0.42 of the $5 budget)
+**Status:** Done (signed off by Ari November 6, 2026, who also accepted the R1 readings and will revisit confidence scoring later; Steps 1 to 10 done; the defaults decided by Ari November 6, 2026 (threshold 0.8, cap 2, no escalation model), applied and code-reviewed in two rounds with every finding resolved; Ari also decided November 6 to keep the final-attempt sentence off the cap's last attempt, as shipped; the DeepInfra spend for C7 was about $0.42 of the $5 budget)
 **Date:** November 6, 2026
 **Author model:** Claude Opus 5.5 (plan, November 6, 2026; written in a local session, with the saved C5 and C6 results files on disk)
 **Reviewer model:** Claude Sonnet 5.5 (plan review round 1, November 6, 2026); code review round 1: Claude Sonnet 5.5 (November 6, 2026); code review round 2: Claude Opus 5.5 (November 6, 2026)
