@@ -1092,6 +1092,8 @@ The token totals in Round 4 were an estimate of the same order.
 
 **Verification.** `make check` exit 0 after the fixes (ruff, mypy, pytest 1525 passed, vitest 525, `contract-check`, `designation-check`, Playwright 107). Mutation checks on the new test: the default put back to 3 fails it, and `final=attempt >= policy.max_attempts` fails it; both reverted.
 
+**Decided by Ari, November 6, 2026 (Round 4, Decisions for Ari, 2): accept C7-R1's readings as they stand and label no more pages for C7; the whole confidence scoring is to be revisited later** (the detail-page work changes what the model sees one show at a time, and the C11 burn-in is the next honest sample).
+
 **Decided by Ari, November 6, 2026 (C7-CR2-2): keep as shipped.** The question was: should the last attempt the cap allows carry the "This is the last attempt…" sentences? Today attempt 2, the last under the shipped cap, does not. C7's evidence leans against sending it (tier 3 without a larger model, which carries it, hurt Turf Club), so I left it. To change it later: `final=attempt >= policy.max_attempts` in `plan_for_attempt`, and flip the second assertion of the new test. Nothing changed in code.
 
 ## Code review
