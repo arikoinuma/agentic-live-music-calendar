@@ -1,6 +1,6 @@
 # C7 — pipeline evaluation on the shipped model
 
-**Status:** Awaiting sign-off (Steps 1 to 10 done; the defaults decided by Ari November 6, 2026, applied and code-reviewed in two rounds, all findings resolved; one open question for Ari at sign-off: whether the last attempt the cap allows should carry the final-attempt sentence, code review round 2 finding 2)
+**Status:** Awaiting sign-off (Steps 1 to 10 done; the defaults decided by Ari November 6, 2026 (threshold 0.8, cap 2, no escalation model), applied and code-reviewed in two rounds with every finding resolved; Ari also decided November 6 to keep the final-attempt sentence off the cap's last attempt, as shipped; the DeepInfra spend after C7 is unread)
 **Date:** November 6, 2026
 **Author model:** Claude Opus 5.5 (plan, November 6, 2026; written in a local session, with the saved C5 and C6 results files on disk)
 **Reviewer model:** Claude Sonnet 5.5 (plan review round 1, November 6, 2026); code review round 1: Claude Sonnet 5.5 (November 6, 2026); code review round 2: Claude Opus 5.5 (November 6, 2026)
@@ -1092,7 +1092,7 @@ open as Round 4 lists it.
 
 **Verification.** `make check` exit 0 after the fixes (ruff, mypy, pytest 1525 passed, vitest 525, `contract-check`, `designation-check`, Playwright 107). Mutation checks on the new test: the default put back to 3 fails it, and `final=attempt >= policy.max_attempts` fails it; both reverted.
 
-**Open decision for Ari (C7-CR2-2):** should the last attempt the cap allows carry the "This is the last attempt…" sentences? Today attempt 2, the last under the shipped cap, does not. C7's evidence leans against sending it (tier 3 without a larger model, which carries it, hurt Turf Club), so I left it. To change it: `final=attempt >= policy.max_attempts` in `plan_for_attempt`, and flip the second assertion of the new test.
+**Decided by Ari, November 6, 2026 (C7-CR2-2): keep as shipped.** The question was: should the last attempt the cap allows carry the "This is the last attempt…" sentences? Today attempt 2, the last under the shipped cap, does not. C7's evidence leans against sending it (tier 3 without a larger model, which carries it, hurt Turf Club), so I left it. To change it later: `final=attempt >= policy.max_attempts` in `plan_for_attempt`, and flip the second assertion of the new test. Nothing changed in code.
 
 ## Code review
 

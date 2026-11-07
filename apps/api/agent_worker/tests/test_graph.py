@@ -265,8 +265,8 @@ async def test_the_shipped_default_makes_two_attempts_then_escalates(
     # `DEFAULT_POLICY` a page that fails the same check every time makes TWO attempts (initial, then narrowed) and escalates;
     # no third attempt, so no larger-model tier. And, as shipped, attempt 2 does not carry the "This is the last attempt"
     # sentence: `retry_hint` adds it from attempt 3 on, not on whichever attempt the cap makes last. That second assertion pins
-    # what ships TODAY; whether the last attempt the cap allows should carry it is Ari's open question (c7-pipeline-eval.md,
-    # code review round 2, finding 2), and this is the line to change with his answer. The expectations are Ari's decision, not
+    # what ships TODAY; Ari decided on November 6, 2026 to keep it that way (c7-pipeline-eval.md, code review round 2, finding 2); this is the
+    # line to change if that is ever revisited. The expectations are Ari's decision, not
     # read from the code. Every other graph test passes a cap of 3 explicitly (`fakes.THREE_ATTEMPTS`).
     state, client = await run_graph(
         tmp_path,
