@@ -70,7 +70,7 @@ log = structlog.get_logger()
 DECISION_SQLSTATE_CLASSES = ("22", "23")
 
 
-class ShowGone(LookupError):
+class ShowGoneError(LookupError):
     """The stored show an update or removal names isn't there any more (deleted by hand between reconcile and commit).
     Raised by the writer so a vanished row is one show's failure, not an `AttributeError` that would look like a bug."""
 
@@ -86,7 +86,7 @@ def is_decision_error(err: BaseException) -> bool:
     (A6-PR2-1). An error with `connection_invalidated` set is False before the SQLSTATE is looked at. Everything else (a
     lost connection, an error outside classes 22 / 23, a bug that raises) is False.
     """
-    if isinstance(err, ShowGone):
+    if isinstance(err, ShowGoneError):
         return True
     if not isinstance(err, DBAPIError) or err.connection_invalidated:
         return False
@@ -100,7 +100,7 @@ def failure_for(op: ShowOp, err: BaseException) -> ShowFailure:
     if isinstance(err, DBAPIError):
         sqlstate = getattr(err.orig, "sqlstate", None) or None
         message = str(err.orig)
-    else:  # ShowGone: not a database error, so no SQLSTATE
+    else:  # ShowGoneError: not a database error, so no SQLSTATE
         sqlstate, message = None, str(err)
     first_line = message.splitlines()[0] if message else ""
     return ShowFailure(
@@ -201,7 +201,7 @@ class PostgresCalendarWriter:
 
         A SELECT with `populate_existing`, not a read of the session's identity map, so it reports the database's values
         (the quantized price, the server's defaults). With `lock=True` it selects `FOR UPDATE`, holding the row for the
-        transaction, and raises `ShowGone` if the row isn't there. The lineup is read as columns, not entities, so no
+        transaction, and raises `ShowGoneError` if the row isn't there. The lineup is read as columns, not entities, so no
         `ShowArtist` object enters the identity map to collide with the rows `_apply` replaces.
         """
         query = select(Show).where(Show.id == show_id).execution_options(populate_existing=True)
@@ -209,7 +209,7 @@ class PostgresCalendarWriter:
             query = query.with_for_update()
         row = (await session.execute(query)).scalar_one_or_none()
         if row is None:
-            raise ShowGone(f"show {show_id} is not in the calendar")
+            raise ShowGoneError(f"show {show_id} is not in the calendar")
         links = await session.execute(
             select(ShowArtist.artist_id, ShowArtist.start_time, ShowArtist.sequence_number).where(
                 ShowArtist.show_id == show_id
@@ -229,7 +229,7 @@ class PostgresCalendarWriter:
             assert op.stored_id is not None  # noqa: S101 - a type-narrowing invariant
             found = await session.get(Show, op.stored_id)  # already in the session: the locked read loaded it
             if found is None:
-                raise ShowGone(f"show {op.stored_id} is not in the calendar")
+                raise ShowGoneError(f"show {op.stored_id} is not in the calendar")
             row = found
             for column, value in op.values.items():
                 setattr(row, column, value)
@@ -311,7 +311,7 @@ async def write_plan(
         # `write_show` returned, after the write, so a failed show contributes nothing to it.
         try:
             written = await writer.write_show(op, artist_ids, run_id=run_id, attempt_number=attempt_number)
-        except (DBAPIError, ShowGone) as err:
+        except (DBAPIError, ShowGoneError) as err:
             if not is_decision_error(err):
                 raise
             failures.append(await record_failure(audit, op, err, run_id, attempt_number))

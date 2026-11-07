@@ -223,6 +223,9 @@ async def test_an_empty_page_is_a_fetch_row_with_the_reason(tmp_path: Path, monk
     # Proves: the empty-page rule (arch-initial.md §7) shows in the trail as a fetch error, not as a
     # confirmed-empty extraction. Green even while A4-K3 is open.
     _, audit, _ = await run_traced(tmp_path, monkeypatch, "<html><body>  </body></html>", {})
+    # The stored text starts with the exception's class name (`f"{type(err).__name__}: ..."` in `fetch_node`), so a
+    # rename of that class (PQR1-17) shows up here instead of silently changing the trail.
+    assert audit.entries[0].detail["error"].startswith("EmptyPageError:")
     assert "nothing to read" in audit.entries[0].detail["error"]
 
 

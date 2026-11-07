@@ -49,7 +49,7 @@ class Scenario(StrEnum):
     PERTURBED = "perturbed"  # one page, with the database damaged in between: the second run repairs it
 
 
-class ScenarioNotRunnable(ValueError):
+class ScenarioNotRunnableError(ValueError):
     """The first run left the database in a state the scenario cannot build on (it escalated and committed nothing). That is an
     outcome of the model, not an infrastructure failure: the scenario is reported as not run (C5-CR1-2)."""
 
@@ -105,7 +105,9 @@ async def _perturb(factory: async_sessionmaker[AsyncSession], venue_id: int) -> 
         timed = next((s for s in rows if s.start_time is not None), None)
         others = [s for s in rows if timed is None or s.id != timed.id]
         if timed is None or not others:
-            raise ScenarioNotRunnable("the perturbed scenario needs at least two active shows, one with a start time")
+            raise ScenarioNotRunnableError(
+                "the perturbed scenario needs at least two active shows, one with a start time"
+            )
         victim = others[-1]
         details = {"time_nulled": timed.id, "deleted": victim.id}
         await session.execute(update(Show).where(Show.id == timed.id).values(start_time=None))
@@ -243,7 +245,7 @@ async def run_scenario(
             if scenario is Scenario.PERTURBED:
                 try:
                     perturbation = await _perturb(factory, venue.id)
-                except ScenarioNotRunnable as err:
+                except ScenarioNotRunnableError as err:
                     return ScenarioResult(scenario.value, runs, None, [], None, not_run=str(err))
             runs.append(await run(first))
 

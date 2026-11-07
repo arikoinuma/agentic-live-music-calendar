@@ -241,9 +241,9 @@ each one. `/resolve-issue` updates a row when its PR opens (`docs/dev/issues/REA
 | PQR1-12 | Low | S | `/docs`, `/redoc` and `/openapi.json` are served in every environment | Open | | |
 | PQR1-13 | Low | S | No lifespan hook, and import-time side effects | Open | | |
 | PQR1-14 | Medium | S | Model-call timeout and retries are implicit | Open | | |
-| PQR1-15 | Low | S | The health routes are the least polished code in the app | Open | | |
+| PQR1-15 | Low | S | The health routes are the least polished code in the app | In PR | [PR 97](https://github.com/arikoinuma/agentic-live-music-calendar/pull/97) | `docs/dev/issues/pqr1-15-health-routes-and-exception-names.md` |
 | PQR1-16 | Low | S | The first migration's filename has no date prefix | Open | | |
-| PQR1-17 | Low | S | Exception names without an `Error` suffix | Open | | |
+| PQR1-17 | Low | S | Exception names without an `Error` suffix | In PR | [PR 97](https://github.com/arikoinuma/agentic-live-music-calendar/pull/97) | `docs/dev/issues/pqr1-15-health-routes-and-exception-names.md` |
 | PQR1-18 | Low | S | Single-letter `l` as a variable name | Open | | |
 | PQR1-19 | Low | M | Graph nodes mutate the state in place and return the whole object | Open | | |
 | PQR1-20 | Low | L | List endpoints are unpaginated and sorted in Python | Open | | |

@@ -36,7 +36,7 @@ from agent_worker.normalize import fold_text
 SOURCE = "astro-island"
 
 
-class _UnknownEncoding(ValueError):
+class _UnknownEncodingError(ValueError):
     """An Astro value type this reader does not know (dates, maps, sets, ...): the island is skipped."""
 
 
@@ -45,7 +45,7 @@ def _decode(value: Any) -> Any:
     `[1, [...]]` a list. Any other type tag raises, so an island holding something unfamiliar is skipped
     whole rather than half-read."""
     if not isinstance(value, list) or len(value) != 2:
-        raise _UnknownEncoding(f"not an encoded value: {value!r}")
+        raise _UnknownEncodingError(f"not an encoded value: {value!r}")
     tag, payload = value
     if tag == 0:
         if isinstance(payload, dict):
@@ -53,7 +53,7 @@ def _decode(value: Any) -> Any:
         return payload
     if tag == 1 and isinstance(payload, list):
         return [_decode(item) for item in payload]
-    raise _UnknownEncoding(f"unknown type tag {tag!r}")
+    raise _UnknownEncodingError(f"unknown type tag {tag!r}")
 
 
 def _parse(value: Any) -> datetime.datetime | None:
@@ -146,7 +146,7 @@ def find_events(html: str) -> list[dict[str, Any]]:
     for island in soup.find_all("astro-island"):
         try:
             props = _decode([0, json.loads(str(island.get("props") or ""))])
-        except (json.JSONDecodeError, _UnknownEncoding):
+        except (json.JSONDecodeError, _UnknownEncodingError):
             continue
         for value in props.values() if isinstance(props, dict) else []:
             if not isinstance(value, list):

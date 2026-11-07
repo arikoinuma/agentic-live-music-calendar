@@ -38,7 +38,7 @@ from agent_worker.audit import PostgresAuditWriter
 from agent_worker.calendar_reader import PostgresCalendarReader
 from agent_worker.calendar_writer import (
     PostgresCalendarWriter,
-    ShowGone,
+    ShowGoneError,
     is_decision_error,
     write_plan,
 )
@@ -391,7 +391,7 @@ async def test_a_vanished_show_is_a_show_gone_failure_not_an_attribute_error(
     world: World,
 ) -> None:
     # Proves (A6-PR1-7): an update naming a stored show that was deleted by hand between reconcile and commit raises
-    # `ShowGone` from the FIRST (locked) read, which `is_decision_error` calls one show's failure, instead of a
+    # `ShowGoneError` from the FIRST (locked) read, which `is_decision_error` calls one show's failure, instead of a
     # `NoResultFound` or `AttributeError` that would look like a bug and stop the run.
     show_id = await seed_show(factory, world, day(20), at(20), end_time=None)
     [op] = await ops_for(factory, world, listed(0, day(20), at(20), acts=["Nona"], end_time=at(23)))
@@ -399,7 +399,7 @@ async def test_a_vanished_show_is_a_show_gone_failure_not_an_attribute_error(
         await session.execute(delete(ShowArtist).where(ShowArtist.show_id == show_id))
         await session.execute(delete(Show).where(Show.id == show_id))
         await session.commit()
-    with pytest.raises(ShowGone) as caught:
+    with pytest.raises(ShowGoneError) as caught:
         await writer_for(factory).write_show(op, {}, run_id=world.run_id, attempt_number=1)
     assert is_decision_error(caught.value)
 
@@ -631,18 +631,18 @@ async def test_a_failing_show_is_recorded_and_skipped_and_the_loop_goes_on() -> 
 
 
 async def test_a_show_gone_error_in_the_loop_is_recorded_and_skipped_like_a_refused_row() -> None:
-    # Proves (A6-D2, A6-PR1-7, A6-CR1-1): a stored show deleted by hand between reconcile and commit raises `ShowGone`
+    # Proves (A6-D2, A6-PR1-7, A6-CR1-1): a stored show deleted by hand between reconcile and commit raises `ShowGoneError`
     # from the writer, which is one show's problem, not the run's: the other two writes happen, the failure is recorded
-    # with no SQLSTATE (it is not a database error) and an error that names `ShowGone`, and one failure row says which
+    # with no SQLSTATE (it is not a database error) and an error that names `ShowGoneError`, and one failure row says which
     # show. An A6-K2 that catches only `DBAPIError` lets it escape and stops the venue's run, and this test fails.
     plan = plan_for([listed(i, day(20 + i), at(20), acts=["Nona"]) for i in range(3)])
-    writer, audit = FakeWriter(fail={1: ShowGone("show 3 is not in the calendar")}), RecordingAudit()
+    writer, audit = FakeWriter(fail={1: ShowGoneError("show 3 is not in the calendar")}), RecordingAudit()
     result = await write_plan(build_ops(plan, 1, URL), writer, audit, run_id=1, attempt_number=1)
     assert result.written["inserted"] == 2 and len(writer.ops) == 3
     [failure] = result.failures
-    assert (failure.date, failure.sqlstate) == (day(21), None) and failure.error.startswith("ShowGone:")
+    assert (failure.date, failure.sqlstate) == (day(21), None) and failure.error.startswith("ShowGoneError:")
     [row] = audit.entries
-    assert row.detail["sqlstate"] is None and row.detail["error"].startswith("ShowGone:") and row.outcome is None
+    assert row.detail["sqlstate"] is None and row.detail["error"].startswith("ShowGoneError:") and row.outcome is None
 
 
 async def test_an_all_failed_run_is_flagged() -> None:
@@ -688,7 +688,7 @@ async def test_the_artists_created_so_far_are_passed_to_each_later_write() -> No
         (fakes.check_violation(), True),
         (fakes.foreign_key_violation(), True),
         (fakes.overflow(), True),
-        (ShowGone("show 3 is not in the calendar"), True),
+        (ShowGoneError("show 3 is not in the calendar"), True),
         (fakes.lost_connection(), False),
         (fakes.client_side_error(), False),
         (fakes.connection_failure("08006"), False),
