@@ -88,7 +88,7 @@ async def run_scripted(
         venue=VENUE,
         ctx=ctx,
         committed_rows=no_rows,
-        policy=policy,
+        policy=policy if policy is not None else fakes.THREE_ATTEMPTS,
     )
 
 
@@ -124,7 +124,7 @@ async def test_a_retry_that_recovers_is_scored_attempt_by_attempt(
 async def test_a_page_that_never_validates_escalates_at_the_cap(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Proves: the escalation path. The splitter drops Lent on every attempt: three attempts (the default cap), escalated, no
+    # Proves: the escalation path. The splitter drops Lent on every attempt: three attempts (`THREE_ATTEMPTS`, the cap this helper passes), escalated, no
     # validated extraction (nothing reaches reconcile), and every labelled show Lent... is counted missed in the validated column.
     run = await run_scripted(tmp_path, monkeypatch, TWO_EVENTS, LABEL, {SPLITTER: [DROPS_LENT]})
     assert (run.attempt_count, run.escalated, run.retried, run.recovered) == (3, True, True, False)
@@ -325,7 +325,7 @@ async def test_forced_retries_run_every_tier_on_a_model_route_page(
     # Proves (C7-D3): with the forced threshold every model-judged attempt fails for low confidence, so a clean model-route page
     # makes the cap's three attempts, one per tier, every one scored, and escalates. The threshold the record carries is the
     # forced one, which is how the report knows to say "forced retries".
-    policy = run_labeled_pages.build_policy(None, None, force=True)
+    policy = run_labeled_pages.build_policy(None, 3, force=True)
     run = await run_scripted(tmp_path, monkeypatch, MODEL_PAGE, MODEL_LABEL, MODEL_SCRIPT, policy=policy)
     assert [a.tier for a in run.attempts] == ["initial", "narrowed", "larger_model"]
     assert all(a.reasons == ["low_confidence"] and a.score is not None for a in run.attempts)
@@ -336,7 +336,7 @@ async def test_forced_retries_leave_a_structured_page_at_one_attempt(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Proves (C7-D3's limit): the structured route has no confidence, so there is nothing to force; it passes on attempt 1.
-    policy = run_labeled_pages.build_policy(None, None, force=True)
+    policy = run_labeled_pages.build_policy(None, 3, force=True)
     run = await run_scripted(tmp_path, monkeypatch, TWO_EVENTS, LABEL, {SPLITTER: [FULL]}, policy=policy)
     assert (run.attempt_count, run.attempts[0].verdict) == (1, "passed")
 
@@ -357,7 +357,7 @@ async def test_an_escalation_model_runs_every_call_of_attempt_three(
         venue=VENUE,
         committed_rows=no_rows,
         ctx=WorkerContext(audit=audit, stager=InMemoryStager(), reader=FakeReader(), writer=FakeWriter(audit)),
-        policy=run_labeled_pages.build_policy(None, None, force=True, escalation_model="bigger-model"),
+        policy=run_labeled_pages.build_policy(None, 3, force=True, escalation_model="bigger-model"),
     )
     assert [a.larger_model_used for a in run.attempts] == [False, False, True]
     calls = fakes.completions(client)

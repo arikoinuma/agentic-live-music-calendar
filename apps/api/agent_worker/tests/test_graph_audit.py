@@ -8,8 +8,8 @@ staging document, retries add rows instead of replacing them, and a store that f
 
 How to read it: each test scripts the model, runs the graph with `run_id=7` in the state, and asserts on
 the recorded `(step, attempt)` sequence, the entries' fields, and the staged documents. The expected
-sequences come from the graph's shape (`graph.py` diagram) and the 3-attempt cap (arch-initial.md §7), not
-from the code under test.
+sequences come from the graph's shape (`graph.py` diagram) and the 3-attempt cap (arch-initial.md §7; passed in
+explicitly, since the shipped default became 2 after C7), not from the code under test.
 
 Until Ari fills A4-K3 (the staging write in `trace.audited`) every test here that reaches `extract` is red,
 by design; the two fetch-failure tests, which never reach extract, are green.
@@ -67,6 +67,7 @@ async def run_traced(
         metro_timezone="America/Chicago",
         fetched_on=fakes.FETCHED,
         run_id=RUN_ID,
+        policy=fakes.THREE_ATTEMPTS,
     )
     result = await compiled_graph.ainvoke(
         state, context=WorkerContext(audit=audit, stager=stager, reader=FakeReader(), writer=FakeWriter())

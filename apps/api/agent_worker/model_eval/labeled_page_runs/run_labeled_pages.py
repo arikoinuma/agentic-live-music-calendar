@@ -372,7 +372,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--force-retries",
         action="store_true",
-        help=f"fail every model-judged attempt for low confidence (threshold {FORCED_THRESHOLD}), so every tier runs (C7-D3)",
+        help=f"fail every model-judged attempt for low confidence (threshold {FORCED_THRESHOLD}), so every tier the cap allows runs (C7-D3; pass --max-attempts 3 for all three)",
     )
     parser.add_argument(
         "--escalation-model",

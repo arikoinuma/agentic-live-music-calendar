@@ -6,7 +6,8 @@ gathers the evidence and decides nothing; this module decides.
 
 How to read it, top to bottom:
 1. `RetryPolicy` — the named, injectable settings (the confidence threshold and the attempt cap
-   used to be literals inside the routing function). A8 varies them by passing a different policy.
+   used to be literals inside the routing function). C7 varied them by passing a different policy, and
+   `RetryPolicy`'s comments carry what it found.
 2. `AttemptRecord` / `AttemptPlan` — what one attempt did, and what the next one will change.
 3. `combine` (A3-K4) — evidence + confidence -> one verdict, and `decide_route` — verdict
    + attempt count -> the graph's next step.
@@ -64,14 +65,22 @@ def stored_route(name: str | None) -> str | None:
 class RetryPolicy:
     """Frozen, like `ExtractionConfig`, so a run's policy can't change halfway through it."""
 
-    # Low confidence fails a record only when nothing deterministic has (A3-D9). 0.8 was the literal in
-    # the old router; A8 checks whether the number is right.
+    # Low confidence fails a record only when nothing deterministic has (A3-D9). 0.8 was the literal in the old
+    # router, and C7 kept it (C7-R2, decided November 6, 2026): on the shipped model it is inert, since no default run
+    # of 100 page-runs ever retried, no threshold the sweeps tried did better, and 0.8 sends no correct page to a retry.
     confidence_threshold: float = 0.8
-    # Total extract attempts, the first included ("Retries are capped (3 attempts)", arch §7).
-    max_attempts: int = 3
+    # Total extract attempts, the first included. Arch §7 said 3; C7 measured the retry on the shipped model and Ari
+    # set 2 (C7-R4, decided November 6, 2026): with no escalation model, attempt 3 only adds the final-attempt sentence
+    # and a resample, and in the forced runs it hurt a page (Turf Club) and helped none. A cap of 2 still lets a
+    # failure retry once with a hint, then escalate to human review. At the default threshold the cap matters only
+    # when a check error fires, which the shipped model has not produced. Tier 3 (`plan_for_attempt`) is therefore
+    # reached only under a cap of 3 or more, which a measurement run passes with `--max-attempts 3`
+    # (`docs/dev/evaluating-model-performance.md`, step 6).
+    max_attempts: int = 2
     # The larger model tier 3 uses (arch §7: "larger model second"). Unset on a laptop that can't run one (A3-D5).
     # Unset = tier 3 runs the same model with the full hint and the record says so. It must be a model the
-    # configured endpoint serves (C6-D2): hosted, one of the provider's.
+    # configured endpoint serves (C6-D2): hosted, one of the provider's. C7 adopted none (C7-R3): the 31B did not pass
+    # the rule. Setting one has no effect under the default cap of 2, since tier 3 is never planned.
     escalation_model: str | None = None
 
     def __post_init__(self) -> None:

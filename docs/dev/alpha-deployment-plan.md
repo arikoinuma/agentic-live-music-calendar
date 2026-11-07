@@ -318,11 +318,13 @@ Plan and review: `docs/dev/implementations/c5-pipeline-eval-harness.md` (plan ap
 
 *Migrated from `alpha-build-plan.md` A8, October 21, 2026.* These two questions have answers that depend on the model, so they wait for C6.
 
-- [ ] **[fill-in]** Use the harness to answer the questions A3 left open: is 0.8 the right threshold, is 3 the right retry cap, and does the escalating-prompt retry actually recover failures or just cost tokens. The larger-model tier can only be tested here: on the laptop it reruns the same model (A3-D5, `a3-validation-and-retry.md`), and the attempt record says so.
-- [ ] **[fill-in]** Check whether the model's self-reported confidence correlates with actual correctness against the labels. Phase 5 judged calibration by eye on a handful of pages; with labels you can check it properly. If it doesn't correlate, routing on it is a design problem worth knowing about. Four errors can't support a correlation, so the label set from C5 and C6 has to be broad enough to contain errors.
-- [ ] Update the retry policy's defaults if the data says so, and record the numbers.
+- [x] **[fill-in]** Use the harness to answer the questions A3 left open: is 0.8 the right threshold, is 3 the right retry cap, and does the escalating-prompt retry actually recover failures or just cost tokens. The larger-model tier can only be tested here: on the laptop it reruns the same model (A3-D5, `a3-validation-and-retry.md`), and the attempt record says so.
+- [x] **[fill-in]** Check whether the model's self-reported confidence correlates with actual correctness against the labels. Phase 5 judged calibration by eye on a handful of pages; with labels you can check it properly. If it doesn't correlate, routing on it is a design problem worth knowing about. Four errors can't support a correlation, so the label set from C5 and C6 has to be broad enough to contain errors.
+- [x] Update the retry policy's defaults if the data says so, and record the numbers.
 
 **Done when:** the threshold, the cap and the tier-3 question are each answered with data, and the policy is changed or confirmed.
+
+**Status (November 6, 2026):** measured and decided; plan and numbers in `docs/dev/implementations/c7-pipeline-eval.md` (Implementation log Rounds 4 and 5). **Threshold kept at 0.8** (inert on the shipped model), **cap lowered from 3 to 2**, **no escalation model** (`google/gemma-4-31B-it` did not pass the pre-registered rule). Confidence did not separate right from wrong rows (no table read "yes"), so it is not used to route. The code review of the cap change and Ari's sign-off are what remain.
 
 ### C8. The agent worker on Railway (was H2, with H3's Mongo half)
 

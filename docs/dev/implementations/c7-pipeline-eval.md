@@ -1,6 +1,6 @@
 # C7 — pipeline evaluation on the shipped model
 
-**Status:** Awaiting decision on the defaults (Steps 1 to 6 built and code-reviewed, the gaps filled; Steps 7 to 9 run and read on November 6, 2026, Implementation log Round 4; Ari decides the threshold, the cap and the escalation model, then Step 10 applies and records; C7-CR1-1's amendment to R3 was confirmed by Ari November 6, 2026)
+**Status:** Code review (Steps 1 to 10 done: the defaults decided by Ari November 6, 2026, threshold 0.8 kept, cap 3 → 2, no escalation model, applied in Implementation log Round 5; the reviewer's round on the cap change is next, then Ari's sign-off)
 **Date:** November 6, 2026
 **Author model:** Claude Opus 5.5 (plan, November 6, 2026; written in a local session, with the saved C5 and C6 results files on disk)
 **Reviewer model:** Claude Sonnet 5.5 (plan review round 1, November 6, 2026); code review round 1: Claude Sonnet 5.5 (November 6, 2026)
@@ -1026,6 +1026,63 @@ not exercised, C7-F1):
   the rule says otherwise and I applied it.
 - **R4's two answers.** The recommendation of 2 rests on the unescalated group, one page (Turf Club) and a resample.
 - **Icehouse is a burned page** and dominates the error counts in every table.
+
+### Round 5 — Claude Sonnet 5.5, November 6, 2026 (Step 10: Ari's decision on the defaults, and applying it)
+
+**Ari's decision (November 6, 2026, in the session, after reading Round 4):** "I accept your recommendation in terms of the default. Keep
+threshold at 0.8, cap the retry to 2, and no escalation model." So: **confidence threshold 0.8 (kept; inert on the shipped model, C7-R2), attempt
+cap 3 → 2 (C7-R4), no escalation model (C7-R3)**. His other remarks (C7-R1's sample, a second escalation candidate, a fourth attempt) were not
+taken up: he said the next step for accuracy is to enhance extraction by navigating to each show's detail page, which "we already made notes
+of". That is a separate piece of work (see the hand-off at the end), not part of C7. The DeepInfra spend after C7 was not given to me; it stays
+open as Round 4 lists it.
+
+**Scope.** Diff base `3355717` (Round 4's commit); the commit that carries this round is the one after it. Files touched:
+
+- Code: `apps/api/agent_worker/policy.py` (`RetryPolicy.max_attempts` 3 → 2, the comments on all three fields and the module docstring say what C7
+  found); `apps/api/agent_worker/model_eval/labeled_page_runs/run_labeled_pages.py` (one `--force-retries` help string).
+- Tests: `tests/test_policy.py` (the default pinned, written first and watched failing), `tests/fakes.py` (a shared `THREE_ATTEMPTS`
+  policy), `tests/test_graph.py`, `tests/test_graph_audit.py`, `tests/test_audit_queries.py`, `tests/model_eval/test_run_one_page.py` (nine tests
+  that exercise the three-tier loop now ask for a cap of 3 explicitly).
+- Docs (the Step 10 list): `docs/arch/arch-initial.md` §7 (a dated note with the numbers, and the cap text), `docs/dev/alpha-deployment-plan.md` C7
+  (checkboxes ticked, a status line), `docs/dev/alpha-build-plan.md` A8 (its status line), `docs/dev/implementations/c5-pipeline-eval-harness.md`
+  (C5-F4 and C5-F6 marked not built, C5-F14 marked built, each with where it went, C7-D8), `docs/dev/environments.md` (`ESCALATION_MODEL_NAME`:
+  leave it unset), `docs/dev/evaluating-model-performance.md` (cap 2; step 6 now passes `MAX_ATTEMPTS=3`), `Makefile` (a comment).
+
+**Departures and consequences, each named.**
+
+1. **A cap of 2 makes tier 3 unreachable by default.** `plan_for_attempt` plans the larger-model tier only for `attempt >= 3`, so under the new
+   default no escalation model is used even if `ESCALATION_MODEL_NAME` is set; `environments.md` and `policy.py` say so. Not a bug: it is what
+   "no escalation model" and "cap 2" together mean, and a measurement run restores tier 3 with `--max-attempts 3`.
+2. **The "last attempt" sentences are no longer sent in production.** `retry_hint(history, final=attempt >= 3)` adds "This is the last attempt…"
+   to the page and splitter hints on attempt 3 and later, not on "the last attempt the cap allows". Under a cap of 2, attempt 2 is the last one
+   but carries only the findings and the low-confidence advice. **I did not change this**: it would be a design change Ari did not decide, and
+   C7 found no evidence the sentence helps (tier 2 did not help; tier 3 without a larger model hurt Turf Club). If a later milestone wants the
+   sentence on whichever attempt is last, `final` should read `attempt >= policy.max_attempts`, with a test. For the code reviewer.
+3. **Nine existing tests pinned the old default** and failed on the change (the three-tier loop through `compiled_graph`, the escalation row, the
+   forced-retry tests). They were changed to ask for the cap they exercise (`fakes.THREE_ATTEMPTS`, and `build_policy(None, 3, …)` in the forced-retry
+   tests) rather than rewritten, because they pin the machinery arch-initial.md §7 specifies, which a measurement run still uses. Their
+   expected values did not change. One new assertion pins the default itself (`test_default_policy_matches_the_documented_numbers`), and its
+   expected 2 comes from Ari's decision above, not from the code.
+4. **Step 8's commands as written would now run two tiers, not three.** `build_policy` keeps the cap from `DEFAULT_POLICY`, so a forced run
+   without `MAX_ATTEMPTS=3` stops after attempt 2. Round 4's runs happened before this change and are unaffected. `evaluating-model-performance.md`
+   step 6, the Makefile comment and the `--force-retries` help string now say to pass `MAX_ATTEMPTS=3`.
+5. **Not done.** No fourth-attempt run and no second escalation candidate (Round 4, Decisions for Ari, 3). No new labels (Round 4, 2). The
+   DeepInfra dashboard spend is unread. The `policy.py` comments cite the pre-registered rules by their scoped IDs.
+
+**Verification.**
+
+- Test first: `test_default_policy_matches_the_documented_numbers` fails on `max_attempts == 3` before the change; green after.
+- The full Python suite on the default change alone: 9 failed, 1515 passed; each of the nine named above; after making them explicit, 1524 passed.
+- `make check`: exit 0 (ruff, mypy 158 files, pytest 1524, vitest 525, `contract-check`, `designation-check`, Playwright 107). `make designation-check
+  BASE=8c90a38` is part of it.
+- The doc test over `environments.md` (`app/tests/test_environments_doc.py`) passes with the edited note.
+
+**Where to look hardest.**
+
+- Departure 2: whether the last-attempt sentence should follow the cap. It is untested at cap 2 and I did not decide it.
+- That the nine explicit-cap tests still prove what their comments say (they now pass `THREE_ATTEMPTS`; none of their expectations moved).
+- `policy.py`'s comment on `max_attempts` states what C7 measured: check its numbers against Round 4 (100 default page-runs, no retry; attempt 3 hurt Turf Club).
+- That nothing else reads `DEFAULT_POLICY.max_attempts` and assumes 3 (a `grep` for `max_attempts` found only `decide_route`, the harness's `build_policy`, the report header and tests).
 
 ## Code review
 

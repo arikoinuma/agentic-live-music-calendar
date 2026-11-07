@@ -97,7 +97,7 @@ worker: ## Run the agent worker once: all venues, or VENUE=<id> (needs make db-u
 # C5 (docs/dev/implementations/c5-pipeline-eval-harness.md): scores a full graph run against the hand-written labels. Calls the
 # model, so it is local only and NOT part of `make check` or CI. Optional: SET (gated|informational|held_out|all), ONLY, RUNS,
 # SCENARIO (repeat|sequence|overlap|perturbed), THRESHOLD, MAX_ATTEMPTS, FORCE_RETRIES=1 (C7: fail every model-judged attempt, so
-# every tier runs; not with THRESHOLD), ESCALATION_MODEL=<id>|none (C7: override or clear ESCALATION_MODEL_NAME), KEEP_DB=1. The
+# every tier the cap allows runs, so add MAX_ATTEMPTS=3 for all three; not with THRESHOLD), ESCALATION_MODEL=<id>|none (C7: override or clear ESCALATION_MODEL_NAME), KEEP_DB=1. The
 # scratch database `calendar_eval` is made on the server DATABASE_URL names (or EVAL_DATABASE_URL, if set); it must be local.
 eval-graph: ## Score the whole pipeline on labelled pages (local only: needs make db-up, Ollama, the fixtures)
 	@test -n "$(LABEL)" || { echo "usage: make eval-graph LABEL=<name> [SET=...] [ONLY=...] [RUNS=n] [SCENARIO=...] [THRESHOLD=x] [MAX_ATTEMPTS=n] [FORCE_RETRIES=1] [ESCALATION_MODEL=<id>|none] [KEEP_DB=1]"; exit 2; }

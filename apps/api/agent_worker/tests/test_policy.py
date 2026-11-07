@@ -7,7 +7,8 @@ pulled forward because tests come first.
 
 How to read it: verdict precedence (A3-K4) -> the route table (A3-K4) -> the route fallback rule ->
 the retry hints -> the attempt plans (A3-K5). Every expected value is a literal whose source is the
-plan section named in the test: the precedence is plan §1, the cap of 3 is arch-initial.md §7, the tier
+plan section named in the test: the precedence is plan §1, the cap of 3 these tests pass in as `POLICY` is
+arch-initial.md §7 (the shipped default became 2 after C7, and is pinned in its own test), the tier
 order is §3. Nothing is read from the code under test.
 """
 
@@ -174,10 +175,12 @@ def test_an_empty_escalation_model_name_means_none_configured() -> None:
 
 
 def test_default_policy_matches_the_documented_numbers() -> None:
-    # Proves: 0.8 (the literal the old router used) and 3 attempts (arch-initial.md §7: "Retries are
-    # capped (3 attempts)"), and that the escalation model is read from settings, so setting the
-    # env var changes tier 3.
-    assert RetryPolicy().confidence_threshold == 0.8 and RetryPolicy().max_attempts == 3
+    # Proves: the defaults Ari decided after C7 measured them on the shipped model (c7-pipeline-eval.md, Implementation
+    # log Round 4, decision of November 6, 2026): a threshold of 0.8, kept (C7-R2), and 2 attempts, down from the 3 of
+    # arch-initial.md §7 (C7-R4: attempt 3 hurt a page and helped none without an escalation model). The expected
+    # numbers are that decision, not read from the code. The escalation model is read from settings, so setting the env
+    # var would change tier 3, but tier 3 is only reached under a cap of 3 or more.
+    assert RetryPolicy().confidence_threshold == 0.8 and RetryPolicy().max_attempts == 2
     assert DEFAULT_POLICY.escalation_model == settings.escalation_model_name
 
 

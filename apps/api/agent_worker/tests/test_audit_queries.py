@@ -114,7 +114,10 @@ async def two_runs(
     passed = await run_venue(venues[0], ctx, calendar_url=str(page), fetched_on=fakes.FETCHED)
 
     monkeypatch.setattr(nodes, "instructor_client", scripted_client({PAGE: [ValueError("still down")]}))
-    escalated = await run_venue(venues[1], ctx, calendar_url=str(page), fetched_on=fakes.FETCHED)
+    # Three attempts, passed in: the shipped default is 2 since C7, and this fixture's reason text names the third.
+    escalated = await run_venue(
+        venues[1], ctx, calendar_url=str(page), fetched_on=fakes.FETCHED, policy=fakes.THREE_ATTEMPTS
+    )
     return passed, escalated, venues[1]
 
 

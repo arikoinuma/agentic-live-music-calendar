@@ -12,8 +12,8 @@ state it ends in: how many attempts, which route each used, the verdict, and whi
 The finishing node is read from side effects the nodes leave: `reconcile_plan` is set only by
 reconcile_node, `escalation_reason` only by escalate_node.
 
-Expected values come from the plan, not from the code under test: the cap of 3 attempts is
-arch-initial.md §7; which route each attempt uses is plan §2-§3; the dates are literals.
+Expected values come from the plan, not from the code under test: the cap of 3 attempts (passed in
+explicitly: the shipped default became 2 after C7) is arch-initial.md §7; which route each attempt uses is plan §2-§3; the dates are literals.
 """
 
 from pathlib import Path
@@ -77,7 +77,7 @@ async def run_graph(
         metro_timezone="America/Chicago",
         fetched_on=fakes.FETCHED,
         run_id=1,
-        **({"policy": policy} if policy else {}),
+        policy=policy or fakes.THREE_ATTEMPTS,
     )
     context = WorkerContext(audit=RecordingAudit(), stager=RecordingStager(), reader=FakeReader(), writer=FakeWriter())
     return VenueGraphState(**await compiled_graph.ainvoke(state, context=context)), client
@@ -266,7 +266,7 @@ async def test_a_retry_sends_a_different_request_and_the_last_one_uses_the_large
     # message is not attempt 1's and names the problem; attempt 3 runs the configured larger model.
     # THIS is the test that fails if someone reverts to identical re-calls. Every attempt here fails the
     # same check, so the loop runs to its cap.
-    policy = RetryPolicy(escalation_model="gemma-big")
+    policy = RetryPolicy(max_attempts=3, escalation_model="gemma-big")
     state, client = await run_graph(
         tmp_path,
         monkeypatch,
