@@ -66,12 +66,13 @@ class RetryPolicy:
     """Frozen, like `ExtractionConfig`, so a run's policy can't change halfway through it."""
 
     # Low confidence fails a record only when nothing deterministic has (A3-D9). 0.8 was the literal in the old
-    # router, and C7 kept it (C7-R2, decided November 6, 2026): on the shipped model it is inert, since no default run
-    # of 100 page-runs ever retried, no threshold the sweeps tried did better, and 0.8 sends no correct page to a retry.
+    # router, and C7 kept it (C7-R2, decided November 6, 2026): on the shipped model it is inert, since none of 100
+    # default page-runs retried, no threshold the sweeps tried did better, and 0.8 sends no correct page to a retry.
     confidence_threshold: float = 0.8
     # Total extract attempts, the first included. Arch §7 said 3; C7 measured the retry on the shipped model and Ari
-    # set 2 (C7-R4, decided November 6, 2026): with no escalation model, attempt 3 only adds the final-attempt sentence
-    # and a resample, and in the forced runs it hurt a page (Turf Club) and helped none. A cap of 2 still lets a
+    # set 2 (C7-R4, decided November 6, 2026): with no escalation model, attempt 3 added only the final-attempt sentence
+    # and a resample in the forced runs (where both earlier attempts failed for the same reason; in production it also
+    # carries the findings attempt 2 failed on), and there it hurt a page (Turf Club) and helped none. A cap of 2 still lets a
     # failure retry once with a hint, then escalate to human review. At the default threshold the cap matters only
     # when a check error fires, which the shipped model has not produced. Tier 3 (`plan_for_attempt`) is therefore
     # reached only under a cap of 3 or more, which a measurement run passes with `--max-attempts 3`
@@ -199,7 +200,7 @@ def decide_route(verdict: Verdict | None, attempt_count: int, policy: RetryPolic
     # The router reads the verdict and the attempt count only, and returns `NodeOutcomes` members
     # only (v0.1-G6). The old router returned `NodeNames.ESCALATE` against a path map keyed on
     # `NodeOutcomes.ESCALATE`; it worked only because two different StrEnums share the string
-    # "escalate". The cap comes from the policy, not a literal 3, so A8 can vary it.
+    # "escalate". The cap comes from the policy, not a literal 3, so a measurement run (C7) can vary it.
     if verdict is not Verdict.FAILED:
         return NodeOutcomes.PASS
     if attempt_count < policy.max_attempts:
@@ -229,7 +230,8 @@ _REASON_ADVICE: dict[FailureReason, str] = {
 }
 
 
-# What the last attempt adds beyond the findings (A3, found by test_graph's different-request test):
+# What attempt 3 and later add beyond the findings (the last attempt under a cap of 3; under the shipped cap of 2 the last
+# attempt is attempt 2 and does NOT carry them, C7-CR2-2, a question put to Ari) (A3, found by test_graph's different-request test):
 # when attempt 2 failed the same check as attempt 1, the union of findings is the same text, so
 # without this attempt 3 on a machine with no larger model would be byte-identical to attempt 2 — v0.1-G5
 # again. It also states Ari's tiered standard to the model: a missing field is tolerated, a wrong one
@@ -243,7 +245,7 @@ _FINAL_SPLITTER_ADVICE = "This is the last attempt. Copy each act's name exactly
 def retry_hint(history: list[AttemptRecord], final: bool = False) -> tuple[str, str]:
     """The text to add to the next attempt's requests: (for the page model, for the act splitter).
 
-    `final` marks the last attempt, which always adds its own sentence to both parts (see above).
+    `final` marks attempt 3 and later, which add their own sentence to both parts (see above). That is the last attempt only under a cap of 3.
 
     Built from the error findings of every earlier attempt, de-duplicated, so an earlier attempt's
     reason isn't lost when a later one failed for another. Each finding goes to the call that
@@ -308,7 +310,7 @@ def plan_for_attempt(
     # A retry must change the request, or it is a loop: at temperature 0 an identical call returns an
     # identical answer. arch-initial.md §7 gives the order: narrow the task or name the ambiguity in
     # the prompt first (tier 2), a larger model second (tier 3). The hints come from what failed
-    # (`retry_hint(history)`). The last attempt adds a sentence of its own, so it differs from
+    # (`retry_hint(history)`). Attempt 3 and later add a sentence of their own, so attempt 3 differs from
     # attempt 2 even when the same check failed twice and there is no larger model to swap in. The
     # route fallback is decided from the WHOLE history, so it is sticky: if attempt 2 failed for
     # another reason, attempt 3 must not go back to the structured route that already failed. Without a

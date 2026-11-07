@@ -24,7 +24,7 @@ import pytest
 from agent_worker import extraction, nodes
 from agent_worker.context import WorkerContext
 from agent_worker.graph import compiled_graph
-from agent_worker.policy import RetryPolicy
+from agent_worker.policy import DEFAULT_POLICY, RetryPolicy
 from agent_worker.state import VenueGraphState
 from agent_worker.tests import fakes
 from agent_worker.tests.fakes import (
@@ -255,6 +255,30 @@ async def test_low_confidence_on_the_model_route_retries(tmp_path: Path, monkeyp
 # ---------------------------------------------------------------------------
 # A retry changes the request (A3-K5)
 # ---------------------------------------------------------------------------
+
+
+async def test_the_shipped_default_makes_two_attempts_then_escalates(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Proves (C7-R4, decided by Ari November 6, 2026; C7-CR2-4, C7-CR2-2): the one configuration production runs. Under
+    # `DEFAULT_POLICY` a page that fails the same check every time makes TWO attempts (initial, then narrowed) and escalates;
+    # no third attempt, so no larger-model tier. And, as shipped, attempt 2 does not carry the "This is the last attempt"
+    # sentence: `retry_hint` adds it from attempt 3 on, not on whichever attempt the cap makes last. That second assertion pins
+    # what ships TODAY; whether the last attempt the cap allows should carry it is Ari's open question (c7-pipeline-eval.md,
+    # code review round 2, finding 2), and this is the line to change with his answer. The expectations are Ari's decision, not
+    # read from the code. Every other graph test passes a cap of 3 explicitly (`fakes.THREE_ATTEMPTS`).
+    state, client = await run_graph(
+        tmp_path,
+        monkeypatch,
+        GOOD_PAGE,
+        {PAGE: [listings_answer(BAD_LISTING)], SPLITTER: [NONA]},
+        policy=DEFAULT_POLICY,
+    )
+    calls = completions(client).calls_for(PAGE)
+    assert len(calls) == 2 and reached_escalate(state)
+    assert [record.tier for record in state.attempt_history] == ["initial", "narrowed"]
+    assert "This is the last attempt" not in message_text(calls[1])
 
 
 async def test_a_retry_sends_a_different_request_and_the_last_one_uses_the_larger_model(

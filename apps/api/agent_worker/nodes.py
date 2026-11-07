@@ -397,8 +397,8 @@ def escalation_reason(state: VenueGraphState) -> str:
 
 
 def escalate_node(state: VenueGraphState) -> VenueGraphState:
-    """Reached when a fetch fails or validate_node's retry cap is exhausted (3 attempts, per the
-    architecture doc) — flags the run for human review rather than looping indefinitely.
+    """Reached when a fetch fails or validate_node's retry cap is exhausted (the policy's cap: 2
+    since C7-R4, 3 before; `RetryPolicy.max_attempts`) — flags the run for human review rather than looping indefinitely.
 
     A3 composes `state.escalation_reason`; A4's `trace.audited` writes the audit row marking the run for
     human review (`outcome='escalated'`) from it. No retry, no further LLM calls here either way — this node's

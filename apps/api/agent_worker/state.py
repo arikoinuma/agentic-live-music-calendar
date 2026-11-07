@@ -83,10 +83,10 @@ class VenueGraphState(BaseModel):
 
     # attempt_count — int, defaulting to 0. Incremented each time
     # validate_node routes back to extract_node on a low-confidence or
-    # inconsistent result. Retries are capped at 3 per the architecture
-    # doc ("Retries are capped (3 attempts). Exhausting the cap escalates
-    # to human review") — this is the field that cap gets checked
-    # against.
+    # inconsistent result. Retries are capped by the policy's
+    # `max_attempts` (3 at A3, 2 since C7-R4; arch-initial.md §7: "Exhausting
+    # the cap escalates to human review") — this is the field that cap gets
+    # checked against.
     attempt_count: int = 0
 
     # ---------------------------------------------------------------------
@@ -96,7 +96,7 @@ class VenueGraphState(BaseModel):
 
     # policy — the retry settings for this run (confidence threshold, attempt cap, escalation
     # model). On the state rather than in a graph factory (A3-D11): the compiled graph stays
-    # a singleton, and A8 or a test varies a run by passing a different policy. Read by the
+    # a singleton, and C7 (or a test) varies a run by passing a different policy. Read by the
     # routers and by extract_node / validate_node.
     policy: RetryPolicy = DEFAULT_POLICY
 
