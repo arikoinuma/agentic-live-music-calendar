@@ -288,3 +288,44 @@ def test_the_cost_by_route_reads_a_stored_old_route_name_as_structured() -> None
     new = record(source="structured", seconds=20.0)
     cost = aggregate_scores.aggregate([old, new], {})["cost"]["mean_seconds_by_route"]
     assert cost == {"structured": 15.0}
+
+
+# ---------------------------------------------------------------------------
+# C7 (docs/dev/implementations/c7-pipeline-eval.md, Step 2): `stopped` (C7-D8, C5-F14) and the confidence self-check (C7-PR1-4)
+# ---------------------------------------------------------------------------
+
+
+def test_an_error_on_an_attempt_failed_for_low_confidence_is_silent_and_stopped() -> None:
+    # Proves (C7-D8): a forced run fails every model-judged attempt for low confidence, which is no finding, so the error below is
+    # "silent" (no finding covers it) yet the attempt did stop it: `stopped` counts errors on an attempt that failed for any reason.
+    # The same error on a passed attempt is silent and not stopped. Worked from the two records.
+    def wrong_attempt(verdict: str) -> dict[str, Any]:
+        a = attempt(1, "initial")
+        a["score"]["items"] = [{"kind": "acts_wrong", "date": "2026-10-20", "index": 0, "field": None}]
+        a["verdict"], a["reasons"] = verdict, (["low_confidence"] if verdict == "failed" else [])
+        return a
+
+    failed = aggregate_scores.aggregate([record(attempts=[wrong_attempt("failed")])], {})["validation"]
+    passed = aggregate_scores.aggregate([record(attempts=[wrong_attempt("passed")])], {})["validation"]
+    assert (failed["silent"], failed["stopped"]) == (1, 1)
+    assert (passed["silent"], passed["stopped"]) == (1, 0)
+
+
+def test_the_confidence_self_check_counts_only_where_a_confidence_was_recorded() -> None:
+    # Proves (C7-PR1-4): the recomputed confidence is compared with `AttemptRecord.confidence` only where the record holds one. A
+    # rescored file has none (the staging document does not carry it), and counting those would report a drift that is not there.
+    agree = attempt(1, "initial", confidence=0.9, recorded_confidence=0.9)
+    drift = attempt(1, "initial", confidence=0.8, recorded_confidence=0.9)
+    rescored = attempt(1, "initial", confidence=0.9)
+    validation = aggregate_scores.aggregate([record(attempts=[a]) for a in (agree, drift, rescored)], {})["validation"]
+    assert validation["confidence_disagree"] == 1
+
+
+def test_a_confidence_recorded_as_none_is_still_compared() -> None:
+    # Proves (C7-CR1-7): a fresh run's attempt always carries `recorded_confidence` (None on the structured route, where production
+    # records no confidence), so None there is a recorded value and a recompute that gives a number is a drift. Only an attempt
+    # with no `recorded_confidence` key at all (a file recorded before C7, rescored) is skipped.
+    drift = attempt(1, "initial", confidence=0.9, recorded_confidence=None)
+    agree = attempt(1, "initial", confidence=None, recorded_confidence=None)
+    validation = aggregate_scores.aggregate([record(attempts=[a]) for a in (drift, agree)], {})["validation"]
+    assert validation["confidence_disagree"] == 1

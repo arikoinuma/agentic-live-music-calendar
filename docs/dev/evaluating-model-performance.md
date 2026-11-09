@@ -17,7 +17,7 @@ How to measure the pipeline with the C5 harness, in an order that gives the same
 
 - **The labels.** Every results file records `labels_sha`. Two runs with different values were scored against different labels, and `eval-compare` prints it so that shows. Change labels deliberately, and say so in the log.
 - **The pages.** Use the same `SET`. `all` is the gated and informational pages and never includes held-out ones.
-- **The policy.** Use the pipeline's defaults (confidence threshold 0.8, cap 3) except in the step that varies it on purpose (step 6).
+- **The policy.** Use the pipeline's defaults (confidence threshold 0.8, cap 2 since C7) except in the step that varies it on purpose (step 6).
 - **One run at a time.** The harness drops and recreates its scratch database `calendar_eval` at the start. A second run started meanwhile wipes the first one's.
 - **The model's identity.** Note the model and its digest (they are in the results file's `provenance` block for a local model). A hosted run needs its provider, model name and version written down by hand until C6 records them.
 
@@ -33,13 +33,16 @@ Run from the repo root. Times are from the first local baseline (November 4, 202
 | 3 | **Sequence scenarios** | `make eval-graph LABEL=<m>-seq SCENARIO=sequence` | ~10 min | Report's Scenarios section: the rows left against what a perfect pipeline would leave. `invented 0` means the soft-delete window held. |
 | 4 | **Perturbed scenario** | `make eval-graph LABEL=<m>-perturbed ONLY=white_squirrel-2026-10-10 SCENARIO=perturbed` | ~3 min | Update 1, remove 1, insert at least 1. A line saying the extraction changed between runs is the model's, not reconcile's. |
 | 5 | **Repeatability** | `make eval-graph LABEL=<m>-repeat ONLY=white_squirrel-2026-10-10 RUNS=3`, and the same for one model-route page (`ONLY=mortimers`) | ~5 to 20 min | The report's Repeatability lines: identical, or DIFFERENT. Differences mean a single run is a weak sample. |
-| 6 | **Retry loop (optional)** | `make eval-graph LABEL=<m>-retry THRESHOLD=0.99` | ~60 min (local) | The report's Retried pages table: do later attempts have fewer errors than the first? |
-| 7 | **Compare** | `make eval-compare LABELS="<old> <new>"` | seconds | The same rows for both: recall, precision, gate, retry rate, validation recall. |
-| 8 | **Record** | `make eval-report LABEL=<m>-baseline OUT=<m>-baseline.md ERRORS=1` for each label that matters, and `make eval-snapshot LABEL=<m>-baseline` | seconds | Paste the report into the milestone's Implementation log, with the model and digest, and commit the snapshot (below). |
+| 6 | **Forced retries (optional)** | `make eval-graph LABEL=<m>-forced SET=all RUNS=5 FORCE_RETRIES=1 MAX_ATTEMPTS=3 ESCALATION_MODEL=none`, then again with `ESCALATION_MODEL=<a larger model's id>` | ~1.5 h (hosted) | `FORCE_RETRIES=1` fails every model-judged attempt for low confidence (threshold 1.01, above any confidence the schema allows), so every model-route page runs every tier the cap allows (`MAX_ATTEMPTS=3` for all three: the shipped cap is 2 since C7, so without it tier 3 never runs and the escalation model is never used) and "What each retry changed" can say what each tier did against the run-to-run noise (C7-D3). `ESCALATION_MODEL=none` clears any `ESCALATION_MODEL_NAME` the environment sets; check the header says which. Structured pages have no confidence and pass attempt 1. The old way, `THRESHOLD=0.99`, fires on almost nothing on the hosted model (C7-F2). |
+| 7 | **Policy questions** | `make eval-policy LABELS="<label> <label>" OUT=<m>-policy.md` | seconds | C7's three tables over the labels read together: confidence against correctness, the threshold sweep, and what each retry changed, each with its pre-registered reading (C7-R1 to C7-R4). Refused when the labels' `labels_sha` differ. Pass the unescalated and escalated forced labels together to compare the escalation model with none. |
+| 8 | **Compare** | `make eval-compare LABELS="<old> <new>"` | seconds | The same rows for both: recall, precision, gate, retry rate, validation recall. |
+| 9 | **Record** | `make eval-report LABEL=<m>-baseline OUT=<m>-baseline.md ERRORS=1` for each label that matters, and `make eval-snapshot LABEL=<m>-baseline` | seconds | Paste the report into the milestone's Implementation log, with the model and digest, and commit the snapshot (below). |
 
 **Snapshots.** The raw results files are gitignored (they hold the venues' page text and every extraction, and a hosted run's request options must never reach git). `make eval-snapshot` writes a slim summary to `docs/dev/eval-baselines/<label>.json` that is safe to commit: scores, aggregate, scenarios, model, policy and the prompt's hashes, without extractions or page text. `eval-report` and `eval-compare` fall back to it when the raw file is gone, so a baseline survives a new laptop. Commit one for a run that matters and name it in the milestone's log. `--rescore` needs the raw file.
 
-`make eval-graph` also takes `SET=gated|informational|held_out|all`, `ONLY=<text>`, `RUNS=<n>`, `THRESHOLD=<x>`, `MAX_ATTEMPTS=<n>` and `KEEP_DB=1`; `make help` lists them. `OUT` is relative to `apps/api`.
+`make eval-graph` also takes `SET=gated|informational|held_out|all`, `ONLY=<text>`, `RUNS=<n>`, `THRESHOLD=<x>`, `MAX_ATTEMPTS=<n>`, `FORCE_RETRIES=1` (not with `THRESHOLD`), `ESCALATION_MODEL=<id>|none` and `KEEP_DB=1`; `make help` lists them. `OUT` is relative to `apps/api`.
+
+**A file from before C7** has no per-attempt confidences, seconds or tokens, so its report says to rescore it instead of printing the policy tables. `--rescore <label>` fills the confidences and the seconds of attempts 2 onward from the stored documents (no model call); tokens cannot be recovered.
 
 **Held-out pages** (`held_out=True` in `labels.py`) are scored once, in C6, after the changes are frozen: `SET=held_out`. They are the only honest test of generalization, so they are not part of any routine run, and nobody should read their results before then.
 
@@ -56,6 +59,10 @@ Run from the repo root. Times are from the first local baseline (November 4, 202
 | **Retried pages** | What did each attempt do? | A later attempt with more errors than the first, or a correct page escalated. |
 | **Scenarios** | What does the database hold after two runs? | `invented` above 0; a removal that should not have happened. |
 | **Gate failures** | Which gated pages break Ari's standard? | The standard allows no wrong acts, no invented shows, and no missed shows on gated pages (A2.1-D1). |
+| **Confidence and correctness** (C7-Q4) | Is a show the model is less sure of more often wrong? | Rows are attempt 1's kept, model-judged shows only; a bucket under 10 rows is shown but not compared; the reading is C7-R1's. The excluded shows' line is where low values usually go: they never reach the record's confidence. |
+| **Threshold sweep** (C7-Q1) | What would each threshold have done to attempt 1? | `missed` = a page that failed the standard and would not have retried; `false alarm` = a correct page sent to a retry (and, at the cap, to escalation, which commits nothing). |
+| **What each retry changed** (C7-Q3, C7-Q2) | Did each tier fix more than a resample would? | A page's mean errors must move by more than its noise band (the SD of attempt 1's errors across runs); a tier helps only on two pages and hurting none (C7-R3). A forced attempt 2 sends the splitter the same request, so this measures a generic hint plus a resample. |
+| **Validation recall: stopped** | How many errors sat on an attempt that failed for any reason? | In a forced run every model-judged attempt fails for low confidence, which is no finding, so `silent` alone would swallow everything (C7-D8). |
 
 ## Pitfalls that have already cost time
 

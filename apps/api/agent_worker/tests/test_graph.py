@@ -12,8 +12,8 @@ state it ends in: how many attempts, which route each used, the verdict, and whi
 The finishing node is read from side effects the nodes leave: `reconcile_plan` is set only by
 reconcile_node, `escalation_reason` only by escalate_node.
 
-Expected values come from the plan, not from the code under test: the cap of 3 attempts is
-arch-initial.md §7; which route each attempt uses is plan §2-§3; the dates are literals.
+Expected values come from the plan, not from the code under test: the cap of 3 attempts (passed in
+explicitly: the shipped default became 2 after C7) is arch-initial.md §7; which route each attempt uses is plan §2-§3; the dates are literals.
 """
 
 from pathlib import Path
@@ -24,7 +24,7 @@ import pytest
 from agent_worker import extraction, nodes
 from agent_worker.context import WorkerContext
 from agent_worker.graph import compiled_graph
-from agent_worker.policy import RetryPolicy
+from agent_worker.policy import DEFAULT_POLICY, RetryPolicy
 from agent_worker.state import VenueGraphState
 from agent_worker.tests import fakes
 from agent_worker.tests.fakes import (
@@ -77,7 +77,7 @@ async def run_graph(
         metro_timezone="America/Chicago",
         fetched_on=fakes.FETCHED,
         run_id=1,
-        **({"policy": policy} if policy else {}),
+        policy=policy or fakes.THREE_ATTEMPTS,
     )
     context = WorkerContext(audit=RecordingAudit(), stager=RecordingStager(), reader=FakeReader(), writer=FakeWriter())
     return VenueGraphState(**await compiled_graph.ainvoke(state, context=context)), client
@@ -257,6 +257,30 @@ async def test_low_confidence_on_the_model_route_retries(tmp_path: Path, monkeyp
 # ---------------------------------------------------------------------------
 
 
+async def test_the_shipped_default_makes_two_attempts_then_escalates(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Proves (C7-R4, decided by Ari November 6, 2026; C7-CR2-4, C7-CR2-2): the one configuration production runs. Under
+    # `DEFAULT_POLICY` a page that fails the same check every time makes TWO attempts (initial, then narrowed) and escalates;
+    # no third attempt, so no larger-model tier. And, as shipped, attempt 2 does not carry the "This is the last attempt"
+    # sentence: `retry_hint` adds it from attempt 3 on, not on whichever attempt the cap makes last. That second assertion pins
+    # what ships TODAY; Ari decided on November 6, 2026 to keep it that way (c7-pipeline-eval.md, code review round 2, finding 2); this is the
+    # line to change if that is ever revisited. The expectations are Ari's decision, not
+    # read from the code. Every other graph test passes a cap of 3 explicitly (`fakes.THREE_ATTEMPTS`).
+    state, client = await run_graph(
+        tmp_path,
+        monkeypatch,
+        GOOD_PAGE,
+        {PAGE: [listings_answer(BAD_LISTING)], SPLITTER: [NONA]},
+        policy=DEFAULT_POLICY,
+    )
+    calls = completions(client).calls_for(PAGE)
+    assert len(calls) == 2 and reached_escalate(state)
+    assert [record.tier for record in state.attempt_history] == ["initial", "narrowed"]
+    assert "This is the last attempt" not in message_text(calls[1])
+
+
 async def test_a_retry_sends_a_different_request_and_the_last_one_uses_the_larger_model(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -266,7 +290,7 @@ async def test_a_retry_sends_a_different_request_and_the_last_one_uses_the_large
     # message is not attempt 1's and names the problem; attempt 3 runs the configured larger model.
     # THIS is the test that fails if someone reverts to identical re-calls. Every attempt here fails the
     # same check, so the loop runs to its cap.
-    policy = RetryPolicy(escalation_model="gemma-big")
+    policy = RetryPolicy(max_attempts=3, escalation_model="gemma-big")
     state, client = await run_graph(
         tmp_path,
         monkeypatch,

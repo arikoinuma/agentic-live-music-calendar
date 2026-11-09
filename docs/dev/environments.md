@@ -67,7 +67,7 @@ is right); "n/a" means the environment does not use it. The first table is every
 | `SPLITTER_MODEL_NAME` | unset | unset | unset | unset | The act splitter's own model, e.g. a larger one (A2.1-E1, C6); unset means `MODEL_NAME`. C6 left it unset in every environment, so the splitter uses `MODEL_NAME` (`arch-initial.md` §7). |
 | `STATUS_MODEL_NAME` | unset | unset | unset | unset | The cancelled/postponed question's own model; unset means `MODEL_NAME`. |
 | `MATCHER_MODEL_NAME` | unset | unset | unset | unset | Reconcile's ambiguous-artist question's own model; unset means `MODEL_NAME`. |
-| `ESCALATION_MODEL_NAME` | unset | unset | unset | unset | Optional larger model for the third retry; replaces the page, splitter and status models (C6-D4). It must exist on the configured endpoint. |
+| `ESCALATION_MODEL_NAME` | unset | unset | unset | unset | Optional larger model for the third retry; replaces the page, splitter and status models (C6-D4). It must exist on the configured endpoint. **Leave it unset (C7, November 6, 2026):** the 31B did not pass the pre-registered rule, and the shipped attempt cap is 2, so a third attempt, the only one that uses it, never runs. |
 | `MONGODB_URI` | Docker Mongo | Atlas user limited to `calendar_dev` | Atlas user limited to `calendar_staging` | Atlas user limited to `calendar` | The API does not need it; the worker refuses to start without it (C8). |
 | `MONGODB_DATABASE` | unset (`calendar`) | `calendar_dev` | `calendar_staging` | `calendar` (the default) | The default is production's name, which is why the check requires the others to set it (C3-PR1-7). |
 | `LOG_FORMAT` | unset (`auto`) | unset | unset | unset | `auto` picks JSON off a terminal. |

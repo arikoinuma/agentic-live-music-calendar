@@ -160,7 +160,8 @@ The folder says what each file is for:
   rows), `run_labeled_pages.py` (the runners, `--rescore` and the command line; `python -m agent_worker.model_eval.labeled_page_runs`).
 - `model_eval/saved_run_reports/` (only reads; needs a saved file): `aggregate_scores.py` (the numbers from the run records),
   `results_file.py` (the file's shape, loading, the committable snapshot), `markdown_report.py` (`make eval-report LABEL=<name>`,
-  `make eval-compare`).
+  `make eval-compare`), `policy_questions.py` (C7's retry-policy tables, `make eval-policy LABELS="…"`; the forced-retry threshold
+  `FORCED_THRESHOLD` lives here so the report can name a forced run).
 
 The sequence of checks is `docs/dev/evaluating-model-performance.md`. Import order inside is `labels` ← `scoring` ←
 `validation_recall` ← `run_one_page` ← `two_run_scenarios` ← `run_labeled_pages`, with `aggregate_scores` (needs `scoring` and

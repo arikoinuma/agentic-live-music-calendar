@@ -270,3 +270,122 @@ def test_only_the_second_run_of_a_sequence_or_overlap_is_left_out_of_the_committ
     }
     tagged = run_labeled_pages.scenario_records([scenario("sequence")])
     assert [(r["run"], r["scenario"]) for r in tagged] == [(0, "sequence"), (1, "sequence")]
+
+
+# ---------------------------------------------------------------------------
+# C7 (docs/dev/implementations/c7-pipeline-eval.md, Test approach §4 and §5): the two flags, the rescore of older files, the pooled report
+# ---------------------------------------------------------------------------
+
+
+def test_force_retries_sets_the_forced_threshold_and_keeps_the_rest_of_the_default() -> None:
+    # Proves (C7-D3, C7-M7): `--force-retries` is the default policy with the threshold at FORCED_THRESHOLD, nothing else changed,
+    # and it is refused beside an explicit threshold (two answers to one question). Neither flag still means "the default".
+    from agent_worker.model_eval.saved_run_reports.policy_questions import (
+        FORCED_THRESHOLD,
+    )
+    from agent_worker.policy import DEFAULT_POLICY
+
+    assert run_labeled_pages.build_policy(None, None, force=True) == dataclasses.replace(
+        DEFAULT_POLICY, confidence_threshold=FORCED_THRESHOLD
+    )
+    assert FORCED_THRESHOLD > 1  # the schema caps confidence at 1, so every model-judged attempt is under it
+    with pytest.raises(ValueError, match="force-retries"):
+        run_labeled_pages.build_policy(0.9, None, force=True)
+    assert run_labeled_pages.build_policy(None, None, force=False, escalation_model=None) is None
+
+
+def test_the_escalation_model_flag_sets_or_clears_the_configured_one(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Proves (C7-PR1-14, C7-M7): with ESCALATION_MODEL_NAME set in the environment (here, a default policy that carries one),
+    # `--escalation-model none` clears it, so an unescalated run can say so; `--escalation-model X` sets X; and the other fields of
+    # the default survive (a fresh RetryPolicy would reset the cap).
+    from agent_worker.policy import DEFAULT_POLICY
+
+    configured = dataclasses.replace(DEFAULT_POLICY, escalation_model="env-model", max_attempts=4)
+    monkeypatch.setattr(run_labeled_pages, "DEFAULT_POLICY", configured)
+    cleared = run_labeled_pages.build_policy(None, None, escalation_model=run_labeled_pages.NO_ESCALATION_MODEL)
+    assert cleared is not None and cleared.escalation_model is None and cleared.max_attempts == 4
+    chosen = run_labeled_pages.build_policy(None, None, escalation_model="X")
+    assert chosen == dataclasses.replace(configured, escalation_model="X")
+
+
+def test_the_c7_flags_parse() -> None:
+    # Proves: `--force-retries`, `--escalation-model` and `--policy-report LABEL...` reach the values `evaluate` and `main` read.
+    args = run_labeled_pages.parse_args(["--label", "x", "--force-retries", "--escalation-model", "none"])
+    assert (args.force_retries, args.escalation_model) == (True, "none")
+    assert run_labeled_pages.parse_args(["--policy-report", "a", "b", "--out", "f.md"]).policy_report == ["a", "b"]
+
+
+def test_force_retries_with_a_threshold_is_refused_before_anything_runs() -> None:
+    # Proves (C7-D3): the command line exits 2 on the contradiction, before it checks the model endpoint or builds a database.
+    assert run_labeled_pages.main(["--label", "x", "--force-retries", "--threshold", "0.9"]) == 2
+
+
+async def test_rescore_fills_the_c7_fields_of_an_older_file_and_leaves_tokens_absent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Proves (C7, Test approach §4 "--rescore"): a file recorded before C7 (`c6-confirm-*`) can be read without a rerun. A fresh,
+    # scripted model-route run is stored with the C7 fields removed; the rescore fills `confidence`, `show_confidences`,
+    # `judged_indices` and `excluded_indices` with exactly the values the fresh run had, derives seconds from `staged_at` (attempt 1
+    # None: the run's start is not on the record), leaves `tokens` and `recorded_confidence` absent (they are not in the staging
+    # document, C7-PR1-4), and the original file stays byte-identical (A2.1-PR1-13).
+    from agent_worker.tests.model_eval.test_run_one_page import (
+        MODEL_LABEL,
+        MODEL_PAGE,
+        MODEL_SCRIPT,
+        run_scripted,
+    )
+
+    monkeypatch.setattr(results_file, "RESULTS_DIR", tmp_path)
+    monkeypatch.setattr(run_labeled_pages.run_eval, "CAPTURED_PAGES_DIR", tmp_path)
+    policy = run_labeled_pages.build_policy(None, None, force=True)
+    fresh = dataclasses.asdict(
+        await run_scripted(tmp_path, monkeypatch, MODEL_PAGE, MODEL_LABEL, MODEL_SCRIPT, policy=policy)
+    )
+    c7_keys = (
+        "confidence",
+        "show_confidences",
+        "judged_indices",
+        "excluded_indices",
+        "recorded_confidence",
+        "seconds",
+        "tokens",
+    )
+    expected = [
+        {k: a[k] for k in ("confidence", "show_confidences", "judged_indices", "excluded_indices")}
+        for a in fresh["attempts"]
+    ]
+    old = json.loads(json.dumps({**fresh, "run": 0}))
+    for a in old["attempts"]:
+        for key in c7_keys:
+            del a[key]
+    source = tmp_path / "graph-old.json"
+    source.write_text(json.dumps({"label": "old", "runs": [old], "aggregate": {}}))
+    before = source.read_bytes()
+    monkeypatch.setitem(labels.PAGE_LABELS, "page.html", MODEL_LABEL)
+    attempts = json.loads(run_labeled_pages.rescore("old").read_text())["runs"][0]["attempts"]
+    assert source.read_bytes() == before
+    assert [{k: a[k] for k in expected[0]} for a in attempts] == expected
+    assert attempts[0]["seconds"] is None and all(a["seconds"] is not None for a in attempts[1:])
+    assert all("tokens" not in a and "recorded_confidence" not in a for a in attempts)
+
+
+def test_the_policy_report_refuses_runs_scored_against_different_labels(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Proves (C7-PR1-9): `make eval-policy` pools only runs scored against the same labels; `labels_sha` hashes the whole label file,
+    # so runs scored before and after a label edit carry different shas and pooling them would mix two answer keys. Exit 2, and
+    # the message names both. With equal shas it writes the pooled report, one header line per label.
+    monkeypatch.setattr(results_file, "RESULTS_DIR", tmp_path)
+    base = {"runs": [record("page.html")], "aggregate": {}, "policy": {"confidence_threshold": 0.8, "max_attempts": 3}}
+    (tmp_path / "graph-a.json").write_text(json.dumps({**base, "label": "a", "labels_sha": "1111111111aa"}))
+    (tmp_path / "graph-b.json").write_text(json.dumps({**base, "label": "b", "labels_sha": "2222222222bb"}))
+    (tmp_path / "graph-c.json").write_text(json.dumps({**base, "label": "c", "labels_sha": "1111111111aa"}))
+    assert run_labeled_pages.main(["--policy-report", "a", "b"]) == 2
+    assert "1111111111" in capsys.readouterr().err
+    out = tmp_path / "report.md"
+    assert run_labeled_pages.main(["--policy-report", "a", "c", "--out", str(out)]) == 0
+    text = out.read_text()
+    assert "- a: labels_sha 1111111111" in text and "- c: labels_sha 1111111111" in text

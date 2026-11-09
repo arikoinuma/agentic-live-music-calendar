@@ -276,6 +276,8 @@ The four items kept their `[fill-in]` marking.
 
 **Status (November 4, 2026):** C5 is built and its local baseline recorded (`docs/dev/implementations/c5-pipeline-eval-harness.md`, Implementation log Round 4); signed off by Ari, November 5, 2026. C7 is unchanged.
 
+**Status (November 6, 2026):** C7 ran (`docs/dev/implementations/c7-pipeline-eval.md`): threshold 0.8 kept, retry cap 3 → 2, no escalation model, confidence not used to route.
+
 ---
 
 ## 6. Track B — Next.js and React

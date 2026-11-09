@@ -16,6 +16,7 @@ model name and the message text, so a test can assert what a retry actually sent
 
 import datetime
 import json
+from dataclasses import replace
 from types import SimpleNamespace
 from typing import Any
 
@@ -25,12 +26,18 @@ from pydantic import BaseModel
 from sqlalchemy.exc import DBAPIError, IntegrityError, InterfaceError
 
 from agent_worker import act_split, artist_match, schemas, status_check
+from agent_worker.policy import DEFAULT_POLICY
 
 # The shapes the pipeline asks the model for, as the keys of a script.
 PAGE = schemas.VenueListingsExtraction  # the title-split model route's page call (the adopted route)
 SPLITTER = act_split.ActSplitAnswer
 STATUS = status_check.StatusAnswer
 ARTIST_MATCH = artist_match.ArtistMatchAnswer  # the ambiguous-artist question (A5)
+
+# The three-attempt policy the retry-loop tests run under. The shipped default is 2 attempts since C7 (C7-R4, decided
+# November 6, 2026), but these tests pin the three-tier machinery (initial, narrowed, larger model) that arch-initial.md
+# §7 specifies and a measurement run still uses with --max-attempts 3, so they ask for the cap they exercise.
+THREE_ATTEMPTS = replace(DEFAULT_POLICY, max_attempts=3)
 
 
 class ScriptedCompletions:

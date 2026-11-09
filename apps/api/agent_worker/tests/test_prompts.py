@@ -330,7 +330,7 @@ def test_both_callers_send_the_real_instruction(monkeypatch: pytest.MonkeyPatch,
 
 def test_retries_are_stated_not_implicit(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     # Proves: both call sites pass `max_retries=1` explicitly. A3-D7 lowered it from instructor's
-    # default of 3: the graph's own 3-attempt cap multiplies it (3 x (4 + 4 + 4) = 36 model calls per
+    # default of 3: the graph's own attempt cap (3 then, 2 since C7-R4) multiplies it (3 x (4 + 4 + 4) = 36 model calls per
     # venue before), and the 45 a21-confirm runs used none. The literal is the decision; it should be
     # visible where it's spent, and a change to it should be a decision, not a drift.
     page = tmp_path / "page.html"

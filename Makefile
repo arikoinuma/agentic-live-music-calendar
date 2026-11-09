@@ -13,7 +13,7 @@ API_DIR := apps/api
 WEB := calendar
 
 .DEFAULT_GOAL := help
-.PHONY: help setup dev api web db db-up db-down db-reset db-shell db-wait worker eval-graph eval-report eval-compare eval-snapshot \
+.PHONY: help setup dev api web db db-up db-down db-reset db-shell db-wait worker eval-graph eval-report eval-compare eval-snapshot eval-policy \
         migrate migration rehearse-migration seed fixtures types contract-check designation-check test coverage format lint typecheck \
         e2e check clean
 
@@ -96,11 +96,12 @@ worker: ## Run the agent worker once: all venues, or VENUE=<id> (needs make db-u
 
 # C5 (docs/dev/implementations/c5-pipeline-eval-harness.md): scores a full graph run against the hand-written labels. Calls the
 # model, so it is local only and NOT part of `make check` or CI. Optional: SET (gated|informational|held_out|all), ONLY, RUNS,
-# SCENARIO (repeat|sequence|overlap|perturbed), THRESHOLD, MAX_ATTEMPTS, KEEP_DB=1. The scratch database `calendar_eval` is made on
-# the server DATABASE_URL names (or EVAL_DATABASE_URL, if set); it must be local.
+# SCENARIO (repeat|sequence|overlap|perturbed), THRESHOLD, MAX_ATTEMPTS, FORCE_RETRIES=1 (C7: fail every model-judged attempt, so
+# every tier the cap allows runs, so add MAX_ATTEMPTS=3 for all three; not with THRESHOLD), ESCALATION_MODEL=<id>|none (C7: override or clear ESCALATION_MODEL_NAME), KEEP_DB=1. The
+# scratch database `calendar_eval` is made on the server DATABASE_URL names (or EVAL_DATABASE_URL, if set); it must be local.
 eval-graph: ## Score the whole pipeline on labelled pages (local only: needs make db-up, Ollama, the fixtures)
-	@test -n "$(LABEL)" || { echo "usage: make eval-graph LABEL=<name> [SET=...] [ONLY=...] [RUNS=n] [SCENARIO=...] [THRESHOLD=x] [MAX_ATTEMPTS=n] [KEEP_DB=1]"; exit 2; }
-	cd $(API_DIR) && uv run python -m agent_worker.model_eval.labeled_page_runs --label $(LABEL) $(if $(SET),--set $(SET)) $(if $(ONLY),--only "$(ONLY)") $(if $(RUNS),--runs $(RUNS)) $(if $(SCENARIO),--scenario $(SCENARIO)) $(if $(THRESHOLD),--threshold $(THRESHOLD)) $(if $(MAX_ATTEMPTS),--max-attempts $(MAX_ATTEMPTS)) $(if $(KEEP_DB),--keep-db)
+	@test -n "$(LABEL)" || { echo "usage: make eval-graph LABEL=<name> [SET=...] [ONLY=...] [RUNS=n] [SCENARIO=...] [THRESHOLD=x] [MAX_ATTEMPTS=n] [FORCE_RETRIES=1] [ESCALATION_MODEL=<id>|none] [KEEP_DB=1]"; exit 2; }
+	cd $(API_DIR) && uv run python -m agent_worker.model_eval.labeled_page_runs --label $(LABEL) $(if $(SET),--set $(SET)) $(if $(ONLY),--only "$(ONLY)") $(if $(RUNS),--runs $(RUNS)) $(if $(SCENARIO),--scenario $(SCENARIO)) $(if $(THRESHOLD),--threshold $(THRESHOLD)) $(if $(MAX_ATTEMPTS),--max-attempts $(MAX_ATTEMPTS)) $(if $(FORCE_RETRIES),--force-retries) $(if $(ESCALATION_MODEL),--escalation-model $(ESCALATION_MODEL)) $(if $(KEEP_DB),--keep-db)
 
 # docs/dev/evaluating-model-performance.md: the sequence of checks. The report reads a saved results file only (no model, database or
 # fixtures needed); OUT is relative to apps/api.
@@ -111,6 +112,12 @@ eval-report: ## Print a readable Markdown report of a saved graph run (LABEL=<na
 eval-snapshot: ## Write a slim, committable summary of a saved run to docs/dev/eval-baselines/ (LABEL=<name>)
 	@test -n "$(LABEL)" || { echo "usage: make eval-snapshot LABEL=<name>"; exit 2; }
 	cd $(API_DIR) && uv run python -m agent_worker.model_eval.labeled_page_runs --snapshot $(LABEL)
+
+# C7's policy questions (docs/dev/implementations/c7-pipeline-eval.md): the confidence, threshold-sweep and retry tables pooled over saved
+# runs, refused when they were scored against different labels. Reads saved files only; OUT is relative to apps/api.
+eval-policy: ## Print C7's policy tables pooled over saved graph runs (LABELS="a b" [OUT=file.md])
+	@test -n "$(LABELS)" || { echo "usage: make eval-policy LABELS=\"label-a label-b\" [OUT=file.md]"; exit 2; }
+	cd $(API_DIR) && uv run python -m agent_worker.model_eval.labeled_page_runs --policy-report $(LABELS) $(if $(OUT),--out $(OUT))
 
 eval-compare: ## Compare saved graph runs side by side (LABELS="a b")
 	@test -n "$(LABELS)" || { echo "usage: make eval-compare LABELS=\"label-a label-b\""; exit 2; }

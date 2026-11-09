@@ -10,8 +10,10 @@ it is not part of `make check`.
     make eval-graph LABEL=c5-baseline SET=all
     make eval-graph LABEL=c5-seq SCENARIO=sequence
     make eval-graph LABEL=c5-retry THRESHOLD=0.99          # provoke the retry loop (model-route and image pages only)
+    make eval-graph LABEL=c7-forced FORCE_RETRIES=1 ESCALATION_MODEL=none   # every model-judged attempt fails: measure each tier
     uv run python -m agent_worker.model_eval.labeled_page_runs --rescore c5-baseline
     uv run python -m agent_worker.model_eval.labeled_page_runs --compare c5-baseline c5-retry
+    make eval-policy LABELS="c7-defaults c7-defaults-icehouse"   # the C7 policy questions, pooled over labels
 
 Where the rest lives (this file is only the part that RUNS things): `aggregate_scores` (the numbers computed from the run
 records), `results_file` (the results file: its shape, its paths, loading and the committable snapshot), `markdown_report` (Markdown
@@ -20,12 +22,14 @@ and what they should leave), `run_one_page` (one page through the graph).
 
 How to read it, top to bottom: the flag helpers (`build_policy`, `scenario_pairs`, `scenario_records`); `rescore`, which recomputes
 a saved run's scores with no model and no database; the runners (`run_pages`, `run_scenarios`), which print progress as they go
-because a run takes an hour; then `evaluate`, which wires them to the command line, and `main`, which dispatches the subcommands.
+because a run takes an hour; then `evaluate`, which wires them to the command line, `policy_report` (C7's pooled tables), and `main`,
+which dispatches the subcommands.
 The results file (`model_eval/results/graph-<label>.json`, gitignored) keeps every raw extraction, finding and staged document, so any
 score can be recomputed without a model (`--rescore`).
 
 docs/dev/implementations/c5-pipeline-eval-harness.md, Steps 3, 5 and 6 (C5-D1 to C5-D7); split into the modules above in code
-review round 2 (C5-CR2-1 to C5-CR2-6).
+review round 2 (C5-CR2-1 to C5-CR2-6). C7 added `--force-retries`, `--escalation-model` and `--policy-report`
+(docs/dev/implementations/c7-pipeline-eval.md, Steps 3 and 5).
 """
 
 import argparse
@@ -59,8 +63,10 @@ from agent_worker.model_eval.labeled_page_runs.run_one_page import (
     InMemoryStager,
     PageRun,
     column_scores,
+    confidence_fields,
     run_page,
     score_dict,
+    staged_seconds,
 )
 from agent_worker.model_eval.labels import PAGE_LABELS, VENUE_FACTS, PageLabel
 from agent_worker.model_eval.labels import VenueFacts as LabelVenueFacts
@@ -69,6 +75,8 @@ from agent_worker.model_eval.saved_run_reports import (
     markdown_report,
     results_file,
 )
+from agent_worker.model_eval.saved_run_reports.policy_questions import FORCED_THRESHOLD
+from agent_worker.model_eval.validation_recall import recompute_validation
 from agent_worker.nodes import IMAGE_SUFFIXES
 from agent_worker.policy import DEFAULT_POLICY, RetryPolicy
 from app.config import settings
@@ -81,16 +89,36 @@ SCENARIO_CHOICES = tuple(s.value for s in two_run_scenarios.Scenario)
 # ---------------------------------------------------------------------------
 
 
-def build_policy(threshold: float | None, max_attempts: int | None) -> RetryPolicy | None:
+# What `--escalation-model` takes to mean "no escalation model", whatever `ESCALATION_MODEL_NAME` the environment sets: a run meant
+# to be unescalated must be able to say so, or a laptop with the variable set silently runs a larger model on attempt 3 and the
+# with-and-without comparison collapses (C7-PR1-14).
+NO_ESCALATION_MODEL = "none"
+
+
+def build_policy(
+    threshold: float | None,
+    max_attempts: int | None,
+    *,
+    force: bool = False,
+    escalation_model: str | None = None,
+) -> RetryPolicy | None:
     """The policy the flags ask for, built on the DEFAULT policy so the configured escalation model is kept (a fresh
-    `RetryPolicy(...)` would drop it); None when no flag was given, so the run uses the default (C5-D5)."""
-    if threshold is None and max_attempts is None:
+    `RetryPolicy(...)` would drop it); None when no flag was given, so the run uses the default (C5-D5).
+
+    `force` sets the threshold to `FORCED_THRESHOLD`, which fails every model-judged attempt for low confidence (C7-D3); it is
+    refused beside an explicit `threshold`, since the two are different answers to one question. `escalation_model` replaces the
+    configured one, and `NO_ESCALATION_MODEL` clears it."""
+    if force and threshold is not None:
+        raise ValueError("--force-retries sets the threshold; do not pass --threshold with it")
+    if threshold is None and max_attempts is None and not force and escalation_model is None:
         return None
     changes: dict[str, Any] = {}
-    if threshold is not None:
-        changes["confidence_threshold"] = threshold
+    if threshold is not None or force:
+        changes["confidence_threshold"] = FORCED_THRESHOLD if force else threshold
     if max_attempts is not None:
         changes["max_attempts"] = max_attempts
+    if escalation_model is not None:
+        changes["escalation_model"] = None if escalation_model == NO_ESCALATION_MODEL else escalation_model
     return dataclasses.replace(DEFAULT_POLICY, **changes)
 
 
@@ -171,7 +199,11 @@ def rescore(label: str) -> Path:
 def _rescore_run(run: dict[str, Any]) -> None:
     """Recompute one run record's scores (raw, validated, committed, and each attempt's) from its stored extractions.
 
-    Uses `run_one_page`'s own scoring functions, so a rescore applies exactly the column rules a fresh run does."""
+    Uses `run_one_page`'s own scoring functions, so a rescore applies exactly the column rules a fresh run does. It also fills what
+    C7 reads from each attempt (its confidence, the per-show confidences and which shows that confidence covers) from the staged
+    document, so a file recorded before C7 (`c6-confirm-*`) can be read without a rerun. The confidence is a pure function of the
+    document, so it is recomputed every time, like the scores. Seconds are filled only where missing, from the stored `staged_at`
+    values (attempt 1 stays None). Tokens and the recorded confidence are not in the document and stay absent (C7-PR1-4)."""
     page_label = PAGE_LABELS.get(run["fixture"])
     if page_label is None:
         return
@@ -188,10 +220,19 @@ def _rescore_run(run: dict[str, Any]) -> None:
         )
     )
     documents = {d["attempt"]: d for d in run["staged_documents"]}
+    seconds = dict(zip(sorted(documents), staged_seconds([documents[n] for n in sorted(documents)]), strict=True))
     for attempt in run["attempts"]:
         document = documents.get(attempt["attempt"])
-        if document is not None and document["raw_extraction"] is not None:
+        if document is None:
+            continue
+        if document["raw_extraction"] is not None:
             attempt["score"] = score_dict(page_label, document["raw_extraction"], page_html, run["fixture"])
+            result = recompute_validation(document, page_html=page_html, fetched_on=page_label.captured_on)
+        else:
+            result = None
+        attempt.update(confidence_fields(document, result))
+        if "seconds" not in attempt:
+            attempt["seconds"] = seconds.get(attempt["attempt"])
 
 
 # ---------------------------------------------------------------------------
@@ -329,6 +370,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--max-attempts", type=int, help="the retry policy's attempt cap (default: the pipeline's)")
     parser.add_argument(
+        "--force-retries",
+        action="store_true",
+        help=f"fail every model-judged attempt for low confidence (threshold {FORCED_THRESHOLD}), so every tier the cap allows runs (C7-D3; pass --max-attempts 3 for all three)",
+    )
+    parser.add_argument(
+        "--escalation-model",
+        metavar="NAME",
+        help=f"the model tier 3 escalates to, overriding ESCALATION_MODEL_NAME; '{NO_ESCALATION_MODEL}' means no escalation model",
+    )
+    parser.add_argument(
         "--keep-db", action="store_true", help="leave the scratch database in place afterwards, to read the rows"
     )
     parser.add_argument(
@@ -343,9 +394,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--report", metavar="LABEL", help="print a readable Markdown report of a saved run (markdown_report.py)"
     )
+    parser.add_argument(
+        "--policy-report",
+        nargs="+",
+        metavar="LABEL",
+        help="print C7's policy tables (confidence, threshold sweep, retries) pooled over saved runs; refused if their labels differ",
+    )
     parser.add_argument("--errors", action="store_true", help="with --report: also list every error string in full")
     parser.add_argument(
-        "--out", metavar="FILE", help="with --report: write the report to this file instead of printing it"
+        "--out", metavar="FILE", help="with --report or --policy-report: write to this file instead of printing it"
     )
     return parser.parse_args(argv)
 
@@ -353,7 +410,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 async def evaluate(args: argparse.Namespace) -> int:
     """Create the scratch database, run the pages (or the scenario), write the results file, drop the database."""
     options, config = run_eval.configure({})
-    policy = build_policy(args.threshold, args.max_attempts)
+    policy = build_policy(
+        args.threshold, args.max_attempts, force=args.force_retries, escalation_model=args.escalation_model
+    )
     fixtures = run_eval.select_fixtures(args.set, args.only)
     if not fixtures:
         print("no labelled fixtures to run (they are gitignored; capture them with model_eval/capture.py)")
@@ -415,8 +474,34 @@ async def evaluate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _write_or_print(text: str, out: str | None) -> None:
+    """A report to `out` when given (so a long one reaches a file without a terminal's wrapping), else to standard output."""
+    if out:
+        Path(out).write_text(text)
+        print(f"wrote {out}")
+    else:
+        print(text)
+
+
+def policy_report(names: list[str], out: str | None) -> int:
+    """C7's policy tables over several saved runs read together (`make eval-policy`), or exit 2 if they were scored against
+    different labels: `labels_sha` hashes the whole label file, and pooling runs scored by different labels would mix two answer
+    keys in one table (C7-PR1-9)."""
+    files = {name: results_file.load_results(name) for name in names}
+    shas = {name: f.get("labels_sha") for name, f in files.items()}
+    if len(set(shas.values())) > 1:
+        print("refusing to pool runs scored against different labels (rescore them first):", file=sys.stderr)
+        for name, sha in shas.items():
+            print(f"  {name}: labels_sha {str(sha)[:10]}", file=sys.stderr)
+        return 2
+    _write_or_print(markdown_report.policy_report(files, PAGE_LABELS), out)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    if args.policy_report:
+        return policy_report(args.policy_report, args.out)
     if args.compare:
         print(markdown_report.compare_table({name: results_file.load_results(name) for name in args.compare}))
         return 0
@@ -424,18 +509,19 @@ def main(argv: list[str] | None = None) -> int:
         print(f"wrote {results_file.snapshot(args.snapshot)}")
         return 0
     if args.report:
-        text = markdown_report.render(results_file.load_results(args.report), PAGE_LABELS, show_errors=args.errors)
-        if args.out:
-            Path(args.out).write_text(text)
-            print(f"wrote {args.out}")
-        else:
-            print(text)
+        _write_or_print(
+            markdown_report.render(results_file.load_results(args.report), PAGE_LABELS, show_errors=args.errors),
+            args.out,
+        )
         return 0
     if args.rescore:
         print(f"wrote {rescore(args.rescore)}")
         return 0
     if not args.label:
         print("--label is required unless --compare or --rescore is given", file=sys.stderr)
+        return 2
+    if args.force_retries and args.threshold is not None:
+        print("--force-retries sets the threshold itself; pass one or the other (C7-D3)", file=sys.stderr)
         return 2
     # The worker's start-up rule applies here too: no endpoint, or a hosted one with the placeholder key, would
     # otherwise build the scratch database and then fail every page on a connection error or a 401.

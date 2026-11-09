@@ -237,8 +237,8 @@ async def test_run_venue_runs_the_graph_under_the_policy_it_is_given(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Proves (C5-D5, C5-M3): a policy passed to `run_venue` is the one the routers read. With a cap of 1 and a splitter that
-    # drops a show every time, the run makes ONE attempt and escalates; under the default cap of 3 the same page would be
-    # tried three times. If `run_venue` ignored the argument, this would count three attempts. The expectation is the cap
+    # drops a show every time, the run makes ONE attempt and escalates; under the default cap (2 since C7-R4) the same page would be
+    # tried twice. If `run_venue` ignored the argument, this would count two attempts. The expectation is the cap
     # we passed (`decide_route` reads `policy.max_attempts`, A3-D11).
     from dataclasses import replace
 

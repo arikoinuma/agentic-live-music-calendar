@@ -8,10 +8,11 @@ strong enough to stop the record?
 How to read it, top to bottom:
 1. `Coverage` and `coverage` (C5-K4): the classification of one error against one attempt's findings.
 2. `tally`: counting the classes over many errors, per error kind (so "which layer catches which failure" can be read off).
-3. `recompute_findings`: an attempt's full findings (errors AND warnings), rebuilt from its staged document. Nothing stores an
-   earlier attempt's warnings (`AttemptRecord.findings` is errors only; the audit row keeps a count), but `validate_extraction`
-   is a pure function of inputs the staged document and the fixture still hold, so the harness recomputes them exactly and the
-   production code stays untouched (C5-PR1-6).
+3. `recompute_validation` and `recompute_findings`: an attempt's whole validation result, and its full findings (errors AND
+   warnings), rebuilt from its staged document. Nothing stores an earlier attempt's warnings (`AttemptRecord.findings` is errors
+   only; the audit row keeps a count), but `validate_extraction` is a pure function of inputs the staged document and the fixture
+   still hold, so the harness recomputes them exactly and the production code stays untouched (C5-PR1-6). C7 reads the same
+   result's confidence and exclusions, which the staging document does not carry either (C7-PR1-1).
 
 Findings travel in results files as plain dicts (`finding_dict`, `findings_from_dicts`), so a --rescore needs neither a model nor
 a fixture to compute coverage.
@@ -33,6 +34,7 @@ from agent_worker.validation import (
     Finding,
     Severity,
     Source,
+    ValidationResult,
     validate_extraction,
 )
 
@@ -111,13 +113,15 @@ def findings_from_dicts(stored: Iterable[dict[str, Any]]) -> list[Finding]:
     return [Finding(CheckCode(f["code"]), Severity(f["severity"]), f["message"], f.get("show_index")) for f in stored]
 
 
-def recompute_findings(document: dict[str, Any], *, page_html: str, fetched_on: datetime.date) -> list[Finding]:
-    """Every finding (errors and warnings) validation produced for the attempt a staging document records.
+def recompute_validation(document: dict[str, Any], *, page_html: str, fetched_on: datetime.date) -> ValidationResult:
+    """The validation result for the attempt a staging document records: its findings, its exclusions and its confidence.
 
     The inputs are what `validate_node` passed: the attempt's raw extraction, its route (`extraction_source`) and notes, the
     fetch date, and the page's HTML and cleaned text (empty for an image). The staged document holds the first three
-    (`staging.document_for`); the fixture holds the rest. A test pins that the recomputed ERRORS equal the recorded
-    `AttemptRecord.findings`, which guards this against drifting from `validate_node`.
+    (`staging.document_for`); the fixture holds the rest. Tests pin that the recomputed ERRORS equal the recorded
+    `AttemptRecord.findings`, and the recomputed confidence the recorded `AttemptRecord.confidence`, which guards this against
+    drifting from `validate_node` (C5-PR1-6, C7-PR1-4). The confidence is the minimum over the kept, model-judged shows
+    (`validation.aggregate_confidence`), so C7-Q4 reads the number the router actually saw.
     """
     extraction = VenuePageExtraction.model_validate(document["raw_extraction"])
     result, _kept = validate_extraction(
@@ -129,4 +133,9 @@ def recompute_findings(document: dict[str, Any], *, page_html: str, fetched_on: 
         page_html=page_html,
         page_text=clean_text(page_html, False) if page_html else "",
     )
-    return result.findings
+    return result
+
+
+def recompute_findings(document: dict[str, Any], *, page_html: str, fetched_on: datetime.date) -> list[Finding]:
+    """Every finding (errors and warnings) validation produced for the attempt a staging document records (`recompute_validation`)."""
+    return recompute_validation(document, page_html=page_html, fetched_on=fetched_on).findings
