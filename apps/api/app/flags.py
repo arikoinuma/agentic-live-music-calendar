@@ -168,23 +168,18 @@ def resolve_value(flag: Flag, environ: Mapping[str, str], metro: str | None) -> 
 
     Pure: it reads only its arguments, which is what lets one table of cases drive it in both languages.
     """
-    # TODO(Ari) — Key point of interest: precedence, and the difference between unset and malformed (C3.1-K1;
-    #   C3.1-D9, C3.1-D10). The most specific level that is SET wins; a level that is UNSET defers to the next;
-    #   a level set to anything but `true`/`false` is an error, never a fall-through (an empty Railway value must
-    #   not quietly become the default). A metro override is only looked up for `metro`-scoped flags.
-    # To align: copy the Code lines below by hand, then run the Check.
-    # Code:
-    #   keys = [env_key(flag.name)]
-    #   if flag.scope == "metro" and metro is not None:
-    #       keys.insert(0, metro_key(flag.name, metro))
-    #   for key in keys:
-    #       if key in environ:
-    #           return parse_flag_value(key, environ[key])
-    #   return flag.default
-    # Check: `uv run pytest app/tests/test_flags.py -k resolution` (C3.1-T2). Likeliest mistakes:
-    #   `if environ.get(key):` (an empty value reads as unset) and looking up the metro key for an
-    #   `environment`-scoped flag.
-    raise NotImplementedError("TODO(Ari)")
+    # Precedence and the difference between unset and malformed (C3.1-K1; C3.1-D9, C3.1-D10): the most specific
+    # level that is SET wins, a level that is UNSET defers to the next, and a level set to anything but
+    # `true`/`false` is an error, never a fall-through. That is why the test is `key in environ` and not
+    # `environ.get(key)`: an empty Railway value must not quietly become the default. A metro override is only
+    # looked up for `metro`-scoped flags, so a stray override variable cannot change an environment-scoped flag.
+    keys = [env_key(flag.name)]
+    if flag.scope == "metro" and metro is not None:
+        keys.insert(0, metro_key(flag.name, metro))
+    for key in keys:
+        if key in environ:
+            return parse_flag_value(key, environ[key])
+    return flag.default
 
 
 def read_flag(
