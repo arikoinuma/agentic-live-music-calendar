@@ -9,7 +9,8 @@
   // SITE_ZONE, DEFAULT_METRO_SLUG and SITE_GATE_PASSWORD (lib/site-config.ts, read per request by the proxy). Left
   // undeclared, Vercel's build warns that they "WILL NOT be available" (Turborepo's strict env mode). So are the
   // feature flags, `FLAG_*` (lib/flags.ts, C3.1-D17): read per request, one variable per flag, so a wildcard. The
-  // wildcard form is unverified on Vercel's build (C3.1 Step 11 reads the next build log for that warning).
+  // wildcard form is unverified on Vercel's build: that warning only names variables set on Vercel, so check the
+  // build log for it when the first web flag's variable is set there (C3.1 sign-off).
   "globalPassThroughEnv": [
     "E2E_CHROMIUM_PATH",
     "E2E_FROZEN_NOW",
