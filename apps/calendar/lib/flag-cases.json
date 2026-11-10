@@ -1,0 +1,298 @@
+{
+  "_comment": "The shared case table for feature flags (C3.1-D6, C3.1-D17). Hand-written from C3.1-D9 (values), C3.1-D10 (precedence and the metro override) and C3.1-D12 (startup problems); no expectation is computed by the code under test. BOTH test suites read this one file: apps/api/app/tests/test_flags.py (Python) and apps/calendar/lib/flags.test.ts (TypeScript), so the two implementations of one rule cannot drift apart unnoticed. Its `flags` section is a registry of its own, so the cases can use a metro-scoped flag that both code bases read, a flag only one reads, and a flag nothing reads, none of which the real registry holds. In `resolution` and `read`, `expect` is true or false, or an object {\"error\": \"<text the message must contain>\"}, or \"unknown\" (the name is not readable by that code base). In `startup`, `problems` has one entry per bad variable, in sorted variable order; each entry lists the substrings its message must contain.",
+  "flags": [
+    {
+      "name": "demo.scoped",
+      "scope": "metro",
+      "surfaces": ["python", "web"],
+      "default": false
+    },
+    {
+      "name": "demo.python_only",
+      "scope": "environment",
+      "surfaces": ["python"],
+      "default": false
+    },
+    {
+      "name": "demo.web_only",
+      "scope": "environment",
+      "surfaces": ["web"],
+      "default": true
+    },
+    {
+      "name": "demo.unread",
+      "scope": "environment",
+      "surfaces": ["python", "web"],
+      "default": false
+    }
+  ],
+  "resolution": [
+    {
+      "id": "unset gives the default (false)",
+      "flag": "demo.scoped",
+      "environ": {},
+      "metro": null,
+      "expect": false
+    },
+    {
+      "id": "unset gives the default (true)",
+      "flag": "demo.web_only",
+      "environ": {},
+      "metro": null,
+      "expect": true
+    },
+    {
+      "id": "true is true",
+      "flag": "demo.scoped",
+      "environ": { "FLAG_DEMO_SCOPED": "true" },
+      "metro": null,
+      "expect": true
+    },
+    {
+      "id": "false overrides a true default",
+      "flag": "demo.web_only",
+      "environ": { "FLAG_DEMO_WEB_ONLY": "false" },
+      "metro": null,
+      "expect": false
+    },
+    {
+      "id": "True is refused",
+      "flag": "demo.scoped",
+      "environ": { "FLAG_DEMO_SCOPED": "True" },
+      "metro": null,
+      "expect": { "error": "FLAG_DEMO_SCOPED" }
+    },
+    {
+      "id": "1 is refused",
+      "flag": "demo.scoped",
+      "environ": { "FLAG_DEMO_SCOPED": "1" },
+      "metro": null,
+      "expect": { "error": "FLAG_DEMO_SCOPED" }
+    },
+    {
+      "id": "yes is refused",
+      "flag": "demo.scoped",
+      "environ": { "FLAG_DEMO_SCOPED": "yes" },
+      "metro": null,
+      "expect": { "error": "FLAG_DEMO_SCOPED" }
+    },
+    {
+      "id": "the empty string is set, not unset, so it is refused",
+      "flag": "demo.scoped",
+      "environ": { "FLAG_DEMO_SCOPED": "" },
+      "metro": null,
+      "expect": { "error": "FLAG_DEMO_SCOPED" }
+    },
+    {
+      "id": "an empty value on a true default is refused, not read as the default",
+      "flag": "demo.web_only",
+      "environ": { "FLAG_DEMO_WEB_ONLY": "" },
+      "metro": null,
+      "expect": { "error": "FLAG_DEMO_WEB_ONLY" }
+    },
+    {
+      "id": "a metro override beats the environment value",
+      "flag": "demo.scoped",
+      "environ": { "FLAG_DEMO_SCOPED": "false", "FLAG_DEMO_SCOPED__MSP": "true" },
+      "metro": "msp",
+      "expect": true
+    },
+    {
+      "id": "a metro override beats the default",
+      "flag": "demo.scoped",
+      "environ": { "FLAG_DEMO_SCOPED__MSP": "true" },
+      "metro": "msp",
+      "expect": true
+    },
+    {
+      "id": "an override for another metro does not apply; the environment value does",
+      "flag": "demo.scoped",
+      "environ": { "FLAG_DEMO_SCOPED": "true", "FLAG_DEMO_SCOPED__NYC": "false" },
+      "metro": "msp",
+      "expect": true
+    },
+    {
+      "id": "a hyphenated slug is written with an underscore",
+      "flag": "demo.scoped",
+      "environ": { "FLAG_DEMO_SCOPED__NEW_YORK": "true" },
+      "metro": "new-york",
+      "expect": true
+    },
+    {
+      "id": "without a metro, overrides are not consulted",
+      "flag": "demo.scoped",
+      "environ": { "FLAG_DEMO_SCOPED__MSP": "true" },
+      "metro": null,
+      "expect": false
+    },
+    {
+      "id": "an override on an environment-scoped flag is ignored",
+      "flag": "demo.python_only",
+      "environ": { "FLAG_DEMO_PYTHON_ONLY__MSP": "true" },
+      "metro": "msp",
+      "expect": false
+    },
+    {
+      "id": "a malformed override is an error even when the environment value is valid",
+      "flag": "demo.scoped",
+      "environ": { "FLAG_DEMO_SCOPED": "true", "FLAG_DEMO_SCOPED__MSP": "yes" },
+      "metro": "msp",
+      "expect": { "error": "FLAG_DEMO_SCOPED__MSP" }
+    }
+  ],
+  "read": [
+    {
+      "id": "a Python-only flag reads on Python",
+      "name": "demo.python_only",
+      "surface": "python",
+      "environ": {},
+      "metro": null,
+      "expect": false
+    },
+    {
+      "id": "a Python-only flag is not readable on the web",
+      "name": "demo.python_only",
+      "surface": "web",
+      "environ": {},
+      "metro": null,
+      "expect": "unknown"
+    },
+    {
+      "id": "a web-only flag is not readable on Python",
+      "name": "demo.web_only",
+      "surface": "python",
+      "environ": {},
+      "metro": null,
+      "expect": "unknown"
+    },
+    {
+      "id": "a name nobody registered is unknown",
+      "name": "demo.nope",
+      "surface": "python",
+      "environ": {},
+      "metro": null,
+      "expect": "unknown"
+    },
+    {
+      "id": "a web-only flag reads on the web, with its default",
+      "name": "demo.web_only",
+      "surface": "web",
+      "environ": {},
+      "metro": null,
+      "expect": true
+    },
+    {
+      "id": "the metro is passed through to the resolver",
+      "name": "demo.scoped",
+      "surface": "web",
+      "environ": { "FLAG_DEMO_SCOPED__MSP": "true" },
+      "metro": "msp",
+      "expect": true
+    }
+  ],
+  "startup": [
+    {
+      "id": "an empty environment has no problems",
+      "surface": "python",
+      "environ": {},
+      "problems": []
+    },
+    {
+      "id": "valid values and a valid override have no problems (Python)",
+      "surface": "python",
+      "environ": {
+        "FLAG_DEMO_SCOPED": "true",
+        "FLAG_DEMO_SCOPED__MSP": "false",
+        "FLAG_DEMO_PYTHON_ONLY": "false"
+      },
+      "problems": []
+    },
+    {
+      "id": "valid values and a hyphenated override have no problems (web)",
+      "surface": "web",
+      "environ": {
+        "FLAG_DEMO_WEB_ONLY": "false",
+        "FLAG_DEMO_SCOPED__NEW_YORK": "true"
+      },
+      "problems": []
+    },
+    {
+      "id": "variables that only look like one are ignored",
+      "surface": "python",
+      "environ": { "FLAGSHIP": "x", "flag_demo_scoped": "x", "FLAG": "x" },
+      "problems": []
+    },
+    {
+      "id": "an unregistered variable is refused, and the message lists the registered ones",
+      "surface": "python",
+      "environ": { "FLAG_NOPE": "true" },
+      "problems": [["FLAG_NOPE", "FLAG_DEMO_PYTHON_ONLY", "FLAG_DEMO_SCOPED"]]
+    },
+    {
+      "id": "a variable with an empty name part is unregistered",
+      "surface": "python",
+      "environ": { "FLAG__MSP": "true" },
+      "problems": [["FLAG__MSP"]]
+    },
+    {
+      "id": "a metro override on an environment-scoped flag is refused",
+      "surface": "python",
+      "environ": { "FLAG_DEMO_PYTHON_ONLY__MSP": "true" },
+      "problems": [["FLAG_DEMO_PYTHON_ONLY__MSP", "metro"]]
+    },
+    {
+      "id": "an override with an empty metro part is refused",
+      "surface": "python",
+      "environ": { "FLAG_DEMO_SCOPED__": "true" },
+      "problems": [["FLAG_DEMO_SCOPED__"]]
+    },
+    {
+      "id": "an override whose metro part does not start with a letter is refused",
+      "surface": "python",
+      "environ": { "FLAG_DEMO_SCOPED__9X": "true" },
+      "problems": [["FLAG_DEMO_SCOPED__9X"]]
+    },
+    {
+      "id": "an override whose metro part holds a double underscore is refused",
+      "surface": "python",
+      "environ": { "FLAG_DEMO_SCOPED__MSP__X": "true" },
+      "problems": [["FLAG_DEMO_SCOPED__MSP__X"]]
+    },
+    {
+      "id": "a flag only the web reads is refused by Python, and the message says where it is read",
+      "surface": "python",
+      "environ": { "FLAG_DEMO_WEB_ONLY": "true" },
+      "problems": [["FLAG_DEMO_WEB_ONLY", "web"]]
+    },
+    {
+      "id": "a flag only Python reads is refused by the web, and the message says where it is read",
+      "surface": "web",
+      "environ": { "FLAG_DEMO_PYTHON_ONLY": "true" },
+      "problems": [["FLAG_DEMO_PYTHON_ONLY", "python"]]
+    },
+    {
+      "id": "a malformed value is refused and the message names the value",
+      "surface": "python",
+      "environ": { "FLAG_DEMO_SCOPED": "yes" },
+      "problems": [["FLAG_DEMO_SCOPED", "yes"]]
+    },
+    {
+      "id": "an empty value is refused",
+      "surface": "python",
+      "environ": { "FLAG_DEMO_SCOPED": "" },
+      "problems": [["FLAG_DEMO_SCOPED"]]
+    },
+    {
+      "id": "a malformed override value is refused",
+      "surface": "web",
+      "environ": { "FLAG_DEMO_SCOPED__MSP": "1" },
+      "problems": [["FLAG_DEMO_SCOPED__MSP", "1"]]
+    },
+    {
+      "id": "every bad variable is reported, in sorted order",
+      "surface": "python",
+      "environ": { "FLAG_ZZZ": "true", "FLAG_AAA": "1" },
+      "problems": [["FLAG_AAA"], ["FLAG_ZZZ"]]
+    }
+  ]
+}

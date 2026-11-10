@@ -68,6 +68,14 @@ class AgentRun(Base):
     # or "the writer did not know". Dev and staging data is partly copied from production, so this is how a
     # copied run is told apart from one that happened there.
     app_env: Mapped[str | None] = mapped_column(String(16))
+    # The feature-flag values this run ran under, as `{"worker.scheduled_runs": false, ...}` (C3.1-D3, C3.1-D15):
+    # every flag Python can read, at environment level, snapshotted once when the worker started. JSONB, so a new
+    # flag needs no migration. Nullable and without a default for the same expand-only reason as `app_env`: NULL
+    # means "recorded before C3.1" or "the writer did not know" (the eval harness), never "all flags off".
+    # `none_as_null=True`: SQLAlchemy's JSONB otherwise stores Python `None` as the JSON value `null`, which is
+    # NOT SQL NULL, so "not recorded" would be indistinguishable in a query from a stored `null` (found by
+    # `test_runs_by_feature_flags_shows_the_values_a_run_ran_under`).
+    feature_flags: Mapped[dict[str, bool] | None] = mapped_column(JSONB(none_as_null=True))
 
 
 class AuditLog(Base):

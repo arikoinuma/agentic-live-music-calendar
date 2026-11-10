@@ -17,8 +17,17 @@ import { apiUrl } from "./api-url";
 // `appEnv` is the environment the API says it is in (C3-D6). Optional: an API deployed before C3 reports only
 // `message`, and during the cutover the new frontend talks to that older API for a while. Absence means "unknown",
 // not failure.
+//
+// `featureFlags` (C3.1-D16) is the API's effective feature-flag values: a record of booleans outside production,
+// `null` when the API hides them (production), and `undefined` when the API does not report them (an older one, or
+// an unreadable value). The three are different facts and the page words them differently.
 export type ApiHealth =
-  | { ok: true; message: string; appEnv: string | undefined }
+  | {
+      ok: true;
+      message: string;
+      appEnv: string | undefined;
+      featureFlags?: Record<string, boolean> | null | undefined;
+    }
   | { ok: false; reason: string };
 
 // Diagnostics should answer quickly even when the API is hung. Without
@@ -85,9 +94,23 @@ export async function getApiHealth(
       "app_env" in body && typeof body.app_env === "string"
         ? body.app_env
         : undefined;
-    return { ok: true, message: body.message, appEnv };
+    const featureFlags =
+      "feature_flags" in body ? flagValues(body.feature_flags) : undefined;
+    return { ok: true, message: body.message, appEnv, featureFlags };
   }
   return { ok: false, reason: "API response had no string `message`" };
+}
+
+// `feature_flags` from the body: `null` stays `null` (hidden), a plain object keeps its boolean entries (anything
+// else in it is dropped, as `app_env` drops a non-string), and any other shape is undefined (not reported).
+function flagValues(value: unknown): Record<string, boolean> | null | undefined {
+  if (value === null) return null;
+  if (typeof value !== "object" || Array.isArray(value)) return undefined;
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      (entry): entry is [string, boolean] => typeof entry[1] === "boolean",
+    ),
+  );
 }
 
 // `AbortSignal.timeout()` aborts with a DOMException named "TimeoutError".

@@ -28,6 +28,7 @@ from agent_worker.staging import COLLECTION, MongoStager
 from app.config import settings
 from app.db.session import SessionFactory, engine
 from app.enums import RunTrigger
+from app.flags import effective_flags
 from app.log_config import configure_logging
 
 FIXTURE = "agent_worker/model_eval/captured_pages/Archives_ Events - The White Squirrel Bar.html"
@@ -55,7 +56,7 @@ async def main(fixture: str = FIXTURE, fetched_on: datetime.date = FETCHED_ON) -
     mongo: AsyncMongoClient = AsyncMongoClient(settings.mongodb_uri)
     try:
         ctx = WorkerContext(
-            audit=PostgresAuditWriter(SessionFactory, app_env=settings.app_env),
+            audit=PostgresAuditWriter(SessionFactory, app_env=settings.app_env, feature_flags=effective_flags()),
             stager=MongoStager(mongo[settings.mongodb_database][COLLECTION]),
             reader=PostgresCalendarReader(SessionFactory),
             writer=PostgresCalendarWriter(SessionFactory),

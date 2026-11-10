@@ -14,7 +14,7 @@ WEB := calendar
 
 .DEFAULT_GOAL := help
 .PHONY: help setup dev api web db db-up db-down db-reset db-shell db-wait worker eval-graph eval-report eval-compare eval-snapshot eval-policy \
-        migrate migration rehearse-migration seed fixtures types contract-check designation-check test coverage format lint typecheck \
+        migrate migration rehearse-migration seed fixtures types flags contract-check designation-check test coverage format lint typecheck \
         e2e check clean
 
 help: ## Show this help
@@ -159,9 +159,13 @@ seed: ## Create the metro and starting venues (safe to re-run)
 fixtures: ## Regenerate the frontend JSON fixtures from app/testing/sample_data.py
 	cd $(API_DIR) && uv run python -m scripts.generate_fixtures
 
-types: ## Regenerate lib/api-types.ts from FastAPI's OpenAPI schema
+types: ## Regenerate lib/api-types.ts (from FastAPI's OpenAPI schema) and lib/flag-registry.ts (from app/flags.py)
 	cd $(API_DIR) && uv run python -m scripts.dump_openapi
 	pnpm exec openapi-typescript $(API_DIR)/openapi.json -o apps/$(WEB)/lib/api-types.ts
+	cd $(API_DIR) && uv run python -m scripts.flags --write-ts
+
+flags: ## List the feature flags; ARGS=--effective (this process's values), --check (hygiene), --write-ts
+	cd $(API_DIR) && uv run python -m scripts.flags $(ARGS)
 
 # The commit this branch left main at. Right in CI and for a branch of one milestone; for anything else pass
 # BASE=<commit before the work began> (a milestone's Implementation log names it). Fetch first: a stale origin/main
@@ -174,20 +178,23 @@ designation-check: ## Fail if lines added since BASE use a bare D5/K2/PR1-3 outs
 contract-check: ## Fail if the generated contract output is stale
 	@snap=$$(mktemp -d); \
 	cp apps/$(WEB)/lib/api-types.ts $$snap/ 2>/dev/null || true; \
+	cp apps/$(WEB)/lib/flag-registry.ts $$snap/ 2>/dev/null || true; \
 	cp -R apps/$(WEB)/lib/fixtures $$snap/ 2>/dev/null || true; \
 	$(MAKE) --no-print-directory types fixtures > /dev/null; \
 	if diff -q $$snap/api-types.ts apps/$(WEB)/lib/api-types.ts > /dev/null 2>&1 \
+	   && diff -q $$snap/flag-registry.ts apps/$(WEB)/lib/flag-registry.ts > /dev/null 2>&1 \
 	   && diff -r -q $$snap/fixtures apps/$(WEB)/lib/fixtures > /dev/null 2>&1; then \
 		rm -rf $$snap; \
 		echo "Generated contract output is current."; \
 	else \
 		echo; \
 		echo "STALE: the generated contract output did not match."; \
-		echo "app/schemas.py, the routers, or app/testing/sample_data.py changed"; \
+		echo "app/schemas.py, the routers, app/flags.py or app/testing/sample_data.py changed"; \
 		echo "without a regen. It has just been regenerated in place —"; \
 		echo "review the diff and commit it."; \
 		echo; \
 		diff -u $$snap/api-types.ts apps/$(WEB)/lib/api-types.ts | head -40 || true; \
+		diff -u $$snap/flag-registry.ts apps/$(WEB)/lib/flag-registry.ts | head -40 || true; \
 		diff -r -u $$snap/fixtures apps/$(WEB)/lib/fixtures | head -40 || true; \
 		rm -rf $$snap; \
 		exit 1; \

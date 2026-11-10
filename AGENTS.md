@@ -35,6 +35,7 @@ approach — most "what should we do about X" questions have an answer with reas
 | What are we building next? (the hosted alpha, C1–C11) | `docs/dev/alpha-deployment-plan.md` |
 | What did the local alpha build (A1–A7, B1–B6) cover? | `docs/dev/alpha-build-plan.md` |
 | How was the environment set up? | `docs/dev/env-setup.md` |
+| How do I add, read, set or remove a feature flag? (and what is a "feature flag", versus a user flagging a listing) | `docs/dev/environments.md` "Feature flags" |
 | What does each hosted service actually look like today? | `docs/dev/implementations/c1-env-revalidation.md` |
 | What non-obvious thing bit us before? | `docs/dev/notes.md` |
 | How is a given milestone being implemented? | `docs/dev/implementations/` |

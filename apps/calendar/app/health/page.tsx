@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getAppEnv } from "@/lib/app-env";
+import { checkFlagEnvironment } from "@/lib/flags";
 import { getApiHealth } from "@/lib/health";
 import { HealthStatus, type FrontendEnv } from "./health-status";
 
@@ -46,11 +47,18 @@ export default async function HealthPage() {
     frontendEnv = { ok: false, reason };
   }
 
+  // The web side's feature-flag variables (C3.1-D19): problems are logged always and rendered only under the same
+  // `showDetail` rule as the reasons above, because this page is public.
+  const flagProblems = checkFlagEnvironment(process.env);
+  if (flagProblems.length > 0)
+    console.error(`[health] feature flag check failed: ${flagProblems.join("; ")}`);
+
   return (
     <HealthStatus
       health={health}
       frontendEnv={frontendEnv}
       showDetail={showDetail}
+      flagProblems={flagProblems}
     />
   );
 }

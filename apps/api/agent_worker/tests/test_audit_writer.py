@@ -17,7 +17,7 @@ from typing import Any
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession, async_sessionmaker
 
 from agent_worker.audit import AuditEntry, PostgresAuditWriter
@@ -102,6 +102,40 @@ async def test_a_writer_built_without_an_environment_writes_null(
     async with factory() as session:
         run = await session.get(AgentRun, run_id)
     assert run is not None and run.app_env is None
+
+
+async def test_start_run_records_the_feature_flags_it_was_given(
+    factory: async_sessionmaker[AsyncSession],
+    venue_id: int,
+) -> None:
+    # Proves (C3.1-T7, C3.1-D15): the run row carries the flag snapshot the writer was built with, as a dict whose
+    # booleans stay booleans, so a run is reproducible with the switches it ran under. The value is INJECTED, with
+    # a flag that is ON (the default is off), so a writer that re-read the environment or wrote a constant would
+    # fail here. Expected value is the literal passed in.
+    snapshot = {"worker.scheduled_runs": True}
+    run_id = await PostgresAuditWriter(factory, feature_flags=snapshot).start_run(venue_id, RunTrigger.SCHEDULED)
+    async with factory() as session:
+        run = await session.get(AgentRun, run_id)
+    assert run is not None and run.feature_flags == {"worker.scheduled_runs": True}
+
+
+async def test_a_writer_built_without_flags_writes_null(
+    factory: async_sessionmaker[AsyncSession],
+    venue_id: int,
+) -> None:
+    # Proves (C3.1-T7, C3.1-D15): "unknown" is NULL, never an empty dict or a guessed all-off, so a query for
+    # runs under a given flag value cannot mistake an unrecorded run (the eval harness, an older test) for one
+    # recorded as off. Mirrors the app_env rule above.
+    run_id = await PostgresAuditWriter(factory).start_run(venue_id, RunTrigger.MANUAL)
+    async with factory() as session:
+        run = await session.get(AgentRun, run_id)
+        # SQL NULL, not the JSON value `null`: reading the ORM attribute cannot tell them apart (both come back as
+        # None), the column test can. SQLAlchemy's JSONB stores None as JSON null unless `none_as_null` is set.
+        is_sql_null = (
+            await session.execute(text("SELECT feature_flags IS NULL FROM agent_run WHERE id = :i"), {"i": run_id})
+        ).scalar_one()
+    assert run is not None and run.feature_flags is None
+    assert is_sql_null is True
 
 
 async def test_finish_run_sets_finished_at(factory: async_sessionmaker[AsyncSession], venue_id: int) -> None:

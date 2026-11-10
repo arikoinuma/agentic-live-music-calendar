@@ -83,9 +83,74 @@ Variables the API's `Settings` does not read (the frontend's, and rows reserved 
 | `SITE_ZONE` | Vercel | unset until a domain is attached; then `staging.pebblebeats.com` on branch `main`; Production stays unset until C11 (`pebblebeats.com`) | Server-only. The environment's own zone (C4-D2): hosts inside it are `<slug>.<zone>`; hosts outside it (`*.vercel.app`, `localhost`) use the default metro. Also the base of every canonical URL and JSON-LD `url` (C4-D8); unset means none are emitted. |
 | `SITE_GATE_PASSWORD` | Vercel | a long random value on every Preview branch (staging, and every PR preview, which is also `staging`); unset on Production and local | Server-only secret, never committed or pasted in chat. A gated environment (staging, dev) with this unset answers 503 by design (C4-D6). Changing it logs everyone out (the cookie is an HMAC keyed by it), but only on deployments built after the change: Vercel applies an edited variable to new deployments, so an older preview URL keeps the old password. Declared in `turbo.json`'s `globalPassThroughEnv` with the other two request-time variables, or Vercel's build warns that it "WILL NOT be available". |
 | `DEFAULT_METRO_SLUG` | Vercel | unset everywhere; the code default is `msp` | Optional (C4-D2). A set value that is not a valid, non-reserved slug makes the proxy answer 503 (C4-PR1-4). |
-| `FLAG_*` | Railway, Vercel | reserved | Added by C3.1. |
+| `FLAG_*` | Railway, Vercel | per flag | Feature flags (C3.1): one variable per flag, listed in [Feature flags](#feature-flags-c31) below. They are NOT `Settings` fields and do not belong in `apps/api/.env`. |
 | `R2_*` | Railway | reserved | One bucket and token per environment (C9). |
 | `API_SHARED_SECRET` | Railway, Vercel | reserved | C10. |
+
+## Feature flags (C3.1)
+
+A **feature flag** is a named on/off switch for a behavior that must differ between environments, or be switchable
+without a code change. (The word "flag" alone keeps its other meaning: a user flagging a wrong listing,
+`arch-initial.md` §7.) It is deliberately small (Dep-D17): a registry in code, one function to read a flag, one
+variable per environment. No database table, no vendor, no percentage rollouts, and **a change takes a restart or a
+redeploy**: Railway redeploys a service when a variable changes (`notes.md`), and Vercel applies a changed variable to
+new deployments only. A runaway production worker is stopped with Railway's controls, not a flag.
+
+Design record: `docs/dev/implementations/c3.1-feature-flags.md`. The registry is `apps/api/app/flags.py`.
+
+### The flags
+
+<!-- flags-inventory:start -->
+| Variable | Read by | local | dev | staging | prod | Meaning |
+|---|---|---|---|---|---|---|
+| `FLAG_WORKER_SCHEDULED_RUNS` | Python (the worker's gate; the API shows it in `/health`) | unset (off) | no service yet | unset (off) | unset (off) | `worker.scheduled_runs`. A worker started with `--trigger scheduled` runs only when this is `true`; off, it logs one line and exits 0, so a Railway cron service can exist without doing work. `--trigger manual` ignores it. Owner Ari, created November 9, 2026. Removal: once production's scheduled run has run unattended for a month after C11 and nobody has needed the off switch (C3.1-D1, Dep-D17). |
+<!-- flags-inventory:end -->
+
+`make flags` lists every flag with its owner, creation date and removal condition; `make flags ARGS=--effective` shows
+this process's values and whether each came from the environment or the default; `make flags ARGS=--check` is the
+hygiene check CI also runs as a test (`app/tests/test_flag_hygiene.py`).
+
+### Rules
+
+* **A value is exactly `true` or `false`**, lower case. `True`, `1`, `yes` and the empty string are refused. An
+  **unset** variable falls through to the next level; a **set** one never does, even when it is malformed, so a
+  half-typed value in a dashboard cannot quietly read as the default.
+* **Precedence:** a per-metro override, then the environment's value, then the registry default. A flag with
+  `scope="metro"` accepts `FLAG_<NAME>__<SLUG>` (`FLAG_X__NEW_YORK` for the slug `new-york`: upper case, the hyphen
+  written `_`). Nothing uses an override yet; the rule and its tests exist so the second metro does not invent one.
+* **A bad variable stops the process at startup**, as `Settings` refuses an unknown key: a `FLAG_*` variable that names
+  no registered flag (the message lists the real ones, so a typo is visible), a metro override on a flag that takes
+  none, a flag the receiving code base does not read (a Python flag set on Vercel would do nothing while looking set),
+  or a malformed value. On Railway a failed startup keeps the old deployment (C3 Step 6), so a typo fails the deploy.
+  The web side reports the same problems on the status page (and throws only when a flag is read, never at import).
+* **Values come from the process environment only, never from `apps/api/.env`.** `Settings` refuses unknown `.env`
+  keys, so a `FLAG_*` line there stops the process by design (pydantic-settings reads a `.env` key into the model and
+  ignores an unknown *process* variable; both behaviors were checked by experiment on November 9, 2026).
+* **On a laptop, set a flag on the one command that reads it**: `FLAG_WORKER_SCHEDULED_RUNS=true make worker`, or
+  `FLAG_X=true make api` / `make web`. **Never for `make dev` or the end-to-end run**, which start the API and the web
+  app from one shell and would refuse each other's variables once a flag has only one surface.
+
+### Adding, reading and removing a flag
+
+1. Add an entry to `FLAGS` in `apps/api/app/flags.py`: name (`area.some_name`), description, scope, `surfaces`
+   (`python`, `web` or both), default, **owner**, **created**, and the **removal condition**. The registry refuses an
+   entry with any of those empty.
+2. Read it with `is_enabled("area.some_name")` (Python) or `isEnabled("area.some_name")` (`apps/calendar/lib/flags.ts`).
+   **The name must be a string literal** at the call site: the hygiene check finds reads by scanning for it. A flag the
+   web reads needs `make types`, which regenerates `lib/flag-registry.ts`.
+3. Add its variable to the inventory block above (the test compares both ways) and `make flags ARGS=--check`.
+4. To remove one: delete the reads, then the entry, then its row, then unset the variable in each dashboard.
+
+### Checking a flag in each environment
+
+* **local and dev.** There is no hosted `dev` service (C3-D1), and the module has no environment logic (a value comes
+  from the variable, never from `APP_ENV`), so `dev` is covered by the tests running the same rule and by the
+  inventory row. Set a flag on a command to see it: `FLAG_WORKER_SCHEDULED_RUNS=true make flags ARGS=--effective`.
+* **staging.** `GET <staging API>/health` lists the effective values (`feature_flags`).
+* **production.** `/health` hides them (`feature_flags` is `null`: the route is public until C10, and whether the cron is
+  armed is operational state). The proof is at the first promotion that carries C3.1 and C8: C8's skip run logs the flag
+  as off. A direct read, once production has the code: run `scripts.flags --effective` with the production API service's
+  variables through `railway run`, from an empty directory with `uv run --project apps/api`.
 
 ## Previews on Vercel (C3-D11)
 

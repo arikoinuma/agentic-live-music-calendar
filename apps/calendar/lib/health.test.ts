@@ -167,3 +167,34 @@ describe("getApiHealth", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 });
+
+describe("getApiHealth feature_flags (C3.1-D16)", () => {
+  // Proves (C3.1-T10): the page can tell four things apart. `feature_flags` absent is an API from before C3.1 (undefined,
+  // "unknown"); `null` is production hiding its values (null, "not shown in production"); a record of booleans is
+  // the effective values; anything else is dropped rather than rendered, as `app_env` is. The body is built by hand.
+  const featureFlagsOf = async (body: unknown) => {
+    const result = await getApiHealth(BASE, respondWith(JSON.stringify(body), { status: 200 }));
+    if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
+    return result.featureFlags;
+  };
+
+  it("reads a record of booleans", async () => {
+    expect(
+      await featureFlagsOf({ message: "up", feature_flags: { "worker.scheduled_runs": false, x: true } }),
+    ).toEqual({ "worker.scheduled_runs": false, x: true });
+  });
+
+  it("reads null as hidden, which is not the same as absent", async () => {
+    expect(await featureFlagsOf({ message: "up", feature_flags: null })).toBeNull();
+    expect(await featureFlagsOf({ message: "up" })).toBeUndefined();
+  });
+
+  it("drops anything that is not a record of booleans", async () => {
+    expect(await featureFlagsOf({ message: "up", feature_flags: "on" })).toBeUndefined();
+    expect(await featureFlagsOf({ message: "up", feature_flags: ["a"] })).toBeUndefined();
+    // A non-boolean entry is dropped from the record; the booleans beside it stay.
+    expect(await featureFlagsOf({ message: "up", feature_flags: { a: true, b: "yes", c: 1 } })).toEqual({
+      a: true,
+    });
+  });
+});

@@ -248,6 +248,7 @@ Represents one venue-processing cycle — the unit that `arch-initial.md` calls 
 | `started_at` | Timestamptz | No | |
 | `finished_at` | Timestamptz | Yes | Null while the run is in progress. |
 | `app_env` | String(16) | Yes | Which environment wrote the run (`local`, `dev`, `staging`, `prod`). Added by C3 (`C3-D5`) as a plain nullable string, expand-only: null means recorded before C3 or the writer did not know. Dev and staging data is partly copied from production, so this is how a copied run is told apart from one that happened there. |
+| `feature_flags` | JSONB | Yes | The feature-flag values the run ran under, as `{"worker.scheduled_runs": false}`: every flag Python can read, at environment level, snapshotted once when the worker started. Added by C3.1 (`C3.1-D3`, `C3.1-D15`), expand-only like `app_env`. Null means recorded before C3.1 or the writer did not know (the eval harness); it never means "all off". Read with the `runs_by_feature_flags` saved query. |
 
 ### `audit_log`
 

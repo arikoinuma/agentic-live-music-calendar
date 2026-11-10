@@ -322,6 +322,23 @@ export interface components {
             detail?: components["schemas"]["ValidationError"][];
         };
         /**
+         * HealthResponse
+         * @description What `GET /health` answers: the process is up, which environment it believes it is in, and its flags.
+         *
+         *     Not a calendar resource, but it is in the contract because the frontend's status page reads it
+         *     (`lib/health.ts`) and `make types` generates the TypeScript from it.
+         */
+        HealthResponse: {
+            /** Message */
+            message: string;
+            /** App Env */
+            app_env: string;
+            /** Feature Flags */
+            feature_flags: {
+                [key: string]: boolean;
+            } | null;
+        };
+        /**
          * LineupEntry
          * @description One artist's slot in one show — the `show_artist` join row.
          *
@@ -784,9 +801,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: string;
-                    };
+                    "application/json": components["schemas"]["HealthResponse"];
                 };
             };
         };
