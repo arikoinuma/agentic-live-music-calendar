@@ -139,7 +139,7 @@ FLAGS: dict[str, Flag] = build_registry(
             scope="environment",
             surfaces=("python",),
             default=False,
-            owner="Ari",
+            owner="Ari Koinuma",
             created=datetime.date(2026, 11, 9),
             removal=(
                 "Delete the flag and the gate once production's scheduled run has run unattended for a month after C11 "
