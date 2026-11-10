@@ -397,6 +397,8 @@ Unchanged from `alpha-build-plan.md` §8, except for what moved here (the hosted
 
 Also deferred, from this rewrite: **scoping every query by metro** (`arch-initial.md` §11; C4 resolves a host to a metro and stops there); **metro aliases** (`chicago` for `chi`, Dep-D3); **ephemeral PR environments** on Railway and Neon (Dep-D14); a **custom domain for the API**, which the browser never calls; **running B6's end-to-end suite against a deployed staging** (B6's follow-up for the hosted phase; its harness is built for the local stack only); **database-backed, Vercel and vendor feature flags** (Dep-D17; C3.1 lists what would bring them back).
 
+Also deferred, from C3.1 (November 9, 2026): **automating the steps of adding a feature flag**, in two parts and no skill. (1) A generated inventory: `scripts/flags.py --write-doc` writes the `flags-inventory` block in `environments.md` from the registry the way `--write-ts` writes `flag-registry.ts`, and `make contract-check` fails when the block is stale, so adding a flag means editing `FLAGS` and running `make types`. (2) A scaffold command: `make flags-new NAME=… SCOPE=… SURFACE=…` inserts the `Flag(...)` entry (today's date, default off, owner Ari) with the removal condition left as a placeholder that the hygiene check rejects, runs the generators, and prints what is left: where to read the flag, which `FLAG_*` variable to set in which hosted environment (Ari's), and the tests for both states. Read-side code stays hand-written. Ari decided on November 9, 2026 that a guiding `/add-flag` skill is not needed. It is not scheduled; it needs a milestone number or an issue-track record when it is picked up (`docs/dev/issues/README.md`).
+
 ---
 
 ## Plan review
