@@ -36,6 +36,7 @@ import pytest
 import sqlalchemy as sa
 from alembic.autogenerate import compare_metadata
 from alembic.runtime.migration import MigrationContext
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, AsyncSession
@@ -335,6 +336,26 @@ async def test_agent_run_app_env_is_optional_so_old_writers_still_work(db_conn: 
     assert T["agent_run"].c.app_env.nullable is True
 
 
+async def test_agent_run_feature_flags_is_optional_jsonb_so_old_writers_still_work(db_conn: AsyncConnection) -> None:
+    # Proves (C3.1-T7, C3.1-D3, expand-only): `agent_run.feature_flags` is a nullable JSONB column with no default,
+    # so an INSERT that omits it (the worker deployed before this migration, a raw SQL tool, every run recorded
+    # before C3.1) still succeeds and reads back NULL, and a dict written to it comes back intact with its
+    # booleans still booleans. A NOT NULL column would break the deployed worker the moment the API's pre-deploy
+    # migration ran, because the two do not redeploy together (arch-initial.md section 5).
+    venue_id = await _venue(db_conn)
+    run_id = await _insert(db_conn, "agent_run", venue_id=venue_id, trigger="manual")
+    run = (await db_conn.execute(sa.select(T["agent_run"]).where(T["agent_run"].c.id == run_id))).one()
+    assert run.feature_flags is None
+    column = T["agent_run"].c.feature_flags
+    assert column.nullable is True
+    assert isinstance(column.type, postgresql.JSONB)
+    run_id = await _insert(
+        db_conn, "agent_run", venue_id=venue_id, trigger="manual", feature_flags={"worker.scheduled_runs": False}
+    )
+    run = (await db_conn.execute(sa.select(T["agent_run"]).where(T["agent_run"].c.id == run_id))).one()
+    assert run.feature_flags == {"worker.scheduled_runs": False}
+
+
 async def test_updated_at_is_readable_after_an_orm_update(db_session: AsyncSession) -> None:
     # Proves: after updating a row through the ORM, `updated_at` can be read
     # without error. (This test uses the ORM on purpose — it's about ORM
@@ -447,5 +468,54 @@ async def test_the_slug_migration_fails_loudly_for_a_metro_it_cannot_name(migrat
             await conn.execute(sa.text("INSERT INTO metro (name, timezone) VALUES ('Somewhere Else', 'UTC')"))
         with pytest.raises(Exception, match="slug"):
             await run_alembic(migrated_engine, "upgrade", "head")
+    finally:
+        await _restore_head(migrated_engine)
+
+
+# The revision before the feature-flags migration: the shape Neon has after C4 (C3.1-D3).
+BEFORE_FEATURE_FLAGS = "c4a1e5b7d903"
+
+
+async def test_the_feature_flags_migration_round_trips(migrated_engine: AsyncEngine) -> None:
+    # Proves (C3.1-T7, C3.1-D3): the migration goes down and up cleanly, and the run written BEFORE the upgrade
+    # (as production's existing runs are) is untouched by it: still there, `feature_flags` NULL. The row is
+    # inserted at the previous revision because an upgrade of an empty table would pass even if the migration
+    # added the column NOT NULL (which would fail on a table that has rows).
+    await run_alembic(migrated_engine, "downgrade", BEFORE_FEATURE_FLAGS)
+    try:
+        async with migrated_engine.begin() as conn:
+            columns = (
+                (
+                    await conn.execute(
+                        sa.text("SELECT column_name FROM information_schema.columns WHERE table_name = 'agent_run'")
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            assert "feature_flags" not in columns
+            metro_id = (
+                await conn.execute(
+                    sa.text(
+                        "INSERT INTO metro (name, timezone, slug) VALUES ('M', 'America/Chicago', 'mmm') RETURNING id"
+                    )
+                )
+            ).scalar_one()
+            venue_id = (
+                await conn.execute(
+                    sa.text(
+                        "INSERT INTO venue (metro_id, name, calendar_url) "
+                        "VALUES (:m, 'V', 'https://example.com') RETURNING id"
+                    ),
+                    {"m": metro_id},
+                )
+            ).scalar_one()
+            await conn.execute(
+                sa.text("INSERT INTO agent_run (venue_id, trigger) VALUES (:v, 'manual')"), {"v": venue_id}
+            )
+        await run_alembic(migrated_engine, "upgrade", "head")
+        async with migrated_engine.begin() as conn:
+            flags = (await conn.execute(sa.text("SELECT feature_flags FROM agent_run"))).scalars().all()
+        assert flags == [None]
     finally:
         await _restore_head(migrated_engine)

@@ -102,7 +102,8 @@ EXPECTED_COLUMNS: dict[str, set[str]] = {
     | _TS,
     "show_artist": {"show_id", "artist_id", "start_time", "sequence_number"},
     # C3-D5: `app_env` is the environment that ran it (nullable; rows from before C3 stay NULL).
-    "agent_run": {"id", "venue_id", "trigger", "started_at", "finished_at", "app_env"},
+    # C3.1-D3: `feature_flags` is the flag values the run ran under (JSONB, nullable).
+    "agent_run": {"id", "venue_id", "trigger", "started_at", "finished_at", "app_env", "feature_flags"},
     "audit_log": {
         "id",
         "run_id",

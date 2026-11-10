@@ -10,7 +10,9 @@ from sqlalchemy import text
 
 from app.config import settings
 from app.db.session import engine
+from app.flags import effective_flags
 from app.routers import artists, calendar, metro, shows, venues
+from app.schemas import HealthResponse
 
 app = FastAPI(
     title="Agentic Live Music Calendar API",
@@ -31,11 +33,19 @@ app.include_router(metro.router)
 
 
 @app.get("/health", status_code=status.HTTP_200_OK)
-async def health() -> dict[str, str]:
+async def health() -> HealthResponse:
     # `app_env` is the environment this process believes it is in (C3-D6), so a wrong connection string or a
     # copied variable set is visible from outside. Read per request, from the settings the startup rule
     # (C3-D4) already checked. No database access: this is the route Railway's deploy check calls (C3-D8).
-    return {"message": "up", "app_env": settings.app_env}
+    #
+    # `feature_flags` (C3.1-D16) lists the effective values outside production and is `null` in production, whose
+    # `/health` is public. Evaluating flags reads only the process environment, which `Settings` already validated
+    # at startup (C3.1-D12), so this route still touches no database and cannot fail on a malformed flag.
+    return HealthResponse(
+        message="up",
+        app_env=settings.app_env,
+        feature_flags=None if settings.app_env == "prod" else effective_flags(),
+    )
 
 
 @app.get("/health/db")

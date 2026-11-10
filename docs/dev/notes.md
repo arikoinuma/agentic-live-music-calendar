@@ -806,3 +806,21 @@ as an extra act on listings that already name performers. It was reverted; the e
 `c6.1-embedded-events-reader.md` (Implementation log, Round 7) so it can be tried again in a narrower form. Meanwhile the
 validate step's audit row lists every excluded listing, and `excluded_listings` in `audit-queries.sql` reads them back, so a
 missed show can be found. The planned fix is detail-page extraction, which gives the model one show at a time.
+
+## `Settings` refuses a `FLAG_*` line in `.env` and ignores one in the process environment (C3.1)
+
+Found while planning feature flags (November 9, 2026). With the repo's `env_file=".env"` setting, `FLAG_X=true` in
+`apps/api/.env` makes `Settings()` fail with `flag_x: Extra inputs are not permitted`, but the same variable exported in
+the shell builds fine and is never seen: pydantic-settings reads `.env` into the model (and rejects unknown keys) but only
+matches process variables to declared fields. Even `extra="allow"` would show the dotenv value in `model_extra` and still not
+the exported one. So a feature flag cannot ride on `Settings`: it is read from `os.environ` by `app/flags.py`, and
+`Settings` runs a second validator over the same environment so a mistyped `FLAG_*` variable still stops the process
+(`C3.1-D11`, `C3.1-D12`). Corollary: set a flag on the command, never in `.env`.
+
+## SQLAlchemy's `JSONB` stores `None` as the JSON value `null`, not SQL NULL (C3.1)
+
+`mapped_column(JSONB)` writes Python `None` as the JSON scalar `null`, so `WHERE col IS NULL` does not find the row and
+the ORM reads it back as `None` either way, which hides the difference. `agent_run.feature_flags` needs "not recorded" to
+be a real NULL, so it is declared `JSONB(none_as_null=True)`; `test_a_writer_built_without_flags_writes_null` checks the
+column with `IS NULL`, not through the ORM. Use `none_as_null=True` on any nullable JSONB column a query will test.
+

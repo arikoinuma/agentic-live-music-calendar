@@ -45,7 +45,7 @@ from agent_worker.tests.fakes import (
 from agent_worker.tests.test_graph import GOOD_LISTING, GOOD_PAGE, NONA
 from app.db.models import AuditLog
 from app.db.seed import seed
-from app.enums import AuditOutcome, AuditSource, EntityType, StepType
+from app.enums import AuditOutcome, AuditSource, EntityType, RunTrigger, StepType
 
 SQL_FILE = Path(__file__).resolve().parents[4] / "docs" / "dev" / "audit-queries.sql"
 
@@ -128,10 +128,10 @@ async def run(conn: AsyncConnection, sql: str, **params: Any) -> list[Any]:
     return list(result.mappings())
 
 
-def test_the_file_has_the_seven_named_queries(queries: dict[str, str]) -> None:
+def test_the_file_has_the_eight_named_queries(queries: dict[str, str]) -> None:
     # Proves: the plan's four questions (A4), A5's fifth (the model's artist decisions), A6's sixth (the shows the
-    # database refused) and C6.1-D17's seventh (the listings validation left out) are all present under the names
-    # the plans give them.
+    # database refused), C6.1-D17's seventh (the listings validation left out) and C3.1-D3's eighth (the flag
+    # values a run ran under) are all present under the names the plans give them.
     assert set(queries) == {
         "run_history",
         "escalated_runs",
@@ -140,6 +140,7 @@ def test_the_file_has_the_seven_named_queries(queries: dict[str, str]) -> None:
         "artist_match_decisions",
         "failed_commits",
         "excluded_listings",
+        "runs_by_feature_flags",
     }
 
 
@@ -396,3 +397,24 @@ async def test_excluded_listings_shows_the_last_attempts_left_out_listings_with_
         ("2026-11-07", "20:00:00", "excluded_no_acts", "The Rewind 7pm DJ"),
     ]
     assert all(r["venue"] for r in rows)
+
+
+async def test_runs_by_feature_flags_shows_the_values_a_run_ran_under(
+    db_conn: AsyncConnection,
+    factory: async_sessionmaker[AsyncSession],
+    queries: dict[str, str],
+    two_runs: Any,
+) -> None:
+    # Proves (C3.1-D3, C3.1-D15): "which flag values did this run run under?" is answerable from the database. The two
+    # runs of the fixture were written by a writer that was given no flags, so they read NULL ("not recorded", not
+    # "off"); a third, written by a writer given `{"worker.scheduled_runs": true}`, reads back that value, newest
+    # first. Expected values are the literals the writers were given.
+    _, _, venue = two_runs
+    recorded = await PostgresAuditWriter(factory, feature_flags={"worker.scheduled_runs": True}).start_run(
+        venue.id, RunTrigger.SCHEDULED
+    )
+    rows = await run(db_conn, queries["runs_by_feature_flags"])
+    assert rows[0]["run_id"] == recorded
+    assert rows[0]["scheduled_runs"] == "true" and rows[0]["feature_flags"] == '{"worker.scheduled_runs": true}'
+    assert [r["feature_flags"] for r in rows[1:]] == [None, None]
+    assert [r["scheduled_runs"] for r in rows[1:]] == [None, None]

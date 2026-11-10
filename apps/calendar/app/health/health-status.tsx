@@ -14,14 +14,20 @@ export type FrontendEnv =
 // a staging frontend pointed at the production API (a copied API_BASE_URL) looks healthy on "API: up" alone
 // (C3-D7). `showDetail` gates the raw error text: this page is linked from every footer, so strangers can read
 // it, and the reason is for the person running the app (see page.tsx).
+//
+// `flagProblems` is what `checkFlagEnvironment` found wrong with the web side's `FLAG_*` variables (C3.1-D19). It
+// follows the same rule as the other reasons: the page always says something is misconfigured, and the variable names
+// and values appear only when `showDetail` is set (C3.1-PR1-9).
 export function HealthStatus({
   health,
   frontendEnv,
   showDetail,
+  flagProblems = [],
 }: {
   health: ApiHealth;
   frontendEnv: FrontendEnv;
   showDetail: boolean;
+  flagProblems?: string[];
 }) {
   return (
     <section>
@@ -57,7 +63,36 @@ export function HealthStatus({
             <span>unknown</span>
           )}
         </dd>
+        <dt className="text-muted-foreground">Feature flags (API)</dt>
+        <dd>{apiFlags(health)}</dd>
+        {flagProblems.length > 0 && (
+          <>
+            <dt className="text-muted-foreground">Feature flags (web)</dt>
+            <dd className="text-destructive">
+              misconfigured
+              {showDetail && <> — {flagProblems.join("; ")}</>}
+            </dd>
+          </>
+        )}
       </dl>
     </section>
+  );
+}
+
+// The API's feature-flag values as one line each ("worker.scheduled_runs: off"), or why there are none to show:
+// production hides them (`null`), an older API or a down one cannot say (C3.1-D16).
+function apiFlags(health: ApiHealth) {
+  if (!health.ok || health.featureFlags === undefined) return <span>unknown</span>;
+  if (health.featureFlags === null) return <span>not shown in production</span>;
+  const entries = Object.entries(health.featureFlags);
+  if (entries.length === 0) return <span>none registered</span>;
+  return (
+    <ul>
+      {entries.map(([name, value]) => (
+        <li key={name}>
+          {name}: {value ? "on" : "off"}
+        </li>
+      ))}
+    </ul>
   );
 }

@@ -138,6 +138,16 @@ HTTP against the API for anything else — the routes exist and serve the same d
   404) and the detail routes need real 404s. With the API down `/` is a 200 with the shell
   and a skeleton; the detail routes are still B2's bare 500.
 
+## Feature flags (C3.1)
+
+`lib/flags.ts` is the reader (`isEnabled(name, { metro })`, server-only) over `lib/flag-registry.ts`, which is
+**generated** from Python's registry by `make types` (never edit it; `make contract-check` fails if stale). No web code
+reads a flag yet, so `WebFlagName` is `never` and no name type-checks; the first web flag is added to the Python
+registry with `surfaces=("python", "web")`. The name must be a string literal (a hygiene test scans for it). Values come
+from `FLAG_*` process variables; `isEnabled` throws if any is malformed or names a flag the web does not read, but only
+when called, never at import (the `lib/app-env.ts` lesson). The same rules are checked against Python by the shared case
+table `lib/flag-cases.json`. Details: `docs/dev/environments.md` "Feature flags".
+
 ## Rules that bite most often here
 
 - **Server Components by default.** `"use client"` goes on the smallest interactive leaf,

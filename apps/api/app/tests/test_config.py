@@ -19,6 +19,9 @@ HOW TO READ THIS
   `None` pin the likeliest mistakes the other way (C3-K1).
 """
 
+import os
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -39,6 +42,11 @@ def isolate_from_the_shell(monkeypatch: pytest.MonkeyPatch) -> None:
         "ESCALATION_MODEL_NAME",
     ):
         monkeypatch.delenv(name, raising=False)
+    # Feature-flag variables too (C3.1-D12): `Settings` now refuses a bad one, so a developer's exported
+    # `FLAG_*` must not decide a result here.
+    for name in list(os.environ):
+        if name.startswith("FLAG_"):
+            monkeypatch.delenv(name, raising=False)
 
 
 LOCAL_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/calendar_dev"
@@ -263,3 +271,49 @@ def test_settings_reads_the_railway_name_from_the_platform_variable(monkeypatch:
     monkeypatch.setenv("RAILWAY_ENVIRONMENT_NAME", "staging")
     with pytest.raises(ValidationError):
         Settings(_env_file=None, database_url=hosted_url("calendar_prod"), model_name="m", app_env="prod")  # type: ignore[call-arg]
+
+
+# ---------------------------------------------------------------------------
+# Feature-flag variables are checked at startup (C3.1-T5, C3.1-D12)
+# ---------------------------------------------------------------------------
+
+
+def test_settings_refuses_an_unregistered_flag_variable(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Proves (C3.1-T5, C3.1-D12): `Settings` builds with a `FLAG_*` variable in the process environment only
+    # when it names a registered flag, so a typo (`FLAG_WORKER_SCHEDULED_RUN`) stops the process at startup
+    # instead of doing nothing while looking set. The message names the variable, so the traceback says what to
+    # fix. A validator that is not wired in would pass every row of `test_flags.py` and protect nothing; this is
+    # the test that `Settings` calls it.
+    monkeypatch.setenv("FLAG_NOPE", "true")
+    with pytest.raises(ValidationError, match="FLAG_NOPE"):
+        Settings(_env_file=None, database_url=LOCAL_URL, model_name="m")  # type: ignore[call-arg]
+
+
+def test_settings_refuses_a_malformed_flag_value(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Proves (C3.1-T5, C3.1-D9, C3.1-D12): a registered flag set to something other than `true`/`false` fails at
+    # startup too, so a half-typed Railway value fails the deploy (Railway keeps the old deployment) instead of
+    # failing a later request or, worse, reading as the default.
+    monkeypatch.setenv("FLAG_WORKER_SCHEDULED_RUNS", "yes")
+    with pytest.raises(ValidationError, match="FLAG_WORKER_SCHEDULED_RUNS"):
+        Settings(_env_file=None, database_url=LOCAL_URL, model_name="m")  # type: ignore[call-arg]
+
+
+def test_settings_builds_with_a_registered_flag_set(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Proves (C3.1-T5, C3.1-D12): the rule does not reject a correct configuration; the registered variable, set
+    # to either spelling, builds a `Settings`.
+    monkeypatch.setenv("FLAG_WORKER_SCHEDULED_RUNS", "false")
+    Settings(_env_file=None, database_url=LOCAL_URL, model_name="m")  # type: ignore[call-arg]
+    monkeypatch.setenv("FLAG_WORKER_SCHEDULED_RUNS", "true")
+    Settings(_env_file=None, database_url=LOCAL_URL, model_name="m")  # type: ignore[call-arg]
+
+
+def test_a_flag_line_in_the_dotenv_file_is_refused(tmp_path: Path) -> None:
+    # Proves (C3.1-D11): flags come from the process environment only. `Settings` already forbids unknown keys in
+    # `.env`, so a `FLAG_*` line there fails at startup (pydantic's "Extra inputs are not permitted") rather than
+    # being silently ignored; `.env.example` says so. If `Settings` ever gains `extra="allow"` this fails and the
+    # decision has to be remade on purpose. The expectation is the behavior confirmed by experiment on
+    # November 9, 2026 (the plan's fact table), not read from the code.
+    env_file = tmp_path / ".env"
+    env_file.write_text("FLAG_WORKER_SCHEDULED_RUNS=true\n")
+    with pytest.raises(ValidationError, match="flag_worker_scheduled_runs"):
+        Settings(_env_file=env_file, database_url=LOCAL_URL, model_name="m")  # type: ignore[call-arg]

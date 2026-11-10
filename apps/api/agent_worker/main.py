@@ -12,7 +12,8 @@ HOW TO READ THIS
   * `run_venue` is one venue's cycle: **A4-K1** lives in it.
   * `run_all` loops the venues sequentially, as arch-initial.md §7 says (one process, every venue, no
     per-venue scheduling), and keeps going when one venue hits an infrastructure error.
-  * `main` wires the stores (Postgres engine, MongoDB client), configures logging, and calls `run_all`.
+  * `main` wires the stores (Postgres engine, MongoDB client), configures logging, applies the scheduled-run gate
+    (a `--trigger scheduled` run exits 0 when the feature flag `worker.scheduled_runs` is off, C3.1-D1), and calls `run_all`.
 
 THE EVENT LOOP
   Everything here runs on ONE event loop, created by `asyncio.run(main())`. The shared pooled engine
@@ -20,7 +21,7 @@ THE EVENT LOOP
   write; asyncpg connections and the Mongo client are bound to the loop that created them, which is why the
   graph is `ainvoke`-only (plan A4-D1; graph.py).
 
-docs/dev/implementations/a4-auditability.md, A4-D1, A4-D3, A4-D6, A4-D7, A4-D8.
+docs/dev/implementations/a4-auditability.md, A4-D1, A4-D3, A4-D6, A4-D7, A4-D8; c3.1-feature-flags.md, C3.1-D1, C3.1-D13, C3.1-D14, C3.1-D15.
 """
 
 import argparse
@@ -51,9 +52,14 @@ from app.config import AppEnv, settings
 from app.db.models import Metro, Venue
 from app.db.session import SessionFactory, engine
 from app.enums import RunTrigger
+from app.flags import effective_flags, env_key, is_enabled
 from app.log_config import configure_logging
 
 log = structlog.get_logger()
+
+# The feature flag that gates a `--trigger scheduled` run (C3.1-D1). Named once for the log line and the help text;
+# the call in `main` repeats the literal on purpose (see there).
+SCHEDULED_RUNS_FLAG = "worker.scheduled_runs"
 
 # What one venue's run is allowed to fail with and still let the next venue run: the database or the
 # staging store is unreachable, or a file/socket error. A named tuple, never a bare `Exception`
@@ -209,9 +215,15 @@ async def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--trigger",
         type=RunTrigger,
-        choices=list(RunTrigger),
+        # Only the two triggers something starts today (C3.1-D13). `submission` and `flag_threshold` are real
+        # `RunTrigger` values with no starter yet, and accepting them here would run every venue with the
+        # scheduled-run gate below skipped; widen this list when something starts them, deliberately.
+        choices=[RunTrigger.SCHEDULED, RunTrigger.MANUAL],
         default=RunTrigger.MANUAL,
-        help="why this run started (a cron job passes `scheduled`)",
+        help=(
+            "why this run started. `scheduled` (a cron job passes it) is gated by the feature flag "
+            f"worker.scheduled_runs ({env_key(SCHEDULED_RUNS_FLAG)}); `manual` ignores the flag"
+        ),
     )
     args = parser.parse_args(argv)
 
@@ -228,6 +240,20 @@ async def main(argv: list[str] | None = None) -> int:
         log.error("MONGODB_URI is not set; the worker stages every extraction in MongoDB (see .env.example)")
         return 2
 
+    # The scheduled-run gate (C3.1-D1, C3.1-D13, C3.1-D14), AFTER the two checks above and BEFORE the Atlas ping:
+    # a skipped run then proves the configuration is complete without opening Neon or Atlas (C8-D6), and a
+    # misconfigured service still fails loudly instead of "skipping" its way past the mistake. The skip opens no
+    # run (`agent_run.venue_id` is non-null, so there is no row to write for a run with no venue) and exits 0:
+    # a non-zero exit may be retried by Railway's restart policy (C8-U2). `manual` is never gated (Dep-D12). The
+    # flag name is a string literal because the hygiene check finds reads by scanning for it (C3.1-D18).
+    if args.trigger is RunTrigger.SCHEDULED and not is_enabled("worker.scheduled_runs"):
+        log.info(
+            "scheduled run skipped: feature flag worker.scheduled_runs is off",
+            flag=SCHEDULED_RUNS_FLAG,
+            variable=env_key(SCHEDULED_RUNS_FLAG),
+        )
+        return 0
+
     # A short server-selection timeout: the driver connects lazily, so without the ping below an unreachable
     # server would only show up at the first staging write, after the venue's fetch and model call, and
     # after a 30 s wait (A4-CR1-3).
@@ -239,7 +265,9 @@ async def main(argv: list[str] | None = None) -> int:
             log.error("MongoDB did not answer; start it with `make db-up` or check MONGODB_URI", error=str(err))
             return 2
         ctx = WorkerContext(
-            audit=PostgresAuditWriter(SessionFactory, app_env=settings.app_env),
+            # One snapshot of the feature flags, taken now, goes on every run this process opens (C3.1-D15): the
+            # environment cannot change under a running process, so it is the run's value.
+            audit=PostgresAuditWriter(SessionFactory, app_env=settings.app_env, feature_flags=effective_flags()),
             stager=MongoStager(mongo[settings.mongodb_database][COLLECTION]),
             reader=PostgresCalendarReader(SessionFactory),
             writer=PostgresCalendarWriter(SessionFactory),

@@ -461,16 +461,26 @@ class AuditWriter(Protocol):
 class PostgresAuditWriter:
     """Writes the audit trail to Postgres with a short, committed session per call (see the module docstring)."""
 
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession], app_env: AppEnv | None = None) -> None:
+    def __init__(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        app_env: AppEnv | None = None,
+        feature_flags: dict[str, bool] | None = None,
+    ) -> None:
         self._session_factory = session_factory
         # The environment written on every run this writer opens (C3-D5). Handed in by the entry point
         # (`settings.app_env`), not read from global settings here, so a test can prove the value is the one
         # injected. `None` writes NULL: "unknown", the same as a run recorded before C3.
         self._app_env = app_env
+        # The feature-flag values written on every run this writer opens (C3.1-D15): one snapshot, taken by the
+        # entry point when the process started (`app.flags.effective_flags()`), handed in like `app_env` so a test
+        # can prove the value is the one injected. `None` writes NULL: "recorded before C3.1, or the writer did
+        # not know" (the eval harness and hand-built writers), never "every flag off".
+        self._feature_flags = feature_flags
 
     async def start_run(self, venue_id: int, trigger: RunTrigger) -> int:
         async with self._session_factory() as session:
-            run = AgentRun(venue_id=venue_id, trigger=trigger, app_env=self._app_env)
+            run = AgentRun(venue_id=venue_id, trigger=trigger, app_env=self._app_env, feature_flags=self._feature_flags)
             session.add(run)
             # flush assigns the id; read it BEFORE commit. After a commit a session built with SQLAlchemy's
             # default `expire_on_commit=True` has expired the attribute, and reading it under asyncio raises

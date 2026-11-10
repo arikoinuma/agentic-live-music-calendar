@@ -282,3 +282,25 @@ class ArtistDetail(BaseModel):
 
 class ArtistListResponse(BaseModel):
     artists: list[ArtistSummary]
+
+
+# ---------------------------------------------------------------------
+# The process's own health route
+# ---------------------------------------------------------------------
+
+
+class HealthResponse(BaseModel):
+    """What `GET /health` answers: the process is up, which environment it believes it is in, and its flags.
+
+    Not a calendar resource, but it is in the contract because the frontend's status page reads it
+    (`lib/health.ts`) and `make types` generates the TypeScript from it.
+    """
+
+    message: str
+    # The environment this process was configured with (C3-D6): `local`, `dev`, `staging` or `prod`.
+    app_env: str
+    # The effective feature-flag values (`app.flags.effective_flags()`, C3.1-D16): every flag Python reads, outside
+    # production. `null` in production, whose `/health` is public and unauthenticated until C10, and whether the
+    # cron is armed is operational state. Required-but-nullable on purpose, so a client can tell "hidden" (`null`)
+    # from "an older API that does not report flags" (the key is absent).
+    feature_flags: dict[str, bool] | None

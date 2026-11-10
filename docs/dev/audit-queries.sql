@@ -4,7 +4,7 @@
 -- HOW TO RUN ONE (from the repo root; psql runs inside the container, so the file is piped in):
 --     cat docs/dev/audit-queries.sql | docker compose exec -T postgres psql -U postgres -d calendar_dev \
 --         -v run_id=3 -v show_id=12 -f -
---   That runs all seven queries. For one query, paste it into `make db-shell` after
+--   That runs all eight queries. For one query, paste it into `make db-shell` after
 --     \set run_id 3
 --     \set show_id 12
 --   (`\i` doesn't work here: it reads the file from inside the container, which doesn't have the repo.)
@@ -192,3 +192,19 @@ WHERE al.step_type = 'validate'
         SELECT max(x.attempt_number) FROM audit_log x WHERE x.run_id = al.run_id AND x.step_type = 'validate'
       )
 ORDER BY r.started_at DESC, r.id DESC, l ->> 'date', l ->> 'time';
+
+-- name: runs_by_feature_flags
+-- "Which feature-flag values did each run run under?" One row per run, newest first, with every flag the worker
+-- snapshotted at start (feature_flags, as JSON text) and the one flag that exists today pulled out as scheduled_runs
+-- ('true' / 'false'). Both are NULL for a run recorded before C3.1 or by a writer that did not know the flags (the
+-- eval harness): NULL means "not recorded", never "off". C3.1-D3, C3.1-D15.
+SELECT r.id AS run_id,
+       v.name AS venue,
+       r.trigger,
+       r.app_env,
+       r.started_at,
+       CAST(r.feature_flags AS text)              AS feature_flags,
+       r.feature_flags ->> 'worker.scheduled_runs' AS scheduled_runs
+FROM agent_run r
+JOIN venue v ON v.id = r.venue_id
+ORDER BY r.started_at DESC, r.id DESC;

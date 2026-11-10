@@ -73,6 +73,18 @@ to know before touching it (decisions in `docs/dev/implementations/c2-api-reads-
   (`app/testing/sample_data.py`) is what the route tests, the frontend fixtures and the e2e job share; to add a case, insert
   rows in the test that needs it rather than editing the shared world.
 
+## Feature flags (C3.1)
+
+`app/flags.py` is the one registry and `is_enabled("area.name")` the one way to read a flag. The name **must be a string
+literal** (a hygiene test scans for reads and fails on a non-literal, an unregistered name, or a registered flag nothing
+reads). Values come from the **process environment only**, never `apps/api/.env`: `Settings` refuses a `FLAG_*` line
+there, and refuses an unregistered or malformed `FLAG_*` process variable at startup. On a laptop set a flag on the one
+command that reads it (`FLAG_WORKER_SCHEDULED_RUNS=true make worker`), never for `make dev`. The worker's
+`--trigger scheduled` run is gated by `worker.scheduled_runs` (`agent_worker/main.py`, after the endpoint and
+`MONGODB_URI` checks, before the Atlas ping), and `--trigger` accepts only `scheduled` and `manual`. `make flags` lists
+them; adding one is in `docs/dev/environments.md` "Feature flags". Do not hand-edit `apps/calendar/lib/flag-registry.ts`
+(`make types` generates it). Plan: `docs/dev/implementations/c3.1-feature-flags.md`.
+
 ## Database and migrations
 
 - Alembic already uses the async template. Naming follows the style guide and

@@ -33,6 +33,7 @@ carries that defining document's scope.
 | `B6` | `docs/dev/implementations/b6-accessibility-and-e2e.md` |
 | `C2` | `docs/dev/implementations/c2-api-reads-database.md` |
 | `C3` | `docs/dev/implementations/c3-environments-and-deploy.md` |
+| `C3.1` | `docs/dev/implementations/c3.1-feature-flags.md` |
 | `C4` | `docs/dev/implementations/c4-metro-hosts.md` |
 | `C5` | `docs/dev/implementations/c5-pipeline-eval-harness.md` |
 | `C5.1` | `docs/dev/implementations/c5.1-model-eval-layout.md` |
@@ -61,6 +62,7 @@ scope: `PQR1-4-CR1-2`, `GH-17-CR1-1`, `ISS-3-PR1-2`. `docs/dev/issues/README.md`
 | `<scope>-F<n>` | a failure found in an eval, or a finding from a scan or check | `A2-F9`, `B6-F2` | that plan's failure table or findings table |
 | `<scope>-S<n>` | a sampling or design lever | `A2-S6` | that plan's lever list |
 | `<scope>-K<n>` | a fill-in step's key point | `A3-K2` | that plan's `[fill-in]` steps |
+| `<scope>-T<n>` | a test row in a plan's test approach (the test file names it) | `C3.1-T2`, `C3-T6` | that plan's test-approach table |
 | `<scope>-M<n>` | a mutation check: a deliberate break of the code under test that a named test must catch | `B5-M4` | that plan's mutation table (Verification) |
 | `<scope>-Q<n>` | a question a measurement milestone answers | `C7-Q4` | that plan's questions table (Context) |
 | `<scope>-R<n>` | a pre-registered reading: the rule, fixed before the runs, that turns a measurement into a recommendation | `C7-R3` | that plan's readings table |
@@ -146,3 +148,9 @@ that needs its scope. The exceptions below are the only expected hits.
 - **String literals.** The label notes in `apps/api/agent_worker/model_eval/labels.py` and two
   `argparse` help strings in `model_eval/run_eval.py` still use bare IDs. They are data and
   user-facing text, so they're converted separately from the comment-only passes.
+
+## Terms
+
+- **Feature flag** is a named on/off switch for a behavior that must differ by environment or be switchable without a
+  code change (`app/flags.py`, `docs/dev/environments.md` "Feature flags"; C3.1). **"Flag" alone** is a user flagging a
+  wrong listing (`arch-initial.md` §7), and `RunTrigger.FLAG_THRESHOLD` means that. Write "feature flag" for the toggle.

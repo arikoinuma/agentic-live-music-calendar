@@ -6,18 +6,22 @@ HOW TO READ THIS
   * `app_env` says which of four places the process believes it is in (C3-D3). `environment_problem` compares
     that belief with where the process actually is, and the validator on `Settings` refuses to build on a
     mismatch (C3-D4), so a wrong connection string stops the process instead of writing to the wrong database.
+  * A second validator refuses a bad `FLAG_*` variable the same way (`app/flags.py`, C3.1-D12).
   * `settings = Settings()` runs at import, so a bad configuration fails at startup for every entry point:
     the API, the worker, Alembic and the tests.
 
-docs/dev/implementations/c3-environments-and-deploy.md, C3-D3, C3-D4, C3-K1.
+docs/dev/implementations/c3-environments-and-deploy.md, C3-D3, C3-D4, C3-K1; c3.1-feature-flags.md, C3.1-D12.
 """
 
+import os
 from typing import Literal, Self
 from urllib.parse import urlparse
 
 from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
+
+from app.flags import environment_problems
 
 # The four places a process can be (C3-D3). `local` is a laptop (or CI); the other three are hosted
 # (Dep-D1). A `Literal`, as `log_format` below does, so a typo such as "prodution" fails at startup instead of
@@ -153,6 +157,18 @@ class Settings(BaseSettings):
         )
         if problem:
             raise ValueError(problem)
+        return self
+
+    # Refuse to start on a bad `FLAG_*` variable (C3.1-D12): one that names no registered flag, a metro override on
+    # an environment-scoped flag, a flag the Python code base does not read, or a value other than `true`/`false`.
+    # Feature flags are read from the PROCESS environment only (C3.1-D11), so this checks `os.environ`, not a
+    # field: no `Settings` field is added, and `.env` still refuses a `FLAG_*` line as it refuses any unknown key.
+    # A second validator rather than a branch of the first, so each message says which rule it is.
+    @model_validator(mode="after")
+    def _feature_flag_variables_are_valid(self) -> Self:
+        problems = environment_problems(os.environ)
+        if problems:
+            raise ValueError("; ".join(problems))
         return self
 
 
