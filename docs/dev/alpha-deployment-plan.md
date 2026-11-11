@@ -260,7 +260,7 @@ The items are unmarked; their marking is set in C3.1's plan (Dep-D15): one `[fil
 
 **Done when:** `worker.scheduled_runs` evaluates from its own `FLAG_WORKER_SCHEDULED_RUNS` in each environment (dev has no hosted service, so its proof is the tests running the same rule and the inventory row; staging's is `/health`; production's `/health` hides the values, so its proof is at the next promotion, when C8's skip run logs the flag as off: amended by C3.1-D20, November 9, 2026); the registry check passes in CI; the effective values appear on a worker run; the Python and TypeScript tests pass.
 
-**Status (November 9, 2026):** built on branch `c3.1-feature-flags` (plan and decisions in `docs/dev/implementations/c3.1-feature-flags.md`); the scheduled-run gate is built here and not in C8 (C3.1-D1). The hosted checks (staging's migration and `/health`, a flip, the typo refusal, Vercel's build log) are Ari's, after the merge (that plan's Step 11).
+**Status (November 9, 2026): done.** Built on branch `c3.1-feature-flags` and merged as pull request #99 (plan and decisions in `docs/dev/implementations/c3.1-feature-flags.md`); the scheduled-run gate is built here and not in C8 (C3.1-D1). Ari merged it, saw the deploy succeed, and validated `/health` with the flag variable set. Step 11's typo refusal was skipped by Ari's decision (the local tests cover it); Vercel's treatment of the `FLAG_*` wildcard in `turbo.json` is unverified and waits for the first web flag, since nothing is set on Vercel to show it. Production's proof is at promotion (C3.1-D20).
 
 ### C4. Metro hosts and the domain
 

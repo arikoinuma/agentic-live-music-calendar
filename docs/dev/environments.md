@@ -30,6 +30,12 @@ behaviour (left to C8; the worker's runbook, [The worker on Railway](#the-worker
 repository; no Railway worker service exists yet.* **Known gaps:** the Vercel "Development" `APP_ENV` row should read `local` (not confirmed), and
 the `dev`-branch Preview override waits for the `dev` branch.
 
+**Checks recorded (November 9, 2026, C3.1).** Feature flags are merged and deployed (`feature_flags` appears in the API's
+`/health`). Ari validated that `/health` reflects `FLAG_WORKER_SCHEDULED_RUNS` when the variable is set on the deployed
+service. **Skipped by decision:** the typo refusal on a hosted service (the local tests cover it). **Deferred to the
+first web flag:** Vercel's treatment of the `FLAG_*` wildcard in `turbo.json` (the build warning only names variables
+that are set on Vercel, and none is). Production's proof is at promotion (C3.1-D20).
+
 ## How a process knows where it is (C3-D3, C3-D4)
 
 `APP_ENV` is `local`, `dev`, `staging` or `prod` (default `local`). At startup `app/config.py` refuses to build
