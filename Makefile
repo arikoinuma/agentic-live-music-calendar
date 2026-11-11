@@ -13,7 +13,7 @@ API_DIR := apps/api
 WEB := calendar
 
 .DEFAULT_GOAL := help
-.PHONY: help setup dev api web db db-up db-down db-reset db-shell db-wait worker eval-graph eval-report eval-compare eval-snapshot eval-policy \
+.PHONY: help setup dev api web db db-up db-down db-reset db-shell db-wait worker worker-hosted eval-graph eval-report eval-compare eval-snapshot eval-policy \
         migrate migration rehearse-migration seed fixtures types flags contract-check designation-check test coverage format lint typecheck \
         e2e check clean
 
@@ -93,6 +93,14 @@ db-shell: ## Open psql against the local database
 
 worker: ## Run the agent worker once: all venues, or VENUE=<id> (needs make db-up and Ollama)
 	cd $(API_DIR) && uv run python -m agent_worker.main $(if $(VENUE),--venue $(VENUE))
+
+# C8 (docs/dev/implementations/c8-worker-on-railway.md, C8-D3): a MANUAL worker run against a hosted environment, started from this
+# machine with that Railway service's variables (`railway run`). It runs the files checked out HERE, so the script refuses
+# unless the tree is clean and HEAD is what the environment deploys; prod also asks for a typed confirmation. Needs the
+# Railway CLI (signed in) and RAILWAY_PROJECT_ID in the shell. A run inside Railway's container is typed in its console instead.
+worker-hosted: ## Manual worker run on a hosted environment: make worker-hosted ENV=staging|prod [VENUE=<id>]
+	@test -n "$(ENV)" || { echo 'Usage: make worker-hosted ENV=staging|prod [VENUE=<id>]'; exit 1; }
+	cd $(API_DIR) && uv run python -m scripts.hosted_worker $(ENV) $(if $(VENUE),--venue $(VENUE))
 
 # C5 (docs/dev/implementations/c5-pipeline-eval-harness.md): scores a full graph run against the hand-written labels. Calls the
 # model, so it is local only and NOT part of `make check` or CI. Optional: SET (gated|informational|held_out|all), ONLY, RUNS,

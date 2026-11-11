@@ -14,6 +14,8 @@ HOW TO READ THIS
     per-venue scheduling), and keeps going when one venue hits an infrastructure error.
   * `main` wires the stores (Postgres engine, MongoDB client), configures logging, applies the scheduled-run gate
     (a `--trigger scheduled` run exits 0 when the feature flag `worker.scheduled_runs` is off, C3.1-D1), and calls `run_all`.
+    A run that does work logs one start line (after MongoDB has answered) and one finish line, so a run on Railway can
+    be read from its log without a database query (C8-D8's wording for an unreachable MongoDB is `mongo_unreachable_message`).
 
 THE EVENT LOOP
   Everything here runs on ONE event loop, created by `asyncio.run(main())`. The shared pooled engine
@@ -21,13 +23,15 @@ THE EVENT LOOP
   write; asyncpg connections and the Mongo client are bound to the loop that created them, which is why the
   graph is `ainvoke`-only (plan A4-D1; graph.py).
 
-docs/dev/implementations/a4-auditability.md, A4-D1, A4-D3, A4-D6, A4-D7, A4-D8; c3.1-feature-flags.md, C3.1-D1, C3.1-D13, C3.1-D14, C3.1-D15.
+docs/dev/implementations/a4-auditability.md, A4-D1, A4-D3, A4-D6, A4-D7, A4-D8; c3.1-feature-flags.md, C3.1-D1, C3.1-D13, C3.1-D14, C3.1-D15;
+c8-worker-on-railway.md, C8-D6, C8-D8.
 """
 
 import argparse
 import asyncio
 import datetime
 import sys
+import time
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
@@ -208,6 +212,23 @@ def model_endpoint_problem(app_env: AppEnv, provider: str, base_url: str | None,
     return None
 
 
+def mongo_unreachable_message(app_env: AppEnv) -> str:
+    """What to tell whoever reads the log when MongoDB does not answer, by environment (C8-D8).
+
+    A laptop's cause is a stopped Docker container, so it is sent to `make db-up`. A hosted worker has no Docker to
+    start: the causes are a PAUSED Atlas free cluster (C1 found one and had to restart it by hand: nothing connects to
+    Atlas between C8 and C11 except manual runs, so it can pause unnoticed), a wrong `MONGODB_URI`, or Atlas's
+    Network Access list not allowing Railway, which has no fixed outbound address (C8-U5, C8-U6).
+    """
+    if app_env == "local":
+        return "MongoDB did not answer; start it with `make db-up` or check MONGODB_URI"
+    return (
+        "MongoDB did not answer (Atlas): in the Atlas console check that the cluster is not paused (a free cluster "
+        "pauses after weeks without a connection and has to be resumed by hand), that this service's MONGODB_URI is "
+        "right, and that the Network Access list allows Railway"
+    )
+
+
 async def main(argv: list[str] | None = None) -> int:
     """Parse arguments, wire the stores, run, and return the process exit status."""
     parser = argparse.ArgumentParser(description="Run the agent worker over the venue list.")
@@ -262,8 +283,19 @@ async def main(argv: list[str] | None = None) -> int:
         try:
             await mongo.admin.command("ping")
         except PyMongoError as err:
-            log.error("MongoDB did not answer; start it with `make db-up` or check MONGODB_URI", error=str(err))
+            log.error(mongo_unreachable_message(settings.app_env), error=str(err))
             return 2
+        # The start line comes only once the run is certain to do work: a skipped run (the gate above) and a run that
+        # stops at the ping log nothing else, which `test_main_gate.py` pins (C3.1-T11). One line says what this run is,
+        # so a deployment's log is readable without opening the database (C8-D6).
+        log.info(
+            "worker run started",
+            trigger=args.trigger.value,
+            app_env=settings.app_env,
+            model=settings.model_name,
+            venue=args.venue,
+        )
+        started = time.monotonic()
         ctx = WorkerContext(
             # One snapshot of the feature flags, taken now, goes on every run this process opens (C3.1-D15): the
             # environment cannot change under a running process, so it is the run's value.
@@ -273,6 +305,9 @@ async def main(argv: list[str] | None = None) -> int:
             writer=PostgresCalendarWriter(SessionFactory),
         )
         failed = await run_all(SessionFactory, ctx, venue_id=args.venue, trigger=args.trigger)
+        # `run_all` returns only how many venues failed (each venue already logged its own "venue run finished"), so
+        # the finish line carries the failure count and the duration, which is what Railway's log view needs.
+        log.info("worker run finished", failed=failed, seconds=round(time.monotonic() - started, 1))
     finally:
         await mongo.close()
         await engine.dispose()

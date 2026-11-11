@@ -38,6 +38,7 @@ carries that defining document's scope.
 | `C5` | `docs/dev/implementations/c5-pipeline-eval-harness.md` |
 | `C5.1` | `docs/dev/implementations/c5.1-model-eval-layout.md` |
 | `C7` | `docs/dev/implementations/c7-pipeline-eval.md` |
+| `C8` | `docs/dev/implementations/c8-worker-on-railway.md` |
 | `PQR1` | `docs/dev/review/2026-11-06-python-code-quality-review.md` (Python Quality Review, round 1) |
 
 | `GH-<n>` | GitHub issue `<n>` in this repository (the number is GitHub's own); its resolution record is `docs/dev/issues/gh-<n>-<slug>.md` |
@@ -66,6 +67,7 @@ scope: `PQR1-4-CR1-2`, `GH-17-CR1-1`, `ISS-3-PR1-2`. `docs/dev/issues/README.md`
 | `<scope>-M<n>` | a mutation check: a deliberate break of the code under test that a named test must catch | `B5-M4` | that plan's mutation table (Verification) |
 | `<scope>-Q<n>` | a question a measurement milestone answers | `C7-Q4` | that plan's questions table (Context) |
 | `<scope>-R<n>` | a pre-registered reading: the rule, fixed before the runs, that turns a measurement into a recommendation | `C7-R3` | that plan's readings table |
+| `<scope>-U<n>` | an unverified outside fact: something about a service we cannot read from the repo (Railway's behavior, a vendor's limit), written down with the step that checks it, and marked resolved or carried when that step has run | `C8-U1` | that plan's table of unverified facts (Context) |
 | `<scope>-PR<round>-<n>` | a plan-review item | `A3-PR1-3` | that plan's Plan review rounds |
 | `<scope>-CR<round>-<n>` | a code-review item | `A3-CR1-3` | that plan's Code review rounds |
 | `v0.1-G<n>` | a known gap in the catalogue | `v0.1-G6` | `alpha-build-plan.md` §1.3 |

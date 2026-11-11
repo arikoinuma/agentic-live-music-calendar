@@ -1,0 +1,22 @@
+# What Docker never sends into a build of `apps/api` (the worker image, Dockerfile.worker; C8-D10).
+# `app/tests/test_worker_image.py` fails if a line below is removed.
+
+# Secrets and local configuration. `Settings` reads a `.env` it finds, so one inside an image would hand a laptop's
+# values to a hosted process. `.env.example` is harmless but is not needed either.
+.env
+.env.*
+
+# The local virtual environment (hundreds of MB, built for the laptop's platform). The image builds its own.
+.venv
+
+# The eval harness's captured venue pages and run results: tens of MB each, regenerable, and not used at run time.
+agent_worker/model_eval/captured_pages
+agent_worker/model_eval/results
+
+# Caches and bytecode.
+**/__pycache__
+**/*.pyc
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.coverage

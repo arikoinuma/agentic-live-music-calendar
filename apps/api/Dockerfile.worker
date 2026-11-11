@@ -1,0 +1,52 @@
+# The agent worker's container image, built by Railway for the worker services (docs/dev/implementations/c8-worker-on-railway.md).
+#
+# HOW TO READ THIS
+#   The API service builds with Railway's default builder and has NO Dockerfile; only the worker uses this one, which
+#   is why the file is named `Dockerfile.worker` and never `Dockerfile` (C8-D10): Railway switches a service to a Docker
+#   build whenever it finds a file named exactly `Dockerfile` in its root directory, and the API is rooted at this
+#   same directory. A worker service selects this file with the service variable `RAILWAY_DOCKERFILE_PATH=Dockerfile.worker`
+#   (Root Directory `apps/api`). `app/tests/test_worker_image.py` pins the decisions below; CI's `worker-image` job
+#   builds the image and runs `python -m agent_worker.main --help` in it.
+#
+# Why `python:3.13-slim` and not Playwright's image (C8-D2): nothing in the worker drives a browser (a fetch is one httpx
+# call), and that image is much larger and ships a different Python. When a venue needs a browser (arch-initial.md
+# section 11) that milestone adds the browser here. The `playwright` Python package is installed (it is a dependency)
+# but no browser is.
+FROM python:3.13-slim
+
+# `uv` at an exact version, copied from its image. It is used only to install dependencies from the lockfile.
+COPY --from=ghcr.io/astral-sh/uv:0.12.3 /uv /usr/local/bin/uv
+
+# * PATH: the virtual environment first, so `python -m agent_worker.main ...` works in a shell that inherits this image's
+#   environment. A login shell resets PATH (Debian's /etc/profile), and Railway's console may be one (C8-U8), so the
+#   documented console commands name /app/.venv/bin/python instead of relying on this (C8-CR1-2). `uv sync` writes the
+#   environment to /app/.venv.
+# * PYTHONPATH: the project is not installed (`--no-install-project`), so `-m agent_worker.main` finds its code only
+#   through the working directory; this makes it importable from any directory (C8-CR1-2).
+# * PYTHONUNBUFFERED: a log line reaches Railway as it is written, and a crash does not lose a buffered tail.
+# * UV_COMPILE_BYTECODE: compile once at build time, so a cron start does not spend its first seconds compiling.
+# * UV_PYTHON_DOWNLOADS=never: the base image's Python is the one used; a version mismatch fails the build instead of
+#   quietly downloading another interpreter.
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONPATH=/app \
+    PYTHONUNBUFFERED=1 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_PYTHON_DOWNLOADS=never
+
+WORKDIR /app
+
+# The dependency layer: built from the project files alone, so a code-only change reuses it. `--frozen` installs exactly
+# what `uv.lock` says, `--no-dev` leaves out the test tools, `--no-install-project` installs the libraries and not
+# this package (the code below is run in place), and `--no-cache` keeps uv's download cache out of the image.
+COPY pyproject.toml uv.lock .python-version ./
+RUN uv sync --frozen --no-dev --no-install-project --no-cache
+
+# Only the code the worker runs (C8-D10). `.dockerignore` keeps `.env`, `.venv` and the eval data out of the build
+# context as well. Nothing here runs migrations: only the API does, in its pre-deploy command (C8-D9).
+COPY app ./app
+COPY agent_worker ./agent_worker
+
+# The gated command (C8-D4): `scheduled` is what the feature flag `worker.scheduled_runs` guards (C3.1-D13), so a
+# deploy that Railway starts on its own is a logged skip while the flag is off. A manual run is typed in a console
+# (`cd /app && /app/.venv/bin/python -m agent_worker.main --trigger manual --venue <id>`) or started from a laptop (C8-D3, C8-D15).
+CMD ["python", "-m", "agent_worker.main", "--trigger", "scheduled"]

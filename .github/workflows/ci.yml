@@ -225,6 +225,47 @@ jobs:
             apps/calendar/test-results/
           retention-days: 7
 
+  worker-image:
+    # C8 (docs/dev/implementations/c8-worker-on-railway.md, C8-D2, C8-D4). Builds the agent worker's container image
+    # exactly as Railway does (`apps/api` is the build context, `Dockerfile.worker` the file) and runs it twice, so an
+    # image that cannot build, import or start is found here and not by Railway on the first deploy. NOT a required
+    # check yet: adding it to the `main` ruleset is C10's "update the required checks" item, and its name is then a
+    # contract with the ruleset like the e2e job's.
+    name: Worker image (docker build and run)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the image
+        run: docker build -f apps/api/Dockerfile.worker -t worker-image apps/api
+
+      # Bare `python`, not `uv run`: a console shell on Railway has no tool paths, so the image must put its virtual
+      # environment on PATH itself (C8-D15). Throwaway local-looking variables only make `Settings` resolve at import;
+      # nothing here connects to anything.
+      - name: The image imports and starts
+        run: |
+          docker run --rm \
+            -e APP_ENV=local \
+            -e DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/ci \
+            -e MODEL_NAME=ci-placeholder \
+            worker-image python -m agent_worker.main --help
+
+      # The container's own command with the feature flag unset: the gate must skip, exit 0 and say so (C3.1-D13), because
+      # under C8-U1 Railway may run this command on every deploy. No database or MongoDB is reached. `2>&1` because the
+      # worker logs to stderr (app/log_config.py): without it the capture is empty and the step fails on a correct run (C8-CR1-1).
+      - name: The default command is a logged skip
+        run: |
+          out=$(docker run --rm \
+            -e APP_ENV=local \
+            -e DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/ci \
+            -e MODEL_NAME=ci-placeholder \
+            -e MODEL_BASE_URL=http://localhost:11434/v1 \
+            -e MONGODB_URI=mongodb://localhost:1 \
+            worker-image 2>&1)
+          echo "$out"
+          echo "$out" | grep -q "scheduled run skipped"
+
   designations:
     name: Designations (scoped IDs)
     # Pull requests only: it looks at the lines a PR adds. A push to main has no base to compare with.
