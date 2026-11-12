@@ -2164,15 +2164,15 @@ wheels = [
 
 [[package]]
 name = "resend"
-version = "2.50.1"
+version = "2.53.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "requests" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2a/1f/a4bd71c41da6146b439cd85287bc186dd3183fabd915c89dac85f53cfb79/resend-2.50.1.tar.gz", hash = "sha256:d04a2ee103fb795093632d85ce2223610af208eb1b11905a37d3db86da2f18e8", size = 86293, upload-time = "2026-10-29T15:53:15.951Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/08/57/90a75fd66faed17a6467ce5dcc50e8620e3f11a7a365f3581c5e38275ab5/resend-2.53.0.tar.gz", hash = "sha256:376d860115abf9eb6ef33d556c3a64f122d6cd8ec7347ac80f4b567d6e813829", size = 86342, upload-time = "2026-11-09T19:14:26.434Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9c/67/cf6b73bad38ba743a00e0efa9103766bd9c0be8f1510b230dba85105addf/resend-2.50.1-py2.py3-none-any.whl", hash = "sha256:0e93a115a5b13a5db77c6c36ba59d9e298a122470ebea3f9ad921eb1d13f257f", size = 126258, upload-time = "2026-10-29T15:53:14.325Z" },
+    { url = "https://files.pythonhosted.org/packages/9d/cd/e5fded706143a09c319794ed96e988e790852e8e5122809e3829f3d9cecd/resend-2.53.0-py3-none-any.whl", hash = "sha256:2f04d71a1feaf1e553df74dd8b876591d61a35530e0631aa46d6ce5c4fa8710f", size = 126439, upload-time = "2026-11-09T19:14:25.131Z" },
 ]
 
 [[package]]
