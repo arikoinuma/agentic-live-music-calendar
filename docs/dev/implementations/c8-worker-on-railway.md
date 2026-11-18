@@ -1,6 +1,6 @@
 # C8 — the agent worker on Railway
 
-**Status:** Awaiting sign-off
+**Status:** Done (signed off by Ari, November 18, 2026, as a staging milestone: production's worker and the items in Round 3 move to C11)
 **Date:** November 9, 2026 (revised the same day, after C3.1 merged to `main`: see "Revision after C3.1" at the end)
 **Author model:** Claude Sonnet 5.5
 **Reviewer model:** Claude Opus 5.5 (plan review round 1, November 9, 2026); Claude Opus 5.5 (code review round 1, November 9, 2026)
@@ -253,6 +253,49 @@ Files, by group:
 2. `agent_worker/main.py`: the position of the start line (after the ping succeeds) and the finish line. C3.1's tests require a skipped run to log exactly one info line and a failed ping none; `test_main_summary.py` pins this, but the position is a judgment.
 3. `Dockerfile.worker`: `PATH` and `WORKDIR` are what make the console runbook's bare `python -m …` work; a test reads the file as text, so it proves the file says so, and only the local smoke run proved the image behaves.
 4. `environments.md`: the new section states Railway settings from the plan, not from a service that exists. Each unverified fact is marked `C8-U<n>`; check that none is written as observed.
+
+### Round 2 — hosted checks on staging (Steps 8 to 10), Ari and Claude Sonnet 5.5, November 18, 2026
+
+*Ari did the dashboard work; Claude read the results with the Railway CLI (5.71.0, read-only: `railway cron list`, `railway logs`,
+`railway deployment list`, variable names) and wrote them down. Nothing in the code changed. The run-by-run record is in
+`environments.md`, "Current state", under "Checks recorded (November 18, 2026, C8, staging)"; the traps are in `notes.md`.*
+
+**Done:** Step 8 (the staging `worker` service, its variables and the DeepInfra keys), Step 8a, Step 9 (both drills), Step 10 (a), (b)
+and (c). **Step 11 (production) is deferred to C11 by Ari's decision (November 18, 2026):** staging proves the worker, and production's worker, its first manual run and the promotion of `production` happen at go-live. **Not done:** Step 12 (the remaining records: `alpha-deployment-plan.md`, `arch-initial.md` §9 and
+§11, `env-setup.md` Phase 8), the `make worker-hosted` success path, and the staging API's build-log check for U3.
+
+**The unverified facts, as observed.**
+
+| ID | Result |
+|---|---|
+| U1 | **No.** A deploy did not start the cron command: seven worker deploys, and each one's first run came from Run now or the schedule. |
+| U2 | **"Never" is honoured**, for exit 1 (malformed flag) and exit 2 (localhost model URL): one container start and one cron row each. |
+| U3 | **Worker half: resolved.** The build used `Dockerfile.worker` with the context at `apps/api` (build log: `COPY app ./app` and `uv sync` steps). **API half: not checked** (the CLI returned an empty build log). |
+| U4 | **Resolved:** CLI 5.71.0 has `railway cron list` and `railway cron run` (5.47.1 had neither); `railway usage limit set` needs `--target workspace` and a dollar value (Ari did not get it to work, so no hard limit is set, D14); `railway outbound-network static-ip` exists (not tried). |
+| U5 | Not measured: the cluster had not paused after about a week without a connection. |
+| U6 | **Confirmed, then fixed:** Atlas Network Access held only the laptop's IP; Ari added `0.0.0.0/0`. The first run through Railway's network then connected. |
+| U7 | Not exercised (no run overlapped the next tick). |
+| U8 | **No:** a cron service has no console between runs. |
+| U9 | **Yes for the idle service:** `worker-shell` (`sleep infinity`) stays Online and its Console works. **Not recorded:** its idle cost and whether it uses reference variables. |
+
+**Decisions and departures.**
+
+1. D15 (b) applied: the cron `worker`'s console did not exist, so the idle `worker-shell` service was created for staging.
+2. **The hard usage limit (D14) is not set.** The CLI command failed for Ari. It matters before any production scheduled run; the
+   dashboard's usage page offers the same limit.
+3. **Run results** (all `staging`; `finished_at` set; `failed=0`): run 1 (manual, venue 1, 20.9 s, 11 inserts); runs 2 to 5 (manual,
+   all four venues, 142.2 s); runs 6 to 9 (**scheduled**, flag `true` on the worker, Run now, 109.2 s, `feature_flags`
+   `{"worker.scheduled_runs": true}`). DeepInfra reported $0.00752 for the three sessions, far under D14's concern.
+4. **The flag was set and deleted twice** (the malformed drill and the armed run); the final CLI read shows no `FLAG_*` variable and
+   `MODEL_BASE_URL` restored.
+
+**New findings (not C8 changes).** (a) Railway's log viewer shows the worker's lines blank (`event` is not `message`); noted in
+`notes.md` with a likely fix, not made. (b) Venue 1 reports `update 1` on every repeat run, and venue 3 went from 11 inserts to
+9 no-ops with `remove 0`: both look like normal behaviour (a changing field; the soft-delete window) but were not investigated.
+
+### Round 3 — Step 12, the records, Claude Sonnet 5.5, November 18, 2026
+
+Documents updated, with Step 11 recorded as deferred to C11 (Ari, November 18, 2026): `alpha-deployment-plan.md` (C8's checklist ticked with its amendments, an amended Done-when and a status line, C3.1's production proof moved to C11, three new C11 bullets: promote `production`, create production's worker, set the hard usage limit), `arch-initial.md` §9 (the worker topology) and §11 (the Railway worker bullet is no longer deferred on staging), `env-setup.md` Phase 8 (the worker section's items and the skipped manual-trigger item), `environments.md` and `notes.md` (Round 2). **Amendment to this plan's Done-when:** staging only; Step 11 and the production proof of the flag (C3.1-D20) move to C11, together with the staging API's build-log check (U3's other half), `worker-shell`'s idle cost and the hard usage limit (D14). **Status: set to `Done` by Ari's instruction the same day (Round 3's records are the last of Step 12).** `make designation-check BASE=origin/main` exits 0; docs only, so `make check` was not re-run.
 
 ## Code review
 

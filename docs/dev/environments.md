@@ -14,7 +14,7 @@ something needs it; Step 6.9 and Step 8 were skipped by decision). Anything mark
 |---|---|---|---|---|
 | Git branch | any | `dev` (the lane, below; the branch is not created yet) | `main` | `production` |
 | Vercel | `make dev` | Preview, branch `dev` (no branch override set yet) | Preview (`main` and every PR branch), `API_BASE_URL` = staging's API | Production (Production Branch `production`) |
-| Railway | none | *not built* | environment `staging`, source `main`, public domain `kind-spontaneity-staging.up.railway.app` | environment `production`, source `production` |
+| Railway | none | *not built* | environment `staging`, source `main`, public domain `kind-spontaneity-staging.up.railway.app`; worker services `worker` and `worker-shell` (C8) | environment `production`, source `production` |
 | Neon | Docker Postgres | branch `dev`, schema only, stamped at `67609c405218` | branch `staging`, seeded, at `829af2c3f26f` | default branch, at `829af2c3f26f`, seeded |
 | Atlas | Docker Mongo | user `calendar_dev` on database `calendar_dev` (created on first write) | user `calendar_staging` on `calendar_staging` | user `calendar_prod` on `calendar` (nothing writes to it yet) |
 | Database login role | `postgres` | `calendar_dev` | `calendar_staging` | `calendar_prod` |
@@ -26,8 +26,7 @@ staging service failed the deploy (the startup check) and was reverted. The Verc
 environment agreeing on Preview (`staging`) and on Production (`prod`). The `production` branch is protected by a
 ruleset (no deletion, no force push, no bypass); a delete from a clone was rejected. Atlas isolation was probed for
 all three users. **Not measured:** Neon's behaviour on archiving and the first request after a wake; Atlas pause
-behaviour (left to C8; the worker's runbook, [The worker on Railway](#the-worker-on-railway-c8), says to check the cluster first). *C8 (November 9, 2026): the worker image and the laptop and console ways to start a run are in the
-repository; no Railway worker service exists yet.* **Known gaps:** the Vercel "Development" `APP_ENV` row should read `local` (not confirmed), and
+behaviour (left to C8; the worker's runbook, [The worker on Railway](#the-worker-on-railway-c8), says to check the cluster first). **Known gaps:** the Vercel "Development" `APP_ENV` row should read `local` (not confirmed), and
 the `dev`-branch Preview override waits for the `dev` branch.
 
 **Checks recorded (November 9, 2026, C3.1).** Feature flags are merged and deployed (`feature_flags` appears in the API's
@@ -35,6 +34,26 @@ the `dev`-branch Preview override waits for the `dev` branch.
 service. **Skipped by decision:** the typo refusal on a hosted service (the local tests cover it). **Deferred to the
 first web flag:** Vercel's treatment of the `FLAG_*` wildcard in `turbo.json` (the build warning only names variables
 that are set on Vercel, and none is). Production's proof is at promotion (C3.1-D20).
+
+**Checks recorded (November 18, 2026, C8, staging).** Staging has two worker services: `worker` (cron `0 10 * * *`,
+source `main`, built from `Dockerfile.worker`, restart policy Never) and `worker-shell` (idle, `sleep infinity`, for a console).
+*Environment:* Atlas Network Access is now `0.0.0.0/0` (it held only the laptop's IP; Railway Hobby has no fixed egress IP, C8-U6);
+the cluster is MongoDB **8.0.37** (local Docker is 7.0, A4-D3); the Railway CLI is 5.71.0, which has `railway cron list` and
+`railway cron run` (5.47.1 had neither, C8-U4); staging's database had migration `d7b3c2a91e45` before the first run.
+*Observed:* the nightly cron ran every day from November 13 and, with the flag off, logged
+`scheduled run skipped: feature flag worker.scheduled_runs is off` and exited in 3 to 8 s (`EXITED`). A deploy never started the
+command by itself (seven worker deploys; the first run on each came from Run now or the schedule, C8-U1). A malformed
+`FLAG_WORKER_SCHEDULED_RUNS=yes` crashed the container at startup with `Settings`' refusal (`CRASHED`, exit 1, no I/O); a
+`MODEL_BASE_URL` of `http://localhost:1/v1` was refused by the endpoint check (`CRASHED`, no I/O); neither was retried (C8-U2).
+A cron service has no console between runs (C8-U8), so `worker-shell` exists (C8-U9). *Real runs* (all `staging`, `finished_at`
+set, `failed=0`): run 1, `--trigger manual --venue 1` from `worker-shell`, 20.9 s, 11 shows inserted; runs 2 to 5, `manual`, all
+four venues, 142.2 s (venue 1: 1 update and 10 no-ops; the others 24, 11 and 9 inserts); runs 6 to 9, **`scheduled` with
+`FLAG_WORKER_SCHEDULED_RUNS=true` on the worker, started with Run now, `feature_flags = {"worker.scheduled_runs": true}`**,
+109.2 s, 1 update and the rest no-ops. DeepInfra reported **$0.00752** for the three model sessions. The flag was then deleted and
+the next run was a skip again. `msp.staging.pebblebeats.com` shows the shows. **Not done:** production's worker (the plan's Step 11);
+the first run through the laptop command `make worker-hosted` (it needs `RAILWAY_PROJECT_ID`; the fake-process tests cover it);
+the staging API's build log came back empty from the CLI, so U3's second half (the API still builds without a
+Dockerfile) is **not checked**: read its latest build log in the dashboard.
 
 ## How a process knows where it is (C3-D3, C3-D4)
 
@@ -395,10 +414,10 @@ Old config files stop being read on 2026-12-01; none exists here.
 
 ## The worker on Railway (C8)
 
-*Written from the C8 plan (`docs/dev/implementations/c8-worker-on-railway.md`) before any worker service exists. The code
-(the image, the gate, the laptop command) is in the repository; **creating the services is the plan's Steps 8 to 12, Ari's
-dashboard work, and nothing below is recorded as done until those steps are.** Facts about Railway that are not verified
-are the plan's `C8-U1` to `C8-U9`; each is marked resolved there when its step has run.*
+*C8 (`docs/dev/implementations/c8-worker-on-railway.md`). The code (the image, the gate, the laptop command) is in the
+repository. **Staging has run it hosted since November 12–18, 2026** (the checks are under "Current state"); **production has
+no worker service yet** (the plan's Step 11). The `C8-U1` to `C8-U9` labels are the plan's unverified Railway facts; each is
+marked below with what was observed.*
 
 ### The service (one per environment: `staging`, and `production`; `dev` has no Railway environment, C3-D1, C8-D1)
 
@@ -412,9 +431,9 @@ never "copy variables from Production" (C3-D4).
 | Source branch | `main` (staging), `production` (production) | As the API services. A worker service is created only after its branch holds `Dockerfile.worker` and the scheduled-run gate (C8-D13, C8-U1). |
 | Root Directory | `apps/api` | The build context; `.dockerignore` is read from here. |
 | Variable `RAILWAY_DOCKERFILE_PATH` | `Dockerfile.worker` | Selects the file; service variables are not build arguments. |
-| Cron schedule | `0 10 * * *` (UTC: 4 a.m. in Minneapolis in winter, 5 a.m. in summer) | C8-D5. Staging gets the same schedule with the flag off (expected, not observed: a service with no schedule is a one-shot process that Railway would show as crashed) and production's is gated until C11 (C8-D9). |
+| Cron schedule | `0 10 * * *` (UTC: 4 a.m. in Minneapolis in winter, 5 a.m. in summer) | C8-D5. Staging gets the same schedule with the flag off (a clean skip shows as `EXITED` in `railway cron list`; a startup refusal shows as `CRASHED`) and production's is gated until C11 (C8-D9). |
 | Start command | none: the image's `CMD` is `python -m agent_worker.main --trigger scheduled` | C8-D4: the flag gates exactly this trigger, so a run Railway starts by itself is a logged skip while the flag is off. |
-| Restart policy | Never | A failed run must not be retried into a loop (C8-U2 is checked by the plan's Step 9). |
+| Restart policy | Never | A failed run must not be retried into a loop. **Observed November 18, 2026 (C8-U2):** after an exit 1 (a malformed flag) and an exit 2 (a localhost model URL), each run had exactly one container start and one `railway cron list` row: "Never" is honoured. |
 | Healthcheck, pre-deploy command | none | It is not a web service, and only the API migrates (C8-D9). |
 
 Variables: `APP_ENV` (`staging` or `prod`), `DATABASE_URL` (the **same** `calendar_<env>` login role as that environment's API),
@@ -424,18 +443,29 @@ Variables: `APP_ENV` (`staging` or `prod`), `DATABASE_URL` (the **same** `calend
 the API's** (the API runs no gate). A misspelled or malformed `FLAG_*` value makes the container fail at startup, which on a
 cron service shows on its next run, not at deploy (`Settings` refuses it, C3.1-D12).
 
+### `worker-shell`: the idle service that gives a console (staging only; C8-U8, C8-U9)
+
+A cron service has **no running container between runs, so its Console tab has nothing to open** (C8-U8, observed November 18,
+2026; `railway ssh` needs a running instance too). So staging has a second service, **`worker-shell`**: the same repository,
+branch `main`, Root Directory `apps/api` and `RAILWAY_DOCKERFILE_PATH=Dockerfile.worker`, the same eight variables as `worker`
+(and no flag), **no cron schedule**, and the custom start command `sleep infinity`, which replaces the image's `CMD`. Observed
+(C8-U9): it stays **Online** and its Console tab gives a root shell in `/app`. **Not recorded:** what the idle container costs
+over a few days (read Railway's usage page and write it here), and whether the variables are Railway reference variables
+(`${{worker.NAME}}`) or copies. A merge to `main` redeploys it and ends a run in progress. **Production gets none in C8**
+(C8-D15): it would hold production's secrets in a shell with no typed confirmation; that is a C11 decision.
+
 ### Starting a run
 
 | How | Where it runs | Use it for |
 |---|---|---|
 | The cron schedule | Railway's container | The daily run, once the flag is `true` (C11 for production). With the flag off it logs `scheduled run skipped: feature flag worker.scheduled_runs is off`, writes nothing and exits 0. |
 | `make worker-hosted ENV=staging\|prod [VENUE=<id>]` | **This machine**, with that service's variables | The quick manual run (C8-D3). It executes the files checked out here, so it refuses unless the tree is clean and `HEAD` is `origin/main` (staging) or `origin/production` (prod), prints the commit, and asks for `production` to be typed for prod. Needs the Railway CLI signed in and `RAILWAY_PROJECT_ID` in the shell. Records `trigger='manual'`; ignores the flag. |
-| The service's **Console** tab | Railway's container | A manual run in the real image, on Railway's network (C8-D15). Needs a **running** deployment: whether a cron service has one between runs is C8-U8, and if not the plan adds an idle `worker-shell` service (C8-U9). |
+| `worker-shell`'s **Console** tab | Railway's container | A manual run in the real image, on Railway's network (C8-D15): all venues or one (`--venue`). Observed working on staging; the runbook below is what was typed. |
+| **Run now** in the dashboard, or `railway cron run -s worker -e staging --yes` (CLI 5.71.0) | Railway's container | The container's own command, `--trigger scheduled`, **immediately**: with the flag off a logged skip, with it on a real run (observed both). It cannot pass `--trigger manual` or `--venue`. Needs a deploy to be current, so apply staged variable changes with Deploy first. |
 
-**Console runbook** (*written before any worker service exists; whether Railway's console is a login shell, and which
-directory it starts in, are not known (C8-U8), so every command names the interpreter and the directory instead of relying
-on `PATH` or the image's `ENV`. The image still puts its virtual environment on `PATH` and `/app` on `PYTHONPATH`, which
-covers a shell that inherits them*):
+**Console runbook** (in `worker-shell`; verified on staging November 18, 2026. Every command names the interpreter and the
+directory instead of relying on `PATH` or the image's `ENV`, because a shell's `PATH` is not known to match the image's. The
+image still puts its virtual environment on `PATH` and `/app` on `PYTHONPATH`):
 
 ```bash
 cd /app && /app/.venv/bin/python -m agent_worker.main --help      # proves the image and its libraries
@@ -443,16 +473,16 @@ cd /app && nohup /app/.venv/bin/python -m agent_worker.main --trigger manual --v
 tail -f /tmp/run.log                    # Ctrl-C stops the tail, not the run
 ```
 
-**How to check C8-U8 and C8-U9** (the plan's Step 8a): between two ticks of the cron `worker`, open its **Console** tab. If it
-gives a shell with the worker's variables, U8 holds; run the first command above to confirm the image. If it does not (no running
-deployment), add the idle `worker-shell` service of the same image with the start command `sleep infinity`, and repeat there (U9:
-what it costs, and whether it can share the worker's variables by reference). Record the result against `C8-U8` and `C8-U9`.
-
 * `nohup` and `&` so a closed browser tab does not end the run. **The record of a console run is `agent_run`,
-  `audit_log` and the Atlas document, not Railway's deployment log** (expected: a shell session's output is probably not in it; unobserved): `make db-shell`
-  cannot reach a hosted database, so use the saved queries in `docs/dev/audit-queries.sql` through the one-command override above.
+  `audit_log` and the Atlas document**; the run's own output is in the file you redirected it to. `make db-shell`
+  cannot reach a hosted database: read the results in **Neon's SQL editor** (dashboard, the environment's branch), which needs no
+  connection string. `agent_run` has no `status` column; a run is over when `finished_at` is set.
 * Check the Atlas cluster is running first: the free cluster pauses after weeks without a connection and has to be resumed
   by hand (C1; C8-D8). The worker's "MongoDB did not answer" message says so on a hosted environment.
+* **Dashboard logs look blank.** The worker's JSON lines carry their text in an `event` field, and Railway's log viewer shows `message`,
+  so every line appears empty (observed; the CSV export shows the text under `attributes`). Read hosted logs with the CLI:
+  `railway logs -p <project> -s worker -e staging --since <UTC time> --until <UTC time>`; `railway cron list -s worker -e staging`
+  gives each run's time, status and duration and prints that command.
 * A redeploy ends a run in progress: a merge to `main` redeploys staging's worker. The shell holds the service's secrets,
   so do not run `printenv` where it is recorded or shared. Production's console path is created at C11 (C8-D15).
 
