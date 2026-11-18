@@ -824,3 +824,22 @@ the ORM reads it back as `None` either way, which hides the difference. `agent_r
 be a real NULL, so it is declared `JSONB(none_as_null=True)`; `test_a_writer_built_without_flags_writes_null` checks the
 column with `IS NULL`, not through the ORM. Use `none_as_null=True` on any nullable JSONB column a query will test.
 
+## A Railway cron service has no console between runs, and "Run now" takes no arguments (C8)
+
+Found on staging, November 18, 2026. A cron service is a container that starts, runs its command and exits, so its **Console tab
+has nothing to attach to** between runs (C8-U8), and `railway ssh` needs a running instance too. Starting a run by hand in the
+real image therefore needs a second, idle service from the same image (`worker-shell`, start command `sleep infinity`; C8-U9),
+where the run is typed. The dashboard's **Run now** (and `railway cron run`, CLI 5.71.0) starts the service's own command,
+`--trigger scheduled`, immediately and cannot add `--trigger manual` or `--venue`; with the feature flag off that is a logged
+skip, with it on a real run. Two related traps: a variable change is **staged** and only takes effect at the next deploy (a
+restored `MODEL_BASE_URL` still read `http://localhost:1/v1` from the CLI until Ari pressed Deploy), and deleting a flag
+variable is the way to turn it off (unset means off; `false` also works but leaves a variable to forget).
+
+## Railway's log viewer shows the worker's lines blank (C8)
+
+The worker's JSON logs (`app/log_config.py`) put their text under `event`; Railway's viewer displays the `message` field, so
+every worker line appears as an empty `[inf]` row in the dashboard (the CSV export shows the text only inside `attributes`).
+The CLI prints the fields, so read hosted logs with `railway logs -p <project> -s worker -e staging --since <UTC> --until <UTC>`
+(`railway cron list` prints the exact window for each run). A likely fix is one structlog `EventRenamer("message")` processor in
+JSON mode; it is not made, because it changes every log line's shape (a search of the tests for `"event"` comes first).
+
