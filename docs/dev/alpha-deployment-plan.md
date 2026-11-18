@@ -343,7 +343,7 @@ Plan and review: `docs/dev/implementations/c5-pipeline-eval-harness.md` (plan ap
 
 **Amended by C8-D1 and Ari (November 18, 2026):** staging only. Dev has no Railway environment, and production's worker, its first manual run and the promotion of `production` happen at C11.
 
-**Status (November 18, 2026): built and verified on staging; awaiting Ari's sign-off.** Code merged as pull request #101 (plan: `docs/dev/implementations/c8-worker-on-railway.md`); the hosted checks are recorded in `environments.md` (Current state) and the plan's Implementation log, Round 2. A cron service has no console between runs, so staging also has an idle `worker-shell` (`notes.md`). **Carried to C11 by Ari's decision:** Step 11 (production worker, flag unset, and C3.1-D20's production proof of the flag); the staging API's build log for U3's other half; `worker-shell`'s idle cost; and the Railway hard usage limit (C8-D14), which the CLI refused to set.
+**Status (November 18, 2026): done for staging, signed off by Ari.** Code merged as pull request #101 (plan: `docs/dev/implementations/c8-worker-on-railway.md`); the hosted checks are recorded in `environments.md` (Current state) and the plan's Implementation log, Round 2. A cron service has no console between runs, so staging also has an idle `worker-shell` (`notes.md`). **Carried to C11 by Ari's decision:** Step 11 (production worker, flag unset, and C3.1-D20's production proof of the flag); the staging API's build log for U3's other half; `worker-shell`'s idle cost; and the Railway hard usage limit (C8-D14), which the CLI refused to set.
 
 ### C9. Audit storage: R2 snapshots (was H3's R2 half)
 
