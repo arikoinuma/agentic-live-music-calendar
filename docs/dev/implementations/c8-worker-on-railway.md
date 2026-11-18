@@ -293,6 +293,10 @@ and (c). **Step 11 (production) is deferred to C11 by Ari's decision (November 1
 `notes.md` with a likely fix, not made. (b) Venue 1 reports `update 1` on every repeat run, and venue 3 went from 11 inserts to
 9 no-ops with `remove 0`: both look like normal behaviour (a changing field; the soft-delete window) but were not investigated.
 
+### Round 3 — Step 12, the records, Claude Sonnet 5.5, November 18, 2026
+
+Documents updated, with Step 11 recorded as deferred to C11 (Ari, November 18, 2026): `alpha-deployment-plan.md` (C8's checklist ticked with its amendments, an amended Done-when and a status line, C3.1's production proof moved to C11, three new C11 bullets: promote `production`, create production's worker, set the hard usage limit), `arch-initial.md` §9 (the worker topology) and §11 (the Railway worker bullet is no longer deferred on staging), `env-setup.md` Phase 8 (the worker section's items and the skipped manual-trigger item), `environments.md` and `notes.md` (Round 2). **Amendment to this plan's Done-when:** staging only; Step 11 and the production proof of the flag (C3.1-D20) move to C11, together with the staging API's build-log check (U3's other half), `worker-shell`'s idle cost and the hard usage limit (D14). **Status stays `Awaiting sign-off`: only Ari sets `Done`.** `make designation-check BASE=origin/main` exits 0; docs only, so `make check` was not re-run.
+
 ## Code review
 
 ### Round 1 — Claude Opus 5.5, November 9, 2026
