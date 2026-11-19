@@ -10,7 +10,8 @@ HOW TO READ THIS
        like an empty one, or reconcile would insert a duplicate of every show;
     1. runs the sync node in a worker thread (`asyncio.to_thread`), so the blocking model call and HTTP fetch
        don't stall the event loop that the database and MongoDB clients live on (plan A4-D1);
-    2. for an extract step, stages the attempt's raw record in MongoDB (**A4-K3**, below);
+    2. for an extract step, stages the attempt's raw record in MongoDB (**A4-K3**, below); for a fetch step that read a
+       page, stores the page in R2 through the context's `SnapshotStore` (C9, below);
     3. for a commit step, awaits the writes the node prepared (A6): `calendar_writer.write_plan`, each show its own
        transaction with its own audit row inside it, so those rows exist before step 4's summary row;
     4. appends this step's audit row through the context's writer, and for reconcile one more row per model
@@ -30,7 +31,16 @@ THE TRAP
   `TypeError: inner() missing 1 required positional argument: 'runtime'` (verified against langgraph 1.2.11).
   It fails loudly, but the message names the inner node and not the cause.
 
-docs/dev/implementations/a4-auditability.md, A4-D1; A4-K3.
+THE PAGE SNAPSHOT (C9)
+  A fetch that read a page is followed by one `put` of that page to the context's `SnapshotStore`, BEFORE the fetch row is
+  appended, because the row records the key and the object must exist first (C9-D6). It runs only when the fetch
+  succeeded (`fetch_error is None`; `fetch_node` assigns `page_html` BEFORE it raises on an empty page, so `page_html`
+  alone is not the test, C9-PR1-3) and there is a page (an image file has none). When the store raises `SnapshotError`
+  the fetch row is STILL written, with a NULL key and the failure in `detail.snapshot_error`, and then the error is
+  re-raised so the venue's run stops (C9-D1): a page that cannot be audited is not carried forward, and the trail says why
+  instead of only a log line that Railway's dashboard may show blank.
+
+docs/dev/implementations/a4-auditability.md, A4-D1; A4-K3; c9-r2-snapshots.md, C9-D1, C9-D6.
 """
 
 import asyncio
@@ -45,6 +55,7 @@ from agent_worker.calendar_writer import write_plan
 from agent_worker.context import WorkerContext
 from agent_worker.nodes import metro_today
 from agent_worker.reconcile import load_request, prepare_inputs
+from agent_worker.snapshots import SnapshotError, SnapshotRef
 from agent_worker.state import VenueGraphState
 from app.enums import StepType
 
@@ -103,6 +114,21 @@ def audited(step: StepType, node: Node) -> Callable[..., Awaitable[VenueGraphSta
             #   describes what that attempt produced.
             staging_id = await runtime.context.stager.stage(staging.document_for(state))
 
+        # (2b) The fetched page goes to the snapshot store, before the row that records its key (C9-D6; see the module
+        # docstring). `snapshot_failure` is held until the row is written and raised after it (C9-D1).
+        snapshot: SnapshotRef | None = None
+        snapshot_failure: SnapshotError | None = None
+        if step is StepType.FETCH and state.fetch_error is None and state.page_html is not None:
+            try:
+                snapshot = await runtime.context.snapshots.put(
+                    venue_id=state.venue_id,
+                    fetched_on=state.fetched_on or metro_today(state.metro_timezone),
+                    run_id=state.run_id,
+                    page=state.page_html,
+                )
+            except SnapshotError as err:
+                snapshot_failure = err
+
         # (3) Commit's writes (A6). The node only prepared the operations (it can't await); they are done here, on the
         # event loop that owns the database, each show in its own transaction with its audit row inside it. A failure
         # about one show is recorded and skipped; a lost connection or a bug raises out of here, so NO summary row is
@@ -119,7 +145,19 @@ def audited(step: StepType, node: Node) -> Callable[..., Awaitable[VenueGraphSta
         # (4) The audit row. If the stager above raised, we never get here: a run whose raw record can't be
         # kept stops, it doesn't continue unaudited. For commit this is the run's summary row, written LAST, after
         # every per-show row: it is the sign that commit reached its end.
-        await runtime.context.audit.record(entry_for(step, state, staging_id))
+        await runtime.context.audit.record(
+            entry_for(
+                step,
+                state,
+                staging_id,
+                snapshot=snapshot,
+                snapshot_error=snapshot_failure.as_detail() if snapshot_failure else None,
+            )
+        )
+        if snapshot_failure is not None:
+            # The fetch row now says what R2 refused; stop the venue's run (C9-D1). `main.RUN_ERRORS` files it as that
+            # venue's failure and the next venue runs.
+            raise snapshot_failure
         if step is StepType.RECONCILE:
             # One row per model decision about an artist, after the summary row (A5-D11): the one place a model
             # makes a database decision is the one that most needs its own audit row.

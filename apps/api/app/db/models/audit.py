@@ -112,8 +112,9 @@ class AuditLog(Base):
     # future revert restores.
     previous_value: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     new_value: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
-    # R2 object key for the page snapshot, on `fetch` rows. R2 is deferred,
-    # so this stays NULL until it lands.
+    # R2 object key for the page snapshot, on `fetch` rows (C9): the object holding the page that fetch read. NULL when
+    # no store is configured (a laptop), when the fetch failed, or when the write failed (then `detail.snapshot_error`
+    # says why). The key format is `venues/<venue_id>/<fetched_on>-run-<run_id>.html`.
     snapshot_key: Mapped[str | None]
     # The evidence behind this step: the *why* that the typed columns above
     # have no place for. Validate's verdict and failure reasons, fetch's error,

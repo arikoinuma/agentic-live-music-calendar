@@ -9,19 +9,22 @@ HOW TO READ THIS
       which order instead of parsing console output.
     * `DeadClient` is an `AsyncMongoClient` whose ping fails (`main` then returns 2); `AnsweringClient` answers it, so
       the run goes on to its writer and `run_all`.
-    * `configure_worker` sets the settings `main` reads to a combination that passes both checks before the
-      scheduled-run gate (`model_endpoint_problem` and `MONGODB_URI`), for a chosen `app_env`.
+    * `configure_worker` sets the settings `main` reads to a combination that passes the three checks before the
+      scheduled-run gate (`model_endpoint_problem`, `MONGODB_URI` and, since C9, `snapshot_config_problem`), for a
+      chosen `app_env`. It pins the four `R2_*` settings too, so no test that drives `main` reads a laptop's `.env` and
+      reaches a real bucket (C9-PR1-2).
 
   `test_main_gate.py` (C3.1-T11) defines the same kind of stand-ins inline, for its own purposes; this module is for
   the tests C8 added beside it, which share these. Nothing here is imported by production code.
 
-docs/dev/implementations/c8-worker-on-railway.md, C8-D6, C8-D8.
+docs/dev/implementations/c8-worker-on-railway.md, C8-D6, C8-D8; c9-r2-snapshots.md, C9-PR1-2.
 """
 
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from pydantic import SecretStr
 from pymongo.errors import ServerSelectionTimeoutError
 
 from agent_worker import main
@@ -46,7 +49,8 @@ def configure_worker(monkeypatch: pytest.MonkeyPatch, app_env: AppEnv = "local")
     """Make the settings `main` reads pass both checks that come before the gate, for the given environment.
 
     A hosted environment may not point at localhost (`model_endpoint_problem`), so a hosted `app_env` gets a
-    non-local endpoint; the provider stays `ollama` so no real API key is needed.
+    non-local endpoint; the provider stays `ollama` so no real API key is needed. A hosted `app_env` also needs all four
+    `R2_*` settings (C9-D8), so it gets a complete set; a laptop gets none, which is snapshots off (C9-D2).
     """
     monkeypatch.setattr(main.settings, "app_env", app_env)
     monkeypatch.setattr(main.settings, "model_provider", "ollama")
@@ -56,6 +60,16 @@ def configure_worker(monkeypatch: pytest.MonkeyPatch, app_env: AppEnv = "local")
     )
     monkeypatch.setattr(main.settings, "model_name", "test-model")
     monkeypatch.setattr(main.settings, "mongodb_uri", "mongodb://localhost:1")
+    pin_r2_settings(monkeypatch, app_env)
+
+
+def pin_r2_settings(monkeypatch: pytest.MonkeyPatch, app_env: AppEnv) -> None:
+    """Set the four `R2_*` settings to what a correct configuration of `app_env` holds, whatever `.env` says (C9-PR1-2)."""
+    complete = app_env != "local"
+    monkeypatch.setattr(main.settings, "r2_endpoint_url", "https://r2.test" if complete else None)
+    monkeypatch.setattr(main.settings, "r2_access_key_id", "test-key-id" if complete else None)
+    monkeypatch.setattr(main.settings, "r2_secret_access_key", SecretStr("test-secret") if complete else None)
+    monkeypatch.setattr(main.settings, "r2_bucket", f"pebblebeats-snapshots-{app_env}" if complete else None)
 
 
 class DeadClient:

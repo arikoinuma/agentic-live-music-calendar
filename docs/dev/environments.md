@@ -97,6 +97,10 @@ is right); "n/a" means the environment does not use it. The first table is every
 | `MONGODB_URI` | Docker Mongo | Atlas user limited to `calendar_dev` | Atlas user limited to `calendar_staging` | Atlas user limited to `calendar` | The API does not need it; the worker refuses to start without it (C8). |
 | `MONGODB_DATABASE` | unset (`calendar`) | `calendar_dev` | `calendar_staging` | `calendar` (the default) | The default is production's name, which is why the check requires the others to set it (C3-PR1-7). |
 | `LOG_FORMAT` | unset (`auto`) | unset | unset | unset | `auto` picks JSON off a terminal. |
+| `R2_ENDPOINT_URL` | unset (snapshots off), or a bucket made for the laptop | unset (dev has no worker, C9-D3) | worker: `https://<Cloudflare account id>.r2.cloudflarestorage.com` | worker: same form, at C11 | Where the worker stores each fetched page (C9). The API does not need it. All four `R2_*` rows are set together or not at all: a hosted worker refuses to start without them (exit 2), and a laptop with some but not all refuses too (`snapshot_config_problem`, C9-D8). Must start `https://`. |
+| `R2_ACCESS_KEY_ID` | unset | unset | worker: the Access Key ID of the staging bucket's token | worker: production's own, at C11 | From an Object Read & Write token scoped to that one bucket, created in the Cloudflare dashboard (C9 Step 6). |
+| `R2_SECRET_ACCESS_KEY` | unset | unset | worker: the same token's Secret Access Key | worker: production's own, at C11 | A secret, shown **once** when the token is created: copy it into your password manager at that moment. A `SecretStr` in `Settings`, so a repr or a traceback cannot print it. Never inline in a command or pasted in chat. |
+| `R2_BUCKET` | unset (snapshots off; the normal laptop setting), or `…-local` to exercise the write on purpose (never `…-dev`, `…-staging` or `…-prod`) | `…-dev` when dev gets a worker | worker: `<prefix>-staging` | worker: `<prefix>-prod`, at C11 | One private bucket per environment (Dep-D10), no public access. A hosted worker's bucket must END in `-<APP_ENV>`, and a laptop's must not end `-dev`, `-staging` or `-prod` (C9-D9, C9-CR1-3): a copied variable set would otherwise write one environment's pages into another's bucket. |
 | `RAILWAY_ENVIRONMENT_NAME` | n/a | set by Railway (`dev`) | set by Railway (`staging`) | set by Railway (`production`) | Never set by hand: it cannot be copied between environments, which is why the platform check trusts it. |
 <!-- settings-inventory:end -->
 
@@ -110,7 +114,6 @@ Variables the API's `Settings` does not read (the frontend's, and rows reserved 
 | `SITE_GATE_PASSWORD` | Vercel | a long random value on every Preview branch (staging, and every PR preview, which is also `staging`); unset on Production and local | Server-only secret, never committed or pasted in chat. A gated environment (staging, dev) with this unset answers 503 by design (C4-D6). Changing it logs everyone out (the cookie is an HMAC keyed by it), but only on deployments built after the change: Vercel applies an edited variable to new deployments, so an older preview URL keeps the old password. Declared in `turbo.json`'s `globalPassThroughEnv` with the other two request-time variables, or Vercel's build warns that it "WILL NOT be available". |
 | `DEFAULT_METRO_SLUG` | Vercel | unset everywhere; the code default is `msp` | Optional (C4-D2). A set value that is not a valid, non-reserved slug makes the proxy answer 503 (C4-PR1-4). |
 | `FLAG_*` | Railway, Vercel | per flag | Feature flags (C3.1): one variable per flag, listed in [Feature flags](#feature-flags-c31) below. They are NOT `Settings` fields and do not belong in `apps/api/.env`. |
-| `R2_*` | Railway | reserved | One bucket and token per environment (C9). |
 | `API_SHARED_SECRET` | Railway, Vercel | reserved | C10. |
 
 ## Feature flags (C3.1)
@@ -438,7 +441,10 @@ never "copy variables from Production" (C3-D4).
 
 Variables: `APP_ENV` (`staging` or `prod`), `DATABASE_URL` (the **same** `calendar_<env>` login role as that environment's API),
 `MONGODB_URI` and `MONGODB_DATABASE` (`calendar_staging`; `calendar` for production), `MODEL_BASE_URL`, `MODEL_PROVIDER`,
-`MODEL_NAME` and `MODEL_API_KEY` (the environment's own DeepInfra key): the values are in the secrets inventory above.
+`MODEL_NAME` and `MODEL_API_KEY` (the environment's own DeepInfra key), and, since C9, `R2_ENDPOINT_URL`, `R2_ACCESS_KEY_ID`,
+`R2_SECRET_ACCESS_KEY` and `R2_BUCKET` (that environment's own bucket and token; the worker **refuses to start, exit 2, without
+all four**, and a skipped scheduled run still checks them, so set them BEFORE merging C9: `c9-r2-snapshots.md` "The ordering
+trap"): the values are in the secrets inventory above.
 **`FLAG_WORKER_SCHEDULED_RUNS` is not set**, so scheduled runs are off; arm it with exactly `true` **on the worker service, not
 the API's** (the API runs no gate). A misspelled or malformed `FLAG_*` value makes the container fail at startup, which on a
 cron service shows on its next run, not at deploy (`Settings` refuses it, C3.1-D12).
@@ -447,8 +453,8 @@ cron service shows on its next run, not at deploy (`Settings` refuses it, C3.1-D
 
 A cron service has **no running container between runs, so its Console tab has nothing to open** (C8-U8, observed November 18,
 2026; `railway ssh` needs a running instance too). So staging has a second service, **`worker-shell`**: the same repository,
-branch `main`, Root Directory `apps/api` and `RAILWAY_DOCKERFILE_PATH=Dockerfile.worker`, the same eight variables as `worker`
-(and no flag), **no cron schedule**, and the custom start command `sleep infinity`, which replaces the image's `CMD`. Observed
+branch `main`, Root Directory `apps/api` and `RAILWAY_DOCKERFILE_PATH=Dockerfile.worker`, the same variables as `worker`
+(eight until C9 added the four `R2_*`; and no flag), **no cron schedule**, and the custom start command `sleep infinity`, which replaces the image's `CMD`. Observed
 (C8-U9): it stays **Online** and its Console tab gives a root shell in `/app`. **Not recorded:** what the idle container costs
 over a few days (read Railway's usage page and write it here), and whether the variables are Railway reference variables
 (`${{worker.NAME}}`) or copies. A merge to `main` redeploys it and ends a run in progress. **Production gets none in C8**

@@ -155,9 +155,8 @@ def fetch_node(state: VenueGraphState) -> VenueGraphState:
     Deliberately out of scope, not silently dropped: only the plain-text/HTML case is handled. A
     page like terminalbarmn.com, where the actual show info is inside images embedded in the HTML,
     needs its own detection-and-download logic (arch-initial.md §11), and Playwright waits for a
-    venue that needs click-driven pagination. The R2 snapshot write the architecture doc calls
-    for ("each page traversed gets its own R2 snapshot") is deferred (alpha-deployment-plan.md C9, formerly H3);
-    `audit_log.snapshot_key` stays NULL until then.
+    venue that needs click-driven pagination. This node stays a pure function of the state: the page's R2 snapshot is
+    written by `trace.audited` AFTER it, from `state.page_html`, because a node cannot await (C9-D6; A4-D1).
     """
     state.fetch_error = None
     # The raw HTML is kept in `page_html` (the JSON-LD route needs the <script> blocks that cleaning

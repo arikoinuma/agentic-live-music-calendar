@@ -21,6 +21,7 @@ HOW TO READ THIS
 
 import os
 from pathlib import Path
+from typing import Any
 
 import pytest
 from pydantic import ValidationError
@@ -40,6 +41,10 @@ def isolate_from_the_shell(monkeypatch: pytest.MonkeyPatch) -> None:
         "MONGODB_DATABASE",
         "LOG_FORMAT",
         "ESCALATION_MODEL_NAME",
+        "R2_ENDPOINT_URL",
+        "R2_ACCESS_KEY_ID",
+        "R2_SECRET_ACCESS_KEY",
+        "R2_BUCKET",
     ):
         monkeypatch.delenv(name, raising=False)
     # Feature-flag variables too (C3.1-D12): `Settings` now refuses a bad one, so a developer's exported
@@ -255,6 +260,89 @@ def test_environment_rule(
     assert (problem is not None) is expect_problem, problem
 
 
+# ---------------------------------------------------------------------------
+# The R2 bucket rule (C9-D9, C9-T13)
+# ---------------------------------------------------------------------------
+
+# (id, app_env, r2_bucket, expect_problem). The database and Mongo arguments are fixed to values that agree with each
+# `app_env`, so each row's problem, if any, can only be the bucket's.
+BUCKET_CASES: list[tuple[str, AppEnv, str | None, bool]] = [
+    ("staging-with-its-own-bucket", "staging", "pebblebeats-snapshots-staging", False),
+    ("staging-with-the-production-bucket", "staging", "pebblebeats-snapshots-prod", True),
+    ("staging-with-a-bucket-with-no-suffix", "staging", "pebblebeats-snapshots", True),
+    ("prod-with-the-staging-bucket", "prod", "pebblebeats-snapshots-staging", True),
+    ("prod-with-its-own-bucket", "prod", "pebblebeats-snapshots-prod", False),
+    ("dev-with-its-own-bucket", "dev", "pebblebeats-snapshots-dev", False),
+    ("staging-with-no-bucket-is-skipped", "staging", None, False),
+    ("staging-with-a-blank-bucket-is-skipped", "staging", "  ", False),
+    # A laptop may use a bucket made for it (`-local`), but never a hosted environment's, `-dev` included: keys carry
+    # no environment, so a laptop's run 412 of venue 3 would overwrite staging's (or dev's) object of the same key
+    # (C9-PR1-4, C9-CR1-3).
+    ("local-with-a-staging-bucket", "local", "pebblebeats-snapshots-staging", True),
+    ("local-with-a-prod-bucket", "local", "pebblebeats-snapshots-prod", True),
+    ("local-with-a-dev-bucket", "local", "pebblebeats-snapshots-dev", True),
+    ("local-with-a-local-bucket", "local", "pebblebeats-snapshots-local", False),
+    ("local-with-no-bucket", "local", None, False),
+]
+
+
+def database_for(app_env: AppEnv) -> str:
+    """A database URL that agrees with `app_env`, so the other rules of `environment_problem` stay quiet."""
+    return LOCAL_URL if app_env == "local" else hosted_url(f"calendar_{app_env}")
+
+
+@pytest.mark.parametrize(
+    ("app_env", "bucket", "expect_problem"),
+    [case[1:] for case in BUCKET_CASES],
+    ids=[case[0] for case in BUCKET_CASES],
+)
+def test_the_r2_bucket_rule(app_env: AppEnv, bucket: str | None, expect_problem: bool) -> None:
+    # Proves (C9-T13, C9-D9): a hosted bucket must end in `-<app_env>` (a copied variable set would otherwise point a
+    # staging worker at production's bucket, which `APP_ENV` alone would not notice), and a laptop's bucket must not
+    # end in `-dev`, `-staging` or `-prod` (the hosted suffixes; `-dev` since C9-CR1-3, because dev gets a worker whose
+    # run numbers would collide with a laptop's). An unset or blank bucket is skipped, as a local MongoDB is. The expected verdicts
+    # are written from the topology table in the deployment plan (§4.1: buckets are `…-dev`, `…-staging`, `…-prod`).
+    problem = environment_problem(app_env, database_for(app_env), None, r2_bucket=bucket)
+    assert (problem is not None) is expect_problem, problem
+    if expect_problem:
+        assert bucket is not None and bucket.strip() in (problem or "")
+
+
+def test_settings_refuses_a_bucket_that_names_another_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Proves (C9-D9, C9-T13): the bucket rule is wired into `Settings`, so a staging process holding production's bucket
+    # does not start; a rule nobody calls would pass every row above and protect nothing. The same values with the
+    # matching bucket build.
+    monkeypatch.delenv("RAILWAY_ENVIRONMENT_NAME", raising=False)
+    common: dict[str, Any] = {"database_url": hosted_url("calendar_staging"), "model_name": "m", "app_env": "staging"}
+    with pytest.raises(ValidationError, match="pebblebeats-snapshots-prod"):
+        Settings(_env_file=None, r2_bucket="pebblebeats-snapshots-prod", **common)
+    Settings(_env_file=None, r2_bucket="pebblebeats-snapshots-staging", **common)
+
+
+def test_settings_reads_a_blank_r2_value_as_unset(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Proves (C9-PR1-11, C9-D8): a blank or whitespace R2 variable becomes `None`, including the secret (which would
+    # otherwise be a truthy `SecretStr("")` and pass a "is it set" check), so every later check compares `None`. This is
+    # the shape a dashboard produces when a variable is created and left empty.
+    monkeypatch.delenv("RAILWAY_ENVIRONMENT_NAME", raising=False)
+    built = Settings(  # type: ignore[call-arg]
+        _env_file=None,
+        database_url=LOCAL_URL,
+        model_name="m",
+        r2_endpoint_url="",
+        r2_access_key_id="  ",
+        r2_secret_access_key="",
+        r2_bucket=" ",
+    )
+    assert built.r2_endpoint_url is None and built.r2_access_key_id is None
+    assert built.r2_secret_access_key is None and built.r2_bucket is None
+    secret = "s3cret"
+    set_ones = Settings(  # type: ignore[call-arg]
+        _env_file=None, database_url=LOCAL_URL, model_name="m", r2_secret_access_key=secret
+    )
+    assert set_ones.r2_secret_access_key is not None
+    assert secret not in repr(set_ones)  # a SecretStr: a repr or a traceback cannot print it
+
+
 def test_settings_refuses_to_start_on_a_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
     # Proves (C3-D4): the rule is wired into `Settings`, so a process whose `APP_ENV` disagrees with its database
     # does not start (a `ValidationError`, as a missing `DATABASE_URL` raises). A rule nobody calls would pass
@@ -317,3 +405,18 @@ def test_a_flag_line_in_the_dotenv_file_is_refused(tmp_path: Path) -> None:
     env_file.write_text("FLAG_WORKER_SCHEDULED_RUNS=true\n")
     with pytest.raises(ValidationError, match="flag_worker_scheduled_runs"):
         Settings(_env_file=env_file, database_url=LOCAL_URL, model_name="m")  # type: ignore[call-arg]
+
+
+# ---------------------------------------------------------------------------
+# Isolation from the shell (C9-CR1-1)
+# ---------------------------------------------------------------------------
+
+
+def test_the_four_r2_variables_are_cleared_from_the_process_before_each_test() -> None:
+    # Proves (C9-CR1-1): the autouse fixture removes the four `R2_*` variables a developer's shell might export, so
+    # the bucket rule (C9-D9) never reads a laptop's real bucket name in a test that is about something else. Without
+    # this, `R2_BUCKET=pebblebeats-snapshots-local` in the shell fails three unrelated tests in this file (the same
+    # failure C3-CR1-3 fixed for `MONGODB_URI`). On CI, where nothing is exported, it passes either way: it earns its
+    # keep on a laptop, run with `R2_BUCKET=x uv run pytest app/tests/test_config.py::<this test>`.
+    for name in ("R2_ENDPOINT_URL", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET"):
+        assert name not in os.environ

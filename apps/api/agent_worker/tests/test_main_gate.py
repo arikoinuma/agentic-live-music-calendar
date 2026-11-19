@@ -52,6 +52,10 @@ def configured_worker(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(main.settings, "model_provider", "ollama")
     monkeypatch.setattr(main.settings, "model_base_url", "http://localhost:11434/v1")
     monkeypatch.setattr(main.settings, "mongodb_uri", "mongodb://localhost:1")
+    # C9-PR1-2: a laptop's `.env` may hold R2 settings, which would make `main` build a real store; pin them to "none set"
+    # (snapshots off) so this file never reaches a bucket and its tests keep proving only the gate.
+    for name in ("r2_endpoint_url", "r2_access_key_id", "r2_secret_access_key", "r2_bucket"):
+        monkeypatch.setattr(main.settings, name, None)
 
 
 def flag(value: bool, asked: list[str] | None = None) -> Any:

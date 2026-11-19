@@ -268,7 +268,7 @@ Append-only. "Every agent action, automatic or manually triggered, is recorded i
 | `confidence` | Numeric | Yes | Same scope as `model_used`. |
 | `previous_value` | JSONB | Yes | Snapshot of the affected row before this action — what a `revert` action restores. |
 | `new_value` | JSONB | Yes | Snapshot after. |
-| `snapshot_key` | String | Yes | R2 object key for the page snapshot, populated on `fetch` rows. |
+| `snapshot_key` | String | Yes | R2 object key for the page snapshot, populated on `fetch` rows since C9 (`C9-D5`): `venues/<venue_id>/<fetched_on>-run-<run_id>.html`, in a bucket that is already per environment. NULL when no store is configured (a laptop), when the fetch failed, or when the write failed (then `detail.snapshot_error` holds `{kind, code, message}`). The row's `detail.snapshot` holds `{bytes, sha256}` of exactly the bytes stored, so a row can be checked against its object by re-hashing it. |
 | `contributor_id` | Integer, FK → `contributor.id` | Yes | Self-reported attribution for `source = 'user'` rows; null for anonymous edits. |
 | `session_hash` | String | Yes | Hashed session/IP, populated for `source = 'user'` rows regardless of whether an email was given. |
 | `created_at` | Timestamptz | No | |
@@ -324,8 +324,9 @@ the two review rounds are in `docs/dev/implementations/a1-data-layer.md`.
 - **`agent_run.triggered_by` and `audit_log.contributor_id` are omitted.** Their FK target,
   `contributor`, is deferred, so they can't be created as specified. Add them with that table.
 - **`audit_log.session_hash` is omitted.** It is populated only for `source = 'user'` rows, and user
-  edits are deferred; an always-NULL column is worse than its absence. `snapshot_key` is the one
-  always-NULL column that *is* kept, because the R2 snapshot write has a defined place in A4.
+  edits are deferred; an always-NULL column is worse than its absence. `snapshot_key` was the one
+  always-NULL column that *was* kept, because the R2 snapshot write had a defined place in A4; C9 writes it
+  (`docs/dev/implementations/c9-r2-snapshots.md`).
 - **`created_at` / `updated_at`** are on `metro`, `venue`, `event`, `show` and `artist`, but not on
   `show_artist` (pure join), `audit_log` (append-only; `created_at` only) or `agent_run` (its own
   `started_at` / `finished_at`). `updated_at`'s refresh-on-update is SQLAlchemy-side only; no trigger.

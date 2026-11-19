@@ -40,3 +40,14 @@ def test_the_inventory_lists_no_variable_settings_does_not_read() -> None:
     # variables, so such a leftover would never raise.)
     expected = {name.upper() for name in Settings.model_fields}
     assert inventory_names() - expected == set()
+
+
+def test_no_r2_row_is_left_marked_reserved_outside_the_inventory() -> None:
+    # Proves (C9-T14, C9-PR1-13): the two tests above read only the block between the markers, so the old
+    # `R2_*` "reserved" row (outside them, in the table of variables `Settings` does not read) would survive C9 without
+    # either failing. Once the four R2 settings exist and are in the inventory, a leftover row saying they are
+    # reserved for a later milestone is stale documentation, and this is the test that finds it.
+    text = DOC.read_text()
+    outside = text.split(START, 1)[0] + text.split(END, 1)[1]
+    stale = [line for line in outside.splitlines() if re.match(r"^\|\s*`R2_", line) and "reserved" in line.lower()]
+    assert stale == []

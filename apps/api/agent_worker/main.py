@@ -12,7 +12,7 @@ HOW TO READ THIS
   * `run_venue` is one venue's cycle: **A4-K1** lives in it.
   * `run_all` loops the venues sequentially, as arch-initial.md §7 says (one process, every venue, no
     per-venue scheduling), and keeps going when one venue hits an infrastructure error.
-  * `main` wires the stores (Postgres engine, MongoDB client), configures logging, applies the scheduled-run gate
+  * `main` wires the stores (Postgres engine, MongoDB client, and since C9 the R2 page-snapshot store), configures logging, applies the scheduled-run gate
     (a `--trigger scheduled` run exits 0 when the feature flag `worker.scheduled_runs` is off, C3.1-D1), and calls `run_all`.
     A run that does work logs one start line (after MongoDB has answered) and one finish line, so a run on Railway can
     be read from its log without a database query (C8-D8's wording for an unreachable MongoDB is `mongo_unreachable_message`).
@@ -24,7 +24,7 @@ THE EVENT LOOP
   graph is `ainvoke`-only (plan A4-D1; graph.py).
 
 docs/dev/implementations/a4-auditability.md, A4-D1, A4-D3, A4-D6, A4-D7, A4-D8; c3.1-feature-flags.md, C3.1-D1, C3.1-D13, C3.1-D14, C3.1-D15;
-c8-worker-on-railway.md, C8-D6, C8-D8.
+c8-worker-on-railway.md, C8-D6, C8-D8; c9-r2-snapshots.md, C9-D1, C9-D2, C9-D8.
 """
 
 import argparse
@@ -50,6 +50,14 @@ from agent_worker.graph import (
     compiled_graph,
 )
 from agent_worker.policy import RetryPolicy
+from agent_worker.snapshots import (
+    NoSnapshotStore,
+    S3SnapshotStore,
+    SnapshotError,
+    SnapshotStore,
+    make_s3_client,
+    snapshot_config_problem,
+)
 from agent_worker.staging import COLLECTION, MongoStager
 from agent_worker.state import VenueGraphState
 from app.config import AppEnv, settings
@@ -66,11 +74,12 @@ log = structlog.get_logger()
 SCHEDULED_RUNS_FLAG = "worker.scheduled_runs"
 
 # What one venue's run is allowed to fail with and still let the next venue run: the database or the
-# staging store is unreachable, or a file/socket error. A named tuple, never a bare `Exception`
+# staging store is unreachable, a page that could not be stored (`SnapshotError`, C9-D1: botocore's own errors are NOT
+# in this tuple, which is why the snapshot store translates them), or a file/socket error. A named tuple, never a bare `Exception`
 # (apps/api/AGENTS.md): a KeyError or AttributeError in OUR code is a bug and should stop the process with a
 # traceback and a non-zero exit, not be filed as "venue failed". The run row is closed either way
 # (`run_venue`'s finally).
-RUN_ERRORS = (SQLAlchemyError, PyMongoError, OSError)
+RUN_ERRORS = (SQLAlchemyError, PyMongoError, SnapshotError, OSError)
 
 
 @dataclass(frozen=True)
@@ -229,6 +238,26 @@ def mongo_unreachable_message(app_env: AppEnv) -> str:
     )
 
 
+def snapshot_store_from_settings() -> SnapshotStore:
+    """The store `main` hands the graph: the real R2 store when all four R2 settings are set, otherwise the one that writes nothing.
+
+    One module-level function so the tests can replace it, as they replace the MongoDB client: no unit test reaches a
+    bucket whatever a laptop's `.env` holds (C9-PR1-2). Building the real store only constructs a boto3 client; nothing
+    is sent until `check()` (the preflight) or a `put`. `snapshot_config_problem` has already refused a half-set
+    configuration by the time this runs, so "all four set" is the only way to the real R2 store (C9-D2, C9-D8).
+    """
+    endpoint, key_id, secret, bucket = (
+        settings.r2_endpoint_url,
+        settings.r2_access_key_id,
+        settings.r2_secret_access_key,
+        settings.r2_bucket,
+    )
+    if not (endpoint and key_id and secret and bucket):
+        return NoSnapshotStore()
+    client = make_s3_client(endpoint_url=endpoint, access_key_id=key_id, secret_access_key=secret.get_secret_value())
+    return S3SnapshotStore(client, bucket)
+
+
 async def main(argv: list[str] | None = None) -> int:
     """Parse arguments, wire the stores, run, and return the process exit status."""
     parser = argparse.ArgumentParser(description="Run the agent worker over the venue list.")
@@ -260,6 +289,20 @@ async def main(argv: list[str] | None = None) -> int:
     if not settings.mongodb_uri:
         log.error("MONGODB_URI is not set; the worker stages every extraction in MongoDB (see .env.example)")
         return 2
+    # The third check with no I/O (C9-D8): a hosted worker needs all four R2 settings, a laptop none or all four. Before
+    # the scheduled-run gate for the reason the other two are: a skipped run then still proves the service is configured
+    # completely (C8-D6), so production's skip proof at C11 will exercise it. This is also why C9's variables must be set
+    # on a hosted worker BEFORE this code is merged (the plan's ordering trap).
+    r2_problem = snapshot_config_problem(
+        settings.app_env,
+        settings.r2_endpoint_url,
+        settings.r2_access_key_id,
+        settings.r2_secret_access_key.get_secret_value() if settings.r2_secret_access_key else None,
+        settings.r2_bucket,
+    )
+    if r2_problem:
+        log.error(r2_problem)
+        return 2
 
     # The scheduled-run gate (C3.1-D1, C3.1-D13, C3.1-D14), AFTER the two checks above and BEFORE the Atlas ping:
     # a skipped run then proves the configuration is complete without opening Neon or Atlas (C8-D6), and a
@@ -285,6 +328,15 @@ async def main(argv: list[str] | None = None) -> int:
         except PyMongoError as err:
             log.error(mongo_unreachable_message(settings.app_env), error=str(err))
             return 2
+        # The one I/O check on the page-snapshot store (C9-D8), after the Atlas ping and before the start line: a wrong
+        # token, endpoint or bucket stops the worker here, before any venue is fetched, instead of failing every venue's
+        # snapshot mid-run. The kind says what to do (an `auth` or `config` failure needs a person).
+        snapshots = snapshot_store_from_settings()
+        try:
+            await snapshots.check()
+        except SnapshotError as err:
+            log.error("page snapshot storage is not usable", error=str(err), kind=err.kind, code=err.code)
+            return 2
         # The start line comes only once the run is certain to do work: a skipped run (the gate above) and a run that
         # stops at the ping log nothing else, which `test_main_gate.py` pins (C3.1-T11). One line says what this run is,
         # so a deployment's log is readable without opening the database (C8-D6).
@@ -294,6 +346,9 @@ async def main(argv: list[str] | None = None) -> int:
             app_env=settings.app_env,
             model=settings.model_name,
             venue=args.venue,
+            # Where page snapshots go: the bucket's name, or "off" on a laptop with no R2 settings (C9-D2). A field on this
+            # line and not a line of its own, so C8-D6's one start line and one finish line still hold.
+            snapshots=settings.r2_bucket or "off",
         )
         started = time.monotonic()
         ctx = WorkerContext(
@@ -303,6 +358,7 @@ async def main(argv: list[str] | None = None) -> int:
             stager=MongoStager(mongo[settings.mongodb_database][COLLECTION]),
             reader=PostgresCalendarReader(SessionFactory),
             writer=PostgresCalendarWriter(SessionFactory),
+            snapshots=snapshots,
         )
         failed = await run_all(SessionFactory, ctx, venue_id=args.venue, trigger=args.trigger)
         # `run_all` returns only how many venues failed (each venue already logged its own "venue run finished"), so

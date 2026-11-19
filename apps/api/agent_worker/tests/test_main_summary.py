@@ -50,14 +50,16 @@ def run_all_failing(failed: int, seen: list[int] | None = None, log: Log | None 
 async def test_a_run_logs_one_start_line_and_one_finish_line(monkeypatch: pytest.MonkeyPatch, log: Log) -> None:
     # Proves (C8-D6): a run that does work logs exactly two info lines, start then finish, with the facts a reader
     # needs. The start line names the trigger, the environment, the model and the venue filter (None for "every
-    # venue"); the finish line says how many venues failed and how long the run took. Exit status is unchanged (0 here).
+    # venue"); since C9 it also names where page snapshots go ("off" on a laptop with no R2 settings, the bucket name
+    # otherwise: a field on this line and not a third line, so one start line and one finish line still hold, C9-PR1-1).
+    # The finish line says how many venues failed and how long the run took. Exit status is unchanged (0 here).
     monkeypatch.setattr(main, "run_all", run_all_failing(0))
 
     assert await main.main(["--trigger", "manual"]) == 0
 
     assert [event for event, _ in log.infos] == ["worker run started", "worker run finished"]
     _, start = log.infos[0]
-    assert start == {"trigger": "manual", "app_env": "local", "model": "test-model", "venue": None}
+    assert start == {"trigger": "manual", "app_env": "local", "model": "test-model", "venue": None, "snapshots": "off"}
     _, finish = log.infos[1]
     assert finish["failed"] == 0
     assert isinstance(finish["seconds"], float) and finish["seconds"] >= 0

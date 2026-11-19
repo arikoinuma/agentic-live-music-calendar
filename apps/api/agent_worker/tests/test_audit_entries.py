@@ -33,6 +33,7 @@ from agent_worker.commit import CommitResult, ShowFailure, ShowOp, build_ops
 from agent_worker.policy import AttemptPlan, AttemptRecord
 from agent_worker.reconcile import Action, Coverage, ReconcilePlan, ShowDecision
 from agent_worker.schemas import ShowExtraction, VenuePageExtraction
+from agent_worker.snapshots import SnapshotRef
 from agent_worker.state import VenueGraphState
 from agent_worker.tests.reconcile_support import URL, at, day, listed, plan_for, stored
 from agent_worker.validation import (
@@ -226,6 +227,45 @@ def test_fetch_detail_records_url_date_error_and_size() -> None:
     assert ok == {"url": "https://venue.example/events", "fetched_on": "2026-10-12", "error": None, "text_chars": 120}
     failed = entry_for(StepType.FETCH, base_state(fetch_error="HTTPStatusError: 404", page_content=None)).detail
     assert failed["error"] == "HTTPStatusError: 404" and failed["text_chars"] == 0
+
+
+def test_a_fetch_row_carries_the_snapshot_key_and_its_size_and_hash() -> None:
+    # Proves (C9-T8, C9-D4): given the reference the store returned, the fetch row's `snapshot_key` column is the key
+    # and `detail.snapshot` is exactly `{"bytes", "sha256"}` (the length and hash of what was uploaded), so a row can be
+    # checked against its object without trusting the file name. Values are literals written here. The plain fetch
+    # detail keys are unchanged.
+    ref = SnapshotRef(key="venues/4/2026-10-12-run-9.html", bytes=2048, sha256="ab" * 32)
+    row = entry_for(StepType.FETCH, base_state(), snapshot=ref)
+    assert row.snapshot_key == "venues/4/2026-10-12-run-9.html"
+    assert row.detail["snapshot"] == {"bytes": 2048, "sha256": "ab" * 32}
+    assert row.detail["url"] == "https://venue.example/events" and "snapshot_error" not in row.detail
+
+
+def test_a_fetch_row_without_a_snapshot_has_no_key_and_no_snapshot_detail() -> None:
+    # Proves (C9-T8, C9-D6): with no reference (a laptop with snapshots off, a failed fetch) the key is `None` and
+    # `detail` has no `snapshot` key at all, so every row written before C9 and every row written without a store has
+    # the same shape. (The existing detail test above pins the whole dict.)
+    row = entry_for(StepType.FETCH, base_state())
+    assert row.snapshot_key is None and "snapshot" not in row.detail
+
+
+def test_a_failed_snapshot_is_recorded_on_the_fetch_row_without_a_key() -> None:
+    # Proves (C9-T8, C9-D1, C9-D14): given the failure's description, the fetch row has a NULL key and
+    # `detail.snapshot_error` is exactly that dict, so the trail says what R2 refused, and what kind of failure it was.
+    failure = {"kind": "auth", "code": "AccessDenied", "message": "could not store k: denied"}
+    row = entry_for(StepType.FETCH, base_state(), snapshot_error=failure)
+    assert row.snapshot_key is None
+    assert row.detail["snapshot_error"] == failure and "snapshot" not in row.detail
+
+
+def test_only_a_fetch_row_ever_carries_a_snapshot_key() -> None:
+    # Proves (C9-T8, C9-D6): the other five steps never set a key or the snapshot detail, even if a caller passes a
+    # reference, because no other step has a page behind it. A key on an extract row would send a person to the wrong object.
+    ref = SnapshotRef(key="k", bytes=1, sha256="0" * 64)
+    for step in (StepType.EXTRACT, StepType.VALIDATE, StepType.RECONCILE, StepType.COMMIT, StepType.ESCALATE):
+        row = entry_for(step, base_state(), snapshot=ref, snapshot_error={"kind": "other"})
+        assert row.snapshot_key is None
+        assert "snapshot" not in row.detail and "snapshot_error" not in row.detail
 
 
 def test_extract_detail_records_route_tier_error_and_the_staging_id() -> None:

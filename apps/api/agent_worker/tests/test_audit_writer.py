@@ -253,3 +253,17 @@ async def test_finished_at_is_after_started_at_on_the_databases_own_clock(
     async with factory() as session:
         run = await session.get(AgentRun, run_id)
     assert run is not None and run.finished_at is not None and run.finished_at > run.started_at
+
+
+async def test_a_recorded_snapshot_key_is_in_the_column_and_reads_back(
+    factory: async_sessionmaker[AsyncSession], venue_id: int
+) -> None:
+    # Proves (C9-T9, C9-D6): `audit_row` maps `AuditEntry.snapshot_key` onto `audit_log.snapshot_key`, so the key a fetch
+    # row carries reaches the column (the mutation C9-M3, dropping it from `audit_row`, turns this red), and an entry with
+    # no key writes SQL NULL as before. The key is a literal written here.
+    writer = PostgresAuditWriter(factory)
+    run_id = await writer.start_run(venue_id, RunTrigger.MANUAL)
+    await writer.record(entry(run_id, step_type=StepType.FETCH, snapshot_key="venues/1/2026-11-18-run-1.html"))
+    await writer.record(entry(run_id, step_type=StepType.FETCH))
+    stored = await rows(factory, run_id)
+    assert [r.snapshot_key for r in stored] == ["venues/1/2026-11-18-run-1.html", None]

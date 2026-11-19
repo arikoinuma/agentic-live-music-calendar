@@ -17,7 +17,7 @@ import os
 from typing import Literal, Self
 from urllib.parse import urlparse
 
-from pydantic import SecretStr, model_validator
+from pydantic import SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 
@@ -36,11 +36,12 @@ def environment_problem(
     *,
     mongodb_uri: str | None = None,
     mongodb_database: str = "calendar",
+    r2_bucket: str | None = None,
 ) -> str | None:
     """What is wrong with this configuration, as a sentence, or `None` when `app_env` agrees with where we are.
 
     Pure: it reads nothing from the process, which is what lets `test_config.py` drive it as a table. It checks
-    four independent things, because the realistic mistake is a copied variable set and not a typo: Railway's
+    five independent things, because the realistic mistake is a copied variable set and not a typo: Railway's
     "copy variables from Production" brings `DATABASE_URL` and `APP_ENV=prod` into staging together, so a rule
     that only compared `APP_ENV` with the database host would pass it (C3-D4).
 
@@ -48,9 +49,11 @@ def environment_problem(
       b) when Railway says which environment this is, it must be the one `app_env` names;
       c) on a hosted database the login role ends in the environment (`calendar_staging`);
       d) when a HOSTED MongoDB is configured (a local one is skipped, as a local Postgres is in (a)), `prod` uses
-         the `calendar` database and every other hosted value uses `calendar_<env>`.
+         the `calendar` database and every other hosted value uses `calendar_<env>`;
+      e) when an R2 bucket is configured (C9-D9), a hosted environment's bucket ends `-<app_env>`, and a laptop's does not
+         end `-dev`, `-staging` or `-prod`. Unset or blank is skipped (a laptop with no bucket runs with snapshots off).
     """
-    # Four independent checks rather than one, because the realistic mistake is a copied variable set, not a
+    # Five independent checks rather than one, because the realistic mistake is a copied variable set, not a
     # typo (C3-D4, C3-K1). Each fires on its own cause and passes on its own cause, so deleting one turns a
     # distinct row of `test_environment_rule` red. `make_url` parses the connection string, so an IPv6 host or
     # an `@` in a password cannot fool it as a string split would.
@@ -80,6 +83,24 @@ def environment_problem(
     mongo_host = urlparse(mongodb_uri or "").hostname or ""
     if mongo_host not in ("", "localhost", "127.0.0.1", "::1") and mongodb_database != want:
         return f"APP_ENV={app_env} but the MongoDB database is {mongodb_database!r}"
+
+    # e) the R2 bucket (C9-D9). Same reason as (d): "copy variables from Production" would bring `R2_BUCKET` and its
+    # credentials into staging together, and a staging worker would then write into production's bucket; `APP_ENV` alone
+    # would not notice. A hosted environment's bucket carries its environment as a suffix (`…-staging`; the topology
+    # table in alpha-deployment-plan.md §4.1 names them `-dev`, `-staging`, `-prod`). A laptop normally has no bucket at
+    # all; if it has one for exercising the write on purpose it is `…-local`, never a hosted one, `-dev` included:
+    # object keys carry no environment and every database numbers runs from 1, so a laptop's run 412 of venue 3 would
+    # overwrite staging's (or the dev worker's) object of the same key (C9-PR1-4, C9-CR1-3).
+    bucket = (r2_bucket or "").strip()
+    if bucket:
+        if app_env == "local":
+            if bucket.endswith(("-dev", "-staging", "-prod")):
+                return (
+                    f"APP_ENV=local but R2_BUCKET {bucket!r} is a hosted environment's bucket "
+                    "(leave R2_* unset on a laptop, or use a bucket ending -local)"
+                )
+        elif not bucket.endswith(f"-{app_env}"):
+            return f"APP_ENV={app_env} but R2_BUCKET {bucket!r} does not end in -{app_env}"
     return None
 
 
@@ -144,6 +165,24 @@ class Settings(BaseSettings):
     # terminal and JSON otherwise, so a cron job on Railway gets JSON without configuration.
     log_format: Literal["auto", "console", "json"] = "auto"
 
+    # Cloudflare R2, where the worker stores each fetched page (C9; docs/dev/implementations/c9-r2-snapshots.md). All four
+    # are optional here because the API never uses them. The WORKER's start-up decides what is required
+    # (`agent_worker.snapshots.snapshot_config_problem`, C9-D8): a hosted worker needs all four, a laptop none (snapshots
+    # off) or all four. The secret is a `SecretStr` so a `Settings` repr, a log line or a validation traceback cannot print it.
+    r2_endpoint_url: str | None = None
+    r2_access_key_id: str | None = None
+    r2_secret_access_key: SecretStr | None = None
+    r2_bucket: str | None = None
+
+    # A blank or whitespace value (a dashboard variable created and left empty) is "not set", so every later check compares
+    # `None` and never `""` or `SecretStr("")`, which is truthy as an object (C9-PR1-11). `mode="before"` sees the raw string.
+    @field_validator("r2_endpoint_url", "r2_access_key_id", "r2_secret_access_key", "r2_bucket", mode="before")
+    @classmethod
+    def _blank_r2_value_is_unset(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
     # Refuse to start when `app_env` disagrees with where the process is (C3-D4). Runs once, after every field
     # is read; the message reaches whoever reads the traceback, so it names the disagreement.
     @model_validator(mode="after")
@@ -154,6 +193,7 @@ class Settings(BaseSettings):
             self.railway_environment_name,
             mongodb_uri=self.mongodb_uri,
             mongodb_database=self.mongodb_database,
+            r2_bucket=self.r2_bucket,
         )
         if problem:
             raise ValueError(problem)
