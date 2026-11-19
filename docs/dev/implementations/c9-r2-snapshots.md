@@ -1,6 +1,6 @@
 # C9 — audit storage: R2 page snapshots
 
-**Status:** Awaiting sign-off
+**Status:** Done
 **Date:** November 18, 2026 (revised November 19, 2026 after Ari's discussion of D1; see the note after Designations)
 **Author model:** Claude Sonnet 5.5
 **Reviewer model:** Claude Opus 5.5 (plan review round 1, November 18, 2026; code review round 1, November 19, 2026)
