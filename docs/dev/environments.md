@@ -51,9 +51,32 @@ four venues, 142.2 s (venue 1: 1 update and 10 no-ops; the others 24, 11 and 9 i
 `FLAG_WORKER_SCHEDULED_RUNS=true` on the worker, started with Run now, `feature_flags = {"worker.scheduled_runs": true}`**,
 109.2 s, 1 update and the rest no-ops. DeepInfra reported **$0.00752** for the three model sessions. The flag was then deleted and
 the next run was a skip again. `msp.staging.pebblebeats.com` shows the shows. **Not done:** production's worker (the plan's Step 11);
-the first run through the laptop command `make worker-hosted` (it needs `RAILWAY_PROJECT_ID`; the fake-process tests cover it);
+the first run through the laptop command `make worker-hosted` (it needs `RAILWAY_PROJECT_ID`; the fake-process tests cover it; first run November 19, 2026, C9, below);
 the staging API's build log came back empty from the CLI, so U3's second half (the API still builds without a
 Dockerfile) is **not checked**: read its latest build log in the dashboard.
+
+**Checks recorded (November 19, 2026, C9, staging).** Page snapshots are merged (PR 117, commit `192cff7`) and live on staging.
+*Environment:* bucket `r2-pebble-staging` (public access off, no `r2.dev` URL, no custom domain), the four `R2_*` variables on `worker`
+and `worker-shell`, and the **default** endpoint `https://<account id>.r2.cloudflarestorage.com`. The Cloudflare account asked for a payment
+method (C9-U2). *Observed:* the first laptop run, `make worker-hosted ENV=staging VENUE=1`, stopped at the C9-D8 preflight with exit 2 and
+`kind=config`, `code=NoSuchBucket`, **before the start line and any venue**: the endpoint in the variable was a non-default one the dashboard
+offered for the US, and a bucket created with the default location does not exist at it. With the default endpoint the preflight passed and
+the run was clean. Run 10 (`--venue 1`, 16.8 s, `failed=0`) and runs 11 to 14 (all four venues, 173.3 s, `failed=0`, `manual`, from the
+laptop with staging's variables) each have a fetch row with a `snapshot_key` and `detail.snapshot`; the start lines read
+`snapshots=r2-pebble-staging`. The objects, in bytes: `venues/1/2026-11-19-run-10.html` 98423, `venues/1/2026-11-19-run-11.html` 98423
+(the same page twice, so two objects, as C9-D5 intends), `venues/2/...-run-12.html` 200078, `venues/3/...-run-13.html` 896151,
+`venues/4/...-run-14.html` 124802: 1,417,877 in all. *The check that matters:* the object for run 10 read back with `get_object` from
+`worker-shell` (so from Railway's network) is 98423 bytes with SHA-256 `df5b5bf9c3bfb6fdb07423f43f9ea9f5fc7a40408339649080fad99e8eaa2a2d`, equal
+to `detail.snapshot.sha256`. `fetches_without_snapshots` returned no rows for run 10 and for runs 10 to 14; `snapshot_storage_by_month`
+gave one row, 2026-11, 5 snapshots, 1,417,877 bytes. The bucket holds 4 folders and 5 files, matching.
+*Sizing (C9-D10):* one daily run of these four venues is about 1.32 MB, about two thirds of it Mortimer's page (896 KB), so about 0.48 GB
+a year; twelve venues of the same average would be about 1.4 GB a year, against the free 10 GB. *Not done, and why:* the **write from inside**
+Railway's container (only a read from `worker-shell` was run; the write came from the laptop, so C9-U4's read half is proven and its write
+half carries to the first scheduled run with the flag on, C11); the bucket's **aggregate size against `snapshot_storage_by_month`**
+(Cloudflare's dashboard has no single screen with the bucket's total size or object count, so only the folder and file counts were
+compared); production's bucket (C11). **Unexplained:** an object downloaded through the Cloudflare dashboard was 99829 bytes with a different
+hash, 1406 bytes larger than the stored object; it is not a line-ending conversion (removing every carriage return did not restore the
+hash). The read-back is the check that was trusted; do not hash a dashboard download.
 
 ## How a process knows where it is (C3-D3, C3-D4)
 
@@ -465,7 +488,7 @@ over a few days (read Railway's usage page and write it here), and whether the v
 | How | Where it runs | Use it for |
 |---|---|---|
 | The cron schedule | Railway's container | The daily run, once the flag is `true` (C11 for production). With the flag off it logs `scheduled run skipped: feature flag worker.scheduled_runs is off`, writes nothing and exits 0. |
-| `make worker-hosted ENV=staging\|prod [VENUE=<id>]` | **This machine**, with that service's variables | The quick manual run (C8-D3). It executes the files checked out here, so it refuses unless the tree is clean and `HEAD` is `origin/main` (staging) or `origin/production` (prod), prints the commit, and asks for `production` to be typed for prod. Needs the Railway CLI signed in and `RAILWAY_PROJECT_ID` in the shell. Records `trigger='manual'`; ignores the flag. |
+| `make worker-hosted ENV=staging\|prod [VENUE=<id>]` | **This machine**, with that service's variables | The quick manual run (C8-D3). It executes the files checked out here, so it refuses unless the tree is clean and `HEAD` is `origin/main` (staging) or `origin/production` (prod), prints the commit, and asks for `production` to be typed for prod. Needs the Railway CLI signed in and `RAILWAY_PROJECT_ID` in the shell (not a secret: Project ID under the project's Settings in the dashboard, or `railway list`). Records `trigger='manual'`; ignores the flag. |
 | `worker-shell`'s **Console** tab | Railway's container | A manual run in the real image, on Railway's network (C8-D15): all venues or one (`--venue`). Observed working on staging; the runbook below is what was typed. |
 | **Run now** in the dashboard, or `railway cron run -s worker -e staging --yes` (CLI 5.71.0) | Railway's container | The container's own command, `--trigger scheduled`, **immediately**: with the flag off a logged skip, with it on a real run (observed both). It cannot pass `--trigger manual` or `--venue`. Needs a deploy to be current, so apply staged variable changes with Deploy first. |
 

@@ -355,7 +355,7 @@ Plan and review: `docs/dev/implementations/c5-pipeline-eval-harness.md` (plan ap
 
 **Done when:** a hosted run's audit rows carry a `snapshot_key` that resolves to the page it fetched.
 
-**Status (November 19, 2026): code built, hosted checks pending.** Branch `c9-r2-snapshots`; plan and decisions in `docs/dev/implementations/c9-r2-snapshots.md` (C9-D1 accepted by Ari as the floor, with a retry, a circuit breaker, an outbox and a retention rule deferred as C9-DF1 to C9-DF4). **Ari's steps remain:** the Cloudflare bucket, token and the four variables on the staging `worker` and `worker-shell` BEFORE the merge (Step 6), then the first hosted run and its SHA-256 check (Step 9).
+**Status (November 19, 2026): built, merged (PR 117) and proven on staging; awaiting Ari's sign-off.** Plan and decisions in `docs/dev/implementations/c9-r2-snapshots.md` (C9-D1 accepted by Ari as the floor, with a retry, a circuit breaker, an outbox and a retention rule deferred as C9-DF1 to C9-DF4). A staging fetch row's `snapshot_key` resolves to the page it fetched (the object's SHA-256, read back from Railway's network, equals `detail.snapshot.sha256`); `fetches_without_snapshots` returned no rows. **Carried:** the write from inside Railway's container (C9-U4's write half) to the first scheduled run with the flag on, the bucket's aggregate size against the meter, and production's bucket, all at C11. Details in `environments.md` "Checks recorded (November 19, 2026, C9, staging)".
 
 ### C10. Wiring and guard rails (was H4)
 

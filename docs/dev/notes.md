@@ -843,3 +843,27 @@ The CLI prints the fields, so read hosted logs with `railway logs -p <project> -
 (`railway cron list` prints the exact window for each run). A likely fix is one structlog `EventRenamer("message")` processor in
 JSON mode; it is not made, because it changes every log line's shape (a search of the tests for `"event"` comes first).
 
+## An R2 bucket answers `NoSuchBucket` at the wrong endpoint, and the C9 preflight is what says so (C9)
+
+Found on staging, November 19, 2026. The Cloudflare dashboard offers more than one endpoint URL for a bucket, including one specific to the
+US. The bucket here (`r2-pebble-staging`) was created with the default location, and at the US-specific URL the same credentials got
+`NoSuchBucket` from `list_objects_v2`: R2 answered, the token was accepted, and the bucket simply did not exist at that hostname. The
+worker's preflight (C9-D8) reported it as `kind=config`, `code=NoSuchBucket`, exit 2, before the start line and any venue, which is the
+failure it exists for. `R2_ENDPOINT_URL` is `https://<account id>.r2.cloudflarestorage.com`, with no bucket name, path or trailing slash; use
+the endpoint the bucket's own Settings page shows, and apply a corrected value to `worker` and `worker-shell` both, then Deploy.
+
+## Do not hash an object downloaded through Cloudflare's dashboard (C9)
+
+Found on staging, November 19, 2026. An object downloaded from the dashboard was 99829 bytes with a different SHA-256, while the same object read
+with `get_object` from `worker-shell` was 98423 bytes and matched `detail.snapshot.sha256` and `detail.snapshot.bytes` exactly. The extra
+1406 bytes were not carriage returns (stripping them did not restore the hash) and the cause was not found, so the dashboard download is not a
+byte-faithful copy as far as is known. To check that a fetch row resolves to its page, read the object with boto3 (a `get_object` and a
+`hashlib.sha256`) from `worker-shell`, where the credentials already are; paste neither the keys nor an endpoint into a chat.
+
+## `next build` can stop once on a security notice, and `make check` then fails at the e2e stage (C9)
+
+Seen several times on November 19, 2026, with Next.js 16.4.1. The first `next build` of a session prints an upgrade recommendation for a
+known vulnerability and exits 1 with `SecurityFatalError`; the same command run again succeeds. `make check` therefore ends with `make e2e` red
+once, and everything before it (ruff, mypy, pytest, vitest, `make contract-check`, `make designation-check`) has already run. Rerun
+`make e2e` by itself. The notice recommends a Next.js upgrade, which is a separate decision and not part of any milestone.
+
