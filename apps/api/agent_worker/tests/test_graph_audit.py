@@ -23,6 +23,7 @@ import pytest
 from agent_worker import nodes
 from agent_worker.context import WorkerContext
 from agent_worker.graph import compiled_graph
+from agent_worker.snapshots import SnapshotError
 from agent_worker.state import VenueGraphState
 from agent_worker.tests import fakes
 from agent_worker.tests.fakes import (
@@ -31,6 +32,7 @@ from agent_worker.tests.fakes import (
     FakeReader,
     FakeWriter,
     RecordingAudit,
+    RecordingSnapshots,
     RecordingStager,
     event,
     jsonld_page,
@@ -51,15 +53,21 @@ async def run_traced(
     *,
     url: str | None = None,
     stager: RecordingStager | None = None,
+    audit: RecordingAudit | None = None,
+    snapshots: RecordingSnapshots | None = None,
 ) -> tuple[VenueGraphState, RecordingAudit, RecordingStager]:
-    """Run the real graph on `html` (or `url`) with the scripted model and recording stores."""
+    """Run the real graph on `html` (or `url`) with the scripted model and recording stores.
+
+    `audit` and `snapshots` are passed in by the tests that need to inspect them even when the run raises (C9): the
+    return value is never reached then. Without `snapshots` the context's default store is used (writes nothing).
+    """
     if url is None:
         assert html is not None
         path = tmp_path / "page.html"
         path.write_text(html)
         url = str(path)
     monkeypatch.setattr(nodes, "instructor_client", scripted_client(script))
-    audit, stager = RecordingAudit(), stager or RecordingStager()
+    audit, stager = audit or RecordingAudit(), stager or RecordingStager()
     state = VenueGraphState(
         venue_id=1,
         calendar_url=url,
@@ -69,8 +77,9 @@ async def run_traced(
         run_id=RUN_ID,
         policy=fakes.THREE_ATTEMPTS,
     )
+    extra: dict[str, Any] = {"snapshots": snapshots} if snapshots is not None else {}
     result = await compiled_graph.ainvoke(
-        state, context=WorkerContext(audit=audit, stager=stager, reader=FakeReader(), writer=FakeWriter())
+        state, context=WorkerContext(audit=audit, stager=stager, reader=FakeReader(), writer=FakeWriter(), **extra)
     )
     return VenueGraphState(**result), audit, stager
 
@@ -259,6 +268,113 @@ async def test_a_staging_write_that_fails_stops_the_run(tmp_path: Path, monkeypa
             ),
         )
     assert StepType.VALIDATE.value not in [s for s, _ in audit.steps()]
+
+
+# ---------------------------------------------------------------------------
+# The page snapshot (C9-T11, C9-D1, C9-D4, C9-D6)
+# ---------------------------------------------------------------------------
+
+ONE_SHOW_PAGE = jsonld_page(event("Nona", "2026-10-20T21:00:00-05:00"))
+
+
+async def test_the_fetch_row_carries_the_key_the_store_returned(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Proves (C9-T11, C9-D6, C9-D4): after a clean fetch the page goes to the snapshot store, EXACTLY the page's text,
+    # once, and the fetch row carries the key (and the size and hash) the store returned. No other step's row carries a
+    # key: only a fetch has a page behind it. This is the deployment plan's first C9 test (a fake object store receives
+    # the page and its key lands on the audit row). The fake returns a recognizable key, so a row that carried
+    # a recomputed or empty key would fail here.
+    audit = RecordingAudit()
+    snapshots = RecordingSnapshots(audit=audit)
+    _, audit, _ = await run_traced(
+        tmp_path, monkeypatch, ONE_SHOW_PAGE, {SPLITTER: [NONA]}, audit=audit, snapshots=snapshots
+    )
+    assert snapshots.pages == [ONE_SHOW_PAGE]
+    assert snapshots.calls == [{"venue_id": 1, "fetched_on": fakes.FETCHED, "run_id": RUN_ID}]
+    fetch = audit.entries[0]
+    assert fetch.step_type is StepType.FETCH
+    assert fetch.snapshot_key == "fake/1/1.html"
+    assert fetch.detail["snapshot"] == {"bytes": len(ONE_SHOW_PAGE.encode()), "sha256": "f" * 64}
+    assert [e.snapshot_key for e in audit.entries[1:]] == [None] * (len(audit.entries) - 1)
+
+
+async def test_the_snapshot_is_written_before_the_fetch_row(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Proves (C9-D6, mutation C9-M2): the put happens BEFORE the fetch row is appended, because the row records the key
+    # and so the object must exist first; a row written first and a put after it could leave a row pointing at nothing.
+    # The fake counts the audit rows that existed when the put arrived: none yet.
+    audit = RecordingAudit()
+    snapshots = RecordingSnapshots(audit=audit)
+    await run_traced(tmp_path, monkeypatch, ONE_SHOW_PAGE, {SPLITTER: [NONA]}, audit=audit, snapshots=snapshots)
+    assert snapshots.rows_at_put == [0]
+
+
+async def test_a_failed_fetch_stores_nothing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Proves (C9-T11, C9-D4, C9-D6): a fetch that failed (an empty page) never calls the store and its row has no key. The
+    # trap: `fetch_node` assigns `page_html` BEFORE it raises `EmptyPageError`, so `page_html` alone is not the test
+    # (C9-PR1-3); a write that checked only `page_html` would store an empty page and the row would claim a snapshot.
+    snapshots = RecordingSnapshots()
+    _, audit, _ = await run_traced(tmp_path, monkeypatch, "<html><body>  </body></html>", {}, snapshots=snapshots)
+    assert snapshots.calls == []
+    assert audit.entries[0].snapshot_key is None
+
+
+async def test_a_store_that_raises_leaves_the_fetch_row_then_stops_the_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Proves (C9-D1, C9-D14, C9-T11): when the page cannot be stored, the fetch row is STILL written, with a NULL key and
+    # `detail.snapshot_error` holding the failure's kind, code and message (so the audit trail says what R2 refused, and
+    # the log is not the only record), and THEN the run stops with the `SnapshotError`: no extract row, no staging
+    # document, nothing committed for that venue that day. A page that cannot be audited does not proceed.
+    audit = RecordingAudit()
+    stager = RecordingStager()
+    error = SnapshotError("could not store venues/1/x.html: refused", kind="transient", code="SlowDown")
+    with pytest.raises(SnapshotError):
+        await run_traced(
+            tmp_path,
+            monkeypatch,
+            ONE_SHOW_PAGE,
+            {SPLITTER: [NONA]},
+            audit=audit,
+            stager=stager,
+            snapshots=RecordingSnapshots(audit=audit, fail=error),
+        )
+    assert audit.steps() == [("fetch", 1)]
+    row = audit.entries[0]
+    assert row.snapshot_key is None
+    assert row.detail["snapshot_error"] == {
+        "kind": "transient",
+        "code": "SlowDown",
+        "message": "could not store venues/1/x.html: refused",
+    }
+    assert "snapshot" not in row.detail
+    assert stager.documents == []
+
+
+async def test_the_default_store_lets_a_state_with_no_run_id_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Proves (C9-D4, C9-D6): with the default store (writes nothing) a hand-built state whose `run_id` is None still runs
+    # to the end and leaves a fetch row with no key. The `ValueError` for a missing run id belongs to the REAL store only
+    # (`test_snapshots.py`), so the many existing tests and `local_test.py`, which build states without a run id, are
+    # unaffected by C9.
+    path = tmp_path / "page.html"
+    path.write_text(ONE_SHOW_PAGE)
+    monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [NONA]}))
+    audit = RecordingAudit()
+    state = VenueGraphState(
+        venue_id=1,
+        calendar_url=str(path),
+        venue_name="The Venue",
+        metro_timezone="America/Chicago",
+        fetched_on=fakes.FETCHED,
+        run_id=None,
+    )
+    await compiled_graph.ainvoke(
+        state,
+        context=WorkerContext(audit=audit, stager=RecordingStager(), reader=FakeReader(), writer=FakeWriter()),
+    )
+    assert audit.entries[0].step_type is StepType.FETCH and audit.entries[0].snapshot_key is None
 
 
 # ---------------------------------------------------------------------------

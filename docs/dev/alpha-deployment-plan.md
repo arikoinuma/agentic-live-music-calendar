@@ -349,11 +349,13 @@ Plan and review: `docs/dev/implementations/c5-pipeline-eval-harness.md` (plan ap
 
 **Why:** The R2 page snapshot in `fetch_node` is stubbed today (`arch-initial.md` §7 and §11). `audit_log.snapshot_key` stays NULL until it lands, and without it the JSON-LD route's raw markup is kept nowhere (the staging document holds only what the model was sent). Definition of done point 5 needs it.
 
-- [ ] Create the Cloudflare account and a bucket and scoped token per environment (Dep-D10); the variables are in `.env.example` and commented.
-- [ ] Write the snapshot in `fetch_node` with `boto3` and store the key on the audit row.
+- [ ] Create the Cloudflare account and a bucket and scoped token (Dep-D10); the variables are in `.env.example`. *(Amended by C9-D3, November 18, 2026: **staging's bucket and token now**; production's at C11, beside its worker, and dev's when dev gets a worker. The variables must be set on the staging `worker` and `worker-shell` BEFORE the code merges: a hosted worker without them exits 2, even on a skipped run.)*
+- [ ] Write the snapshot with `boto3` and store the key on the audit row. *(Amended by C9-D6: **in `trace.audited`, not in `fetch_node`**, because a node cannot await and nothing impure runs inside one (A4-D1); the write happens before the fetch row, which records the key. A page that cannot be stored stops that venue's run after its fetch row records why, C9-D1. Built November 19, 2026, on branch `c9-r2-snapshots`; the hosted checks are Ari's, plan Step 9.)*
 - [ ] *(idea, not scoped)* Saved snapshots would let dev and staging replay extraction without refetching venue sites.
 
 **Done when:** a hosted run's audit rows carry a `snapshot_key` that resolves to the page it fetched.
+
+**Status (November 19, 2026): code built, hosted checks pending.** Branch `c9-r2-snapshots`; plan and decisions in `docs/dev/implementations/c9-r2-snapshots.md` (C9-D1 accepted by Ari as the floor, with a retry, a circuit breaker, an outbox and a retention rule deferred as C9-DF1 to C9-DF4). **Ari's steps remain:** the Cloudflare bucket, token and the four variables on the staging `worker` and `worker-shell` BEFORE the merge (Step 6), then the first hosted run and its SHA-256 check (Step 9).
 
 ### C10. Wiring and guard rails (was H4)
 
@@ -370,6 +372,9 @@ Plan and review: `docs/dev/implementations/c5-pipeline-eval-harness.md` (plan ap
 - [ ] **Promote `production` (carried from C8):** fast-forward it past C3.1 and C8, API first. Rehearse the migrations on a throwaway Neon copy first (`make rehearse-migration ENV=prod`): the production database is at `829af2c3f26f` and the promotion also brings it `d7b3c2a91e45` (`agent_run.feature_flags`) through the API's pre-deploy.
 - [ ] **Create production's `worker` (carried from C8 Step 11)** as `environments.md` "The worker on Railway (C8)" describes: `APP_ENV=prod`, `MONGODB_DATABASE=calendar`, its own DeepInfra key and `MODEL_NAME` checked against DeepInfra's list, **`FLAG_WORKER_SCHEDULED_RUNS` unset**, cron `0 10 * * *`. A Run now must log `scheduled run skipped: feature flag worker.scheduled_runs is off` and write nothing: **this skip is C3.1-D20's production proof** that the flag is off there. Check the Atlas cluster is not paused. Decide whether production gets an idle `worker-shell` (C8-D15 left it out: a production shell holds production's secrets with no typed confirmation) or uses `make worker-hosted ENV=prod` (which asks for `production` to be typed).
 - [ ] **Set the Railway hard usage limit** before the first scheduled run (C8-D14); `railway usage limit set --target workspace --hard <dollars>` did not work for Ari on November 18, so use the dashboard's usage page. Also read the staging API's latest build log for C8-U3's other half, and record `worker-shell`'s idle cost.
+- [ ] **Create production's R2 bucket and token and set `R2_*` on the production worker (C9-D3)**, BEFORE its skip proof: with C9's code a hosted worker without the four variables exits 2, even on a skipped run.
+- [ ] **A way to pull a sample of stored snapshots into `captured_pages/` for the burn-in labeling** (not built in C9, C9-D10; a download by key, `snapshot_key` being recomputable from the fetch row).
+- [ ] **At the end of the burn-in, read `snapshot_storage_by_month` and the `snapshot_error` rows grouped by `kind` (`docs/dev/audit-queries.sql`), and decide C9-DF1 (an end-of-run retry for transient failures) and C9-DF4 (a retention rule)** from them (`c9-r2-snapshots.md`, "Deferred").
 - [ ] Populate production with a manual run first (Dep-D12) and check the calendar and the audit trail, before the schedule goes on.
 - [ ] Enable production's cron, once Dep-D13's condition holds: switch the `worker.scheduled_runs` feature flag (C3.1) on in production.
 - [ ] Attach `msp.<domain>` to the Production environment; turn on the apex chooser (Dep-D11). Check Vercel's current plan terms first.

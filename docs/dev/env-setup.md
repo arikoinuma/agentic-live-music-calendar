@@ -185,7 +185,7 @@ Provisioning only — nothing gets deployed yet. Capture each credential into `a
 
 - [x] **Neon** — account, project, copy the connection string
 - [x] **MongoDB Atlas** — account, free M0 cluster, database user, copy the connection string (provisioned; nothing writes to it yet — see Phase 8's Railway agent worker note)
-- [ ] **Skipped — Cloudflare R2** — account, bucket, API token (S3-compatible key/secret). Deferred along with the R2 snapshot write itself; see `docs/arch/arch-initial.md` Section 11
+- [ ] **Cloudflare R2** — account, a private bucket per environment, an Object Read & Write API token scoped to that bucket (AWS-style key/secret). *No longer skipped: the snapshot write is built (C9); staging's bucket is created at `c9-r2-snapshots.md` Step 6, production's at C11.* Original note: deferred along with the R2 snapshot write itself; see `docs/arch/arch-initial.md` Section 11
 - [ ] **Skipped — Resend** — account, verify a sending domain (or use their sandbox domain for now), API key. Deferred along with the contributor verification/login flow that needs it; see Section 11
 - [ ] **Skipped — Cloudflare Turnstile** — account, register a site, copy the site key and secret key (gates public edit/flag endpoints against bots, per `docs/arch/arch-initial.md` Section 7). Deferred along with the public edit/flag endpoints themselves; see Section 11
 - [ ] **Skipped — DeepInfra** (or your chosen hosted inference provider) — account, API key. Confirmed as the actual provider choice (see Section 10's cost note — genuinely cheap, and the only option offering the exact model Phase 5 validated), but deferred along with the whole Railway agent worker service; see Phase 8 and Section 11
@@ -217,7 +217,7 @@ This one has a real gotcha worth taking seriously when that work resumes: Playwr
 
 - [x] Give this service its own Dockerfile. **Done differently (C8-D2, C8-D10):** `apps/api/Dockerfile.worker` on `python:3.13-slim` with `uv`, selected by the service variable `RAILWAY_DOCKERFILE_PATH=Dockerfile.worker`, not Playwright's image, because the worker never launches a browser (`fetch_html` is one `httpx.get`). Never name it `Dockerfile`: that would switch the API service, rooted at the same directory, to a Docker build.
 - [x] Start command: the image's `CMD` is `python -m agent_worker.main --trigger scheduled`, **cron-scheduled** `0 10 * * *` (UTC), restart policy Never, gated by the `worker.scheduled_runs` feature flag. *(Staging; production at C11.)*
-- [x] Environment variables *(staging; R2 credentials wait for C9)*: `DATABASE_URL`, `MONGODB_URI`, R2 credentials, and the model provider variables — pointed at **DeepInfra from Phase 7, not Ollama**. `localhost:11434` doesn't exist on Railway, and it's an easy thing to leave pointed at your laptop by accident (C6: the variables are `MODEL_BASE_URL`, `MODEL_API_KEY`, `MODEL_PROVIDER` and `MODEL_NAME`, listed in `environments.md`; a hosted worker that keeps the localhost default refuses to start)
+- [x] Environment variables *(staging; the four R2 variables are set by C9's Step 6, `c9-r2-snapshots.md`)*: `DATABASE_URL`, `MONGODB_URI`, R2 credentials, and the model provider variables — pointed at **DeepInfra from Phase 7, not Ollama**. `localhost:11434` doesn't exist on Railway, and it's an easy thing to leave pointed at your laptop by accident (C6: the variables are `MODEL_BASE_URL`, `MODEL_API_KEY`, `MODEL_PROVIDER` and `MODEL_NAME`, listed in `environments.md`; a hosted worker that keeps the localhost default refuses to start)
 
 ### Wire Vercel and Railway together
 

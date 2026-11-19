@@ -55,6 +55,13 @@ plugins = ["pydantic.mypy"]
 # scripts/rehearse_migration.py, scripts/restore_neon_role.py and the tests in scripts/tests, which are typed.
 files = ["app", "agent_worker", "scripts/rehearse_migration.py", "scripts/restore_neon_role.py", "scripts/tests"]
 
+# boto3 and botocore ship no `py.typed` marker and no stubs are installed, so mypy reports `import-untyped` for them.
+# One override with one reason beats a per-import ignore in three files, and a stubs package is a dev dependency for
+# one adapter. `agent_worker/snapshots.py` is the only importer; its tests exercise every call it makes (C9-D13).
+[[tool.mypy.overrides]]
+module = ["boto3.*", "botocore.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 # Both packages are walked in full, so a test placed anywhere under app/ or agent_worker/ is
 # collected (v0.1-G14: a test outside the listed directories used to be silently never run).

@@ -128,7 +128,7 @@ have no domain.
   always-on compute, 250 compute hours and 5 GB.
 - **Atlas M0:** see Atlas above.
 - **Railway Hobby:** $5.00 usage included, 8 GB RAM, 8 vCPU, 100 GB shared disk.
-- **R2:** deferred to C9.
+- **R2:** deferred to C9. *Read from Cloudflare's pricing page for C9 (November 18 and 19, 2026; fetched and summarized by a small model, so as summarized):* 10 GB-month Standard storage, 1 million Class A and 10 million Class B operations a month, egress free; usage past that is billed ($0.015 per GB-month), and the page does not say writes are rejected. Per account, not per bucket. A payment method on file may be required to enable R2 (`C9-U2`, unverified). Checked against the real account at C9's Step 9.
 - **Dep-D9's open question (idle connections): Verified, October 22, 2026.**
   100 compute hours is about four days of one always-on compute at 1 CU, so
   it mattered whether the API's pooled asyncpg connections keep Neon's compute

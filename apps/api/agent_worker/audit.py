@@ -41,6 +41,7 @@ from sqlalchemy import func, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agent_worker.commit import CommitResult, ShowFailure, ShowOp, summary_counts
+from agent_worker.snapshots import SnapshotRef
 from agent_worker.state import VenueGraphState
 from agent_worker.validation import CheckCode
 from app.config import AppEnv
@@ -54,11 +55,12 @@ from app.enums import AuditOutcome, AuditSource, EntityType, RunTrigger, StepTyp
 
 @dataclass(frozen=True)
 class AuditEntry:
-    """One `audit_log` row before it is written: the columns A4 fills, and (A6) the snapshots.
+    """One `audit_log` row before it is written: the columns A4 fills, (A6) the row snapshots, and (C9) the page snapshot key.
 
     `previous_value` / `new_value` are the row snapshots a future revert restores (`commit.snapshot_of`); only
-    commit's per-show and per-artist rows carry them. `snapshot_key` is absent (R2 is deferred; the column stays
-    NULL). `created_at` is the database's.
+    commit's per-show and per-artist rows carry them. `snapshot_key` is the R2 object holding the page a FETCH row
+    fetched (C9-D6): only a fetch row ever has one, and it is `None` when no store is configured or the write failed
+    (then `detail.snapshot_error` says why). `created_at` is the database's.
     """
 
     run_id: int | None
@@ -73,6 +75,7 @@ class AuditEntry:
     detail: dict[str, Any] = field(default_factory=dict)
     previous_value: dict[str, Any] | None = None
     new_value: dict[str, Any] | None = None
+    snapshot_key: str | None = None
 
 
 def audit_row(entry: AuditEntry) -> AuditLog:
@@ -93,6 +96,7 @@ def audit_row(entry: AuditEntry) -> AuditLog:
         confidence=entry.confidence,
         previous_value=entry.previous_value,
         new_value=entry.new_value,
+        snapshot_key=entry.snapshot_key,
         detail=entry.detail,
     )
 
@@ -186,7 +190,13 @@ def _excluded_listings(state: VenueGraphState) -> list[dict[str, Any]]:
     return listings
 
 
-def _detail(step: StepType, state: VenueGraphState, staging_id: str | None) -> dict[str, Any]:
+def _detail(
+    step: StepType,
+    state: VenueGraphState,
+    staging_id: str | None,
+    snapshot: SnapshotRef | None = None,
+    snapshot_error: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """The step's evidence, as plain data that goes into the JSONB `detail` column."""
     plan = state.last_plan
     match step:
@@ -197,6 +207,12 @@ def _detail(step: StepType, state: VenueGraphState, staging_id: str | None) -> d
                 "error": state.fetch_error,
                 "text_chars": len(state.page_content or ""),
             }
+            # C9: where the page is stored, or why it could not be. Present only when there is something to say, so a
+            # row written before C9, or with no store configured, keeps the shape it always had.
+            if snapshot is not None:
+                detail["snapshot"] = {"bytes": snapshot.bytes, "sha256": snapshot.sha256}
+            if snapshot_error is not None:
+                detail["snapshot_error"] = snapshot_error
         case StepType.EXTRACT:
             detail = {
                 "tier": plan.tier if plan else None,
@@ -414,11 +430,23 @@ def model_decision_entries(state: VenueGraphState) -> list[AuditEntry]:
     ]
 
 
-def entry_for(step: StepType, state: VenueGraphState, staging_id: str | None = None) -> AuditEntry:
+def entry_for(
+    step: StepType,
+    state: VenueGraphState,
+    staging_id: str | None = None,
+    *,
+    snapshot: SnapshotRef | None = None,
+    snapshot_error: dict[str, Any] | None = None,
+) -> AuditEntry:
     """The audit row for `step`, given the state after that node ran. Pure: no I/O.
 
     `staging_id` is the MongoDB document id for an extract step (trace.audited stages first, then calls
     this); it is recorded in `detail` and is how the two stores join (plan A4-D4).
+
+    `snapshot` and `snapshot_error` are the outcome of storing a fetch step's page (C9-D6; `trace.audited` stores it first,
+    then calls this): the reference puts the key in the `snapshot_key` column and its size and hash in `detail.snapshot`; a
+    failure leaves the key NULL and puts the failure's kind, code and message in `detail.snapshot_error` (C9-D1, C9-D14).
+    Only a fetch row takes either: no other step has a page behind it.
     """
     plan = state.last_plan
     on_venue = step in _VENUE_LEVEL
@@ -433,7 +461,14 @@ def entry_for(step: StepType, state: VenueGraphState, staging_id: str | None = N
         model_used=plan.options.model if plan and step in _MODEL_STEPS else None,
         # Confidence is computed by validation, so only the validate row has it; extract runs before it exists.
         confidence=audit_confidence(state.confidence) if step is StepType.VALIDATE else None,
-        detail=_detail(step, state, staging_id if step is StepType.EXTRACT else None),
+        snapshot_key=snapshot.key if snapshot is not None and step is StepType.FETCH else None,
+        detail=_detail(
+            step,
+            state,
+            staging_id if step is StepType.EXTRACT else None,
+            snapshot if step is StepType.FETCH else None,
+            snapshot_error if step is StepType.FETCH else None,
+        ),
     )
 
 

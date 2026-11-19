@@ -201,3 +201,21 @@ audit rows for a show or artist commit writes are added to the write's own sessi
 an `IntegrityError`, an overflow is a plain `DBAPIError`, and a real lost connection is an `InterfaceError` whose
 `orig.sqlstate` is `None` (use `getattr(err.orig, "sqlstate", None) or ""`, never a `getattr` default). `tests/fakes.py` builds
 each of those shapes (`overflow()`, `check_violation()`, `lost_connection()`); use them instead of inventing an error.
+
+Page snapshots (C9) are one module, `snapshots.py`, and the only code that talks to R2 (boto3 is synchronous, so each call runs in
+`asyncio.to_thread`). Import order is `snapshots` ← `audit` ← `context` ← `trace`: `snapshots.py` takes plain arguments and must not
+import `state`, `audit`, `trace`, `context` or `main` (a test enforces it). `fetch_node` stays pure; **`trace.audited` writes the page
+after the node and BEFORE the fetch row**, because the row records the key, and only when the fetch succeeded
+(`fetch_error is None` and `page_html is not None`: `fetch_node` assigns `page_html` before it raises on an empty page, so
+`page_html` alone is not the test). **A page that cannot be stored raises `SnapshotError`, never returns `None`** (`None` means "no
+store configured"): `trace.audited` writes the fetch row with a NULL key and `detail.snapshot_error` `{kind, code, message}`
+first, and then re-raises, so that venue's run stops and `main.RUN_ERRORS` files it as that venue's failure (botocore's own errors
+are not in that tuple, which is why the store translates them). `WorkerContext.snapshots` defaults to `NoSnapshotStore`, which writes
+nothing, so a laptop with no `R2_*` settings, the eval harness and almost every test need no store; a hosted worker refuses to start
+without all four settings (`snapshot_config_problem`, before the scheduled-run gate, so even a skipped run exits 2), and a startup
+preflight (`store.check()`, after the Atlas ping) stops a wrong token or bucket before venue 1. The `S3SnapshotStore` is tested with
+botocore's `Stubber`, which rejects a request that does not match the S3 service model. Tests that drive `main` pin the four `R2_*`
+settings (`main_stubs.configure_worker`), and the ones about snapshots replace `snapshot_store_from_settings` and `check()` with
+stand-ins, so no unit test reaches a bucket whatever a laptop's `.env` holds. mypy ignores boto3's missing types through one override in `pyproject.toml`. Plan:
+`docs/dev/implementations/c9-r2-snapshots.md`; what is deliberately not built (retry, circuit breaker, outbox, retention) is its
+"Deferred" section.

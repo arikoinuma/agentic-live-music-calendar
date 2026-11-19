@@ -4,7 +4,7 @@
 -- HOW TO RUN ONE (from the repo root; psql runs inside the container, so the file is piped in):
 --     cat docs/dev/audit-queries.sql | docker compose exec -T postgres psql -U postgres -d calendar_dev \
 --         -v run_id=3 -v show_id=12 -f -
---   That runs all eight queries. For one query, paste it into `make db-shell` after
+--   That runs all ten queries. For one query, paste it into `make db-shell` after
 --     \set run_id 3
 --     \set show_id 12
 --   (`\i` doesn't work here: it reads the file from inside the container, which doesn't have the repo.)
@@ -13,7 +13,10 @@
 -- shorthand, which SQLAlchemy would read as a bind parameter.
 --
 -- WHAT `detail` HOLDS (agent_worker/audit.py is the source of truth):
---   fetch     url, fetched_on, error, text_chars
+--   fetch     url, fetched_on, error, text_chars, and (C9) either snapshot ({bytes, sha256}: the length and SHA-256 of the page
+--             stored in R2, whose key is the row's `snapshot_key` column) or snapshot_error ({kind, code, message}: why the
+--             page could not be stored; kind is transient, auth, config or other, and the row's key is then NULL). Neither
+--             key is present when no store was configured (a laptop) or the fetch itself failed.
 --   extract   tier, route, error, staging_id (the MongoDB document), shows, larger_model_used,
 --             models ({page, splitter, status}: the model each kind of call used on this route, null where the route
 --             makes no such call; `model_used` on the row is the page model)
@@ -208,3 +211,50 @@ SELECT r.id AS run_id,
 FROM agent_run r
 JOIN venue v ON v.id = r.venue_id
 ORDER BY r.started_at DESC, r.id DESC;
+
+-- name: fetches_without_snapshots
+-- "Did every page this run fetched get stored?" The run's fetch rows that read a page (no fetch error) but have no
+-- snapshot_key, with the reason the write failed when one was recorded (snapshot_error, as JSON text, and its kind). For
+-- a HOSTED run after C9 this returns no rows: it is the one-line check that the audit trail has a page behind every fetch
+-- (C9-D1 stops the venue's run when a write fails, so a failed write leaves exactly one row here). A run on a laptop
+-- with snapshots off returns every fetch row, which is expected. Scoped to one run (:run_id, bound as run_history binds
+-- it; psql needs -v run_id=) because staging already holds C8's fetch rows with no key. An image-file venue has no page
+-- and would also appear; none exists yet. C9-D11.
+SELECT al.id,
+       al.created_at,
+       al.run_id,
+       v.name AS venue,
+       al.detail ->> 'url' AS url,
+       CAST(al.detail -> 'snapshot_error' AS text) AS snapshot_error,
+       al.detail -> 'snapshot_error' ->> 'kind' AS snapshot_error_kind
+FROM audit_log al
+JOIN agent_run r ON r.id = al.run_id
+JOIN venue v ON v.id = r.venue_id
+WHERE al.run_id = :run_id
+  AND al.step_type = 'fetch'
+  AND al.snapshot_key IS NULL
+  AND al.detail ->> 'error' IS NULL
+ORDER BY al.id;
+
+-- name: snapshot_storage_by_month
+-- "How much page storage have the snapshots added up to?" One row per month of created_at, for the fetch rows that carry a
+-- snapshot_key: how many, the bytes they hold (from detail.snapshot.bytes) and the running total in bytes. It takes no
+-- parameter, because each database is one environment. It is the capacity meter for R2's free 10 GB: every fetch row
+-- records its own size, so no bucket listing is needed. It is a ledger of what the trail says was written, not a listing of
+-- the bucket: an orphan object from a crash between the put and the row is not counted, and an object deleted later by a
+-- retention rule is not subtracted (C9-DF4). The month is the database session's time zone. C9-D11, C9-D10.
+WITH monthly AS (
+    SELECT date_trunc('month', al.created_at) AS month_start,
+           count(*) AS snapshots,
+           sum(CAST(al.detail -> 'snapshot' ->> 'bytes' AS bigint)) AS bytes
+    FROM audit_log al
+    WHERE al.step_type = 'fetch'
+      AND al.snapshot_key IS NOT NULL
+    GROUP BY date_trunc('month', al.created_at)
+)
+SELECT to_char(month_start, 'YYYY-MM') AS month,
+       snapshots,
+       bytes,
+       CAST(sum(bytes) OVER (ORDER BY month_start) AS bigint) AS running_bytes
+FROM monthly
+ORDER BY month_start;

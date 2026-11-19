@@ -12,6 +12,7 @@ Expected rows come from the scripts (what the fake model was told to do), never 
 file's stability matters: the tests fail if a query is renamed or breaks, which is the point.
 """
 
+import datetime
 import re
 from pathlib import Path
 from typing import Any
@@ -23,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession, async_sessionm
 
 from agent_worker import nodes
 from agent_worker.artist_match import KnownArtist
-from agent_worker.audit import PostgresAuditWriter
+from agent_worker.audit import AuditEntry, PostgresAuditWriter
 from agent_worker.calendar_writer import PostgresCalendarWriter
 from agent_worker.context import WorkerContext
 from agent_worker.main import VenueFacts, load_venues, run_venue
@@ -128,10 +129,11 @@ async def run(conn: AsyncConnection, sql: str, **params: Any) -> list[Any]:
     return list(result.mappings())
 
 
-def test_the_file_has_the_eight_named_queries(queries: dict[str, str]) -> None:
+def test_the_file_has_the_ten_named_queries(queries: dict[str, str]) -> None:
     # Proves: the plan's four questions (A4), A5's fifth (the model's artist decisions), A6's sixth (the shows the
-    # database refused), C6.1-D17's seventh (the listings validation left out) and C3.1-D3's eighth (the flag
-    # values a run ran under) are all present under the names the plans give them.
+    # database refused), C6.1-D17's seventh (the listings validation left out), C3.1-D3's eighth (the flag
+    # values a run ran under), and C9-D11's ninth and tenth (the fetches that have no stored page, and the storage
+    # the stored pages add up to by month) are all present under the names the plans give them.
     assert set(queries) == {
         "run_history",
         "escalated_runs",
@@ -141,6 +143,8 @@ def test_the_file_has_the_eight_named_queries(queries: dict[str, str]) -> None:
         "failed_commits",
         "excluded_listings",
         "runs_by_feature_flags",
+        "fetches_without_snapshots",
+        "snapshot_storage_by_month",
     }
 
 
@@ -418,3 +422,93 @@ async def test_runs_by_feature_flags_shows_the_values_a_run_ran_under(
     assert rows[0]["scheduled_runs"] == "true" and rows[0]["feature_flags"] == '{"worker.scheduled_runs": true}'
     assert [r["feature_flags"] for r in rows[1:]] == [None, None]
     assert [r["scheduled_runs"] for r in rows[1:]] == [None, None]
+
+
+# ---------------------------------------------------------------------------
+# Page snapshots (C9-D11)
+# ---------------------------------------------------------------------------
+
+
+async def fetch_row(
+    factory: async_sessionmaker[AsyncSession],
+    run_id: int,
+    *,
+    key: str | None,
+    detail: dict[str, Any],
+) -> int:
+    """Write one fetch row for `run_id` the way the worker does and return its id."""
+    return await PostgresAuditWriter(factory).record(
+        AuditEntry(
+            run_id=run_id,
+            attempt_number=1,
+            step_type=StepType.FETCH,
+            source=AuditSource.AGENT,
+            entity_type=EntityType.VENUE,
+            entity_id=1,
+            snapshot_key=key,
+            detail=detail,
+        )
+    )
+
+
+async def test_fetches_without_snapshots_finds_only_a_runs_unstored_successful_fetches(
+    db_conn: AsyncConnection,
+    factory: async_sessionmaker[AsyncSession],
+    queries: dict[str, str],
+    two_runs: Any,
+) -> None:
+    # Proves (C9-D11, C9-T9): for one run, the query returns a fetch row with no key and no fetch error (a page that was
+    # fetched and has nothing stored behind it: for a hosted run after C9 this must be empty), together with the
+    # `snapshot_error` kind a failed write recorded; it does NOT return a row that has a key, a row whose fetch itself
+    # failed (nothing to store), or a row of another run (staging holds C8's older rows with no key, which an unscoped
+    # query would list, C9-PR1-12). Expected ids are the rows this test wrote.
+    _, _, venue = two_runs
+    writer = PostgresAuditWriter(factory)
+    first = await writer.start_run(venue.id, RunTrigger.MANUAL)
+    other = await writer.start_run(venue.id, RunTrigger.MANUAL)
+    stored = {"url": "u", "error": None, "snapshot": {"bytes": 10, "sha256": "0" * 64}}
+    await fetch_row(factory, first, key="venues/1/a.html", detail=stored)
+    await fetch_row(factory, first, key=None, detail={"url": "u", "error": "HTTPStatusError: 404"})
+    refused = {"url": "u", "error": None, "snapshot_error": {"kind": "auth", "code": "AccessDenied", "message": "m"}}
+    wanted = await fetch_row(factory, first, key=None, detail=refused)
+    await fetch_row(factory, other, key=None, detail={"url": "u", "error": None})
+
+    rows = await run(db_conn, queries["fetches_without_snapshots"], run_id=first)
+
+    assert [r["id"] for r in rows] == [wanted]
+    assert rows[0]["snapshot_error_kind"] == "auth"
+    assert "AccessDenied" in rows[0]["snapshot_error"]
+
+
+async def test_snapshot_storage_by_month_sums_bytes_and_keeps_a_running_total(
+    db_conn: AsyncConnection,
+    factory: async_sessionmaker[AsyncSession],
+    queries: dict[str, str],
+    two_runs: Any,
+) -> None:
+    # Proves (C9-D11, C9-T9): the capacity meter reads the audit rows alone: one line per month of `created_at` for the
+    # fetch rows that carry a key, with how many, the bytes (from `detail.snapshot.bytes`) and the running total. Rows are
+    # seeded in two months with byte counts chosen here (300 + 200 in September, 1000 in October), and a fetch row with no
+    # key is ignored, so the expected lines are hand-written: 2 / 500 / 500, then 1 / 1000 / 1500.
+    _, _, venue = two_runs
+    run_row = await PostgresAuditWriter(factory).start_run(venue.id, RunTrigger.MANUAL)
+
+    def noon(month: int, day: int) -> datetime.datetime:
+        return datetime.datetime(2026, month, day, 12, tzinfo=datetime.UTC)
+
+    placed = [(300, noon(9, 3)), (200, noon(9, 20)), (1000, noon(10, 15))]
+    for size, when in placed:
+        row = await fetch_row(
+            factory, run_row, key=f"venues/1/{when.date()}.html", detail={"snapshot": {"bytes": size}}
+        )
+        await db_conn.execute(text("UPDATE audit_log SET created_at = :when WHERE id = :id"), {"when": when, "id": row})
+    unkeyed = await fetch_row(factory, run_row, key=None, detail={"snapshot": {"bytes": 999_999}})
+    await db_conn.execute(
+        text("UPDATE audit_log SET created_at = :when WHERE id = :id"), {"when": noon(9, 10), "id": unkeyed}
+    )
+
+    rows = await run(db_conn, queries["snapshot_storage_by_month"])
+
+    months = [(r["month"], r["snapshots"], r["bytes"], r["running_bytes"]) for r in rows]
+    # Only the months this test seeded: the `two_runs` fixture's own fetch rows have no key and are not counted.
+    assert months == [("2026-09", 2, 500, 500), ("2026-10", 1, 1000, 1500)]

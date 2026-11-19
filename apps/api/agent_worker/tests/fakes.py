@@ -27,6 +27,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError, InterfaceError
 
 from agent_worker import act_split, artist_match, schemas, status_check
 from agent_worker.policy import DEFAULT_POLICY
+from agent_worker.snapshots import SnapshotError, SnapshotRef
 
 # The shapes the pipeline asks the model for, as the keys of a script.
 PAGE = schemas.VenueListingsExtraction  # the title-split model route's page call (the adopted route)
@@ -180,6 +181,42 @@ class RecordingStager:
             raise RuntimeError("the staging store is down")
         self.documents.append(document)
         return f"doc-{len(self.documents)}"
+
+
+class RecordingSnapshots:
+    """A `SnapshotStore` that keeps the pages it was given and returns a key for each (C9-T11).
+
+    Stands in for R2 in the graph tests, the way `RecordingStager` stands in for MongoDB. What it records:
+      * `pages`: the text of each page it was given, in order;
+      * `rows_at_put`: how many audit rows already existed when each put arrived, which is how a test proves the
+        snapshot is written BEFORE the fetch row that records its key (C9-D6; the key must exist before its row).
+    `fail` is a `SnapshotError` raised by the first `fail_times` puts (default 1 when `fail` is given), after which
+    puts succeed, so a test can fail one venue and let the next one through. It is told the audit recorder so it can
+    count rows; it never writes one.
+    """
+
+    def __init__(self, *, audit: Any = None, fail: SnapshotError | None = None, fail_times: int = 1) -> None:
+        self.pages: list[str] = []
+        self.rows_at_put: list[int] = []
+        self.checks = 0
+        self._audit = audit
+        self._fail = fail
+        self._fail_times = fail_times
+        self.calls: list[dict[str, Any]] = []
+
+    async def put(
+        self, *, venue_id: int, fetched_on: datetime.date, run_id: int | None, page: str
+    ) -> SnapshotRef | None:
+        self.calls.append({"venue_id": venue_id, "fetched_on": fetched_on, "run_id": run_id})
+        self.rows_at_put.append(len(self._audit.entries) if self._audit is not None else -1)
+        if self._fail is not None and len(self.calls) <= self._fail_times:
+            raise self._fail
+        self.pages.append(page)
+        # A recognizable key and hash, so a test can assert the row carries exactly what the store returned.
+        return SnapshotRef(key=f"fake/{venue_id}/{len(self.pages)}.html", bytes=len(page.encode()), sha256="f" * 64)
+
+    async def check(self) -> None:
+        self.checks += 1
 
 
 class FakeReader:

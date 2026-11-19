@@ -10,6 +10,7 @@ Squirrel Bar, in the America/Chicago metro) and the plan's rules. The tests mark
 `main.run_venue` implements.
 """
 
+import dataclasses
 import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -26,12 +27,14 @@ from agent_worker.audit import PostgresAuditWriter
 from agent_worker.commit import CommitResult, ShowFailure
 from agent_worker.context import WorkerContext
 from agent_worker.main import VenueFacts, load_venues, run_all, run_venue
+from agent_worker.snapshots import SnapshotError
 from agent_worker.state import VenueGraphState
 from agent_worker.tests import fakes
 from agent_worker.tests.fakes import (
     SPLITTER,
     FakeReader,
     FakeWriter,
+    RecordingSnapshots,
     RecordingStager,
     event,
     jsonld_page,
@@ -152,6 +155,42 @@ async def test_run_all_continues_after_one_venue_hits_an_infrastructure_error(
     monkeypatch.setattr(main, "run_venue", flaky)
     failed = await run_all(factory, ctx)
     assert failed == 1 and len(seen) == 4
+
+
+async def test_run_all_counts_a_venue_whose_page_could_not_be_stored_and_goes_on(
+    factory: async_sessionmaker[AsyncSession],
+    ctx: WorkerContext,
+    venue: VenueFacts,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Proves (C9-D1, C9-T12): a `SnapshotError` is in `RUN_ERRORS`, so when one venue's page cannot be stored `run_all`
+    # counts that venue as failed and carries on to the next three; it is not a crash that would kill the process and
+    # the remaining venues (botocore's errors are NOT in that tuple, which is why the store translates them). This goes
+    # through the REAL `run_venue` (the existing OSError case patches it out), so "closes its run" is proven too: every
+    # run has a finish time, and the failed venue's fetch row says why. The fake store fails its FIRST put only.
+    # Fetching is replaced by a function that returns a page, so no venue site is contacted.
+    monkeypatch.setattr(nodes, "fetch_html", lambda *_, **__: PAGE_WITH_ONE_SHOW)
+    monkeypatch.setattr(nodes, "instructor_client", scripted_client({SPLITTER: [NONA]}))
+    refused = SnapshotError("could not store venues/1/x.html: refused", kind="transient", code="SlowDown")
+    snapshots = RecordingSnapshots(fail=refused, fail_times=1)
+    with_store = dataclasses.replace(ctx, snapshots=snapshots)
+
+    failed = await run_all(factory, with_store)
+
+    assert failed == 1
+    assert len(snapshots.calls) == 4  # every venue was tried: the failure stopped one venue, not the run
+    async with factory() as session:
+        runs = list((await session.execute(select(AgentRun).order_by(AgentRun.id))).scalars())
+        fetches = list(
+            (
+                await session.execute(
+                    select(AuditLog).where(AuditLog.step_type == StepType.FETCH).order_by(AuditLog.id)
+                )
+            ).scalars()
+        )
+    assert len(runs) == 4 and all(r.finished_at is not None for r in runs)
+    assert [f.snapshot_key is None for f in fetches] == [True, False, False, False]
+    assert fetches[0].detail is not None and fetches[0].detail["snapshot_error"]["kind"] == "transient"
 
 
 async def test_run_all_counts_a_venue_whose_commit_had_a_refused_show_as_failed(
