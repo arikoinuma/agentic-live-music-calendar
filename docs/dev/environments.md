@@ -15,7 +15,7 @@ something needs it; Step 6.9 and Step 8 were skipped by decision). Anything mark
 | Git branch | any | `dev` (the lane, below; the branch is not created yet) | `main` | `production` |
 | Vercel | `make dev` | Preview, branch `dev` (no branch override set yet) | Preview (`main` and every PR branch), `API_BASE_URL` = staging's API | Production (Production Branch `production`) |
 | Railway | none | *not built* | environment `staging`, source `main`, public domain `kind-spontaneity-staging.up.railway.app`; worker services `worker` and `worker-shell` (C8) | environment `production`, source `production` |
-| Neon | Docker Postgres | branch `dev`, schema only, stamped at `67609c405218` | branch `staging`, seeded, at `829af2c3f26f` | default branch, at `829af2c3f26f`, seeded |
+| Neon | Docker Postgres | branch `dev`, schema only (no rows), at `d7b3c2a91e45`, the head of `main` (upgraded November 23, 2026, C10-D5) | branch `staging`, seeded, at `d7b3c2a91e45` | default branch, at `829af2c3f26f` (the head of the `production` branch; two revisions behind `main` until C11 promotes), seeded |
 | Atlas | Docker Mongo | user `calendar_dev` on database `calendar_dev` (created on first write) | user `calendar_staging` on `calendar_staging` | user `calendar_prod` on `calendar` (nothing writes to it yet) |
 | Database login role | `postgres` | `calendar_dev` | `calendar_staging` | `calendar_prod` |
 | Data | seed or a copied dump | not loaded (schema only) | seeded, then reset from production once it holds real data (C3-D10) | real |
@@ -77,6 +77,30 @@ half carries to the first scheduled run with the flag on, C11); the bucket's **a
 compared); production's bucket (C11). **Unexplained:** an object downloaded through the Cloudflare dashboard was 99829 bytes with a different
 hash, 1406 bytes larger than the stored object; it is not a line-ending conversion (removing every carriage return did not restore the
 hash). The read-back is the check that was trusted; do not hash a dashboard download.
+
+**Checks recorded (November 23, 2026, C10, staging).** The shared secret is merged (PR 120) and live on staging; production's pair and its proof
+are C11's (C10-D1). *Set before the merge (C10-D13):* `API_SHARED_SECRET` on the staging **API** service (Railway service `kind-spontaneity`) and on
+Vercel Preview (all branches, Sensitive). It was first set on `worker` and `worker-shell` by mistake and moved to the API service; the worker never
+reads it. *Observed, with no header:* `/metro` and `/health/db` answered **401** with `{"detail":"Missing or invalid API secret"}`, `/health` answered
+**200** (`app_env: staging`, no secret in the body), and `/openapi.json` and `/docs` answered **404** (the schema is switched off outside local and dev,
+C10-D2). *With the header:* the right value answered **200** on `/metro` and a wrong one **401** (C10-U1: Railway's edge passes `X-Api-Secret` through
+unchanged). The staging calendar renders after the gate, its `/health` page reads "API data access: ok", and Vercel's runtime log shows
+`[api] GET /metro -> 200` (C10-U2: the Preview-scope variable reaches the staging deployment and a server component reads it per request). A PR preview
+built after the variable was set built and deployed, and Vercel's "variable not in turbo.json" warning is gone. **Not run:** C10-U3 (deleting the
+variable on staging to watch the redeploy fail while the old one keeps serving): the lifespan refusal is covered by `test_api_guard.py` (C10-T6), and the
+Railway half stays unverified until someone does it. *The ruleset (C10-D4):* `Basic Protection` now requires six checks, read back with `gh api` on
+November 23, 2026: `Python (apps/api)`, `JS (turbo lint + check-types + test)`, `Contract (schemas.py -> TypeScript)`, `E2E (Playwright, real API on sample
+data)`, `Designations (scoped IDs)` and `Worker image (docker build and run)` (C10-U4).
+*Migration parity (C10-D5):* `make rehearse-migration ENV=dev` passed on a copy of dev (it was at `67609c405218`; it ran `829af2c3f26f`, `c4a1e5b7d903`,
+`d7b3c2a91e45`; the copy was deleted), then the same three upgrades ran on dev itself. `alembic current`: **dev** `d7b3c2a91e45` (head), **staging**
+`d7b3c2a91e45` (head), **production** `829af2c3f26f`. Rows: dev has 0 venues and no metro row (never seeded: C3-D10 says dev is seeded and it is not; seeding
+it has no consumer until dev gets a service, so it stays schema-only, C10-D5); staging has 4 venues and one metro, `msp`; production has 4 venues and
+one metro (Minneapolis/St. Paul; it has no `slug` column yet, so it was read with `select *`). Staging and production hold the **same four venues**, ids 1 to
+4: The White Squirrel Bar, 7th St Entry, Mortimer's, The Terminal Bar. **Production is two migrations behind `main` by design:** its branch lacks `c4a1e5b7d903`
+(`metro slug`, which changes a populated table) and `d7b3c2a91e45`, and C11's promotion runs both in the API's pre-deploy, after a rehearsal on a copy
+(`make rehearse-migration ENV=prod`). *Cost note:* Neon's free plan suspended the project for compute hours during these checks (each manual SQL session keeps
+compute awake for minutes, and the rehearsal's copies count); the $5 add-on gives 250 CU-hours and is the cheaper option at this size, so revisit it from the
+Usage page at C11's burn-in.
 
 ## How a process knows where it is (C3-D3, C3-D4)
 
@@ -319,7 +343,7 @@ to a branch with a different migration set, reset `dev` first (below).
 
 ## Data in the lower environments (C3-D10)
 
-* **`dev` is seeded**: the venue seed plus the sample world, with deliberate edge-case records added where a test
+* **`dev` is meant to be seeded** (as built it is schema-only, and C10-D5 left it that way): the venue seed plus the sample world, with deliberate edge-case records added where a test
   needs them. Deterministic and disposable. To reload it, reset the Neon `dev` branch from its parent, then run
   the seed against it with the override form above and `APP_ENV=dev`.
 * **`staging` is seeded the same way until production holds real data**, then refreshed by **reset from parent** so
@@ -337,7 +361,9 @@ to a branch with a different migration set, reset `dev` first (below).
   the service cannot log in at all.
 * **A schema-only branch** (how `dev` was made) has the tables but an empty `alembic_version`, so `alembic current`
   prints nothing. Stamp it once with the override form: `APP_ENV=dev DATABASE_URL=… uv run alembic stamp 67609c405218`.
-  Do not run `upgrade head` on it; the tables already exist.
+  Do not run `upgrade head` on it; the tables already exist. (`dev` has since been brought to head the normal way, with a
+  rehearsal and then `upgrade head`, on November 23, 2026, C10-D5; the stamp is only for a branch whose tables exist
+  but whose `alembic_version` is empty.)
 
 ## Rehearsing a migration (C4-PR1-9)
 
@@ -356,6 +382,11 @@ export NEON_PROJECT_ID=...             # the Neon project id (or pass --project-
 # every rehearsal, from the repository root
 make rehearse-migration ENV=staging ARGS='--sql "select slug from metro"'
 ```
+
+The script asks for the environment role's password with a **hidden prompt** (the RAW password, not the percent-encoded text inside
+`DATABASE_URL`), so it needs a real terminal: from a tool that has no terminal it stops with `EOFError`. The first `neonctl projects list` also
+asks for a default organization and, if you accept, writes a `.neon` file into the directory (it is git-ignored). `NEON_PROJECT_ID` must be
+in the same shell as the command; prefixing it on the command line (`NEON_PROJECT_ID=... make rehearse-migration ENV=dev`) cannot miss.
 
 The migration runs from an **empty temporary directory** and is given only `APP_ENV`, `DATABASE_URL`, a placeholder
 `MODEL_NAME` and `PYTHONPATH`, so it **never reads your `apps/api/.env`**. That file is unrelated to a hosted branch,

@@ -45,6 +45,9 @@ yarn-error.log*
 
 # Misc
 .DS_Store
+# neonctl writes this into the working directory when you accept its default-organization prompt
+# (it holds only the organization id, but it is a local tool setting and not part of the repo)
+.neon
 *.pem
 
 # Python
