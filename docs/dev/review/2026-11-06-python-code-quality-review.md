@@ -238,7 +238,7 @@ each one. `/resolve-issue` updates a row when its PR opens (`docs/dev/issues/REA
 | PQR1-9 | Medium | S | Small duplications of one concept | Open | | |
 | PQR1-10 | Medium | L | Comment density, and internal plan IDs, make the code hard to read for someone outside the project | Open | | |
 | PQR1-11 | Low | M | Two error-body shapes for a 422 | In PR | [PR 96](https://github.com/arikoinuma/agentic-live-music-calendar/pull/96) | `docs/dev/issues/pqr1-5-id-bounds-and-error-shape.md` |
-| PQR1-12 | Low | S | `/docs`, `/redoc` and `/openapi.json` are served in every environment | Open | | |
+| PQR1-12 | Low | S | `/docs`, `/redoc` and `/openapi.json` are served in every environment | Open | | `docs/dev/implementations/c10-wiring-and-guard-rails.md` (C10-D2: `openapi_url_for`, served on `local` and `dev` only; built on branch `c10-wiring-and-guard-rails`, becomes "In PR" when that PR opens) |
 | PQR1-13 | Low | S | No lifespan hook, and import-time side effects | Open | | |
 | PQR1-14 | Medium | S | Model-call timeout and retries are implicit | Open | | |
 | PQR1-15 | Low | S | The health routes are the least polished code in the app | In PR | [PR 97](https://github.com/arikoinuma/agentic-live-music-calendar/pull/97) | `docs/dev/issues/pqr1-15-health-routes-and-exception-names.md` |

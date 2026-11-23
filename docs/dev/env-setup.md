@@ -207,7 +207,7 @@ Provisioning only — nothing gets deployed yet. Capture each credential into `a
 - [x] `brew install railway`, `railway login`
 - [x] New Railway project, connect to the GitHub repo
 - [x] Add a service pointed at `apps/api`, start command `uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT` — the always-on FastAPI service (`uv run` matters — without it, the service runs against the wrong environment; see `docs/dev/notes.md`)
-- [x] Environment variables: `DATABASE_URL` (Neon — **without the `sslmode`/`channel_binding` query params**, see `docs/dev/notes.md` for why `asyncpg` rejects them), `MODEL_NAME` (not in this doc's original list — a Phase 6 addition, easy to miss; caused a real crash, see `docs/dev/notes.md`). **Skipped — the shared secret for FastAPI ↔ Next.js auth**: enforcement isn't coded anywhere yet (no FastAPI dependency checks it, no fetch call sends it), so setting it now would just be an unused value; revisit once that enforcement is actually written. (`TURNSTILE_SECRET_KEY` deferred along with Cloudflare Turnstile itself — see Phase 7 and `arch-initial.md` Section 11 — nothing reads it yet either)
+- [x] Environment variables: `DATABASE_URL` (Neon — **without the `sslmode`/`channel_binding` query params**, see `docs/dev/notes.md` for why `asyncpg` rejects them), `MODEL_NAME` (not in this doc's original list — a Phase 6 addition, easy to miss; caused a real crash, see `docs/dev/notes.md`). **Skipped — the shared secret for FastAPI ↔ Next.js auth**: enforcement was not coded when this was written, so setting it would have been an unused value. *(Resolved by C10: the API checks `X-Api-Secret` and the Next.js server sends it; `API_SHARED_SECRET` is set on staging's API service and Vercel Preview, and production's at C11. See `docs/dev/environments.md` "The shared secret (C10)".)* (`TURNSTILE_SECRET_KEY` deferred along with Cloudflare Turnstile itself — see Phase 7 and `arch-initial.md` Section 11 — nothing reads it yet either)
 
 ### Railway — agent worker service
 
@@ -221,7 +221,7 @@ This one has a real gotcha worth taking seriously when that work resumes: Playwr
 
 ### Wire Vercel and Railway together
 
-- [x] In Vercel, set the FastAPI service's Railway URL as an environment variable (`API_BASE_URL`, server-only, never `NEXT_PUBLIC_`). **Skipped — the shared secret**, same reasoning as the Railway side above: nothing enforces it yet
+- [x] In Vercel, set the FastAPI service's Railway URL as an environment variable (`API_BASE_URL`, server-only, never `NEXT_PUBLIC_`). **Skipped — the shared secret**, same reasoning as the Railway side above: nothing enforced it yet *(resolved by C10, as above)*
 - [ ] **Skipped — `NEXT_PUBLIC_TURNSTILE_SITE_KEY`** — deferred along with Cloudflare Turnstile itself
 - [x] Redeploy `apps/calendar` to pick up those variables
 

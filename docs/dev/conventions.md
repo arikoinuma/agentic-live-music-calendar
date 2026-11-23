@@ -40,6 +40,7 @@ carries that defining document's scope.
 | `C7` | `docs/dev/implementations/c7-pipeline-eval.md` |
 | `C8` | `docs/dev/implementations/c8-worker-on-railway.md` |
 | `C9` | `docs/dev/implementations/c9-r2-snapshots.md` |
+| `C10` | `docs/dev/implementations/c10-wiring-and-guard-rails.md` |
 | `PQR1` | `docs/dev/review/2026-11-06-python-code-quality-review.md` (Python Quality Review, round 1) |
 
 | `GH-<n>` | GitHub issue `<n>` in this repository (the number is GitHub's own); its resolution record is `docs/dev/issues/gh-<n>-<slug>.md` |
