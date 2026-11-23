@@ -867,3 +867,19 @@ known vulnerability and exits 1 with `SecurityFatalError`; the same command run 
 once, and everything before it (ruff, mypy, pytest, vitest, `make contract-check`, `make designation-check`) has already run. Rerun
 `make e2e` by itself. The notice recommends a Next.js upgrade, which is a separate decision and not part of any milestone.
 
+## The migration rehearsal needs a real terminal, and a few small traps around it (C10)
+
+Found on November 23, 2026, rehearsing dev. `make rehearse-migration ENV=<env>` asks for the environment role's password with `getpass`, a hidden
+prompt, so it must run in a real terminal: from a tool with no terminal it stops at `EOFError` right after printing the prompt. The password is the
+RAW one (not the percent-encoded text inside `DATABASE_URL`). Two earlier failures looked the same and were not: "Give the Neon project with
+`--project-id` or `NEON_PROJECT_ID` in the shell" means the variable was not in that shell (an `export` in one terminal tab is invisible to another
+shell, so prefix it on the command: `NEON_PROJECT_ID=... make rehearse-migration ENV=dev`), and pasting a documentation placeholder such as
+`<the id from the list>` into a shell is a parse error. The first `neonctl projects list` also asks for a default organization and, on yes, writes a
+`.neon` file into the working directory (now git-ignored).
+
+## Production is two migrations behind `main`, and its `metro` has no `slug` column (C10)
+
+Found on November 23, 2026, reading `git ls-tree origin/production` against `main`. The `production` branch holds migrations up to `829af2c3f26f`; `main`
+adds `c4a1e5b7d903` (`metro slug`) and `d7b3c2a91e45` (`agent_run.feature_flags`). C10's first notes said the promotion brings only the second. A query that
+reads `metro.slug` against the production database fails until the promotion; use `select * from metro` there. The promotion runs both migrations in
+the API's pre-deploy, so rehearse them first on a copy (`make rehearse-migration ENV=prod`): the `metro slug` migration changes a populated table.

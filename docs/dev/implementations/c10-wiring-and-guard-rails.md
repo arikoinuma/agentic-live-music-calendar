@@ -1,6 +1,6 @@
 # C10 — wiring and guard rails: the shared secret, the required checks, the migration parity check
 
-**Status:** Awaiting sign-off (code review round 1 resolved; the two `TODO(Ari)` gaps K1 and K2 are still open, and Steps 8 to 12 are Ari's) (Claude Sonnet 5.5 built it November 19, 2026; approved by Ari the same day, with D1 to D5 as recommended)
+**Status:** Done (signed off by Ari, November 23, 2026; code review round 1 resolved; K1 and K2 filled by Ari; the hosted proof, Steps 8 to 11, recorded in Step 12; only U3 is carried, to a later change) (Claude Sonnet 5.5 built it November 19, 2026; approved by Ari the same day, with D1 to D5 as recommended)
 **Date:** November 19, 2026
 **Author model:** Claude Sonnet 5.5
 **Reviewer model:** Claude Opus 5.5 (plan review round 1; code review round 1)
@@ -34,10 +34,10 @@ It is a small milestone in code (one new module, one lifespan, one settings fiel
 
 | ID | Claim | Status |
 |---|---|---|
-| U1 | Railway's edge passes a custom request header (`X-Api-Secret`) to the container unchanged. Expected, since it is an ordinary header; never tried on this service. | Step 10(b): a `curl` with the header answers 200 where the same call without it answers 401. |
-| U2 | Vercel applies a variable scoped to **Preview, all branches** to the staging deployment (`main`) and to every PR preview, and a server component reads it at request time. The scope is Ari's to set; the behavior is Vercel's. | Step 10(c): the staging calendar renders and the status page's "API data access" row says `ok`. |
-| U3 | A uvicorn **lifespan** failure makes Railway fail the deploy and keep the previous deployment. C3's precedent (`APP_ENV=prod` on staging, "failed the deploy and was reverted") was a failure at import, which may differ from a failure at lifespan startup. | Step 10(e), optional. Unverified until then; D9 does not depend on it for correctness, only for how the failure looks. |
-| U4 | The ruleset accepts `Worker image (docker build and run)` and reports it as required. The job has reported on `main` (it is in the list above), so the name exists. The trap is the e2e job's rename (`notes.md`, "Renaming a CI job leaves the branch ruleset waiting"): a required check whose name stops matching waits forever. | Step 9, read back with `gh api`. |
+| U1 | Railway's edge passes a custom request header (`X-Api-Secret`) to the container unchanged. Expected, since it is an ordinary header; never tried on this service. | Step 10(b): a `curl` with the header answers 200 where the same call without it answers 401. **Resolved November 23, 2026:** the right value answered 200 and a wrong one 401, so Railway passes `X-Api-Secret` through unchanged. |
+| U2 | Vercel applies a variable scoped to **Preview, all branches** to the staging deployment (`main`) and to every PR preview, and a server component reads it at request time. The scope is Ari's to set; the behavior is Vercel's. | Step 10(c): the staging calendar renders and the status page's "API data access" row says `ok`. **Resolved November 23, 2026:** the staging calendar rendered, its `/health` page read "API data access: ok" and Vercel's log showed `[api] GET /metro -> 200`, so the Preview-scope variable reaches the staging deployment and is read per request. |
+| U3 | A uvicorn **lifespan** failure makes Railway fail the deploy and keep the previous deployment. C3's precedent (`APP_ENV=prod` on staging, "failed the deploy and was reverted") was a failure at import, which may differ from a failure at lifespan startup. | Step 10(e), optional. Unverified until then; D9 does not depend on it for correctness, only for how the failure looks. **Carried:** Step 10(e) was optional and not run, so how a Railway deploy treats a lifespan failure is still unverified (the refusal itself is T6). |
+| U4 | The ruleset accepts `Worker image (docker build and run)` and reports it as required. The job has reported on `main` (it is in the list above), so the name exists. The trap is the e2e job's rename (`notes.md`, "Renaming a CI job leaves the branch ruleset waiting"): a required check whose name stops matching waits forever. | Step 9, read back with `gh api`. **Resolved November 23, 2026:** `gh api .../rulesets/25204705` lists six required checks, `Worker image (docker build and run)` among them. |
 
 ## Decisions
 
@@ -131,7 +131,7 @@ The read-back for Step 9 (a fenced block, because the pipes inside a table cell 
 gh api repos/arikoinuma/agentic-live-music-calendar/rulesets/25204705 \
   --jq '.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks[].context'
 ```
-| 12 | **Record it:** `environments.md` "Checks recorded (… C10 …)" and "Current state" (the migration table, and the staging variables), `alpha-deployment-plan.md` (the C10 status line), `notes.md` for each non-obvious thing found (U1–U3's outcomes especially), the Implementation log; U1–U4 each marked resolved or carried. | [written] |
+| 12 | **(Done November 23, 2026; see Implementation log Round 3.)** **Record it:** `environments.md` "Checks recorded (… C10 …)" and "Current state" (the migration table, and the staging variables), `alpha-deployment-plan.md` (the C10 status line), `notes.md` for each non-obvious thing found (U1–U3's outcomes especially), the Implementation log; U1–U4 each marked resolved or carried. | [written] |
 
 **Done when** (the deployment plan's, with the environment named by D1): **a call to staging's Railway API without the secret is refused, with it is served, and the staging calendar still renders** (Step 10); a hosted API start with no or a short secret refuses to start (T6); the ruleset requires the Worker image check (Step 9); the three Neon databases' revisions and venue lists are recorded against the rule in D5 (Step 11); `make check` is green; U1–U4 are each resolved or carried. Production's pair, its proof and the promotion are C11's.
 
@@ -299,6 +299,27 @@ Review the code as it stands; the 25 red Python tests below and the red e2e suit
 **`TODO(Ari)` gaps.** **K1** (`check_shared_secret`) and **K2** (`shared_secret_problem`) are both **filled by Ari**; their tests (`test_security.py`, `test_api_guard.py`) pass. Each key-point block is now a plain why-comment above its code (the reasoning, including the C10-PR1-8 note on how K1 differs from C4-D6, is kept; `TODO(Ari)`, the `Key point of interest:` / `Code:` / `Check:` labels, the test-command pointers and the likeliest-mistakes list are gone), the K-form references `C10-K1` and `C10-K2` stay, and the `noqa: F401` on `import secrets` that the scaffold needed is removed because the import is now used. The file's one remaining `noqa` is the permanent `S105` on the header's name.
 
 **Verification.** Comment-only: the syntax tree of `security.py` before and after is identical (`ast.dump` compared, comments and docstrings aside), and no `TODO(Ari)` is left anywhere under `apps/`. `make check` (ruff, ruff format, mypy, lint, types, pytest with `REQUIRE_DB=1`, Vitest, contract check, Playwright): **exit 0**: pytest **1811 passed**, Vitest **631 passed**, Playwright **111 passed** (the 107 existing journeys and the four of `api-guard.spec.ts`), with Postgres and MongoDB started for it. `make designation-check BASE=6a670b0`: exit 0.
+
+### Round 3 — Claude Sonnet 5.5, November 23, 2026 (the hosted proof, Steps 8 to 12)
+
+**Scope.** Docs only, on branch `c10-hosted-proof` off `main` after PR 120 merged (`c537877`): `environments.md`, `alpha-deployment-plan.md`, `notes.md`, this file, and `.gitignore` (one line, `.neon`). No code changed.
+
+**What Ari did and saw** (Steps 8 to 11, in the order the plan gives; the staging variables were set before the merge, D13):
+- **Step 8:** `API_SHARED_SECRET` on the staging API service and on Vercel Preview. It was first put on `worker` and `worker-shell`; Ari removed it there and set it on the API service. Redeploys succeeded. Vercel's build warned that the variable was not in `turbo.json`; the merged code adds it to `globalPassThroughEnv` and the warning is gone.
+- **Step 9:** the ruleset now requires six checks, read back with `gh api` (see U4).
+- **Step 10:** (a) with no header `/metro` and `/health/db` answered 401 and `/health` 200, and `/openapi.json` and `/docs` 404 (run by Claude, no secret needed); (b) the right value answered 200 and a wrong one 401 (U1); (c) the calendar rendered, the `/health` page read "API data access: ok" and Vercel's log read `[api] GET /metro -> 200` (U2); (d) the PR preview built after the variable was set deployed; (e) **not run** (U3).
+- **Step 11:** the dev rehearsal passed and `upgrade head` ran on dev; `alembic current` and the row checks are in `environments.md` "Checks recorded (November 23, 2026, C10, staging)".
+
+**U1 to U4:** U1, U2 and U4 resolved; U3 carried (table above).
+
+**Things found that were not in the plan** (each recorded where it belongs):
+1. **Production is two migrations behind, not one.** The plan's C11 bullet and D5's wording named only `d7b3c2a91e45`; the `production` branch also lacks `c4a1e5b7d903` (`metro slug`), so production has no `metro.slug` column and `select slug from metro` fails there by design. The C11 bullet is corrected.
+2. **The migration rehearsal needs a real terminal** (a hidden password prompt) and `NEON_PROJECT_ID` in the same shell; `neonctl` writes a `.neon` file when its default-organization prompt is accepted. `.neon` is now git-ignored; `notes.md` has the entry.
+3. **Neon's free plan suspended the project for compute hours** while these checks ran. Not a C10 defect; `environments.md` records it and the $5 add-on's arithmetic for C11's burn-in.
+
+**Departures from the plan.** None in scope. D5's "dev seeded or not is Ari's call": dev stays schema-only (0 venues, no metro row).
+
+**Verification.** `make designation-check BASE=c537877` and the doc tests (`test_environments_doc.py`) are run on this branch before the PR opens (result in the PR description). Ari signed off the same day and the Status is `Done`.
 
 ## Code review
 
