@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { defineConfig, devices } from "@playwright/test";
 import { E2E_API_NOW, E2E_NOW } from "./e2e/support/clock";
-import { API_PORT, API_URL, PROXY_PORT, PROXY_URL, WEB_PORT, WEB_URL } from "./e2e/support/stack";
+import { API_PORT, API_URL, E2E_API_SECRET, PROXY_PORT, PROXY_URL, WEB_PORT, WEB_URL } from "./e2e/support/stack";
 
 // Fail early, with the fix in the message, rather than with a Next error buried in
 // a webServer timeout. `next start` needs a production build.
@@ -81,6 +81,9 @@ export default defineConfig({
           process.env.E2E_DATABASE_URL ?? "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/calendar_e2e",
         MODEL_NAME: "e2e-placeholder",
         E2E_API_FROZEN_NOW: E2E_API_NOW,
+        // The guard is ON for the whole suite (C10-D12): every call without this header is a 401, so a page that
+        // passes proves the Next server sends it, through the delay proxy, which forwards request headers.
+        API_SHARED_SECRET: E2E_API_SECRET,
       },
       url: `${API_URL}/health`,
       reuseExistingServer: false,
@@ -98,6 +101,8 @@ export default defineConfig({
       command: `pnpm exec next start --hostname 127.0.0.1 --port ${WEB_PORT}`,
       env: {
         API_BASE_URL: PROXY_URL,
+        // The same value as the API's (C10-D12), read per call by `lib/api.ts` and sent as `X-Api-Secret`.
+        API_SHARED_SECRET: E2E_API_SECRET,
         // The status page shows the frontend's environment and reports an invalid one as an error line
         // (C3-D7); the stack is a local one, so say so instead of scanning an error state.
         APP_ENV: "local",

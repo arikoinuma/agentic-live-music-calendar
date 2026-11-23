@@ -15,8 +15,8 @@
  *     `Host`, for the same reason the canonical URLs are (C4-D8).
  *
  * The proxy is a courtesy gate, not an auth boundary (docs/references/nextjs-style-guide.md, Routing): the Railway
- * API stays public until C10, and a Server Action POSTs to the page that renders it, so nothing here authorizes
- * anything that matters.
+ * API has its own shared-secret guard since C10, and a Server Action POSTs to the page that renders it, so nothing here
+ * authorizes anything that matters.
  *
  * docs/dev/implementations/c4-metro-hosts.md: C4-D1, C4-D5, C4-D6, C4-D7, C4-D8.
  */

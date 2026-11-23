@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError, createApiClient } from "./api";
+import { ApiError, apiClientOptions, createApiClient } from "./api";
 import artistDetail from "./fixtures/artist-detail.json";
 import artists from "./fixtures/artists.json";
 import calendarMonths from "./fixtures/calendar-months.json";
@@ -412,5 +412,168 @@ describe("response body log", () => {
     // Proves: reading the body as text (to measure it) and parsing it is
     // transparent — the caller gets exactly the API's object.
     expect(await withBodies(respondWith(shows)).getShows()).toEqual(shows);
+  });
+});
+
+// --- the shared secret (C10) ---------------------------------------------------------------------------------------
+//
+// The API refuses a call without `X-Api-Secret` (C10-D6, C10-D7). The client adds it in `send()` and nowhere else
+// (C10-D10), so these tests drive the public getters and read the request the fake `fetch` received.
+
+const SECRET = "a-test-secret-that-is-long-enough-and-never-logged";
+
+// `null` means "no secret configured" (an `undefined` argument would fall back to the default).
+const clientWithSecret = (fetchImpl: typeof fetch, sharedSecret: string | null = SECRET) =>
+  createApiClient({ baseUrl: BASE, sharedSecret: sharedSecret ?? undefined, fetchImpl });
+
+// The headers the most recent call carried, as a plain object with lower-cased names.
+const sentHeaders = (fetchImpl: ReturnType<typeof vi.fn>): Record<string, string> =>
+  Object.fromEntries(
+    new Headers(
+      (fetchImpl.mock.calls.at(-1)?.[1] as RequestInit | undefined)?.headers ?? {},
+    ).entries(),
+  );
+
+// One call per getter, written out by hand (not derived from the client), so a getter added later without a row here is
+// a visible omission in review and a getter that bypassed `send()` fails its own row.
+const EVERY_GETTER: [string, (c: ReturnType<typeof clientFor>) => Promise<unknown>, unknown][] = [
+  ["getMetro", (c) => c.getMetro(), metro],
+  ["getShows", (c) => c.getShows(), shows],
+  ["getShow", (c) => c.getShow(1), showDetail],
+  ["getVenues", (c) => c.getVenues(), venues],
+  ["getVenue", (c) => c.getVenue(1), venueDetail],
+  ["getCalendarMonths", (c) => c.getCalendarMonths(), calendarMonths],
+  ["getArtists", (c) => c.getArtists(), artists],
+  ["getArtist", (c) => c.getArtist(1), artistDetail],
+];
+
+describe("shared secret header", () => {
+  it.each(EVERY_GETTER)("%s sends X-Api-Secret when a secret is configured", async (_name, call, body) => {
+    // Proves (C10-T11, C10-D10): every getter reaches the API through `send()`, which adds the header, so none of them
+    // can reach a guarded API without it (the proxy's metro lookup is `getMetro`, inside this table). The value is the raw
+    // secret, not a Bearer token (C10-D7).
+    const fetchImpl = respondWith(body);
+    await call(clientWithSecret(fetchImpl));
+    expect(sentHeaders(fetchImpl)["x-api-secret"]).toBe(SECRET);
+  });
+
+  it.each(EVERY_GETTER)("%s sends no X-Api-Secret when none is configured", async (_name, call, body) => {
+    // Proves (C10-T11, C10-D10): a laptop with an open API sends no header at all (not an empty one), so the guard's
+    // "unset means open on local" and this client agree.
+    const fetchImpl = respondWith(body);
+    await call(clientWithSecret(fetchImpl, null));
+    expect(sentHeaders(fetchImpl)["x-api-secret"]).toBeUndefined();
+  });
+});
+
+describe("the secret is never logged or thrown", () => {
+  // Every shape of outcome `send()` handles: a 200, a 404, a 401, a timeout, an unreachable API.
+  const OUTCOMES: [string, () => typeof fetch][] = [
+    ["a 200", () => respondWith(venues)],
+    ["a 404", () => respondWith({ detail: "no" }, 404)],
+    ["a 401", () => respondWith({ detail: "Missing or invalid API secret" }, 401)],
+    ["a timeout", () => vi.fn(async () => { throw new DOMException("timed out", "TimeoutError"); })],
+    ["a network failure", () => vi.fn(async () => { throw new TypeError("fetch failed"); })],
+  ];
+
+  it.each(OUTCOMES)("over %s no log line, error message or path contains the secret", async (_name, fetchFor) => {
+    // Proves (C10-T12, C10-D10): the request log writes the path and query only, and an `ApiError` carries a message and
+    // a path, so the header's value appears in none of them. A logger that printed the request headers (C10-M6) would
+    // put the production secret into Vercel's runtime logs, where it is readable by anyone with log access.
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    const caught = await clientWithSecret(fetchFor()).getVenue(1).catch((e: unknown) => e);
+    const everything = [
+      ...loggedLines(),
+      ...errorLog.mock.calls.map((args: unknown[]) => String(args[0])),
+      caught instanceof ApiError ? `${caught.message} ${caught.path}` : "",
+    ].join("\n");
+    expect(everything).not.toContain(SECRET);
+  });
+});
+
+describe("a 401 from the API", () => {
+  it.each([
+    ["getVenue", (c: ReturnType<typeof clientFor>) => c.getVenue(1)],
+    ["getShow", (c: ReturnType<typeof clientFor>) => c.getShow(1)],
+    ["getArtist", (c: ReturnType<typeof clientFor>) => c.getArtist(1)],
+  ])("is an ApiError from %s, never null", async (_name, call) => {
+    // Proves (C10-T13, C10-D10): a 404 means "no such record" and the page calls `notFound()`; a 401 means the two
+    // services' secrets disagree. Returning `null` for it would show a not-found page for a deployment fault, so it
+    // throws with a message that names the variable to fix (for the server log: `app/error.tsx` shows a generic page).
+    const caught = await call(clientWithSecret(respondWith({ detail: "Missing or invalid API secret" }, 401))).catch(
+      (e: unknown) => e,
+    );
+    expect(caught).toBeInstanceOf(ApiError);
+    expect((caught as ApiError).status).toBe(401);
+    expect((caught as ApiError).message).toContain("API_SHARED_SECRET");
+  });
+});
+
+describe("apiClientOptions", () => {
+  it("maps the server's environment variables to the client's options", () => {
+    // Proves (C10-T14, C10-D10): the three variables the client reads are wired to the three options, so the env wiring
+    // is covered without importing the live getters. Expected values are written by hand.
+    expect(
+      apiClientOptions({ API_BASE_URL: "http://api.test", API_SHARED_SECRET: SECRET, LOG_API_BODIES: "1" }),
+    ).toEqual({ baseUrl: "http://api.test", sharedSecret: SECRET, logBodies: true });
+  });
+
+  it.each([[undefined], [""], ["   "]])("reads a secret of %j as unset", (value) => {
+    // Proves (C10-T14, C10-D10): an unset, empty or whitespace-only `API_SHARED_SECRET` is `undefined`, so a blank
+    // variable never becomes an empty `X-Api-Secret` header that the API would refuse as wrong.
+    expect(apiClientOptions({ API_BASE_URL: "http://api.test", API_SHARED_SECRET: value }).sharedSecret).toBeUndefined();
+  });
+});
+
+describe("checkDataAccess (the status page's probe)", () => {
+  it("is ok on a 200, and calls GET /health/db with the header", async () => {
+    // Proves (C10-T15, C10-D3, C10-PR1-4): the probe is a call to the guarded database route, made through `send()`, so
+    // it carries the same header as every other call and none of its own.
+    const fetchImpl = respondWith({ message: "db up" });
+    expect(await clientWithSecret(fetchImpl).checkDataAccess()).toEqual({ state: "ok" });
+    expect(calledUrl(fetchImpl)).toBe(`${BASE}/health/db`);
+    expect(sentHeaders(fetchImpl)["x-api-secret"]).toBe(SECRET);
+  });
+
+  it("sends no header when no secret is configured", async () => {
+    // Proves (C10-T15, C10-D10): same rule as the getters: the header exactly when the secret is set.
+    const fetchImpl = respondWith({ message: "db up" });
+    await clientWithSecret(fetchImpl, null).checkDataAccess();
+    expect(sentHeaders(fetchImpl)["x-api-secret"]).toBeUndefined();
+  });
+
+  it("is refused on a 401", async () => {
+    // Proves (C10-T15, C10-D3): the status the page exists to show: the API answered and said no to this secret.
+    const result = await clientWithSecret(respondWith({ detail: "x" }, 401)).checkDataAccess();
+    expect(result).toEqual({ state: "refused" });
+  });
+
+  it.each([
+    ["an HTTP 500", () => respondWith({ detail: "boom" }, 500), /500/],
+    ["a network failure", () => vi.fn(async () => { throw new TypeError("fetch failed"); }), /reach/],
+    ["a timeout", () => vi.fn(async () => { throw new DOMException("t", "TimeoutError"); }), /timed out/],
+  ])("is unavailable, with a reason, on %s", async (_name, fetchFor, reason) => {
+    // Proves (C10-T15, C10-D3): anything that is not a clear yes or a clear 401 is "unavailable" with the reason the
+    // client already words (a cold Neon may time out now and then: that is not "refused"), and it does not throw.
+    const result = await clientWithSecret(fetchFor()).checkDataAccess();
+    expect(result.state).toBe("unavailable");
+    expect(result.state === "unavailable" && result.reason).toMatch(reason);
+  });
+
+  it("is unavailable, naming API_BASE_URL, when the base URL is unset", async () => {
+    // Proves (C10-T15, C10-D3): a page with no API configured says so instead of throwing from the status page.
+    const result = await createApiClient({ baseUrl: undefined, fetchImpl: respondWith({}) }).checkDataAccess();
+    expect(result.state).toBe("unavailable");
+    expect(result.state === "unavailable" && result.reason).toContain("API_BASE_URL");
+  });
+
+  it("never leaks the secret, over a 200, a 401 and a failure", async () => {
+    // Proves (C10-T12, C10-T15): the no-leak assertions cover the probe too: it goes through `send()`, which logs path
+    // and query only.
+    for (const fetchImpl of [respondWith({ message: "x" }), respondWith({}, 401), respondWith({}, 500)]) {
+      log.mockClear();
+      const result = await clientWithSecret(fetchImpl).checkDataAccess();
+      expect(JSON.stringify(result) + loggedLines().join("\n")).not.toContain(SECRET);
+    }
   });
 });

@@ -2,8 +2,8 @@
  * The non-production gate's pure parts: who it applies to, the cookie it sets, and the redirect it follows.
  *
  * The gate is one shared password in front of the website's pages in staging (Dep-D4, C4-D6). It is a courtesy, not
- * security: the Railway API stays public until C10, and there is no rate limit and no per-user identity. What it
- * must get right is small and testable, and it all lives here:
+ * security: the API has had its own shared-secret guard since C10, but this gate has no rate limit and no per-user
+ * identity. What it must get right is small and testable, and it all lives here:
  *
  *   - `gateApplies`: staging and dev (and nothing else; C4-D1). `prod` is open, `local` is not worth a password.
  *   - the cookie: `__Host-gate`, whose value is an HMAC of a constant keyed by the password and the environment,

@@ -1,5 +1,5 @@
 import type { AppEnv } from "@/lib/app-env";
-import type { ApiHealth } from "@/lib/health";
+import type { ApiHealth, DataAccess } from "@/lib/health";
 
 // What `getAppEnv()` produced for this server: a value, or the reason it could not (C3-D7). The page catches
 // the throw and passes the result here, because a status page must never crash on the thing it reports.
@@ -15,17 +15,23 @@ export type FrontendEnv =
 // (C3-D7). `showDetail` gates the raw error text: this page is linked from every footer, so strangers can read
 // it, and the reason is for the person running the app (see page.tsx).
 //
+// `dataAccess` is the "API data access" row (C10-D3): whether the API accepts this server's shared secret. "refused" is
+// the state the row exists for: the API answered and said no, so Vercel's value disagrees with Railway's, which from
+// outside would read as "the API is down". Like the other reasons, its detail shows only when `showDetail` is set.
+//
 // `flagProblems` is what `checkFlagEnvironment` found wrong with the web side's `FLAG_*` variables (C3.1-D19). It
 // follows the same rule as the other reasons: the page always says something is misconfigured, and the variable names
 // and values appear only when `showDetail` is set (C3.1-PR1-9).
 export function HealthStatus({
   health,
   frontendEnv,
+  dataAccess,
   showDetail,
   flagProblems = [],
 }: {
   health: ApiHealth;
   frontendEnv: FrontendEnv;
+  dataAccess: DataAccess;
   showDetail: boolean;
   flagProblems?: string[];
 }) {
@@ -62,6 +68,20 @@ export function HealthStatus({
           ) : (
             <span>unknown</span>
           )}
+        </dd>
+        <dt className="text-muted-foreground">API data access</dt>
+        <dd>
+          {dataAccess.state === "ok" && <span>ok</span>}
+          {dataAccess.state === "refused" && (
+            <span className="text-destructive">refused (the API rejected this server&apos;s shared secret)</span>
+          )}
+          {dataAccess.state === "unavailable" && (
+            <span className="text-destructive">
+              unavailable
+              {showDetail && <> — {dataAccess.reason}</>}
+            </span>
+          )}
+          {dataAccess.state === "not checked" && <span>not checked</span>}
         </dd>
         <dt className="text-muted-foreground">Feature flags (API)</dt>
         <dd>{apiFlags(health)}</dd>

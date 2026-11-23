@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { getAppEnv } from "@/lib/app-env";
 import { checkFlagEnvironment } from "@/lib/flags";
-import { getApiHealth } from "@/lib/health";
+import { checkDataAccess } from "@/lib/api";
+import { dataAccessProbeEnabled, getApiHealth, type DataAccess } from "@/lib/health";
 import { HealthStatus, type FrontendEnv } from "./health-status";
 
 export const metadata: Metadata = { title: "Status" };
@@ -47,6 +48,16 @@ export default async function HealthPage() {
     frontendEnv = { ok: false, reason };
   }
 
+  // "Does the API accept our shared secret?" (C10-D3): one authenticated call, made through the API client so the header
+  // and the logging rule are the ones every call has. Not on production, whose page is public (`dataAccessProbeEnabled`);
+  // there the row reads "not checked" and the proof is the `curl` in C11. A frontend whose own environment could not be
+  // read does not probe either.
+  let dataAccess: DataAccess = { state: "not checked" };
+  if (dataAccessProbeEnabled(frontendEnv.ok ? frontendEnv.value : undefined)) {
+    dataAccess = await checkDataAccess();
+    if (dataAccess.state !== "ok") console.error(`[health] API data access: ${dataAccess.state}`);
+  }
+
   // The web side's feature-flag variables (C3.1-D19): problems are logged always and rendered only under the same
   // `showDetail` rule as the reasons above, because this page is public.
   const flagProblems = checkFlagEnvironment(process.env);
@@ -57,6 +68,7 @@ export default async function HealthPage() {
     <HealthStatus
       health={health}
       frontendEnv={frontendEnv}
+      dataAccess={dataAccess}
       showDetail={showDetail}
       flagProblems={flagProblems}
     />

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { getApiHealth } from "./health";
+import { dataAccessProbeEnabled, getApiHealth } from "./health";
 
 // getApiHealth takes the fetch implementation as a parameter so these
 // tests never touch the network. Each helper builds the smallest fake
@@ -196,5 +196,26 @@ describe("getApiHealth feature_flags (C3.1-D16)", () => {
     expect(await featureFlagsOf({ message: "up", feature_flags: { a: true, b: "yes", c: 1 } })).toEqual({
       a: true,
     });
+  });
+});
+
+describe("dataAccessProbeEnabled", () => {
+  it.each([
+    ["local", true],
+    ["dev", true],
+    ["staging", true],
+    ["prod", false],
+  ])("is %s -> %s", (appEnv, expected) => {
+    // Proves (C10-T15, C10-D3, C10-PR1-3): the status page makes its authenticated database round trip everywhere except
+    // production. Production's page is public and linked from every footer, so a crawler would run one query per view
+    // (and keep a scale-to-zero Neon branch awake); staging and dev sit behind the gate. The expected values are
+    // written from the decision, not read from the function.
+    expect(dataAccessProbeEnabled(appEnv)).toBe(expected);
+  });
+
+  it("does not probe when the frontend's environment is unknown", () => {
+    // Proves (C10-D3): a page that could not read `APP_ENV` (the status page shows that as "unavailable") cannot tell it
+    // is not production, so it does not make the call: the safe side of the rule.
+    expect(dataAccessProbeEnabled(undefined)).toBe(false);
   });
 });

@@ -30,6 +30,24 @@ export type ApiHealth =
     }
   | { ok: false; reason: string };
 
+// What the status page's "API data access" row says (C10-D3): whether the API accepts this server's shared secret on a
+// guarded route that reads the database. Four states: the probe's three outcomes, which `ApiClient.checkDataAccess`
+// returns, and "not checked" for production, where the page does not make the call (`dataAccessProbeEnabled`).
+// `unavailable` is anything that is not a clear yes or a clear 401 (a timeout, an HTTP 5xx, an unreachable API).
+export type DataAccess =
+  | { state: "ok" }
+  | { state: "refused" }
+  | { state: "unavailable"; reason: string }
+  | { state: "not checked" };
+
+// Does this environment's status page make the authenticated database probe? Everywhere except production (C10-D3,
+// C10-PR1-3): production's page is public and linked from every footer, so a crawler would run one `SELECT 1` per view
+// and keep a scale-to-zero database awake; staging and dev sit behind the gate. An environment the page could not
+// read (`undefined`) is treated as production: do not probe when unsure. Pure, and holds no secret.
+export function dataAccessProbeEnabled(appEnv: string | undefined): boolean {
+  return appEnv !== undefined && appEnv !== "prod";
+}
+
 // Diagnostics should answer quickly even when the API is hung. Without
 // a timeout a stuck backend would hold the page open until the platform
 // kills the request.
