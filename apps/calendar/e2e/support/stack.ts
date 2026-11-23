@@ -19,3 +19,10 @@ export const WEB_PORT = 3100;
 export const API_URL = `http://127.0.0.1:${API_PORT}`;
 export const PROXY_URL = `http://127.0.0.1:${PROXY_PORT}`;
 export const WEB_URL = `http://127.0.0.1:${WEB_PORT}`;
+
+// The shared secret the e2e stack runs its API and its Next server with (C10-D12). The API refuses a call without it,
+// so the 107 journeys passing is the proof that the calendar still renders with the guard on, on every pull request.
+// It is a fixed, obviously fake value and not a secret: it protects a throwaway database on a port only this stack
+// opens. It is 32+ characters only so it looks like what a hosted secret must be (C10-D9), though `APP_ENV=local`
+// does not require that.
+export const E2E_API_SECRET = "e2e-only-shared-secret-not-a-real-one-0123456789";

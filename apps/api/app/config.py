@@ -17,7 +17,7 @@ import os
 from typing import Literal, Self
 from urllib.parse import urlparse
 
-from pydantic import SecretStr, field_validator, model_validator
+from pydantic import SecretStr, ValidationInfo, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 
@@ -174,13 +174,33 @@ class Settings(BaseSettings):
     r2_secret_access_key: SecretStr | None = None
     r2_bucket: str | None = None
 
+    # The secret the Next.js server sends in `X-Api-Secret` (C10; `app/security.py`). Unset on a laptop means the API
+    # serves openly; a hosted API refuses to start without a long enough one, a rule that lives in the API's lifespan and
+    # not here, so the worker, the migration pre-deploy and Alembic (which all build `Settings`) are unaffected (C10-D9).
+    # A `SecretStr`, so a `Settings` repr, a log line or a validation traceback cannot print it (C10-D8).
+    api_shared_secret: SecretStr | None = None
+
     # A blank or whitespace value (a dashboard variable created and left empty) is "not set", so every later check compares
-    # `None` and never `""` or `SecretStr("")`, which is truthy as an object (C9-PR1-11). `mode="before"` sees the raw string.
-    @field_validator("r2_endpoint_url", "r2_access_key_id", "r2_secret_access_key", "r2_bucket", mode="before")
+    # `None` and never `""` or `SecretStr("")`, which is truthy as an object (C9-PR1-11, and for the shared secret C10-D8:
+    # an empty secret would be matched by every empty header). `mode="before"` sees the raw string. The shared secret is
+    # also STRIPPED (C10-CR1-1): a value pasted into a dashboard with a trailing newline would otherwise be kept, and no
+    # caller can ever send it (an HTTP header value cannot carry surrounding whitespace), so the API would start green and
+    # answer 401 to every call.
+    @field_validator(
+        "r2_endpoint_url",
+        "r2_access_key_id",
+        "r2_secret_access_key",
+        "r2_bucket",
+        "api_shared_secret",
+        mode="before",
+    )
     @classmethod
-    def _blank_r2_value_is_unset(cls, value: object) -> object:
-        if isinstance(value, str) and not value.strip():
-            return None
+    def _blank_value_is_unset(cls, value: object, info: ValidationInfo) -> object:
+        if isinstance(value, str):
+            if not value.strip():
+                return None
+            if info.field_name == "api_shared_secret":
+                return value.strip()
         return value
 
     # Refuse to start when `app_env` disagrees with where the process is (C3-D4). Runs once, after every field

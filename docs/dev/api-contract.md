@@ -81,10 +81,20 @@ This matters most for the home page's four-week window. The browser's clock and 
 
 Render with `Temporal.PlainDate` / `Temporal.PlainTime`. Not `new Date("2026-09-28")` — that parses as UTC midnight and renders as the 27th anywhere west of Greenwich, which is the one bug a calendar can least afford.
 
+### Authentication (C10)
+
+Every route except `GET /health` needs the header `X-Api-Secret: <the shared secret>`. The only caller is the Next.js server,
+which sends it from `API_SHARED_SECRET` (`apps/calendar/lib/api.ts`). The header is **not** in the OpenAPI document and does not appear
+in the generated types: it is a deployment concern, checked by a dependency that reads the request directly (`app/security.py`, C10-D8). A missing, a
+wrong and an unreadable value are refused identically, so a caller cannot tell them apart. An API with no secret configured on a laptop
+(`APP_ENV=local`) serves openly. `/docs`, `/redoc` and `/openapi.json` exist on a laptop and in dev only. See `docs/dev/environments.md`,
+"The shared secret (C10)".
+
 ### Errors
 
 | Status | Body | When |
 |---|---|---|
+| 401 | `{"detail": "Missing or invalid API secret"}` | The `X-Api-Secret` header is missing, wrong or unreadable. Checked **before** anything else, so a request that would also be a 422 is a 401; not declared in the routes' `responses` (C10-D8) |
 | 404 | `{"detail": "<string>"}` | A detail route (`/shows/{id}`, `/venues/{id}`, `/artists/{id}`) with a valid id that matches no row, including a removed show |
 | 422 | `{"detail": [{"type", "loc", "msg", "input", "ctx"?}]}` | The request is invalid. **Always this list shape**, whoever found the problem (the `HTTPValidationError` in the OpenAPI document and `api-types.ts`) |
 | 503 | `{"detail": "<string>"}` | A migrated but unseeded database has no metro (`app/dependencies.py`); an operational failure, not declared in the routes' `responses` |

@@ -300,7 +300,7 @@ class HealthResponse(BaseModel):
     # The environment this process was configured with (C3-D6): `local`, `dev`, `staging` or `prod`.
     app_env: str
     # The effective feature-flag values (`app.flags.effective_flags()`, C3.1-D16): every flag Python reads, outside
-    # production. `null` in production, whose `/health` is public and unauthenticated until C10, and whether the
-    # cron is armed is operational state. Required-but-nullable on purpose, so a client can tell "hidden" (`null`)
-    # from "an older API that does not report flags" (the key is absent).
+    # production. `null` in production, whose `/health` is public and stays unauthenticated after C10 (the deploy check
+    # needs it open), and whether the cron is armed is operational state. Required-but-nullable on purpose, so a
+    # client can tell "hidden" (`null`) from "an older API that does not report flags" (the key is absent).
     feature_flags: dict[str, bool] | None

@@ -343,6 +343,38 @@ def test_settings_reads_a_blank_r2_value_as_unset(monkeypatch: pytest.MonkeyPatc
     assert secret not in repr(set_ones)  # a SecretStr: a repr or a traceback cannot print it
 
 
+def test_settings_reads_the_shared_secret_as_a_secret_and_a_blank_as_unset(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Proves (C10-T8, C10-D8, C10-D9): `API_SHARED_SECRET` is a `SecretStr`, so a `Settings` repr or a validation
+    # traceback cannot print it, and a blank or whitespace value (a dashboard variable created and left empty) is `None`
+    # rather than a truthy `SecretStr("")`, so the guard's "is a secret configured" test compares `None` only. Unset is
+    # `None` as well: the field has no default in code that a hosted process could start with.
+    monkeypatch.delenv("RAILWAY_ENVIRONMENT_NAME", raising=False)
+    monkeypatch.delenv("API_SHARED_SECRET", raising=False)
+    common: dict[str, Any] = {"_env_file": None, "database_url": LOCAL_URL, "model_name": "m"}
+    assert Settings(**common).api_shared_secret is None  # type: ignore[call-arg]
+    for blank in ("", "   "):
+        assert Settings(api_shared_secret=blank, **common).api_shared_secret is None  # type: ignore[call-arg]
+    secret = "s3cret-value-that-must-never-be-printed"
+    built = Settings(api_shared_secret=secret, **common)  # type: ignore[call-arg]
+    assert built.api_shared_secret is not None and built.api_shared_secret.get_secret_value() == secret
+    assert secret not in repr(built)
+
+
+def test_settings_strips_whitespace_around_the_shared_secret(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Proves (C10-CR1-1, C10-D8): a secret pasted into a dashboard with a trailing newline or space is stored without it.
+    # An HTTP header value cannot carry surrounding whitespace (uvicorn's parser strips it, and the Next.js client trims
+    # its own copy), so a raw value here could never be matched by any caller while C10-K2's length check still let the API
+    # start: a green deploy and a 401 on every page. The expected value is written by hand.
+    monkeypatch.delenv("RAILWAY_ENVIRONMENT_NAME", raising=False)
+    monkeypatch.delenv("API_SHARED_SECRET", raising=False)
+    padded = "  " + "k" * 40 + " \n"
+    built = Settings(  # type: ignore[call-arg]
+        _env_file=None, database_url=LOCAL_URL, model_name="m", api_shared_secret=padded
+    )
+    assert built.api_shared_secret is not None
+    assert built.api_shared_secret.get_secret_value() == "k" * 40
+
+
 def test_settings_refuses_to_start_on_a_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
     # Proves (C3-D4): the rule is wired into `Settings`, so a process whose `APP_ENV` disagrees with its database
     # does not start (a `ValidationError`, as a missing `DATABASE_URL` raises). A rule nobody calls would pass

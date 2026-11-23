@@ -124,10 +124,11 @@ is right); "n/a" means the environment does not use it. The first table is every
 | `R2_ACCESS_KEY_ID` | unset | unset | worker: the Access Key ID of the staging bucket's token | worker: production's own, at C11 | From an Object Read & Write token scoped to that one bucket, created in the Cloudflare dashboard (C9 Step 6). |
 | `R2_SECRET_ACCESS_KEY` | unset | unset | worker: the same token's Secret Access Key | worker: production's own, at C11 | A secret, shown **once** when the token is created: copy it into your password manager at that moment. A `SecretStr` in `Settings`, so a repr or a traceback cannot print it. Never inline in a command or pasted in chat. |
 | `R2_BUCKET` | unset (snapshots off; the normal laptop setting), or `…-local` to exercise the write on purpose (never `…-dev`, `…-staging` or `…-prod`) | `…-dev` when dev gets a worker | worker: `<prefix>-staging` | worker: `<prefix>-prod`, at C11 | One private bucket per environment (Dep-D10), no public access. A hosted worker's bucket must END in `-<APP_ENV>`, and a laptop's must not end `-dev`, `-staging` or `-prod` (C9-D9, C9-CR1-3): a copied variable set would otherwise write one environment's pages into another's bucket. |
+| `API_SHARED_SECRET` | unset (the API serves openly), or any value to try the guard by hand | unset (no hosted dev API yet) | **API service** (not `worker` or `worker-shell`): `openssl rand -hex 32`, the same value as Vercel Preview's | the API service's own value, created at C11 (C10-D1) | A secret, kept in your password manager; never pasted in chat or inline in a command. A hosted API (`APP_ENV` `dev`, `staging` or `prod`) **refuses to start** without one of at least 32 characters (C10-D9); unset on a laptop means open. A `SecretStr` in `Settings`, so a repr or a traceback cannot print it. [The shared secret (C10)](#the-shared-secret-c10) says what it protects and how to rotate it. |
 | `RAILWAY_ENVIRONMENT_NAME` | n/a | set by Railway (`dev`) | set by Railway (`staging`) | set by Railway (`production`) | Never set by hand: it cannot be copied between environments, which is why the platform check trusts it. |
 <!-- settings-inventory:end -->
 
-Variables the API's `Settings` does not read (the frontend's, and rows reserved for later milestones):
+Variables the API's `Settings` does not read (the frontend's, and the other side of a variable `Settings` does read):
 
 | Variable | Where | Value by environment | Notes |
 |---|---|---|---|
@@ -137,7 +138,38 @@ Variables the API's `Settings` does not read (the frontend's, and rows reserved 
 | `SITE_GATE_PASSWORD` | Vercel | a long random value on every Preview branch (staging, and every PR preview, which is also `staging`); unset on Production and local | Server-only secret, never committed or pasted in chat. A gated environment (staging, dev) with this unset answers 503 by design (C4-D6). Changing it logs everyone out (the cookie is an HMAC keyed by it), but only on deployments built after the change: Vercel applies an edited variable to new deployments, so an older preview URL keeps the old password. Declared in `turbo.json`'s `globalPassThroughEnv` with the other two request-time variables, or Vercel's build warns that it "WILL NOT be available". |
 | `DEFAULT_METRO_SLUG` | Vercel | unset everywhere; the code default is `msp` | Optional (C4-D2). A set value that is not a valid, non-reserved slug makes the proxy answer 503 (C4-PR1-4). |
 | `FLAG_*` | Railway, Vercel | per flag | Feature flags (C3.1): one variable per flag, listed in [Feature flags](#feature-flags-c31) below. They are NOT `Settings` fields and do not belong in `apps/api/.env`. |
-| `API_SHARED_SECRET` | Railway, Vercel | reserved | C10. |
+| `API_SHARED_SECRET` | Vercel | **Preview, all branches** (every PR preview, `dev` and staging): the same value as staging's API service, marked Sensitive; Production: C11's, created before the promotion (C10-D1); local: unset | Server-only, never `NEXT_PUBLIC_`; read per call by `lib/api.ts` and sent as `X-Api-Secret` (C10-D10). The Railway side is the settings-inventory row above. Vercel applies a changed variable to NEW deployments only, so redeploy after changing it. |
+
+## The shared secret (C10)
+
+The API has no users: its one caller is the Next.js server, and everything it serves is public calendar data. But a Railway
+URL is reachable from the whole internet, so without a check anyone could read the API directly, get around the staging
+gate (which protects pages only) and make Neon run queries. C10 adds one shared secret (`docs/dev/implementations/c10-wiring-and-guard-rails.md`,
+C10-D6 to C10-D10).
+
+* **The header.** `X-Api-Secret: <the secret>` (the raw value, not `Bearer`). `lib/api.ts`'s `send()` adds it to every call, in that
+  one place, from `API_SHARED_SECRET` read per request. The API's dependency (`app/security.py`) answers **401** `{"detail": "Missing or invalid API secret"}`
+  for a missing, a wrong and an unreadable header alike.
+* **What is open.** Only `GET /health` (Railway's deploy check and the status page call it with no header, and it touches no database).
+  Everything else is guarded by default, including `/health/db`, which does a database round trip; a test (`test_api_guard.py`, C10-T3)
+  fails if a documented route answers anything but 401 without the header. `/docs`, `/redoc` and `/openapi.json` are served on a laptop
+  and in dev only (C10-D2).
+* **Unset.** On a laptop (`APP_ENV` `local`) an unset secret means the API is open, so `make dev` needs nothing. A hosted API
+  (`dev`, `staging`, `prod`) **refuses to start** without a secret of at least 32 characters, and if one somehow runs without it, it
+  answers 401 to everything (C10-D9). Railway keeps the previous deployment serving when a new one fails to start.
+* **Generate one.** `openssl rand -hex 32` (64 characters). Put it in your password manager first. Never paste it in chat, a commit or a
+  command line that lands in shell history.
+* **Where it is set.** The settings inventory above: the Railway **API** service of the environment (not `worker`, not `worker-shell`) and
+  Vercel (Preview, all branches, for staging; Production at C11), the **same** value on both sides of an environment. **Set the variables
+  before the merge that deploys the guard**: the new API refuses to start without it, and a new frontend with no secret is refused by a guarded API.
+* **Rotation.** The API accepts one value, so a rotation has a short window of 401s on the pages (they show the error page, never data):
+  (1) generate the new value and store it; (2) set it on the Railway API service (it redeploys); (3) set it on Vercel and **redeploy**
+  (a changed variable applies to new deployments only); (4) check the proof below. The window runs from step 2 taking effect to step 3
+  finishing, so do both in one sitting. A leaked value is rotated the same way.
+* **The one-command check.** With the secret read from your password manager (`read -rs API_SECRET`), against an environment's API address:
+  `curl -s -o /dev/null -w "%{http_code}\n" <api>/metro` should print **401**, the same with `-H "X-Api-Secret: $API_SECRET"` **200**, and `<api>/health` **200**
+  with no header. Staging's page `/health` also shows an "API data access" row (`ok`, `refused` or `unavailable`); production's reads
+  `not checked`, because that page is public and the probe is a database round trip (C10-D3).
 
 ## Feature flags (C3.1)
 
@@ -199,7 +231,7 @@ hygiene check CI also runs as a test (`app/tests/test_flag_hygiene.py`).
   from the variable, never from `APP_ENV`), so `dev` is covered by the tests running the same rule and by the
   inventory row. Set a flag on a command to see it: `FLAG_WORKER_SCHEDULED_RUNS=true make flags ARGS=--effective`.
 * **staging.** `GET <staging API>/health` lists the effective values (`feature_flags`).
-* **production.** `/health` hides them (`feature_flags` is `null`: the route is public until C10, and whether the cron is
+* **production.** `/health` hides them (`feature_flags` is `null`: the route is public and stays open after C10, because the deploy check needs it, and whether the cron is
   armed is operational state). The proof is at the first promotion that carries C3.1 and C8: C8's skip run logs the flag
   as off. A direct read, once production has the code: run `scripts.flags --effective` with the production API service's
   variables through `railway run`, from an empty directory with `uv run --project apps/api`.
@@ -228,8 +260,8 @@ and dev only); only then, for a slug that is not the default, ask the API whethe
 a non-production environment carries `X-Robots-Tag: noindex, nofollow`.
 
 * **The gate is a courtesy, not security.** One shared password (`SITE_GATE_PASSWORD`), remembered by a host-only
-  `__Host-gate` cookie for 30 days. There is no rate limit and no per-user login, and the Railway API stays public
-  until C10, so the gate protects the pages only.
+  `__Host-gate` cookie for 30 days. There is no rate limit and no per-user login, and the Railway API has its own
+  shared-secret guard since C10 ([The shared secret (C10)](#the-shared-secret-c10)), so the gate protects the pages only.
 * **Attaching a domain removes Vercel's own login from that host.** Vercel's protection covers `*.vercel.app` only
   (`alpha-deployment-plan.md` §1.1), so the gate is staging's only protection once `msp.staging.pebblebeats.com` is
   attached. Prove it on the `*.vercel.app` URL first (C4 Step 5).

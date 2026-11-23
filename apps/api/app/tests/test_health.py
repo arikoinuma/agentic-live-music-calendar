@@ -58,8 +58,8 @@ async def test_health_lists_the_feature_flags_outside_production(monkeypatch: py
 
 async def test_health_hides_the_feature_flags_in_production(monkeypatch: pytest.MonkeyPatch) -> None:
     # Proves (C3.1-T8, C3.1-D16): in production `feature_flags` is `null`, present but empty of values. `/health`
-    # is public and unauthenticated until C10, and whether the cron is armed is operational state. The key is
-    # still there (null, not absent) so a client tells "hidden" from "an older API". A route that always listed
+    # is public and stays unauthenticated after C10 (C10-D6: the deploy check needs it open), and whether the cron is
+    # armed is operational state. The key is still there (null, not absent) so a client tells "hidden" from "an older API". A route that always listed
     # the flags would pass the test above and fail this one. `settings.app_env` is patched, as in the test
     # above, so nothing about the database is involved.
     monkeypatch.setattr(settings, "app_env", "prod")

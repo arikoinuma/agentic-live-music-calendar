@@ -57,7 +57,9 @@ HTTP against the API for anything else — the routes exist and serve the same d
 ## Where data and URL state live
 
 - `lib/api.ts` is the only code that talks to FastAPI. It is `server-only` (it reads
-  `API_BASE_URL`, which must never reach a browser bundle), every request is `no-store`
+  `API_BASE_URL` and `API_SHARED_SECRET`, which must never reach a browser bundle; `send()` adds the secret as `X-Api-Secret` to every call, C10, and it is never
+  logged or put in an error message; a 401 throws an `ApiError` naming the variable and is never `null` from `getVenue`/`getArtist`/`getShow`; the status page's "API data access" row
+  is the client's `checkDataAccess()`, off on production, and `apiClientOptions(env)` builds the client's options from `process.env`), every request is `no-store`
   with a timeout, and `getVenue`/`getArtist`/`getShow` return `null` on 404 so the page can call
   `notFound()`. `getMetro`, `getVenue`, `getArtist` and `getShow` are wrapped in React `cache()` (their arguments are
   primitives, so it keys by value): a detail page's `generateMetadata` and its body share one API request per

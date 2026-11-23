@@ -13,6 +13,8 @@ HOW TO READ THIS
 import re
 from pathlib import Path
 
+import pytest
+
 from app.config import Settings
 
 DOC = Path(__file__).resolve().parents[4] / "docs" / "dev" / "environments.md"
@@ -42,12 +44,17 @@ def test_the_inventory_lists_no_variable_settings_does_not_read() -> None:
     assert inventory_names() - expected == set()
 
 
-def test_no_r2_row_is_left_marked_reserved_outside_the_inventory() -> None:
-    # Proves (C9-T14, C9-PR1-13): the two tests above read only the block between the markers, so the old
-    # `R2_*` "reserved" row (outside them, in the table of variables `Settings` does not read) would survive C9 without
-    # either failing. Once the four R2 settings exist and are in the inventory, a leftover row saying they are
-    # reserved for a later milestone is stale documentation, and this is the test that finds it.
+@pytest.mark.parametrize("prefix", ["R2_", "API_SHARED_SECRET"])
+def test_no_row_is_left_marked_reserved_outside_the_inventory_once_its_setting_exists(prefix: str) -> None:
+    # Proves (C9-T14, C9-PR1-13, C10-T10): the two tests above read only the block between the markers, so an old
+    # "reserved" row for a variable (outside them, in the table of variables `Settings` does not read) would survive the
+    # milestone that built it without either failing. Once the four R2 settings (C9) and `API_SHARED_SECRET` (C10) exist
+    # and are in the inventory, a leftover row saying they are reserved for a later milestone is stale documentation, and
+    # this is the test that finds it. `API_SHARED_SECRET` has a Vercel-side row outside the markers, which must say what
+    # it is now (the same secret, set on Vercel), never "reserved".
     text = DOC.read_text()
     outside = text.split(START, 1)[0] + text.split(END, 1)[1]
-    stale = [line for line in outside.splitlines() if re.match(r"^\|\s*`R2_", line) and "reserved" in line.lower()]
+    stale = [
+        line for line in outside.splitlines() if re.match(rf"^\|\s*`{prefix}", line) and "reserved" in line.lower()
+    ]
     assert stale == []

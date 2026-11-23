@@ -17,6 +17,11 @@
  *    caching is deliberately deferred (arch-initial.md §11); this is the
  *    one place to change when it arrives.
  *  - Every request has a timeout, so a hung API can't hold a page open.
+ *  - Every request carries the shared secret (C10): `send()` adds `X-Api-Secret` from `API_SHARED_SECRET`, in that one
+ *    place, so no getter can reach the guarded API without it. It is read per call like `API_BASE_URL`, never logged
+ *    (the request log writes path and query only) and never put in an error message. Unset means no header, which is
+ *    what a laptop with an open API wants. A 401 is a deployment fault (the two services disagree), so it throws an
+ *    `ApiError` naming the variable and is never mistaken for "no such record".
  *  - Every request is LOGGED, one line each, to the Next.js server's
  *    terminal:  `[api] GET /shows?venue_id=3 -> 200 in 41ms`  (or
  *    `-> failed (timed out) in 5003ms`). The browser's Network tab can't
@@ -44,6 +49,7 @@ import { cache } from "react";
 import { unstable_rethrow } from "next/navigation";
 import { apiUrl } from "./api-url";
 import { bodyLoggingEnabled, compactJson, describeSize, summarizeBody } from "./api-log";
+import type { DataAccess } from "./health";
 import type { ShowsQuery } from "./params";
 import type {
   ArtistDetail,
@@ -55,6 +61,10 @@ import type {
   VenueDetail,
   VenueListResponse,
 } from "./types";
+
+// The header the API's guard reads (C10-D7), mirrored by `SHARED_SECRET_HEADER` in apps/api/app/security.py. The tests
+// and the e2e spec write the literal on purpose: the wire value is what they pin.
+const SHARED_SECRET_HEADER = "X-Api-Secret";
 
 // How long to wait for the API, headers and body together. Longer than
 // the /health page's 3s (that page exists to report slowness quickly);
@@ -97,6 +107,11 @@ export interface ApiClient {
   getArtists(): Promise<ArtistListResponse>;
   /** `null` means the API answered 404. */
   getArtist(id: number): Promise<ArtistDetail | null>;
+  /**
+   * The status page's probe (C10-D3): one authenticated call to `GET /health/db`, as a value, never a throw. Goes
+   * through `send()`, so it carries the same header and obeys the same logging rule as every other call (C10-PR1-4).
+   */
+  checkDataAccess(): Promise<Exclude<DataAccess, { state: "not checked" }>>;
 }
 
 function isTimeout(err: unknown): boolean {
@@ -177,8 +192,11 @@ export function createApiClient(opts: {
   // Off by default: the one-line summary is always logged, the JSON is for
   // chasing one specific problem.
   logBodies?: boolean;
+  // The secret the API's guard expects in `X-Api-Secret` (C10-D10). Optional: unset sends no header, which is right
+  // for a laptop whose API is open and wrong for anything hosted, where the API's 401 says so.
+  sharedSecret?: string | undefined;
 }): ApiClient {
-  const { baseUrl, fetchImpl = fetch, logBodies = false } = opts;
+  const { baseUrl, fetchImpl = fetch, logBodies = false, sharedSecret } = opts;
 
   /**
    * The one place a request is made. Returns the raw Response once the
@@ -205,6 +223,8 @@ export function createApiClient(opts: {
         // B2-D1: never cached. Explicit at the call site, as in lib/health.ts.
         cache: "no-store",
         signal: AbortSignal.timeout(TIMEOUT_MS),
+        // The shared secret (C10-D10): the one place it is added. Only the header, never the logged `target` above.
+        ...(sharedSecret ? { headers: { [SHARED_SECRET_HEADER]: sharedSecret } } : {}),
       });
       // Logged whatever the status: a 404 here is "no such venue", which
       // the caller turns into data — but the log reports what the API said.
@@ -243,6 +263,14 @@ export function createApiClient(opts: {
     path: string,
     target: string,
   ): Promise<T> {
+    if (response.status === 401) {
+      // A fault in the deployment, not data: the API refused our secret (C10-D10). The message is for the server log and
+      // names the variable to fix; it does not say what the secret is.
+      throw new ApiError(
+        "API answered HTTP 401: it refused the shared secret (check API_SHARED_SECRET here against the API's)",
+        { path, status: 401 },
+      );
+    }
     if (!response.ok) {
       throw new ApiError(`API answered HTTP ${response.status}`, {
         path,
@@ -318,20 +346,49 @@ export function createApiClient(opts: {
     getVenue: (id) => getOrNull<VenueDetail>(`/venues/${id}`),
     getArtists: () => get<ArtistListResponse>("/artists"),
     getArtist: (id) => getOrNull<ArtistDetail>(`/artists/${id}`),
+    checkDataAccess: async () => {
+      // Never throws for an API answer or a failure to get one (C10-D3): the status page reports the problem, it must
+      // not crash on it. Only Next's own control-flow errors (which `send()` re-throws) pass through.
+      try {
+        const { response } = await send("/health/db");
+        // The body is not needed; release the connection.
+        void response.body?.cancel().catch(() => {});
+        if (response.status === 401) return { state: "refused" };
+        if (response.ok) return { state: "ok" };
+        return { state: "unavailable", reason: `API answered HTTP ${response.status}` };
+      } catch (err) {
+        if (err instanceof ApiError) return { state: "unavailable", reason: err.message };
+        throw err;
+      }
+    },
   };
 }
 
 // --- what pages import ------------------------------------------------------------
-//
-// A fresh client per call, so `process.env.API_BASE_URL` is read when the
+
+/**
+ * The client's options from the server's environment variables (C10-D10). Pure, so a test can check the wiring without a
+ * network or the live getters. A blank or whitespace `API_SHARED_SECRET` is "not set" (a dashboard variable created and
+ * left empty must not become an empty header).
+ *
+ * `LOG_API_BODIES=1` in apps/calendar/.env.local (restart `next dev`) logs full response bodies; ignored in production
+ * (api-log.ts).
+ */
+export function apiClientOptions(env: Record<string, string | undefined>) {
+  const secret = env.API_SHARED_SECRET?.trim();
+  return {
+    baseUrl: env.API_BASE_URL,
+    sharedSecret: secret ? secret : undefined,
+    logBodies: bodyLoggingEnabled(env),
+  };
+}
+
+// A fresh client per call, so the environment variables are read when the
 // request happens, not when the module loads.
-const live = () =>
-  createApiClient({
-    baseUrl: process.env.API_BASE_URL,
-    // LOG_API_BODIES=1 in apps/calendar/.env.local (restart `next dev`)
-    // logs full response bodies; ignored in production (api-log.ts).
-    logBodies: bodyLoggingEnabled(process.env),
-  });
+const live = () => createApiClient(apiClientOptions(process.env));
+
+// The status page's probe (C10-D3): see `ApiClient.checkDataAccess`.
+export const checkDataAccess = () => live().checkDataAccess();
 
 // React's `cache()` de-duplicates calls within ONE server render. It is
 // applied to the getters whose arguments are PRIMITIVES, because `cache()`

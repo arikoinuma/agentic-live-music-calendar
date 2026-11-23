@@ -73,6 +73,24 @@ to know before touching it (decisions in `docs/dev/implementations/c2-api-reads-
   (`app/testing/sample_data.py`) is what the route tests, the frontend fixtures and the e2e job share; to add a case, insert
   rows in the test that needs it rather than editing the shared world.
 
+## The shared secret (C10)
+
+Every route but `GET /health` needs the header `X-Api-Secret` (`app/security.py`; plan `docs/dev/implementations/c10-wiring-and-guard-rails.md`;
+how to set and rotate it: `docs/dev/environments.md` "The shared secret (C10)"). Things to know before touching it:
+
+- **Guard by default.** `app/main.py` includes the five routers into ONE `protected` router that carries `require_shared_secret`; a router
+  included straight onto `app` would be open. `/health` is the one open route, and `/health/db` (a database round trip) sits on `app` with its own
+  dependency. `test_api_guard.py` sweeps every operation in `app.openapi()["paths"]` with a real request and fails on any that is not a 401, so a new route
+  cannot ship open (it goes through behavior, not `app.routes`, because FastAPI 0.162 keeps an included router lazy there).
+- **The dependency reads `Request`**, not `Header()` or `APIKeyHeader`, so it adds nothing to `/openapi.json` and `lib/api-types.ts` does not change
+  (`make contract-check` is the check). It runs before the route's parameters are validated and before `get_db`, so a refused request is a 401, never a 422, and never opens a database session.
+- **Unset means open only on `local`.** The lifespan refuses to start a hosted API (`dev`, `staging`, `prod`) with no secret or one shorter than 32 characters;
+  the dependency also answers 401 if a hosted process has none. `Settings` carries no hosted rule, so the worker and Alembic, which build it, are unaffected.
+- **Tests never see a laptop's `.env` value:** an autouse fixture in `apps/api/conftest.py` pins `settings.api_shared_secret` to `None`; a test about the guard sets it itself (the C9 `pin_r2_settings` pattern).
+  `ASGITransport` does not run the lifespan, so the one test that exercises it uses `app.router.lifespan_context(app)`.
+- **The comparison and the start-up rule are two small, tested pure functions** (`check_shared_secret`, `shared_secret_problem`); `/docs` and friends are switched
+  off outside `local` and `dev` by `openapi_url_for`, because they are plain routes no dependency covers.
+
 ## Feature flags (C3.1)
 
 `app/flags.py` is the one registry and `is_enabled("area.name")` the one way to read a flag. The name **must be a string

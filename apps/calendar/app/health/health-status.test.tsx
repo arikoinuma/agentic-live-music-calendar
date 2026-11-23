@@ -14,6 +14,7 @@ describe("HealthStatus", () => {
       <HealthStatus
         health={{ ok: true, message: "up", appEnv: "prod" }}
         frontendEnv={{ ok: true, value: "staging" }}
+        dataAccess={{ state: "not checked" }}
         showDetail={false}
       />,
     );
@@ -30,6 +31,7 @@ describe("HealthStatus", () => {
       <HealthStatus
         health={{ ok: true, message: "up", appEnv: undefined }}
         frontendEnv={{ ok: false, reason: "APP_ENV is not set" }}
+        dataAccess={{ state: "not checked" }}
         showDetail={false}
       />,
     );
@@ -40,6 +42,7 @@ describe("HealthStatus", () => {
       <HealthStatus
         health={{ ok: true, message: "up", appEnv: undefined }}
         frontendEnv={{ ok: false, reason: "APP_ENV is not set" }}
+        dataAccess={{ state: "not checked" }}
         showDetail
       />,
     );
@@ -53,6 +56,7 @@ describe("HealthStatus", () => {
       <HealthStatus
         health={{ ok: true, message: "up", appEnv: undefined }}
         frontendEnv={{ ok: true, value: "prod" }}
+        dataAccess={{ state: "not checked" }}
         showDetail={false}
       />,
     );
@@ -68,6 +72,7 @@ describe("HealthStatus", () => {
       <HealthStatus
         health={{ ok: false, reason: "API answered HTTP 500" }}
         frontendEnv={{ ok: true, value: "prod" }}
+        dataAccess={{ state: "not checked" }}
         showDetail={false}
       />,
     );
@@ -94,6 +99,7 @@ describe("HealthStatus feature flags", () => {
       <HealthStatus
         health={ok({ "worker.scheduled_runs": false, "demo.other": true })}
         frontendEnv={{ ok: true, value: "staging" }}
+        dataAccess={{ state: "not checked" }}
         showDetail={false}
       />,
     );
@@ -106,7 +112,7 @@ describe("HealthStatus feature flags", () => {
     // Proves (C3.1-D16): a `null` (production hides its values) reads "not shown in production", which is true and
     // different from "unknown" (an API that cannot say).
     render(
-      <HealthStatus health={ok(null)} frontendEnv={{ ok: true, value: "prod" }} showDetail={false} />,
+      <HealthStatus health={ok(null)} frontendEnv={{ ok: true, value: "prod" }} dataAccess={{ state: "not checked" }} showDetail={false} />,
     );
 
     expect(apiFlags()).toHaveTextContent("not shown in production");
@@ -116,7 +122,7 @@ describe("HealthStatus feature flags", () => {
     // Proves (C3.1-D16, risk "the cutover"): the new frontend talks to an older API for a while. An absent
     // `feature_flags` is "unknown", never an error and never a blank.
     const { rerender } = render(
-      <HealthStatus health={ok(undefined)} frontendEnv={{ ok: true, value: "staging" }} showDetail={false} />,
+      <HealthStatus health={ok(undefined)} frontendEnv={{ ok: true, value: "staging" }} dataAccess={{ state: "not checked" }} showDetail={false} />,
     );
     expect(apiFlags()).toHaveTextContent("unknown");
 
@@ -124,6 +130,7 @@ describe("HealthStatus feature flags", () => {
       <HealthStatus
         health={{ ok: false, reason: "API answered HTTP 500" }}
         frontendEnv={{ ok: true, value: "staging" }}
+        dataAccess={{ state: "not checked" }}
         showDetail={false}
       />,
     );
@@ -137,6 +144,7 @@ describe("HealthStatus feature flags", () => {
     const props = {
       health: ok({}),
       frontendEnv: { ok: true as const, value: "staging" as const },
+      dataAccess: { state: "not checked" as const },
       flagProblems: ["FLAG_NOPE names no registered feature flag"],
     };
     const { rerender } = render(<HealthStatus {...props} showDetail={false} />);
@@ -149,8 +157,56 @@ describe("HealthStatus feature flags", () => {
 
   it("shows no web-flag row when there is nothing wrong", () => {
     // Proves (C3.1-D19): with no web flag today and a clean environment, the page gains only the API row.
-    render(<HealthStatus health={ok({})} frontendEnv={{ ok: true, value: "staging" }} showDetail />);
+    render(<HealthStatus health={ok({})} frontendEnv={{ ok: true, value: "staging" }} dataAccess={{ state: "not checked" }} showDetail />);
 
     expect(screen.queryByText("Feature flags (web)")).not.toBeInTheDocument();
+  });
+  // --- the "API data access" row (C10-D3, C10-T16) ---------------------------------------------------------------
+
+  const dataAccessRow = () => screen.getByText("API data access").nextElementSibling;
+
+  it.each([
+    [{ state: "ok" as const }, /ok/i],
+    [{ state: "refused" as const }, /refused/i],
+    [{ state: "unavailable" as const, reason: "API request timed out after 5000ms" }, /unavailable/i],
+    [{ state: "not checked" as const }, /not checked/i],
+  ])("renders the data-access row's %j state", (dataAccess, words) => {
+    // Proves (C10-T16, C10-D3): each of the row's four states has its own words. "refused" is the one that matters: it
+    // is how a Vercel value that disagrees with Railway's shows up, and it must not read as "the API is down" (a
+    // refusal means the API answered).
+    render(
+      <HealthStatus
+        health={ok({})}
+        frontendEnv={{ ok: true, value: "staging" }}
+        dataAccess={dataAccess}
+        showDetail={false}
+      />,
+    );
+    expect(dataAccessRow()).toHaveTextContent(words);
+  });
+
+  it("shows the data-access reason only when showDetail is set", () => {
+    // Proves (C10-T16, C10-D3): the reason text (a timeout, an HTTP status) is for the person running the app, as the
+    // API row's is: the page is linked from every footer, so a stranger sees the state word and not the reason.
+    const dataAccess = { state: "unavailable" as const, reason: "API answered HTTP 503" };
+    const { rerender } = render(
+      <HealthStatus
+        health={ok({})}
+        frontendEnv={{ ok: true, value: "staging" }}
+        dataAccess={dataAccess}
+        showDetail={false}
+      />,
+    );
+    expect(screen.queryByText(/API answered HTTP 503/)).not.toBeInTheDocument();
+
+    rerender(
+      <HealthStatus
+        health={ok({})}
+        frontendEnv={{ ok: true, value: "staging" }}
+        dataAccess={dataAccess}
+        showDetail
+      />,
+    );
+    expect(screen.getByText(/API answered HTTP 503/)).toBeInTheDocument();
   });
 });
