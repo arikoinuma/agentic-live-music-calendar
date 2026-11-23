@@ -1,6 +1,6 @@
 # C10 — wiring and guard rails: the shared secret, the required checks, the migration parity check
 
-**Status:** Awaiting sign-off (code review round 1 resolved; K1 and K2 filled by Ari; the hosted proof, Steps 8 to 11, done November 23, 2026 and recorded in Step 12; only U3 is carried) (Claude Sonnet 5.5 built it November 19, 2026; approved by Ari the same day, with D1 to D5 as recommended)
+**Status:** Done (signed off by Ari, November 23, 2026; code review round 1 resolved; K1 and K2 filled by Ari; the hosted proof, Steps 8 to 11, recorded in Step 12; only U3 is carried, to a later change) (Claude Sonnet 5.5 built it November 19, 2026; approved by Ari the same day, with D1 to D5 as recommended)
 **Date:** November 19, 2026
 **Author model:** Claude Sonnet 5.5
 **Reviewer model:** Claude Opus 5.5 (plan review round 1; code review round 1)
@@ -319,7 +319,7 @@ Review the code as it stands; the 25 red Python tests below and the red e2e suit
 
 **Departures from the plan.** None in scope. D5's "dev seeded or not is Ari's call": dev stays schema-only (0 venues, no metro row).
 
-**Verification.** `make designation-check BASE=c537877` and the doc tests (`test_environments_doc.py`) are run on this branch before the PR opens (result in the PR description). Status stays `Awaiting sign-off`: only Ari moves it to `Done`.
+**Verification.** `make designation-check BASE=c537877` and the doc tests (`test_environments_doc.py`) are run on this branch before the PR opens (result in the PR description). Ari signed off the same day and the Status is `Done`.
 
 ## Code review
 
