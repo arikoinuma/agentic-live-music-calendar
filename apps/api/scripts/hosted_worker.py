@@ -24,8 +24,9 @@ from the process environment only, C3.1-D11) or a stray `DATABASE_URL` cannot re
 
 WHAT YOU NEED: the Railway CLI, signed in (`railway login`); the project id (`--project-id`, or RAILWAY_PROJECT_ID in
 the shell: it is not a secret); `uv`; a clean checkout of the branch the environment deploys from. The service must be
-called `worker` in staging and `worker-prod` in production (Railway service names are unique across the whole project, so
-the two cannot share one; GH-123; `environments.md`, "The worker on Railway (C8)").
+called `worker` in staging and `worker-prod` in production (creating production's as a second service named `worker` was
+refused, so each environment's worker is its own service with its own name; GH-123; `environments.md`, "The worker on
+Railway (C8)").
 
 EXIT STATUS: the child's own, which is the worker's when the worker ran (0 clean, 1 at least one venue failed, 2 a
 configuration problem such as an unreachable MongoDB) and the Railway CLI's own when `railway run` failed before starting it
@@ -56,9 +57,10 @@ from typing import Protocol
 BRANCH_FOR_ENV = {"staging": "main", "prod": "production"}
 RAILWAY_ENV = {"staging": "staging", "prod": "production"}
 # The Railway service each environment's worker runs as (environments.md, "The worker on Railway (C8)"). The names
-# differ because Railway service names are unique across the whole project, not per environment: staging's worker holds
-# `worker`, so creating production's as `worker` was refused ("already exists", C11 Step 5) and it is `worker-prod`.
-# One shared name sent `-s worker -e production` and found no service (GH-123).
+# differ because each environment's worker is its own service here: staging's holds `worker`, and creating production's as
+# another service named `worker` was refused ("already exists", C11 Step 5), so it is `worker-prod`. (Whether Railway
+# could instead have given one `worker` service an instance in each environment is not verified.) One shared name sent
+# `-s worker -e production` and found no service (GH-123).
 SERVICE_FOR_ENV = {"staging": "worker", "prod": "worker-prod"}
 
 # Exit status for "a guard refused, or the CLI is missing". The worker exits 0, 1 or 2, so this can never be mistaken
@@ -140,7 +142,10 @@ def launch(
             f"Check out {branch} at the deployed commit first: this runs the files on this machine."
         )
         return EXIT_REFUSED
-    say(f"Running commit {head[:12]} (origin/{branch}) against {env}, Railway environment {RAILWAY_ENV[env]!r}.")
+    say(
+        f"Running commit {head[:12]} (origin/{branch}) against {env}, "
+        f"Railway environment {RAILWAY_ENV[env]!r}, service {SERVICE_FOR_ENV[env]!r}."
+    )
 
     # Guard 3: production is typed out. After the other guards, so nobody is asked to confirm a run that is refused.
     if env == "prod":

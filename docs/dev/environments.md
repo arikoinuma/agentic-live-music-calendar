@@ -516,7 +516,7 @@ never "copy variables from Production" (C3-D4).
 
 | Setting | Value | Why |
 |---|---|---|
-| Name | **`worker` in staging, `worker-prod` in production** | `make worker-hosted` selects the service by these names (C8-D3; `SERVICE_FOR_ENV` in `scripts/hosted_worker.py`). They differ because **Railway service names are unique across the whole project, not per environment**: the staging worker holds `worker`, so creating production's as `worker` was refused ("already exists", C11 Step 5) and it is `worker-prod` (GH-123). A new environment's worker needs its own name, added to that map. |
+| Name | **`worker` in staging, `worker-prod` in production** | `make worker-hosted` selects the service by these names (C8-D3; `SERVICE_FOR_ENV` in `scripts/hosted_worker.py`). They differ because production's worker is its own service: the staging worker holds `worker`, and creating production's as a second service named `worker` was refused ("already exists", C11 Step 5), so it is `worker-prod` (GH-123). Whether one `worker` service could instead have had an instance in each environment (as the API seems to) was not tried. A worker created for another environment gets its own name, added to that map. |
 | Source branch | `main` (staging), `production` (production) | As the API services. A worker service is created only after its branch holds `Dockerfile.worker` and the scheduled-run gate (C8-D13, C8-U1). |
 | Root Directory | `apps/api` | The build context; `.dockerignore` is read from here. |
 | Variable `RAILWAY_DOCKERFILE_PATH` | `Dockerfile.worker` | Selects the file; service variables are not build arguments. |
