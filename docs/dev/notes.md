@@ -840,7 +840,7 @@ variable is the way to turn it off (unset means off; `false` also works but leav
 The worker's JSON logs (`app/log_config.py`) put their text under `event`; Railway's viewer displays the `message` field, so
 every worker line appears as an empty `[inf]` row in the dashboard (the CSV export shows the text only inside `attributes`).
 The CLI prints the fields, so read hosted logs with `railway logs -p <project> -s worker -e staging --since <UTC> --until <UTC>`
-(`railway cron list` prints the exact window for each run). A likely fix is one structlog `EventRenamer("message")` processor in
+(`railway cron list` prints the exact window for each run). In production the service is `worker-prod`, not `worker` (see "Production's worker is `worker-prod`" below). A likely fix is one structlog `EventRenamer("message")` processor in
 JSON mode; it is not made, because it changes every log line's shape (a search of the tests for `"event"` comes first).
 
 ## An R2 bucket answers `NoSuchBucket` at the wrong endpoint, and the C9 preflight is what says so (C9)
@@ -883,3 +883,13 @@ Found on November 23, 2026, reading `git ls-tree origin/production` against `mai
 adds `c4a1e5b7d903` (`metro slug`) and `d7b3c2a91e45` (`agent_run.feature_flags`). C10's first notes said the promotion brings only the second. A query that
 reads `metro.slug` against the production database fails until the promotion; use `select * from metro` there. The promotion runs both migrations in
 the API's pre-deploy, so rehearse them first on a copy (`make rehearse-migration ENV=prod`): the `metro slug` migration changes a populated table.
+
+## Production's worker is `worker-prod`, because Railway refused a second service named `worker` (GH-123)
+
+Creating the production worker on November 24, 2026 (C11 Step 5) was refused with "already exists": the project's staging worker
+already holds the name `worker`, and the new production worker was created as its own service. It is `worker-prod`. (Not tried:
+giving the one `worker` service an instance in each environment, which is how the API service seems to work.) Anything that
+selects a worker by name needs the per-environment name: `make worker-hosted` takes it from `SERVICE_FOR_ENV` in
+`apps/api/scripts/hosted_worker.py` (it hardcoded `worker` for both until GH-123, so `ENV=prod` ran
+`railway run -s worker -e production` and found no service), and by hand it is `railway cron list -s worker-prod -e production`.
+A production `worker-shell`, if one is ever created, will probably meet the same refusal, since staging holds that name.

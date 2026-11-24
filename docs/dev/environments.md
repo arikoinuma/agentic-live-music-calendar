@@ -14,7 +14,7 @@ something needs it; Step 6.9 and Step 8 were skipped by decision). Anything mark
 |---|---|---|---|---|
 | Git branch | any | `dev` (the lane, below; the branch is not created yet) | `main` | `production` |
 | Vercel | `make dev` | Preview, branch `dev` (no branch override set yet) | Preview (`main` and every PR branch), `API_BASE_URL` = staging's API | Production (Production Branch `production`) |
-| Railway | none | *not built* | environment `staging`, source `main`, public domain `kind-spontaneity-staging.up.railway.app`; worker services `worker` and `worker-shell` (C8) | environment `production`, source `production` |
+| Railway | none | *not built* | environment `staging`, source `main`, public domain `kind-spontaneity-staging.up.railway.app`; worker services `worker` and `worker-shell` (C8) | environment `production`, source `production`; worker service `worker-prod` (C11 Step 5, November 24, 2026) |
 | Neon | Docker Postgres | branch `dev`, schema only (no rows), at `d7b3c2a91e45`, the head of `main` (upgraded November 23, 2026, C10-D5) | branch `staging`, seeded, at `d7b3c2a91e45` | default branch, at `829af2c3f26f` (the head of the `production` branch; two revisions behind `main` until C11 promotes), seeded |
 | Atlas | Docker Mongo | user `calendar_dev` on database `calendar_dev` (created on first write) | user `calendar_staging` on `calendar_staging` | user `calendar_prod` on `calendar` (nothing writes to it yet) |
 | Database login role | `postgres` | `calendar_dev` | `calendar_staging` | `calendar_prod` |
@@ -505,7 +505,7 @@ Old config files stop being read on 2026-12-01; none exists here.
 
 *C8 (`docs/dev/implementations/c8-worker-on-railway.md`). The code (the image, the gate, the laptop command) is in the
 repository. **Staging has run it hosted since November 12–18, 2026** (the checks are under "Current state"); **production has
-no worker service yet** (the plan's Step 11). The `C8-U1` to `C8-U9` labels are the plan's unverified Railway facts; each is
+no worker service yet** when this was written (the plan's Step 11; it is `worker-prod` since C11 Step 5, below). The `C8-U1` to `C8-U9` labels are the plan's unverified Railway facts; each is
 marked below with what was observed.*
 
 ### The service (one per environment: `staging`, and `production`; `dev` has no Railway environment, C3-D1, C8-D1)
@@ -516,7 +516,7 @@ never "copy variables from Production" (C3-D4).
 
 | Setting | Value | Why |
 |---|---|---|
-| Name | `worker` | `make worker-hosted` selects the service by this name (C8-D3). |
+| Name | **`worker` in staging, `worker-prod` in production** | `make worker-hosted` selects the service by these names (C8-D3; `SERVICE_FOR_ENV` in `scripts/hosted_worker.py`). They differ because production's worker is its own service: the staging worker holds `worker`, and creating production's as a second service named `worker` was refused ("already exists", C11 Step 5), so it is `worker-prod` (GH-123). Whether one `worker` service could instead have had an instance in each environment (as the API seems to) was not tried. A worker created for another environment gets its own name, added to that map. |
 | Source branch | `main` (staging), `production` (production) | As the API services. A worker service is created only after its branch holds `Dockerfile.worker` and the scheduled-run gate (C8-D13, C8-U1). |
 | Root Directory | `apps/api` | The build context; `.dockerignore` is read from here. |
 | Variable `RAILWAY_DOCKERFILE_PATH` | `Dockerfile.worker` | Selects the file; service variables are not build arguments. |
@@ -551,9 +551,9 @@ over a few days (read Railway's usage page and write it here), and whether the v
 | How | Where it runs | Use it for |
 |---|---|---|
 | The cron schedule | Railway's container | The daily run, once the flag is `true` (C11 for production). With the flag off it logs `scheduled run skipped: feature flag worker.scheduled_runs is off`, writes nothing and exits 0. |
-| `make worker-hosted ENV=staging\|prod [VENUE=<id>]` | **This machine**, with that service's variables | The quick manual run (C8-D3). It executes the files checked out here, so it refuses unless the tree is clean and `HEAD` is `origin/main` (staging) or `origin/production` (prod), prints the commit, and asks for `production` to be typed for prod. Needs the Railway CLI signed in and `RAILWAY_PROJECT_ID` in the shell (not a secret: Project ID under the project's Settings in the dashboard, or `railway list`). Records `trigger='manual'`; ignores the flag. |
+| `make worker-hosted ENV=staging\|prod [VENUE=<id>]` | **This machine**, with that service's variables | The quick manual run (C8-D3). It executes the files checked out here, so it refuses unless the tree is clean and `HEAD` is `origin/main` (staging) or `origin/production` (prod), prints the commit, selects the service `worker` (staging) or `worker-prod` (prod), and asks for `production` to be typed for prod. Needs the Railway CLI signed in and `RAILWAY_PROJECT_ID` in the shell (not a secret: Project ID under the project's Settings in the dashboard, or `railway list`). Records `trigger='manual'`; ignores the flag. |
 | `worker-shell`'s **Console** tab | Railway's container | A manual run in the real image, on Railway's network (C8-D15): all venues or one (`--venue`). Observed working on staging; the runbook below is what was typed. |
-| **Run now** in the dashboard, or `railway cron run -s worker -e staging --yes` (CLI 5.71.0) | Railway's container | The container's own command, `--trigger scheduled`, **immediately**: with the flag off a logged skip, with it on a real run (observed both). It cannot pass `--trigger manual` or `--venue`. Needs a deploy to be current, so apply staged variable changes with Deploy first. |
+| **Run now** in the dashboard, or `railway cron run -s worker -e staging --yes` (CLI 5.71.0; production's is `-s worker-prod -e production`) | Railway's container | The container's own command, `--trigger scheduled`, **immediately**: with the flag off a logged skip, with it on a real run (observed both). It cannot pass `--trigger manual` or `--venue`. Needs a deploy to be current, so apply staged variable changes with Deploy first. |
 
 **Console runbook** (in `worker-shell`; verified on staging November 18, 2026. Every command names the interpreter and the
 directory instead of relying on `PATH` or the image's `ENV`, because a shell's `PATH` is not known to match the image's. The
@@ -574,7 +574,7 @@ tail -f /tmp/run.log                    # Ctrl-C stops the tail, not the run
 * **Dashboard logs look blank.** The worker's JSON lines carry their text in an `event` field, and Railway's log viewer shows `message`,
   so every line appears empty (observed; the CSV export shows the text under `attributes`). Read hosted logs with the CLI:
   `railway logs -p <project> -s worker -e staging --since <UTC time> --until <UTC time>`; `railway cron list -s worker -e staging`
-  gives each run's time, status and duration and prints that command.
+  gives each run's time, status and duration and prints that command. **For production use `-s worker-prod -e production`** (the service names differ, above).
 * A redeploy ends a run in progress: a merge to `main` redeploys staging's worker. The shell holds the service's secrets,
   so do not run `printenv` where it is recorded or shared. Production's console path is created at C11 (C8-D15).
 

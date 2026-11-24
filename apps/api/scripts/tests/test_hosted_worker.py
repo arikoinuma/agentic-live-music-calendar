@@ -118,6 +118,32 @@ def test_staging_runs_railway_with_the_pinned_selectors_and_a_manual_trigger() -
     ]  # fmt: skip
 
 
+def test_each_environment_selects_its_own_railway_service() -> None:
+    # Proves (GH-123): staging runs as the service `worker` and production as `worker-prod`, so `-s` follows the
+    # environment. The production worker is its own service and could not also be called `worker`
+    # (creating it was refused, "already exists", at C11 Step 5); the line printed before the run names the service too,
+    # so the person sees it before typing `production`. The expected names are written here from
+    # what that step observed (`railway cron list -s worker-prod -e production` works), not read from the module. The
+    # failure this catches: one name for both environments sends `-s worker -e production`, which finds no service, and
+    # the one command that has the production guards (the typed name, a clean tree, HEAD at origin/production) is unusable.
+    for env, service, railway_env in (("staging", "worker", "staging"), ("prod", "worker-prod", "production")):
+        _, said, _ = go(env, FakeGit(), run := FakeRun(), typed="production")
+        argv = run.calls[0]["argv"]
+        assert argv[argv.index("-s") + 1] == service, env
+        assert any(f"service {service!r}" in line for line in said), env
+        assert argv[argv.index("-e") + 1] == railway_env, env
+
+
+def test_every_environment_the_command_accepts_has_a_branch_a_railway_environment_and_a_service() -> None:
+    # Proves (GH-123): the accepted environments (`BRANCH_FOR_ENV`, the set `launch` checks everything else against) and
+    # the other two per-environment maps (`RAILWAY_ENV`, `SERVICE_FOR_ENV`) cover exactly the same keys. `launch` indexes
+    # all three by environment after its own check, so a new environment added to one map and forgotten in another would
+    # fail here instead of raising KeyError at launch time, or, for the service name, being the shared-name mistake again.
+    accepted = set(hosted_worker.BRANCH_FOR_ENV)
+    assert set(hosted_worker.RAILWAY_ENV) == accepted
+    assert set(hosted_worker.SERVICE_FOR_ENV) == accepted
+
+
 def test_prod_maps_to_railways_environment_named_production() -> None:
     # Proves (C8-D3): `ENV=prod` is this project's name for the environment; Railway calls it `production`, and `-e prod`
     # would be an unknown environment (or, worse, a different one). The mapping is written here from environments.md.
