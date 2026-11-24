@@ -24,7 +24,8 @@ from the process environment only, C3.1-D11) or a stray `DATABASE_URL` cannot re
 
 WHAT YOU NEED: the Railway CLI, signed in (`railway login`); the project id (`--project-id`, or RAILWAY_PROJECT_ID in
 the shell: it is not a secret); `uv`; a clean checkout of the branch the environment deploys from. The service must be
-called `worker` in each Railway environment (`environments.md`, "The worker on Railway (C8)").
+called `worker` in staging and `worker-prod` in production (Railway service names are unique across the whole project, so
+the two cannot share one; GH-123; `environments.md`, "The worker on Railway (C8)").
 
 EXIT STATUS: the child's own, which is the worker's when the worker ran (0 clean, 1 at least one venue failed, 2 a
 configuration problem such as an unreachable MongoDB) and the Railway CLI's own when `railway run` failed before starting it
@@ -54,8 +55,11 @@ from typing import Protocol
 # this project's name for the environment; the value is the branch it deploys from, and Railway's name for it.
 BRANCH_FOR_ENV = {"staging": "main", "prod": "production"}
 RAILWAY_ENV = {"staging": "staging", "prod": "production"}
-# The Railway service every environment's worker runs as (environments.md, "The worker on Railway (C8)").
-SERVICE = "worker"
+# The Railway service each environment's worker runs as (environments.md, "The worker on Railway (C8)"). The names
+# differ because Railway service names are unique across the whole project, not per environment: staging's worker holds
+# `worker`, so creating production's as `worker` was refused ("already exists", C11 Step 5) and it is `worker-prod`.
+# One shared name sent `-s worker -e production` and found no service (GH-123).
+SERVICE_FOR_ENV = {"staging": "worker", "prod": "worker-prod"}
 
 # Exit status for "a guard refused, or the CLI is missing". The worker exits 0, 1 or 2, so this can never be mistaken
 # for a run's result.
@@ -148,7 +152,7 @@ def launch(
     # Railway's flags come BEFORE `--`; after it everything is the child's command (`railway run --help`, CLI 5.47.1).
     # `-p` is needed because the run starts in an empty directory, where no project is linked; `--no-local` skips any
     # docker-compose override of the variables. The child is the worker, run with the API project's environment.
-    argv = ["railway", "run", "-p", project_id, "-s", SERVICE, "-e", RAILWAY_ENV[env], "--no-local", "--"]
+    argv = ["railway", "run", "-p", project_id, "-s", SERVICE_FOR_ENV[env], "-e", RAILWAY_ENV[env], "--no-local", "--"]
     argv += ["uv", "run", "--project", str(api_dir), "python", "-m", "agent_worker.main", "--trigger", "manual"]
     if venue is not None:
         argv += ["--venue", str(venue)]
