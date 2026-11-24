@@ -10,7 +10,7 @@ nothing touches `app/schemas.py`, the API contract, a migration or a repo-wide c
 **Author model:** Claude Sonnet 5.5 (record, fix, tests and docs, November 24, 2026; local session, in a git worktree
 of `origin/main` so the shared checkout on `c11-go-live` was never switched)
 **Reviewer model:** Claude Opus 5.5 (code review round 1, November 24, 2026)
-**Branch / PR:** `issue-gh-123-worker-service-names` / _(PR link once opened)_
+**Branch / PR:** `issue-gh-123-worker-service-names` / [PR 124](https://github.com/arikoinuma/agentic-live-music-calendar/pull/124)
 
 **Designations.** Review items here are bare (`CR1-2`). Outside this record they are `GH-123-CR1-2`
 (`docs/dev/issues/README.md`, `docs/dev/conventions.md`).
